@@ -332,6 +332,29 @@ int main(int argc, char **argv)
                      && overview_stack->currentWidget()->objectName()
                          == QStringLiteral("projectsBranchOverviewForm"),
                  "Overview forms share input widgets or do not track selected branch")) return 1;
+    // Connection is database-owned, and Related lists must be distinct pages
+    // with independent row data. No one shared list is reconfigured by kind.
+    QWidget *database_connection = projects.findChild<QWidget *>(
+        QStringLiteral("projectsInspectorConnection"));
+    QSet<QListWidget *> relation_lists;
+    for (const QString &kind : {QStringLiteral("Database"), QStringLiteral("Project"),
+                               QStringLiteral("Branch"), QStringLiteral("Revision")})
+    {
+        QWidget *page = projects.findChild<QWidget *>(
+            QStringLiteral("projects") + kind + QStringLiteral("Relations"));
+        QListWidget *list = page != nullptr ? page->findChild<QListWidget *>() : nullptr;
+        if (!require(page != nullptr && list != nullptr,
+                     "domain-owned Related page or list was not constructed")) return 1;
+        relation_lists.insert(list);
+    }
+    if (!require(database_connection != nullptr && relation_lists.size() == 4
+                     && database_connection->findChild<QLineEdit *>(
+                         QStringLiteral("projectServerEndpoint")) != nullptr,
+                 "Database connection or independent Related lists are missing")) return 1;
+    if (!require(inspector_tabs->tabText(inspector_tabs->count() - 1) == QStringLiteral("Revisions")
+                     && inspector_tabs->widget(inspector_tabs->count() - 1)->objectName()
+                         == QStringLiteral("projectsBranchRelations"),
+                 "branch selection did not mount its own revisions page")) return 1;
     QStackedWidget *action_stack = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorActionsStack"));
     if (!require(action_stack != nullptr && action_stack->count() == 4
@@ -452,6 +475,10 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(inspector_tabs->tabText(1) == QStringLiteral("Connection"),
                  "server inspector is missing the Connection tab")) return 1;
+    if (!require(inspector_tabs->widget(1) == database_connection
+                     && inspector_tabs->count() == 2,
+                 "empty remote server did not mount only its dedicated Connection page"))
+        return 1;
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();
     QLabel *inspector_status = projects.findChild<QLabel *>(
@@ -484,7 +511,7 @@ int main(int argc, char **argv)
     add_project->click();
     app.processEvents();
     QLabel *inspector_creation_summary = projects.findChild<QLabel *>(
-        QStringLiteral("projectsCreationSummary"));
+        QStringLiteral("projectsProjectCreationSummary"));
     if (!require(inspector_creation_summary != nullptr
                      && inspector_creation_summary->wordWrap()
                      && inspector_creation_summary->sizePolicy().horizontalPolicy() == QSizePolicy::Ignored
@@ -494,11 +521,21 @@ int main(int argc, char **argv)
     QStackedWidget *project_draft_stack = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorContentStack"));
     QLineEdit *project_draft_name = projects.findChild<QLineEdit *>(
-        QStringLiteral("projectsCreationName"));
+        QStringLiteral("projectsProjectCreationName"));
     QPushButton *project_draft_confirm = projects.findChild<QPushButton *>(
         QStringLiteral("projectsCreationConfirm"));
     QPushButton *project_draft_cancel = projects.findChild<QPushButton *>(
         QStringLiteral("projectsCreationCancel"));
+    QStackedWidget *creation_forms = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorCreationForms"));
+    QLineEdit *branch_creation_name = projects.findChild<QLineEdit *>(
+        QStringLiteral("projectsBranchCreationName"));
+    if (!require(creation_forms != nullptr && creation_forms->count() == 2
+                     && creation_forms->currentWidget()->objectName()
+                        == QStringLiteral("projectsProjectCreationForm")
+                     && branch_creation_name != nullptr && branch_creation_name != project_draft_name
+                     && branch_creation_name->text().isEmpty(),
+                 "project creation did not mount an independent form")) return 1;
     if (!require(project_draft_stack != nullptr && project_draft_stack->currentIndex() == 1
                      && project_draft_name != nullptr && project_draft_confirm != nullptr
                      && project_draft_cancel != nullptr && !project_draft_confirm->isEnabled(),
@@ -538,6 +575,10 @@ int main(int argc, char **argv)
                      && server_options->isVisible(),
                  "switching to the local preview server failed"))
         return 1;
+    if (!require(inspector_tabs->count() == 3
+                     && inspector_tabs->widget(2)->objectName()
+                         == QStringLiteral("projectsDatabaseRelations"),
+                 "database related Projects tab is not owned by its domain")) return 1;
     servers->setCurrentItem(servers->topLevelItem(1));
     app.processEvents();
     if (!require(endpoint->text() == QStringLiteral("https://new-preview.example.invalid")
@@ -715,9 +756,9 @@ int main(int argc, char **argv)
     QComboBox *creation_source = projects.findChild<QComboBox *>(
         QStringLiteral("projectsCreationSource"));
     QLineEdit *creation_name = projects.findChild<QLineEdit *>(
-        QStringLiteral("projectsCreationName"));
+        QStringLiteral("projectsBranchCreationName"));
     QLabel *creation_summary = projects.findChild<QLabel *>(
-        QStringLiteral("projectsCreationSummary"));
+        QStringLiteral("projectsBranchCreationSummary"));
     QPushButton *creation_confirm = activeInspectorAction(projects,
         QStringLiteral("projectsCreationConfirm"));
     QPushButton *creation_cancel = activeInspectorAction(projects,
@@ -729,6 +770,11 @@ int main(int argc, char **argv)
                  "revision branch workflow is missing from inspector")) return 1;
     revision_branch_action->click();
     app.processEvents();
+    if (!require(creation_forms->currentWidget()->objectName()
+                     == QStringLiteral("projectsBranchCreationForm")
+                     && creation_name != project_draft_name
+                     && project_draft_name->text().isEmpty(),
+                 "historical branch creation did not activate its independent form")) return 1;
     if (!require(inspector_content->currentIndex() == 1
                      && creation_source->currentData().toString() == QStringLiteral("revision:") + baseline_id
                      && creation_summary->text().contains(

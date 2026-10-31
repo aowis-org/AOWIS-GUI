@@ -5,6 +5,8 @@
 #include "tabs/project_graph_placement.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "tabs/projects_inspector_panels.h"
+#include "tabs/projects_inspector_details.h"
+#include "tabs/projects_inspector_creation.h"
 
 #include "app/builtin_examples.h"
 #include "config/gui_configuration.h"
@@ -540,122 +542,32 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->description_edit = this->database_overview->description;
     this->metadata_info = this->database_overview->metadata;
     this->inspector_preview_note = this->database_overview->preview_note;
-    this->inspector_connection_page = new QWidget(this->inspector_tabs);
-    this->inspector_connection_page->setObjectName(QStringLiteral("projectsInspectorConnection"));
-    // A page not yet added to QTabWidget is an ordinary visible child widget.
-    // Keep optional pages hidden until addTab() makes them active.
-    this->inspector_connection_page->hide();
-    QVBoxLayout *connection_layout = new QVBoxLayout(this->inspector_connection_page);
-    connection_layout->setContentsMargins(0, 12, 0, 4);
-    this->source_name_edit = new QLineEdit(this->inspector_connection_page);
-    this->source_name_edit->setObjectName(QStringLiteral("projectsNewSourceName"));
-    this->source_name_edit->setPlaceholderText(tr("Database name"));
-    connection_layout->addWidget(this->source_name_edit);
-    this->inspector_related_page = new QWidget(this->inspector_tabs);
-    this->inspector_related_page->setObjectName(QStringLiteral("projectsInspectorRelated"));
-    this->inspector_related_page->hide();
-    QVBoxLayout *related_layout = new QVBoxLayout(this->inspector_related_page);
-    related_layout->setContentsMargins(0, 12, 0, 4);
-    this->inspector_related_list = new QListWidget(this->inspector_related_page);
-    this->inspector_related_list->setObjectName(QStringLiteral("projectsInspectorRelatedList"));
-    related_layout->addWidget(this->inspector_related_list);
-    this->server_options = new QWidget(right);
-    this->server_options->setObjectName(QStringLiteral("projectServerOptions"));
-    QVBoxLayout *source_layout = new QVBoxLayout(this->server_options);
-    this->source_status = new QLabel(this->server_options);
-    this->source_status->setObjectName(QStringLiteral("serversPreviewStatus"));
-    wrapInspectorLabel(this->source_status);
-    source_layout->addWidget(this->source_status);
-    this->source_refresh_button = compactButton(tr("Refresh catalogue"),
-        tr("Reload this database now; automatic loading and health checks continue in the background"),
-        this->server_options);
-    this->source_refresh_button->setObjectName(QStringLiteral("projectsSourceRefreshButton"));
-    source_layout->addWidget(this->source_refresh_button);
-    this->personal_server_checkbox = new QCheckBox(tr("Use as my personal working database"), this->server_options);
-    this->personal_server_checkbox->setObjectName(QStringLiteral("projectsPersonalServerCheckbox"));
-    this->personal_server_checkbox->setToolTip(tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
-    source_layout->addWidget(this->personal_server_checkbox);
-
-    source_layout->setContentsMargins(0, 0, 0, 0);
-    this->source_kind_combo = new QComboBox(this->server_options);
-    this->source_kind_combo->setObjectName(QStringLiteral("projectSourceKind"));
-    this->source_kind_combo->addItem(tr("Remote database (REST)"), QStringLiteral("remote"));
-    this->source_kind_combo->addItem(tr("Local database (embedded)"), QStringLiteral("local"));
-#ifndef AOWIS_STANDALONE_DVMDB_ENABLED
-    // Existing local profiles can be inspected, but a build without DVMDB
-    // must not offer creation of an unusable embedded connection.
-    if (QStandardItemModel *model = qobject_cast<QStandardItemModel *>(this->source_kind_combo->model()))
-        model->item(1)->setEnabled(false);
-#endif
-    QFormLayout *kind_form = new QFormLayout();
-    kind_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    kind_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    kind_form->addRow(tr("Connection type"), this->source_kind_combo);
-    source_layout->addLayout(kind_form);
-    this->remote_options = new QWidget(this->server_options);
-    QFormLayout *server_form = new QFormLayout(this->remote_options);
-    server_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    server_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    this->server_endpoint_edit = new QLineEdit(this->remote_options);
-    this->server_endpoint_edit->setObjectName(QStringLiteral("projectServerEndpoint"));
-    this->server_endpoint_edit->setPlaceholderText(tr("https://database.example.invalid"));
-    this->server_auth_combo = new QComboBox(this->remote_options);
-    this->server_auth_combo->setObjectName(QStringLiteral("projectServerAuthMode"));
-    this->server_auth_combo->addItem(tr("None"), QStringLiteral("None"));
-    this->server_auth_combo->addItem(tr("API token"), QStringLiteral("API token"));
-    this->server_auth_combo->addItem(tr("User login"), QStringLiteral("User login"));
-    server_form->addRow(tr("REST endpoint"), this->server_endpoint_edit);
-    server_form->addRow(tr("Authentication (future)"), this->server_auth_combo);
-    QLabel *server_warning = new QLabel(tr("Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored."), this->remote_options);
-    wrapInspectorLabel(server_warning);
-    server_form->addRow(server_warning);
-    source_layout->addWidget(this->remote_options);
-    this->local_options = new QWidget(this->server_options);
-    QFormLayout *local_form = new QFormLayout(this->local_options);
-    local_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    local_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    this->local_path_edit = new QLineEdit(this->local_options);
-    this->local_path_edit->setObjectName(QStringLiteral("projectLocalDvmdbPath"));
-    this->local_path_edit->setPlaceholderText(defaultLocalDvmdbPath());
-    this->local_path_edit->setMinimumWidth(0);
-    QPushButton *browse_path = compactButton(tr("Browse…"), tr("Choose a local DVMDB data directory"), this->local_options);
-    browse_path->setObjectName(QStringLiteral("projectLocalBrowseButton"));
-    QHBoxLayout *local_path_row = new QHBoxLayout();
-    local_path_row->addWidget(this->local_path_edit, 1);
-    local_path_row->addWidget(browse_path);
-    local_form->addRow(tr("Data directory"), local_path_row);
-    QLabel *local_warning = new QLabel(tr("Local DVMDB uses the embedded C++ library. Choose a dedicated data directory, not a directory used by a running HTTP server."), this->local_options);
-    wrapInspectorLabel(local_warning);
-    local_form->addRow(local_warning);
-    source_layout->addWidget(this->local_options);
-    connection_layout->addWidget(this->server_options);
-    connection_layout->addStretch(1);
+    this->database_connection = new DatabaseInspectorConnection(
+        defaultLocalDvmdbPath(), this->inspector_tabs);
+    this->database_connection->hide();
+    this->database_relations = new DatabaseInspectorRelations(this->inspector_tabs);
+    this->project_relations = new ProjectInspectorRelations(this->inspector_tabs);
+    this->branch_relations = new BranchInspectorRelations(this->inspector_tabs);
+    this->revision_relations = new RevisionInspectorRelations(this->inspector_tabs);
+    for (ProjectsInspectorRelations *panel : {
+             static_cast<ProjectsInspectorRelations *>(this->database_relations),
+             static_cast<ProjectsInspectorRelations *>(this->project_relations),
+             static_cast<ProjectsInspectorRelations *>(this->branch_relations),
+             static_cast<ProjectsInspectorRelations *>(this->revision_relations)})
+        panel->hide();
     QWidget *creation_page = new QWidget(this->inspector_content_stack);
     creation_page->setObjectName(QStringLiteral("projectsInspectorCreationPage"));
     QVBoxLayout *creation_layout = new QVBoxLayout(creation_page);
-    creation_layout->setContentsMargins(0, 12, 0, 4);
-    QFormLayout *creation_fields = new QFormLayout();
-    creation_fields->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    this->creation_name = new QLineEdit(creation_page);
-    this->creation_name->setObjectName(QStringLiteral("projectsCreationName"));
-    this->creation_source = new QComboBox(creation_page);
-    this->creation_source->setObjectName(QStringLiteral("projectsCreationSource"));
-    this->creation_source->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    this->creation_source->setMinimumWidth(0);
-    creation_fields->addRow(tr("Name"), this->creation_name);
-    this->creation_source_label = new QLabel(tr("Start from"), creation_page);
-    creation_fields->addRow(this->creation_source_label, this->creation_source);
-    creation_layout->addLayout(creation_fields);
-    this->creation_summary = new QLabel(creation_page);
-    this->creation_summary->setObjectName(QStringLiteral("projectsCreationSummary"));
-    wrapInspectorLabel(this->creation_summary);
-    this->creation_summary->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    creation_layout->addWidget(this->creation_summary);
-    this->creation_error = new QLabel(creation_page);
-    this->creation_error->setObjectName(QStringLiteral("projectsCreationError"));
-    wrapInspectorLabel(this->creation_error);
-    creation_layout->addWidget(this->creation_error);
-    creation_layout->addStretch(1);
+    creation_layout->setContentsMargins(0, 0, 0, 0);
+    this->creation_forms = new QStackedWidget(creation_page);
+    this->creation_forms->setObjectName(QStringLiteral("projectsInspectorCreationForms"));
+    this->creation_forms->setMinimumWidth(0);
+    this->creation_forms->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    this->project_creation = new ProjectInspectorCreationForm(this->creation_forms);
+    this->branch_creation = new BranchInspectorCreationForm(this->creation_forms);
+    this->creation_forms->addWidget(this->project_creation);
+    this->creation_forms->addWidget(this->branch_creation);
+    creation_layout->addWidget(this->creation_forms);
     this->inspector_content_stack->addWidget(creation_page);
     right_layout->addWidget(this->inspector_content_stack, 1);
     // Independent action panels belong to their respective domain inspectors.
@@ -696,10 +608,10 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     splitter->setStretchFactor(1, 1);
 
     connect(add_server, &QToolButton::clicked, this, &ProjectsWidget::createServer);
-    connect(this->source_refresh_button, &QPushButton::clicked, this, &ProjectsWidget::connectSource);
+    connect(this->database_connection->source_refresh_button, &QPushButton::clicked, this, &ProjectsWidget::connectSource);
     connect(empty_add, &QPushButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->database_inspector->save_source, &QPushButton::clicked, this, &ProjectsWidget::saveNewSource);
-    connect(this->source_name_edit, &QLineEdit::textChanged, this,
+    connect(this->database_connection->source_name_edit, &QLineEdit::textChanged, this,
             [this](const QString &name)
     {
         if (this->selection_kind == SelectionKind::NewSource)
@@ -709,18 +621,18 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             [this](const QString &name)
     {
         if (this->selection_kind == SelectionKind::NewSource)
-            this->source_name_edit->setText(name);
+            this->database_connection->source_name_edit->setText(name);
     });
     connect(this->database_inspector->cancel_source, &QPushButton::clicked, this, &ProjectsWidget::cancelNewSource);
-    connect(this->source_kind_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(this->database_connection->source_kind_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { updateSourceFields(); });
-    connect(browse_path, &QPushButton::clicked, this, [this]
+    connect(this->database_connection->browse_path, &QPushButton::clicked, this, [this]
     {
         const QString path = QFileDialog::getExistingDirectory(this, tr("Select DVMDB data directory"),
-            this->local_path_edit->text());
+            this->database_connection->local_path_edit->text());
         if (!path.isEmpty())
         {
-            this->local_path_edit->setText(path);
+            this->database_connection->local_path_edit->setText(path);
             applyInspectorEdits();
         }
     });
@@ -782,20 +694,28 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         connect(panel->creation_cancel, &QPushButton::clicked, this, &ProjectsWidget::cancelCreation);
         connect(panel->creation_confirm, &QPushButton::clicked, this, &ProjectsWidget::submitCreation);
     }
-    connect(this->creation_name, &QLineEdit::textChanged,
-            this, [this](const QString &) { validateCreation(); });
-    connect(this->creation_source, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    for (ProjectsInspectorCreationForm *form : {
+             static_cast<ProjectsInspectorCreationForm *>(this->project_creation),
+             static_cast<ProjectsInspectorCreationForm *>(this->branch_creation)})
+        connect(form->name, &QLineEdit::textChanged,
+                this, [this](const QString &) { validateCreation(); });
+    connect(this->branch_creation->source, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { validateCreation(); });
-    connect(this->inspector_related_list, &QListWidget::itemClicked,
-            this, [this](QListWidgetItem *item)
+    for (ProjectsInspectorRelations *panel : {
+             static_cast<ProjectsInspectorRelations *>(this->database_relations),
+             static_cast<ProjectsInspectorRelations *>(this->project_relations),
+             static_cast<ProjectsInspectorRelations *>(this->branch_relations),
+             static_cast<ProjectsInspectorRelations *>(this->revision_relations)})
     {
-        if (item != nullptr) activateInspectorRelation(item->data(Qt::UserRole).toString());
-    });
-    connect(this->inspector_related_list, &QListWidget::itemActivated,
-            this, [this](QListWidgetItem *item)
-    {
-        if (item != nullptr) activateInspectorRelation(item->data(Qt::UserRole).toString());
-    });
+        connect(panel->list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item)
+        {
+            if (item != nullptr) activateInspectorRelation(item->data(Qt::UserRole).toString());
+        });
+        connect(panel->list, &QListWidget::itemActivated, this, [this](QListWidgetItem *item)
+        {
+            if (item != nullptr) activateInspectorRelation(item->data(Qt::UserRole).toString());
+        });
+    }
     if (browse_examples_button != nullptr)
         connect(browse_examples_button, &QPushButton::clicked,
                 this, &ProjectsWidget::browseExamples);
@@ -902,11 +822,11 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                             }
         selectBranchByName(name);
     });
-    connect(this->personal_server_checkbox, &QCheckBox::toggled,
+    connect(this->database_connection->personal_server_checkbox, &QCheckBox::toggled,
             this, &ProjectsWidget::setPersonalServer);
-    connect(this->server_endpoint_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
-    connect(this->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
-    connect(this->server_auth_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(this->database_connection->server_endpoint_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
+    connect(this->database_connection->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
+    connect(this->database_connection->server_auth_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { applyInspectorEdits(); });
     connect(this->database_inspector->delete_database, &QPushButton::clicked,
             this, &ProjectsWidget::deleteServer);
@@ -957,7 +877,7 @@ bool ProjectsWidget::eventFilter(QObject *watched, QEvent *event)
         if (this->creation_kind != CreationKind::None)
         {
             if (this->source_writer->isBusy()) { event->ignore(); return true; }
-            if (!this->creation_name->text().trimmed().isEmpty()
+            if (currentCreationForm() != nullptr && currentCreationForm()->isDirty()
                 && QMessageBox::question(this, tr("Discard creation draft?"),
                     tr("Closing the inspector will discard the unfinished creation form."),
                     QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel)
@@ -1105,7 +1025,7 @@ bool ProjectsWidget::isSourceReady(const QString &id) const
 
 void ProjectsWidget::updateConnectionStatus()
 {
-    if (this->source_status == nullptr) return;
+    if (this->database_connection->source_status == nullptr) return;
     const ProjectServerProfile *server = nullptr;
     for (const ProjectServerProfile &candidate : this->servers)
         if (candidate.id == this->server_id) { server = &candidate; break; }
@@ -1121,13 +1041,13 @@ void ProjectsWidget::updateConnectionStatus()
         : session->state == SourceState::Loading ? tr("Available · loading catalogue…")
         : session->state == SourceState::Error ? tr("Unavailable: %1").arg(session->error)
         : tr("Checking connection…");
-    this->source_status->setText(status);
-    this->source_status->setVisible(has_server);
-    this->source_refresh_button->setVisible(has_server && !isPreviewSource());
-    this->source_refresh_button->setEnabled(has_server && !this->source_writer->isBusy()
+    this->database_connection->source_status->setText(status);
+    this->database_connection->source_status->setVisible(has_server);
+    this->database_connection->source_refresh_button->setVisible(has_server && !isPreviewSource());
+    this->database_connection->source_refresh_button->setEnabled(has_server && !this->source_writer->isBusy()
         && session != nullptr && !session->loading);
-    if (this->server_options != nullptr)
-        this->server_options->setEnabled(!this->source_writer->isBusy());
+    if (this->database_connection->server_options != nullptr)
+        this->database_connection->server_options->setEnabled(!this->source_writer->isBusy());
     if (this->no_projects_title != nullptr)
         this->no_projects_title->setText(tr("No databases selected"));
     if (this->no_projects_description != nullptr)
@@ -1387,21 +1307,10 @@ void ProjectsWidget::applySourceSnapshot(const QString &source_id, const SourceS
 
 void ProjectsWidget::updateSourceFields()
 {
-    if (this->server_options == nullptr) return;
     const bool source = this->selection_kind == SelectionKind::Server
         || this->selection_kind == SelectionKind::NewSource;
-    this->server_options->setVisible(source);
-    if (!source) return;
-    const bool creating = this->selection_kind == SelectionKind::NewSource;
-    this->source_kind_combo->setEnabled(creating);
-    // Changing the type of an already configured source is deliberately not
-    // supported: it would silently reinterpret a URL as a filesystem path.
-    const bool local = this->source_kind_combo->currentData().toString()
-        == QStringLiteral("local");
-    this->remote_options->setVisible(!local);
-    this->local_options->setVisible(local);
-    this->personal_server_checkbox->setVisible(!creating);
-    this->personal_server_checkbox->setEnabled(!this->source_writer->isBusy());
+    this->database_connection->updateMode(source,
+        this->selection_kind == SelectionKind::NewSource, this->source_writer->isBusy());
 }
 
 ProjectPreviewData *ProjectsWidget::currentProject()
@@ -1737,7 +1646,7 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
         && (kind != this->selection_kind || id != this->selected_id))
     {
         if (this->source_writer->isBusy()) return;
-        if (!this->creation_name->text().trimmed().isEmpty()
+        if (currentCreationForm() != nullptr && currentCreationForm()->isDirty()
             && QMessageBox::question(this, tr("Discard creation draft?"),
                 tr("Changing selection will discard the unfinished creation form."),
                 QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel)
@@ -1899,106 +1808,49 @@ void ProjectsWidget::updateInspectorTabs()
     const bool same_kind = this->inspector_tab_kind == this->selection_kind;
     this->inspector_tab_kind = this->selection_kind;
     this->inspector_tabs->clear();
-    // Detached optional pages must never draw over the active tab.
-    this->inspector_connection_page->hide();
-    this->inspector_related_page->hide();
-    this->inspector_related_list->clear();
+    this->database_connection->hide();
+    for (ProjectsInspectorRelations *panel : {
+             static_cast<ProjectsInspectorRelations *>(this->database_relations),
+             static_cast<ProjectsInspectorRelations *>(this->project_relations),
+             static_cast<ProjectsInspectorRelations *>(this->branch_relations),
+             static_cast<ProjectsInspectorRelations *>(this->revision_relations)})
+        panel->hide();
     this->inspector_tabs->addTab(this->inspector_overview_page, tr("Overview"));
-
     if (this->selection_kind == SelectionKind::Server
         || this->selection_kind == SelectionKind::NewSource)
-        this->inspector_tabs->addTab(this->inspector_connection_page, tr("Connection"));
+        this->inspector_tabs->addTab(this->database_connection, tr("Connection"));
 
-    QString related_title;
+    ProjectsInspectorRelations *related = nullptr;
+    QString title;
     if (this->selection_kind == SelectionKind::Server)
     {
-        related_title = tr("Projects");
-        for (const ProjectPreviewData &project : this->projects)
-            if (project.server_id == this->server_id)
-            {
-                QListWidgetItem *item = new QListWidgetItem(project.name, this->inspector_related_list);
-                item->setData(Qt::UserRole, keyFor(QStringLiteral("p"), project.id));
-            }
+        this->database_relations->populate(this->projects, this->server_id);
+        related = this->database_relations;
+        title = tr("Projects");
     }
     else if (this->selection_kind == SelectionKind::Project)
     {
-        related_title = tr("Branches");
-        if (const ProjectPreviewData *project = currentProject())
-            for (const ProjectPreviewBranch &branch : project->branches)
-            {
-                QListWidgetItem *item = new QListWidgetItem(
-                    (branch.head.isEmpty()
-                        ? tr("%1  ·  No commits yet").arg(branch.name)
-                        : tr("%1  ·  HEAD %2").arg(branch.name, DvmdbIdentity::shortLabel(branch.head))),
-                    this->inspector_related_list);
-                item->setData(Qt::UserRole, keyFor(QStringLiteral("b"), branch.id));
-            }
+        this->project_relations->populate(currentProject());
+        related = this->project_relations;
+        title = tr("Branches");
     }
     else if (this->selection_kind == SelectionKind::Branch)
     {
-        related_title = tr("Revisions");
-        if (const ProjectPreviewData *project = currentProject())
-        {
-            const ProjectPreviewBranch *branch = currentBranch();
-            if (branch != nullptr)
-            {
-                if (branch->head.isEmpty())
-                {
-                    QListWidgetItem *item = new QListWidgetItem(
-                        tr("No commits yet"), this->inspector_related_list);
-                    item->setFlags(item->flags() & ~Qt::ItemIsSelectable & ~Qt::ItemIsEnabled);
-                }
-                QSet<QString> reachable;
-                QStringList remaining{branch->head};
-                QHash<QString, QStringList> parents;
-                for (const ProjectPreviewRevision &revision : project->revisions)
-                    parents.insert(revision.id, revision.parents);
-                while (!remaining.isEmpty())
-                {
-                    const QString id = remaining.takeLast();
-                    if (id.isEmpty() || reachable.contains(id)) continue;
-                    reachable.insert(id);
-                    for (const QString &parent : parents.value(id))
-                        remaining.append(parent);
-                }
-                for (const ProjectPreviewRevision &revision : project->revisions)
-                    if (reachable.contains(revision.id))
-                    {
-                        QListWidgetItem *item = new QListWidgetItem(
-                            revision.id == branch->head
-                                ? tr("%1  ·  HEAD").arg(DvmdbIdentity::shortLabel(revision.id))
-                                : DvmdbIdentity::shortLabel(revision.id), this->inspector_related_list);
-                        item->setData(Qt::UserRole, keyFor(QStringLiteral("r"), revision.id));
-                    }
-            }
-        }
+        this->branch_relations->populate(currentProject(), currentBranch());
+        related = this->branch_relations;
+        title = tr("Revisions");
     }
     else if (this->selection_kind == SelectionKind::Revision)
     {
-        related_title = tr("Ancestry");
-        if (const ProjectPreviewRevision *revision = selectedRevision())
-        {
-            for (const QString &parent : revision->parents)
-            {
-                QListWidgetItem *item = new QListWidgetItem(
-                    tr("Parent · %1").arg(DvmdbIdentity::shortLabel(parent)), this->inspector_related_list);
-                item->setData(Qt::UserRole, keyFor(QStringLiteral("r"), parent));
-            }
-            if (const ProjectPreviewData *project = currentProject())
-                for (const ProjectPreviewBranch &branch : project->branches)
-                    if (branch.head == revision->id)
-                    {
-                        QListWidgetItem *item = new QListWidgetItem(
-                            tr("%1 · HEAD").arg(branch.name), this->inspector_related_list);
-                        item->setData(Qt::UserRole, keyFor(QStringLiteral("b"), branch.id));
-                    }
-        }
+        this->revision_relations->populate(currentProject(), selectedRevision());
+        related = this->revision_relations;
+        title = tr("Ancestry");
     }
-    if (!related_title.isEmpty() && this->inspector_related_list->count() > 0)
-        this->inspector_tabs->addTab(this->inspector_related_page, related_title);
+    if (related != nullptr && related->list->count() > 0)
+        this->inspector_tabs->addTab(related, title);
     this->inspector_tabs->setCurrentIndex(this->selection_kind == SelectionKind::NewSource
         ? 1 : same_kind
-            ? std::min(std::max(0, old_tab), this->inspector_tabs->count()-1) : 0);
+            ? std::min(std::max(0, old_tab), this->inspector_tabs->count() - 1) : 0);
 }
 
 void ProjectsWidget::activateInspectorRelation(const QString &key)
@@ -2006,6 +1858,13 @@ void ProjectsWidget::activateInspectorRelation(const QString &key)
     if (key.startsWith(QStringLiteral("p:"))) select(SelectionKind::Project, key.mid(2));
     else if (key.startsWith(QStringLiteral("b:"))) select(SelectionKind::Branch, key.mid(2));
     else if (key.startsWith(QStringLiteral("r:"))) select(SelectionKind::Revision, key.mid(2));
+}
+
+ProjectsInspectorCreationForm *ProjectsWidget::currentCreationForm() const
+{
+    if (this->creation_kind == CreationKind::Project) return this->project_creation;
+    if (this->creation_kind == CreationKind::Branch) return this->branch_creation;
+    return nullptr;
 }
 
 void ProjectsWidget::beginCreation(bool branch)
@@ -2017,55 +1876,21 @@ void ProjectsWidget::beginCreation(bool branch)
     this->creation_kind = branch ? CreationKind::Branch : CreationKind::Project;
     this->creation_server_id = this->server_id;
     this->creation_project_id = branch ? this->project_id : QString();
-    this->creation_name->clear();
-    this->creation_source->clear();
-    this->creation_source->setVisible(branch);
-    this->creation_source_label->setVisible(branch);
     if (branch)
     {
-        const ProjectPreviewData *project = currentProject();
         QString chosen;
         if (this->selection_kind == SelectionKind::Revision)
             chosen = QStringLiteral("revision:") + this->selected_id;
         else if (this->selection_kind == SelectionKind::Branch)
             if (const ProjectPreviewBranch *selected = currentBranch())
                 chosen = QStringLiteral("branch:") + selected->id;
-        for (const ProjectPreviewBranch &entry : project->branches)
-        {
-            this->creation_source->addItem(
-                (entry.head.isEmpty()
-                    ? tr("%1 · No commits yet").arg(entry.name)
-                    : tr("%1 · HEAD %2").arg(entry.name, DvmdbIdentity::shortLabel(entry.head))),
-                QStringLiteral("branch:") + entry.id);
-            if (project->database_backed && entry.head.isEmpty())
-            {
-                // An unborn HEAD is a valid reference, but not a fork point.
-                // Keep it visible for explanation without offering an invalid write.
-                const int item_index = this->creation_source->count() - 1;
-                if (QStandardItemModel *model = qobject_cast<QStandardItemModel *>(this->creation_source->model()))
-                    if (QStandardItem *item = model->item(item_index))
-                        item->setEnabled(false);
-            }
-        }
-        for (const ProjectPreviewRevision &entry : project->revisions)
-            this->creation_source->addItem(
-                tr("Revision %1").arg(DvmdbIdentity::shortLabel(entry.id)),
-                QStringLiteral("revision:") + entry.id);
-        if (chosen.isEmpty())
-        {
-            for (const ProjectPreviewBranch &entry : project->branches)
-                if (entry.name == QStringLiteral("main"))
-                {
-                    chosen = QStringLiteral("branch:") + entry.id;
-                    break;
-                }
-        }
-        if (chosen.isEmpty() && !project->branches.isEmpty())
-            chosen = QStringLiteral("branch:") + project->branches.first().id;
-        if (this->creation_source->count() == 0)
-            this->creation_source->addItem(tr("Initial empty revision"), QStringLiteral("empty"));
-        const int index = this->creation_source->findData(chosen);
-        if (index >= 0) this->creation_source->setCurrentIndex(index);
+        this->branch_creation->begin(*currentProject(), chosen);
+        this->creation_forms->setCurrentWidget(this->branch_creation);
+    }
+    else
+    {
+        this->project_creation->reset();
+        this->creation_forms->setCurrentWidget(this->project_creation);
     }
     this->inspector_heading->setText(branch ? tr("Create branch") : tr("Create project"));
     this->inspector_subtitle->setText(branch
@@ -2075,118 +1900,17 @@ void ProjectsWidget::beginCreation(bool branch)
     this->inspector_content_stack->setCurrentIndex(1);
     validateCreation();
     updateButtons();
-    this->creation_name->setFocus();
+    if (ProjectsInspectorCreationForm *form = currentCreationForm()) form->name->setFocus();
 }
 
 void ProjectsWidget::validateCreation()
 {
-    if (this->creation_kind == CreationKind::None) return;
-    const QString name = this->creation_name->text().trimmed();
-    QString error;
-    if (name.isEmpty()) error = tr("Enter a name.");
     if (this->creation_kind == CreationKind::Project)
-    {
-        for (const ProjectPreviewData &entry : this->projects)
-            if (entry.server_id == this->creation_server_id
-                && entry.name.compare(name, Qt::CaseInsensitive) == 0)
-                error = tr("A project with this name already exists.");
-        this->creation_summary->setText(tr("Creates an empty project with an initial main branch. ")
-            + tr("No network data or additional revision will be created."));
-    }
-    else
-    {
-        // Mirrors DVMDB's UTF-8 branch-label contract. Labels are metadata,
-        // not filesystem paths: internal spaces are supported.
-        const QByteArray bytes = name.toUtf8();
-        if (bytes.size() > 96 || QString::fromUtf8(bytes) != name
-            || name == QStringLiteral(".") || name == QStringLiteral("..")
-            || name.startsWith(QLatin1Char(' ')) || name.endsWith(QLatin1Char(' ')))
-            error = tr("Branch name must be valid UTF-8, at most 96 bytes, without surrounding spaces.");
-        for (const QChar character : name)
-            if (character.unicode() < 0x20 || character.unicode() == 0x7f
-                || character == QLatin1Char('/') || character == QLatin1Char('\\')
-                || character == QLatin1Char('%') || character == QLatin1Char('?')
-                || character == QLatin1Char('#'))
-                error = tr("Branch name contains an unsupported control or path character.");
-        const ProjectPreviewData *project = currentProject();
-        if (project == nullptr || project->id != this->creation_project_id)
-            error = tr("The source project is no longer selected.");
-        if (project != nullptr)
-        {
-            for (const ProjectPreviewBranch &entry : project->branches)
-                if (entry.name.compare(name, Qt::CaseInsensitive) == 0)
-                    error = tr("A branch with this name already exists.");
-        }
-        QString revision;
-        const QString origin = this->creation_source->currentData().toString();
-        if (origin.startsWith(QStringLiteral("branch:")) && project != nullptr)
-        {
-            for (const ProjectPreviewBranch &entry : project->branches)
-                if (entry.id == origin.mid(7))
-                {
-                    revision = entry.head;
-                    if (project->database_backed && revision.isEmpty())
-                        error = tr("Commit the source branch before creating another database branch.");
-                    break;
-                }
-        }
-        else if (origin.startsWith(QStringLiteral("revision:")))
-        {
-            revision = origin.mid(9);
-            if (project != nullptr && project->database_backed
-                && sourceBranchForRevision(*project, revision, QString()).isEmpty())
-                error = tr("The selected revision cannot be reached from a branch HEAD.");
-        }
-        else if (origin == QStringLiteral("empty"))
-        {
-            if (project != nullptr && project->database_backed)
-                error = tr("Commit the source branch before creating another database branch.");
-        }
-        else if (origin.isEmpty() && project != nullptr && project->database_backed)
-            error = tr("Commit the source branch before creating another database branch.");
-        else error = tr("Choose a starting revision.");
-        QString source_branch_id;
-        QString source_branch_name;
-        QString source_revision_hash;
-        if (project != nullptr)
-        {
-            QString source_name;
-            if (origin.startsWith(QStringLiteral("branch:")))
-            {
-                for (const ProjectPreviewBranch &entry : project->branches)
-                    if (entry.id == origin.mid(7))
-                    {
-                        source_name = entry.name;
-                        break;
-                    }
-            }
-            else if (origin.startsWith(QStringLiteral("revision:")))
-                source_name = sourceBranchForRevision(*project, revision, QString());
-            for (const ProjectPreviewBranch &entry : project->branches)
-                if (entry.name == source_name)
-                {
-                    source_branch_id = entry.id;
-                    source_branch_name = entry.name;
-                    break;
-                }
-            for (const ProjectPreviewRevision &entry : project->revisions)
-                if (entry.id == revision)
-                {
-                    source_revision_hash = entry.record_sha256;
-                    break;
-                }
-        }
-        QString summary = tr("Fork revision UUID: %1\n").arg(
-            revision.isEmpty() ? tr("No commits yet") : revision);
-        if (!source_branch_id.isEmpty())
-            summary += tr("Source branch: %1\nSource branch UUID: %2\n")
-                .arg(source_branch_name, source_branch_id);
-        if (!source_revision_hash.isEmpty())
-            summary += tr("Revision SHA-256: %1\n").arg(source_revision_hash);
-        summary += tr("Creating a branch adds a reference only; it does not create a revision.");
-        this->creation_summary->setText(summary);
-    }
-    this->creation_error->setText(error);
+        this->project_creation->validate(this->projects, this->creation_server_id);
+    else if (this->creation_kind == CreationKind::Branch)
+        this->branch_creation->validate(currentProject(), this->creation_project_id,
+                                        sourceBranchForRevision);
+    else return;
     updateButtons();
 }
 
@@ -2196,7 +1920,8 @@ void ProjectsWidget::cancelCreation()
     this->creation_kind = CreationKind::None;
     this->creation_project_id.clear();
     this->creation_server_id.clear();
-    this->creation_name->clear();
+    this->project_creation->reset();
+    this->branch_creation->reset();
     updateInspector();
     updateButtons();
 }
@@ -2205,7 +1930,7 @@ void ProjectsWidget::submitCreation()
 {
     if (this->creation_kind == CreationKind::None || this->source_writer->isBusy()) return;
     validateCreation();
-    if (!this->creation_error->text().isEmpty()) return;
+    if (currentCreationForm() == nullptr || !currentCreationForm()->isValid()) return;
     if (this->creation_server_id != this->server_id
         || (this->creation_kind == CreationKind::Branch
             && this->creation_project_id != this->project_id)) return;
@@ -2344,16 +2069,16 @@ void ProjectsWidget::updateInspector()
     if (this->selection_kind == SelectionKind::Server && currentServer() != nullptr)
     {
         const ProjectServerProfile *server = currentServer();
-        const int kind_index = this->source_kind_combo->findData(server->connection_type);
-        this->source_kind_combo->setCurrentIndex(kind_index < 0 ? 0 : kind_index);
+        const int kind_index = this->database_connection->source_kind_combo->findData(server->connection_type);
+        this->database_connection->source_kind_combo->setCurrentIndex(kind_index < 0 ? 0 : kind_index);
         {
-            const QSignalBlocker personal_blocker(this->personal_server_checkbox);
-            this->personal_server_checkbox->setChecked(server->personal);
+            const QSignalBlocker personal_blocker(this->database_connection->personal_server_checkbox);
+            this->database_connection->personal_server_checkbox->setChecked(server->personal);
         }
-        this->server_endpoint_edit->setText(server->endpoint);
-        this->local_path_edit->setText(server->local_path);
-        const int index = this->server_auth_combo->findData(server->auth_mode);
-        this->server_auth_combo->setCurrentIndex(index < 0 ? 0 : index);
+        this->database_connection->server_endpoint_edit->setText(server->endpoint);
+        this->database_connection->local_path_edit->setText(server->local_path);
+        const int index = this->database_connection->server_auth_combo->findData(server->auth_mode);
+        this->database_connection->server_auth_combo->setCurrentIndex(index < 0 ? 0 : index);
     }
     updateSourceFields();
     if (this->creation_kind == CreationKind::Project)
@@ -2386,8 +2111,8 @@ void ProjectsWidget::updateInspector()
     this->inspector_subtitle->setText(subtitle);
     this->inspector_subtitle->setVisible(!subtitle.isEmpty());
     this->name_edit->setText(name);
-    this->source_name_edit->setText(name);
-    this->source_name_edit->setVisible(new_source);
+    this->database_connection->source_name_edit->setText(name);
+    this->database_connection->source_name_edit->setVisible(new_source);
     this->tags_edit->setText(tags.join(QStringLiteral(", ")));
     this->description_edit->setPlainText(description);
     this->metadata_info->setText(metadata);
@@ -2424,7 +2149,7 @@ void ProjectsWidget::updateButtons()
     const bool editing_branch = this->creation_kind == CreationKind::Branch;
     const bool creating = editing_project || editing_branch;
     const bool new_source = this->selection_kind == SelectionKind::NewSource;
-    const bool valid = this->creation_error->text().isEmpty();
+    const bool valid = currentCreationForm() != nullptr && currentCreationForm()->isValid();
     const ProjectPreviewData *project = currentProject();
     const bool backed = project != nullptr && project->database_backed;
     const bool preview = isPreviewSource();
@@ -2509,12 +2234,12 @@ void ProjectsWidget::createServer()
     selectTreeItem(this->server_tree, QString());
     selectTreeItem(this->project_tree, QString());
     selectTreeItem(this->revision_tree, QString());
-    this->source_kind_combo->setCurrentIndex(0);
-    this->server_endpoint_edit->clear();
-    this->server_auth_combo->setCurrentIndex(0);
+    this->database_connection->source_kind_combo->setCurrentIndex(0);
+    this->database_connection->server_endpoint_edit->clear();
+    this->database_connection->server_auth_combo->setCurrentIndex(0);
     this->updating_ui = false;
     updateInspector();
-    this->local_path_edit->setText(defaultLocalDvmdbPath());
+    this->database_connection->local_path_edit->setText(defaultLocalDvmdbPath());
     updateSourceFields();
     this->inspector_dock->show();
     this->name_edit->setFocus();
@@ -2549,10 +2274,10 @@ void ProjectsWidget::saveNewSource()
     ProjectServerProfile server;
     server.id = makeId(QStringLiteral("s-"));
     server.name = name;
-    server.connection_type = this->source_kind_combo->currentData().toString();
+    server.connection_type = this->database_connection->source_kind_combo->currentData().toString();
     server.description = this->description_edit->toPlainText();
     server.tags = parseTags(this->tags_edit->text());
-    server.auth_mode = this->server_auth_combo->currentData().toString();
+    server.auth_mode = this->database_connection->server_auth_combo->currentData().toString();
     if (server.connection_type == QStringLiteral("local"))
     {
 #ifndef AOWIS_STANDALONE_DVMDB_ENABLED
@@ -2561,12 +2286,12 @@ void ProjectsWidget::saveNewSource()
         return;
 #endif
         server.auth_mode = QStringLiteral("None");
-        server.local_path = QDir::cleanPath(this->local_path_edit->text().trimmed());
+        server.local_path = QDir::cleanPath(this->database_connection->local_path_edit->text().trimmed());
         if (!QDir::isAbsolutePath(server.local_path))
         {
             QMessageBox::warning(this, tr("Invalid directory"),
                 tr("Enter an absolute path for the local DVMDB data directory."));
-            this->local_path_edit->setFocus();
+            this->database_connection->local_path_edit->setFocus();
             return;
         }
         for (const ProjectServerProfile &existing : this->servers)
@@ -2580,7 +2305,7 @@ void ProjectsWidget::saveNewSource()
     }
     else
     {
-        server.endpoint = this->server_endpoint_edit->text().trimmed();
+        server.endpoint = this->database_connection->server_endpoint_edit->text().trimmed();
         const QUrl url(server.endpoint);
         if (server.endpoint.isEmpty() || !url.isValid()
             || (url.scheme() != QStringLiteral("http") && url.scheme() != QStringLiteral("https"))
@@ -2589,7 +2314,7 @@ void ProjectsWidget::saveNewSource()
         {
             QMessageBox::warning(this, tr("Invalid database URL"),
                 tr("Enter an http:// or https:// URL with a host, without credentials, query or fragment."));
-            this->server_endpoint_edit->setFocus();
+            this->database_connection->server_endpoint_edit->setFocus();
             return;
         }
     }
@@ -2675,11 +2400,12 @@ void ProjectsWidget::finishSourceWrite(const QString &created_id, const QString 
 
 void ProjectsWidget::createProject()
 {
-    if (this->source_writer->isBusy() || this->selection_kind == SelectionKind::NewSource) return;
+    if (this->creation_kind != CreationKind::Project
+        || this->source_writer->isBusy() || this->selection_kind == SelectionKind::NewSource) return;
     const bool preview = isPreviewSource();
     if (!preview && !isSourceReady(this->server_id)) return;
-    const QString name = this->creation_name->text().trimmed();
-    if (this->creation_kind != CreationKind::Project || name.isEmpty()) return;
+    const QString name = this->project_creation->name->text().trimmed();
+    if (name.isEmpty()) return;
     for (const ProjectPreviewData &project : this->projects)
         if (project.server_id == this->server_id && project.name.compare(name, Qt::CaseInsensitive) == 0)
         {
@@ -2790,12 +2516,13 @@ void ProjectsWidget::openWorkingCopy(bool direct_edit)
 
 void ProjectsWidget::createBranch()
 {
+    if (this->creation_kind != CreationKind::Branch) return;
     ProjectPreviewData *project = currentProject();
     if (this->source_writer->isBusy() || project == nullptr) return;
     const bool preview = isPreviewSource();
     if (!preview && (!project->database_backed || !isSourceReady(this->server_id))) return;
-    const QString name = this->creation_name->text().trimmed();
-    if (this->creation_kind != CreationKind::Branch || name.isEmpty()) return;
+    const QString name = this->branch_creation->name->text().trimmed();
+    if (name.isEmpty()) return;
     for (const ProjectPreviewBranch &branch : project->branches)
         if (branch.name.compare(name, Qt::CaseInsensitive) == 0)
         {
@@ -2810,7 +2537,7 @@ void ProjectsWidget::createBranch()
         // be renamed or reused while this request is on its way.
         const ProjectPreviewBranch *source_branch = nullptr;
         QString from_revision;
-        const QString origin = this->creation_source->currentData().toString();
+        const QString origin = this->branch_creation->source->currentData().toString();
         if (origin.startsWith(QStringLiteral("branch:")))
         {
             for (const ProjectPreviewBranch &candidate : project->branches)
@@ -2836,7 +2563,7 @@ void ProjectsWidget::createBranch()
                 }
             if (source_branch == nullptr)
             {
-                this->creation_error->setText(tr("The selected revision is not reachable from any branch."));
+                this->branch_creation->error->setText(tr("The selected revision is not reachable from any branch."));
                 updateButtons();
                 return;
             }
@@ -2844,7 +2571,7 @@ void ProjectsWidget::createBranch()
         if (source_branch == nullptr) return;
         if (source_branch->head.isEmpty())
         {
-            this->creation_error->setText(
+            this->branch_creation->error->setText(
                 tr("Commit the source branch before creating another database branch."));
             updateButtons();
             return;
@@ -2853,7 +2580,7 @@ void ProjectsWidget::createBranch()
         const QString from_branch_id = source_branch->id.mid(project->id.size() + 1);
         if (!DvmdbIdentity::isUuidV7(from_branch_id))
         {
-            this->creation_error->setText(tr("The source branch has no UUIDv7 identity."));
+            this->branch_creation->error->setText(tr("The source branch has no UUIDv7 identity."));
             updateButtons();
             return;
         }
@@ -2870,7 +2597,7 @@ void ProjectsWidget::createBranch()
     ProjectPreviewBranch branch;
     branch.id = makeId(QStringLiteral("b-"));
     branch.name = name;
-    const QString origin = this->creation_source->currentData().toString();
+    const QString origin = this->branch_creation->source->currentData().toString();
     if (origin.startsWith(QStringLiteral("branch:")))
     {
         for (const ProjectPreviewBranch &candidate : project->branches)
@@ -3216,8 +2943,8 @@ void ProjectsWidget::setPersonalServer(bool enabled)
         {
             QMessageBox::warning(this, tr("Cannot select personal database"),
                 error.isEmpty() ? tr("Unable to verify local DVMDB identity.") : error);
-            const QSignalBlocker blocker(this->personal_server_checkbox);
-            this->personal_server_checkbox->setChecked(false);
+            const QSignalBlocker blocker(this->database_connection->personal_server_checkbox);
+            this->database_connection->personal_server_checkbox->setChecked(false);
             return;
         }
         persistSelection(repository_id, true);
@@ -3234,7 +2961,7 @@ void ProjectsWidget::setPersonalServer(bool enabled)
     while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
     if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
         endpoint += QStringLiteral("/dvmdb/v1");
-    this->personal_server_checkbox->setEnabled(false);
+    this->database_connection->personal_server_checkbox->setEnabled(false);
     QNetworkAccessManager *manager = new QNetworkAccessManager(this);
     const std::function<bool()> stillSelected = [this, selected_id, selected_endpoint, request_id]()
     {
@@ -3388,45 +3115,45 @@ void ProjectsWidget::applyInspectorEdits()
         }
         if (server->connection_type == QStringLiteral("local"))
         {
-            const QString path = QDir::cleanPath(this->local_path_edit->text().trimmed());
+            const QString path = QDir::cleanPath(this->database_connection->local_path_edit->text().trimmed());
             if (QDir::isAbsolutePath(path))
                 server->local_path = path;
-            else if (sender() == this->local_path_edit)
+            else if (sender() == this->database_connection->local_path_edit)
             {
                 QMessageBox::warning(this, tr("Invalid directory"),
                     tr("Enter an absolute path for the local DVMDB data directory."));
-                this->local_path_edit->setText(server->local_path);
+                this->database_connection->local_path_edit->setText(server->local_path);
             }
         }
         else
         {
-            const QString endpoint = this->server_endpoint_edit->text().trimmed();
+            const QString endpoint = this->database_connection->server_endpoint_edit->text().trimmed();
             const QUrl url(endpoint);
             if (!endpoint.isEmpty() && (!url.isValid()
                 || (url.scheme() != QStringLiteral("http")
                     && url.scheme() != QStringLiteral("https")) || url.host().isEmpty()
                 || !url.userInfo().isEmpty() || url.hasQuery() || url.hasFragment()))
             {
-                if (sender() == this->server_endpoint_edit)
+                if (sender() == this->database_connection->server_endpoint_edit)
                 {
                     QMessageBox::warning(this, tr("Invalid server URL"),
                         tr("Use an http:// or https:// URL with a host, without embedded credentials, query or fragment."));
                     {
-            const QSignalBlocker personal_blocker(this->personal_server_checkbox);
-            this->personal_server_checkbox->setChecked(server->personal);
+            const QSignalBlocker personal_blocker(this->database_connection->personal_server_checkbox);
+            this->database_connection->personal_server_checkbox->setChecked(server->personal);
         }
-        this->server_endpoint_edit->setText(server->endpoint);
+        this->database_connection->server_endpoint_edit->setText(server->endpoint);
                 }
             }
             else server->endpoint = endpoint;
-            server->auth_mode = this->server_auth_combo->currentData().toString();
+            server->auth_mode = this->database_connection->server_auth_combo->currentData().toString();
         }
         if (server->personal && (server->endpoint != previous.endpoint
                                  || server->local_path != previous.local_path))
         {
             *server = previous;
-            this->server_endpoint_edit->setText(previous.endpoint);
-            this->local_path_edit->setText(previous.local_path);
+            this->database_connection->server_endpoint_edit->setText(previous.endpoint);
+            this->database_connection->local_path_edit->setText(previous.local_path);
             QMessageBox::information(this, tr("Personal database"),
                 tr("Uncheck 'Use as my personal working database' before changing its endpoint or data directory."));
             return;
