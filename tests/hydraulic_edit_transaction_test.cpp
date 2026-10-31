@@ -3,6 +3,7 @@
 #include "network/hydraulic_network_editor.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/hydraulic_draft_event_adapter.h"
+#include "projects/hydraulic_draft_entity_registry.h"
 #include "projects/personal_draft_edit_stage.h"
 #include "test_harness.h"
 
@@ -95,6 +96,180 @@ void testCaptureOnlyTouchedEntities()
     QString error;
     test_harness.expectTrue(!duplicate.finish(network, &error).has_value() && !error.isEmpty(),
                             "invalid capture fails explicitly");
+}
+
+void expectCollection(bool condition, const char *type, const char *detail)
+{
+    const QByteArray message = QStringLiteral("HC-01 %1: %2")
+        .arg(QString::fromLatin1(type), QString::fromLatin1(detail)).toUtf8();
+    test_harness.expectTrue(condition, message.constData());
+}
+
+template<typename T>
+void testCollectionCapture(QList<T> NetworkHydraulic::*collection,
+                           const char *type, quint16 kind, quint16 ordinal)
+{
+    NetworkHydraulic before;
+    before.uuid = createUuidV7();
+    before.id = QStringLiteral("HC-01 network");
+    NetworkHydraulic live = before;
+    NetworkHydraulic staged = before;
+    T entity;
+    entity.uuid = createUuidV7();
+    entity.id = QStringLiteral("HC01-original");
+    const QUuid entity_id = entity.uuid;
+    const QByteArray entity_bytes = aowis::model::ModelCodec<T>::encode(entity);
+    expectCollection(!entity_bytes.isEmpty(), type, "canonical entity image is available");
+    if (entity_bytes.isEmpty()) return;
+
+    // Creation: before-image is absent, after-image carries the exact MODEL
+    // type and canonical bytes, with one corresponding DVMDB membership intent.
+    HydraulicEditTransactionCapture creation(QStringLiteral("hc01.create"));
+    expectCollection(creation.watchCreated(entity_id), type, "watchCreated accepts UUIDv7");
+    (live.*collection).append(entity);
+    QString error;
+    const std::optional<QByteArray> create_bytes = creation.finish(live, &error);
+    expectCollection(create_bytes.has_value() && error.isEmpty(), type, "create transaction encoded");
+    if (!create_bytes.has_value()) return;
+    const std::optional<aowis::model::ModelEditTransaction> created = decoded(*create_bytes);
+    const bool correct_creation = created.has_value() && created->edits.size() == 1 &&
+        created->edits.first().entityId == entity_id &&
+        created->edits.first().entityType == QString::fromLatin1(type) &&
+        !created->edits.first().before.has_value() &&
+        created->edits.first().after == std::optional<QByteArray>(entity_bytes);
+    expectCollection(correct_creation, type, "create contains the correct typed canonical after-image");
+
+    QList<PersonalWorkingCopyChange> records;
+    QList<HydraulicDraftMembershipEdit> membership;
+    const bool added = HydraulicDraftEventAdapter::prepareWithMembership(
+        *create_bytes, staged, records, membership, &error);
+    expectCollection(added, type, "create replays against the canonical draft");
+    if (!added) return;
+    expectCollection(records.size() == 1 && records.first().kind == kind &&
+        records.first().payload == entity_bytes && !records.first().deleted &&
+        membership.size() == 1 && membership.first().kind == kind &&
+        membership.first().collection_index == ordinal && membership.first().inserted &&
+        membership.first().entity_id == entity_id && membership.first().network_id == before.uuid,
+        type, "create maps to the exact DVMDB record kind and collection ordinal");
+    expectCollection(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+                     type, "create replay equals the edited network");
+
+    // No-op must produce neither a new event nor a changed membership.
+    HydraulicEditTransactionCapture noop(QStringLiteral("hc01.noop"));
+    expectCollection(noop.watch(live, entity_id), type, "existing entity can be watched");
+    error.clear();
+    expectCollection(!noop.finish(live, &error).has_value() && error.isEmpty(),
+                     type, "unchanged entity produces no transaction");
+
+    // Updates must contain *both* images; replay must reject a stale repeat.
+    HydraulicEditTransactionCapture update(QStringLiteral("hc01.update"));
+    expectCollection(update.watch(live, entity_id), type, "update captures before-image");
+    (live.*collection).first().id = QStringLiteral("HC01-updated");
+    const QByteArray updated_bytes = aowis::model::ModelCodec<T>::encode((live.*collection).first());
+    const std::optional<QByteArray> update_bytes = update.finish(live, &error);
+    expectCollection(update_bytes.has_value() && error.isEmpty(), type, "update transaction encoded");
+    if (!update_bytes.has_value()) return;
+    const std::optional<aowis::model::ModelEditTransaction> changed = decoded(*update_bytes);
+    expectCollection(changed.has_value() && changed->edits.size() == 1 &&
+        changed->edits.first().entityId == entity_id &&
+        changed->edits.first().entityType == QString::fromLatin1(type) &&
+        changed->edits.first().before == std::optional<QByteArray>(entity_bytes) &&
+        changed->edits.first().after == std::optional<QByteArray>(updated_bytes),
+        type, "update has canonical before/after images");
+    const bool updated = HydraulicDraftEventAdapter::prepareWithMembership(
+        *update_bytes, staged, records, membership, &error);
+    expectCollection(updated && membership.isEmpty() && records.size() == 1 &&
+        records.first().kind == kind && !records.first().deleted &&
+        records.first().payload == updated_bytes,
+        type, "update replays without a membership mutation");
+    if (!updated) return;
+    const QByteArray staged_after_update = aowis::model::ModelCodec<NetworkHydraulic>::encode(staged);
+    const QList<PersonalWorkingCopyChange> old_records = records;
+    const QList<HydraulicDraftMembershipEdit> old_membership = membership;
+    error.clear();
+    expectCollection(!HydraulicDraftEventAdapter::prepareWithMembership(
+        *update_bytes, staged, records, membership, &error) && !error.isEmpty() &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) == staged_after_update &&
+        records.size() == old_records.size() &&
+        membership.size() == old_membership.size(),
+        type, "stale repeat is rejected without modifying staged model or outputs");
+    expectCollection(staged_after_update == aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+                     type, "update replay equals the edited network");
+
+    // Deletion: carries the typed before-image and a removal intent.
+    HydraulicEditTransactionCapture deletion(QStringLiteral("hc01.delete"));
+    expectCollection(deletion.watch(live, entity_id), type, "delete captures before-image");
+    (live.*collection).clear();
+    error.clear();
+    const std::optional<QByteArray> delete_bytes = deletion.finish(live, &error);
+    expectCollection(delete_bytes.has_value() && error.isEmpty(), type, "delete transaction encoded");
+    if (!delete_bytes.has_value()) return;
+    const std::optional<aowis::model::ModelEditTransaction> removed = decoded(*delete_bytes);
+    expectCollection(removed.has_value() && removed->edits.size() == 1 &&
+        removed->edits.first().entityType == QString::fromLatin1(type) &&
+        removed->edits.first().before == std::optional<QByteArray>(updated_bytes) &&
+        !removed->edits.first().after.has_value(),
+        type, "delete retains canonical before-image only");
+    const bool deleted = HydraulicDraftEventAdapter::prepareWithMembership(
+        *delete_bytes, staged, records, membership, &error);
+    expectCollection(deleted && records.size() == 1 && records.first().deleted &&
+        records.first().kind == kind && membership.size() == 1 &&
+        !membership.first().inserted && membership.first().collection_index == ordinal,
+        type, "delete replays with the exact membership removal");
+    if (deleted)
+        expectCollection(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                         aowis::model::ModelCodec<NetworkHydraulic>::encode(before),
+                         type, "create/update/delete returns to the canonical base");
+}
+
+void testAllHydraulicEntityCollectionCapture()
+{
+    constexpr int collection_count = 0
+#define COUNT_HYDRAULIC_COLLECTION(name, type, kind, ordinal) + 1
+        AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(COUNT_HYDRAULIC_COLLECTION)
+#undef COUNT_HYDRAULIC_COLLECTION
+        ;
+    static_assert(collection_count == 18, "Hydraulic capture must cover every MODEL entity collection");
+#define TEST_HYDRAULIC_COLLECTION(name, type, kind, ordinal) \
+    testCollectionCapture<type>(&NetworkHydraulic::name, #type, kind, ordinal);
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(TEST_HYDRAULIC_COLLECTION)
+#undef TEST_HYDRAULIC_COLLECTION
+}
+
+void testAmbiguousAndNullHydraulicCapture()
+{
+    NetworkHydraulic network;
+    network.uuid = createUuidV7();
+    network.id = QStringLiteral("HC01-ambiguous");
+    const QUuid shared = createUuidV7();
+    HydraulicNodeJunction junction;
+    junction.uuid = shared;
+    junction.id = QStringLiteral("junction");
+    HydraulicPipeMaterial material;
+    material.uuid = shared;
+    material.id = QStringLiteral("material");
+    network.nodes_junctions.append(junction);
+    network.pipe_materials.append(material);
+    HydraulicEditTransactionCapture ambiguous(QStringLiteral("hc01.ambiguous"));
+    QString error;
+    test_harness.expectTrue(!ambiguous.watch(network, shared) &&
+                            !ambiguous.finish(network, &error).has_value() && !error.isEmpty(),
+                            "HC-01 duplicated UUID across different collections fails closed");
+    HydraulicEditTransactionCapture created(QStringLiteral("hc01.duplicate"));
+    test_harness.expectTrue(created.watchCreated(shared), "HC-01 creation watch is initially valid");
+    test_harness.expectTrue(!created.finish(network, &error).has_value() &&
+                            error.contains(QStringLiteral("Duplicate")),
+                            "HC-01 duplicate UUID detected even for a created entity");
+    network.pipe_materials.clear();
+    network.nodes_junctions.append(junction);
+    HydraulicEditTransactionCapture same_type(QStringLiteral("hc01.same-type-duplicate"));
+    test_harness.expectTrue(!same_type.watch(network, shared),
+                            "HC-01 duplicate UUID within one collection is rejected");
+    HydraulicEditTransactionCapture null_uuid(QStringLiteral("hc01.null"));
+    test_harness.expectTrue(!null_uuid.watchCreated(QUuid()) &&
+                            !null_uuid.finish(network, &error).has_value() && !error.isEmpty(),
+                            "HC-01 null UUID never produces an event");
 }
 
 void testHydraulicDataLogicalOperations()
@@ -795,6 +970,8 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
+    test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
+    test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);
     test_harness.runCase("HydraulicData logical operations", testHydraulicDataLogicalOperations);
     test_harness.runCase("Hydraulic property capture and no-op", testPropertyCaptureAndNoop);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);

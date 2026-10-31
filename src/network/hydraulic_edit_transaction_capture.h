@@ -31,6 +31,7 @@ private:
     {
         QString type;
         std::optional<QByteArray> data;
+        bool ambiguous = false; // Same UUID in multiple entity collections.
     };
 
     static EntityImage image(const NetworkHydraulic &network, const QUuid &uuid);

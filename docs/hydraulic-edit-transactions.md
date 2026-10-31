@@ -37,6 +37,28 @@ Do not add JSON snapshots or a duplicate GUI serializer.
 - The existing record-only `prepare()` rejects creation/deletion so that an
   incomplete candidate cannot be presented as a successful saved model.
 
+## HC-01 — Complete 18-collection image capture
+
+`HydraulicEditTransactionCapture` and `HydraulicDraftEventAdapter` now share
+`hydraulic_draft_entity_registry.h`: the complete set of 18 canonical
+`NetworkHydraulic` entity collections, MODEL type identifiers, native DVMDB
+record kinds and membership ordinals. Captured creation/update/deletion events
+carry canonical MODEL entity bytes, not GUI-specific JSON or whole-network
+snapshots. Capture refuses ambiguous UUIDs found multiple times within or
+across collections rather than selecting one arbitrary matching entity.
+
+The `aowis-hydraulic-edit-transaction` regression now runs each of the 18
+collections independently through creation, no-op, before/after update, stale
+before-image rejection and deletion. It verifies canonical staged replay,
+DVMDB record kinds, insertion/removal membership intents and unchanged network
+content after reversing an edit sequence. Existing live `HydraulicData`
+operation tests remain in place.
+
+**Scope boundary:** HC-01 completes the *generic entity image capture engine*.
+It does not mean every UI mutation path produces a transaction (HC-02), nor
+that persistent network-level metadata is saved (HC-03 to HC-05). Do not
+interpret 18/18 registered entity types as 100% end-to-end editor autosave.
+
 ## Required editor synchronization
 
 1. Checkout a known immutable branch base (or unborn branch) into a personal

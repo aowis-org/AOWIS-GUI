@@ -1,4 +1,5 @@
 #include "network/hydraulic_edit_transaction_capture.h"
+#include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/serialization/model_codec.h>
 #include <aowis/model/uuid.h>
@@ -8,18 +9,20 @@
 namespace
 {
 template<typename T>
-bool findEncoded(const QList<T> &entities, const QUuid &uuid,
-                 QString type, QString &foundType, std::optional<QByteArray> &foundBytes)
+int findEncoded(const QList<T> &entities, const QUuid &uuid,
+                const QString &type, QString &foundType,
+                std::optional<QByteArray> &foundBytes)
 {
+    int matches = 0;
     for (const T &entity : entities)
     {
         if (entity.uuid != uuid)
             continue;
-        foundType = std::move(type);
+        ++matches;
+        foundType = type;
         foundBytes = aowis::model::ModelCodec<T>::encode(entity);
-        return true;
     }
-    return false;
+    return matches;
 }
 }
 
@@ -31,14 +34,12 @@ HydraulicEditTransactionCapture::EntityImage HydraulicEditTransactionCapture::im
     const NetworkHydraulic &network, const QUuid &uuid)
 {
     EntityImage result;
-    if (findEncoded(network.nodes_junctions, uuid, QStringLiteral("HydraulicNodeJunction"), result.type, result.data) ||
-        findEncoded(network.nodes_reservoirs, uuid, QStringLiteral("HydraulicNodeReservoir"), result.type, result.data) ||
-        findEncoded(network.nodes_tanks, uuid, QStringLiteral("HydraulicNodeTank"), result.type, result.data) ||
-        findEncoded(network.demand_points, uuid, QStringLiteral("HydraulicDemandPoint"), result.type, result.data) ||
-        findEncoded(network.links_pipes, uuid, QStringLiteral("HydraulicLinkPipe"), result.type, result.data) ||
-        findEncoded(network.links_pumps, uuid, QStringLiteral("HydraulicLinkPump"), result.type, result.data) ||
-        findEncoded(network.links_valves, uuid, QStringLiteral("HydraulicLinkValve"), result.type, result.data))
-        return result;
+    int matches = 0;
+#define FIND_HYDRAULIC_ENTITY(name, model_type, storage_kind, ordinal) \
+    matches += findEncoded(network.name, uuid, QStringLiteral(#model_type), result.type, result.data);
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(FIND_HYDRAULIC_ENTITY)
+#undef FIND_HYDRAULIC_ENTITY
+    result.ambiguous = matches > 1;
     return result;
 }
 
@@ -50,7 +51,15 @@ bool HydraulicEditTransactionCapture::watch(const NetworkHydraulic &network, con
         return false;
     }
     if (!this->before_.contains(uuid))
-        this->before_.insert(uuid, image(network, uuid));
+    {
+        const EntityImage before = image(network, uuid);
+        if (before.ambiguous)
+        {
+            this->valid_ = false;
+            return false;
+        }
+        this->before_.insert(uuid, before);
+    }
     return true;
 }
 
@@ -73,7 +82,7 @@ std::optional<QByteArray> HydraulicEditTransactionCapture::finish(
     if (!this->valid_)
     {
         if (error)
-            *error = QStringLiteral("Invalid or duplicate entity watch");
+            *error = QStringLiteral("Invalid, duplicate or ambiguous hydraulic entity watch");
         return std::nullopt;
     }
 
@@ -86,8 +95,14 @@ std::optional<QByteArray> HydraulicEditTransactionCapture::finish(
     {
         const EntityImage after = image(network, iterator.key());
         const EntityImage &before = iterator.value();
-        if (before.type == after.type && before.data == after.data)
-            continue;
+        if (before.ambiguous || after.ambiguous)
+        {
+            if (error)
+                *error = QStringLiteral("Duplicate entity UUID in hydraulic collections");
+            return std::nullopt;
+        }
+        // Never silently accept an invalid image as a no-op. An entity
+        // encoding failure must block capture even if nothing visibly changed.
         if ((before.data.has_value() && before.data->isEmpty()) ||
             (after.data.has_value() && after.data->isEmpty()) ||
             (before.data.has_value() && after.data.has_value() && before.type != after.type))
@@ -96,6 +111,8 @@ std::optional<QByteArray> HydraulicEditTransactionCapture::finish(
                 *error = QStringLiteral("Unable to capture consistent entity image");
             return std::nullopt;
         }
+        if (before.type == after.type && before.data == after.data)
+            continue;
         aowis::model::ModelEntityEdit edit;
         edit.entityId = iterator.key();
         edit.entityType = before.data.has_value() ? before.type : after.type;

@@ -1,4 +1,5 @@
 #include "projects/hydraulic_draft_event_adapter.h"
+#include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
 #include <aowis/model/serialization/model_codec.h>
@@ -14,29 +15,6 @@
 
 namespace
 {
-// The numeric values are DVMDB's current ModelRecord storage contract.
-// Keep them explicit here: MODEL's entity type names are independent of
-// storage kinds. No historical format or compatibility aliases are accepted.
-#define AOWIS_HYDRAULIC_DRAFT_TYPES(X) \
-    X(pipe_materials, HydraulicPipeMaterial, 8, 0) \
-    X(patterns_time, HydraulicPatternTime, 9, 1) \
-    X(curves_tank_volume, HydraulicCurveTankVolume, 10, 2) \
-    X(curves_pump_head, HydraulicCurvePumpHead, 11, 3) \
-    X(curves_pump_efficiency, HydraulicCurvePumpEfficiency, 12, 4) \
-    X(curves_valve_headloss, HydraulicCurveValveHeadloss, 13, 5) \
-    X(curves_valve_characteristic, HydraulicCurveValveCharacteristic, 14, 6) \
-    X(curves_generic, HydraulicCurveGeneric, 15, 7) \
-    X(nodes_reservoirs, HydraulicNodeReservoir, 2, 8) \
-    X(nodes_junctions, HydraulicNodeJunction, 1, 9) \
-    X(nodes_tanks, HydraulicNodeTank, 3, 10) \
-    X(demand_points, HydraulicDemandPoint, 7, 11) \
-    X(links_pipes, HydraulicLinkPipe, 4, 12) \
-    X(links_pumps, HydraulicLinkPump, 5, 13) \
-    X(links_valves, HydraulicLinkValve, 6, 14) \
-    X(controls_simple, HydraulicControlSimple, 16, 15) \
-    X(controls_rules, HydraulicControlRule, 17, 16) \
-    X(map_labels, HydraulicMapLabel, 18, 17)
-
 bool fail(QString *error, const QString &description)
 {
     if (error)
@@ -101,7 +79,7 @@ bool applyEdit(NetworkHydraulic &network, const aowis::model::ModelEntityEdit &e
         collection_index = static_cast<quint16>(ordinal); \
         return applyToCollection(network.name, edit, membership_changed, error); \
     }
-    AOWIS_HYDRAULIC_DRAFT_TYPES(APPLY)
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(APPLY)
 #undef APPLY
     return fail(error, QStringLiteral("Unsupported hydraulic entity type: ") + edit.entityType);
 }
@@ -116,7 +94,7 @@ bool collectMemberIds(const NetworkHydraulic &network, QSet<QUuid> &members,
             return fail(error, QStringLiteral("Null or duplicate hydraulic member UUID")); \
         members.insert(entity.uuid); \
     }
-    AOWIS_HYDRAULIC_DRAFT_TYPES(COLLECT)
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(COLLECT)
 #undef COLLECT
     return true;
 }
