@@ -4,6 +4,7 @@
 #include "projects/embedded_dvmdb_host.h"
 #include "tabs/project_graph_placement.h"
 #include "tabs/personal_working_copy_dialog.h"
+#include "tabs/projects_inspector_panels.h"
 
 #include "app/builtin_examples.h"
 #include "config/gui_configuration.h"
@@ -664,56 +665,20 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     creation_layout->addStretch(1);
     this->inspector_content_stack->addWidget(creation_page);
     right_layout->addWidget(this->inspector_content_stack, 1);
-    // Renaming is handled by the Name field. Destructive operations belong
-    // in the inspector for the selected server/project/branch, not in trees.
-    this->inspector_delete_button = compactButton(tr("Delete"),
-        tr("Remove the selected item; database profiles are deleted from the GUI configuration"), right);
-    this->inspector_delete_button->setObjectName(QStringLiteral("projectInspectorDeleteButton"));
-    this->source_save_button = compactButton(tr("Create"), tr("Save the new database profile"), right);
-    this->source_save_button->setObjectName(QStringLiteral("projectSourceCreateButton"));
-    this->source_cancel_button = compactButton(tr("Cancel"), tr("Discard this unsaved database"), right);
-    this->source_cancel_button->setObjectName(QStringLiteral("projectSourceCancelButton"));
-    this->inspector_create_project_button = compactButton(tr("Create project"),
-        tr("Create a project in this database"), right);
-    this->inspector_create_project_button->setObjectName(QStringLiteral("projectsInspectorCreateProject"));
-    this->create_branch_button = compactButton(tr("Create branch"),
-        tr("Create a named reference from an explicitly chosen revision"), right);
-    this->create_branch_button->setObjectName(QStringLiteral("projectsInspectorCreateBranch"));
-    this->working_copies_button = compactButton(tr("Personal working copies…"),
-        tr("Create or reopen a durable private draft for this exact branch HEAD"), right);
-    this->working_copies_button->setObjectName(QStringLiteral("projectsInspectorWorkingCopies"));
-    this->edit_network_button = compactButton(tr("Edit network"),
-        tr("Open this project's hydraulic network in Distribution Editor with durable "
-           "autosave to a private working draft"), right);
-    this->edit_network_button->setObjectName(QStringLiteral("projectsInspectorEditNetwork"));
-    this->inspector_import_button = compactButton(tr("Import network…"),
-        tr("Import a network into the selected project"), right);
-    this->inspector_import_button->setObjectName(QStringLiteral("projectsInspectorImport"));
-    this->creation_cancel_button = compactButton(tr("Cancel"),
-        tr("Discard the creation form"), right);
-    this->creation_cancel_button->setObjectName(QStringLiteral("projectsCreationCancel"));
-    this->creation_confirm_button = compactButton(tr("Create"),
-        tr("Create the selected object"), right);
-    this->creation_confirm_button->setObjectName(QStringLiteral("projectsCreationConfirm"));
-    QVBoxLayout *inspector_actions = new QVBoxLayout();
-    inspector_actions->setSpacing(5);
-    // Import is a separate project-scoped action so it never makes the
-    // narrow dock's Create/Cancel row overflow.
-    inspector_actions->addWidget(this->inspector_import_button);
-    inspector_actions->addWidget(this->edit_network_button);
-    inspector_actions->addWidget(this->working_copies_button);
-    QHBoxLayout *creation_actions = new QHBoxLayout();
-    creation_actions->setSpacing(5);
-    creation_actions->addStretch(1);
-    creation_actions->addWidget(this->inspector_create_project_button);
-    creation_actions->addWidget(this->create_branch_button);
-    creation_actions->addWidget(this->source_cancel_button);
-    creation_actions->addWidget(this->source_save_button);
-    creation_actions->addWidget(this->inspector_delete_button);
-    creation_actions->addWidget(this->creation_cancel_button);
-    creation_actions->addWidget(this->creation_confirm_button);
-    inspector_actions->addLayout(creation_actions);
-    right_layout->addLayout(inspector_actions);
+    // Independent action panels belong to their respective domain inspectors.
+    // No shared footer contains actions for unrelated selection kinds.
+    this->inspector_actions_stack = new ProjectsInspectorActionStack(right);
+    this->inspector_actions_stack->setObjectName(QStringLiteral("projectsInspectorActionsStack"));
+    this->database_inspector = new DatabaseInspector(this->inspector_actions_stack);
+    this->project_inspector = new ProjectInspector(this->inspector_actions_stack);
+    this->branch_inspector = new BranchInspector(this->inspector_actions_stack);
+    this->revision_inspector = new RevisionInspector(this->inspector_actions_stack);
+    this->inspector_actions_stack->addWidget(this->database_inspector);
+    this->inspector_actions_stack->addWidget(this->project_inspector);
+    this->inspector_actions_stack->addWidget(this->branch_inspector);
+    this->inspector_actions_stack->addWidget(this->revision_inspector);
+    this->inspector_actions_stack->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Maximum);
+    right_layout->addWidget(this->inspector_actions_stack);
     right_scroll->setWidget(right);
     this->inspector_dock = new QDockWidget(tr("Project Inspector"), dock_host);
     this->inspector_dock->setObjectName(QStringLiteral("projectsInspectorDock"));
@@ -740,7 +705,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(add_server, &QToolButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->source_refresh_button, &QPushButton::clicked, this, &ProjectsWidget::connectSource);
     connect(empty_add, &QPushButton::clicked, this, &ProjectsWidget::createServer);
-    connect(this->source_save_button, &QPushButton::clicked, this, &ProjectsWidget::saveNewSource);
+    connect(this->database_inspector->save_source, &QPushButton::clicked, this, &ProjectsWidget::saveNewSource);
     connect(this->source_name_edit, &QLineEdit::textChanged, this,
             [this](const QString &name)
     {
@@ -753,7 +718,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (this->selection_kind == SelectionKind::NewSource)
             this->source_name_edit->setText(name);
     });
-    connect(this->source_cancel_button, &QPushButton::clicked, this, &ProjectsWidget::cancelNewSource);
+    connect(this->database_inspector->cancel_source, &QPushButton::clicked, this, &ProjectsWidget::cancelNewSource);
     connect(this->source_kind_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { updateSourceFields(); });
     connect(browse_path, &QPushButton::clicked, this, [this]
@@ -803,20 +768,27 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             return;
         }
     });
-    connect(this->inspector_create_project_button, &QPushButton::clicked,
+    connect(this->database_inspector->create_project, &QPushButton::clicked,
             this, [this] { beginCreation(false); });
-    connect(this->create_branch_button, &QPushButton::clicked,
-            this, [this] { beginCreation(true); });
-    connect(this->working_copies_button, &QPushButton::clicked,
+    for (QPushButton *button : {this->project_inspector->create_branch,
+                                this->branch_inspector->create_branch,
+                                this->revision_inspector->create_branch})
+        connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
+    connect(this->branch_inspector->working_copies, &QPushButton::clicked,
             this, &ProjectsWidget::showWorkingCopies);
-    connect(this->edit_network_button, &QPushButton::clicked,
-            this, &ProjectsWidget::editProjectNetwork);
-    connect(this->inspector_import_button, &QPushButton::clicked,
+    for (QPushButton *button : {this->project_inspector->edit_network,
+                                this->branch_inspector->edit_network})
+        connect(button, &QPushButton::clicked, this, &ProjectsWidget::editProjectNetwork);
+    connect(this->project_inspector->import_network, &QPushButton::clicked,
             this, &ProjectsWidget::importProjectRequested);
-    connect(this->creation_cancel_button, &QPushButton::clicked,
-            this, &ProjectsWidget::cancelCreation);
-    connect(this->creation_confirm_button, &QPushButton::clicked,
-            this, &ProjectsWidget::submitCreation);
+    for (ProjectsInspectorPanel *panel : {static_cast<ProjectsInspectorPanel *>(this->database_inspector),
+                                          static_cast<ProjectsInspectorPanel *>(this->project_inspector),
+                                          static_cast<ProjectsInspectorPanel *>(this->branch_inspector),
+                                          static_cast<ProjectsInspectorPanel *>(this->revision_inspector)})
+    {
+        connect(panel->creation_cancel, &QPushButton::clicked, this, &ProjectsWidget::cancelCreation);
+        connect(panel->creation_confirm, &QPushButton::clicked, this, &ProjectsWidget::submitCreation);
+    }
     connect(this->creation_name, &QLineEdit::textChanged,
             this, [this](const QString &) { validateCreation(); });
     connect(this->creation_source, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -943,12 +915,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
     connect(this->server_auth_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { applyInspectorEdits(); });
-    connect(this->inspector_delete_button, &QPushButton::clicked, this, [this]
-    {
-        if (this->selection_kind == SelectionKind::Server) deleteServer();
-        else if (this->selection_kind == SelectionKind::Project
-                 || this->selection_kind == SelectionKind::Branch) deleteSelection();
-    });
+    connect(this->database_inspector->delete_database, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteServer);
+    connect(this->project_inspector->delete_project, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteSelection);
+    connect(this->branch_inspector->delete_branch, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteSelection);
     connect(this->name_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
     connect(this->tags_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
     connect(this->description_edit, &QTextEdit::textChanged, this, &ProjectsWidget::applyInspectorEdits);
@@ -2409,63 +2381,46 @@ void ProjectsWidget::updateInspector()
     this->description_edit->setEnabled(editable && !real_data);
     this->inspector_fields->setVisible(!real_data && this->selection_kind != SelectionKind::None);
     updateInspectorTabs();
-    const bool deletable_server = this->selection_kind == SelectionKind::Server
-        && currentServer() != nullptr;
-    const bool deletable_project = this->selection_kind == SelectionKind::Project
-        && currentProject() != nullptr;
-    const bool deletable_branch = this->selection_kind == SelectionKind::Branch
-        && currentBranch() != nullptr;
-    this->inspector_delete_button->setVisible(
-        (deletable_server && this->server_id != QStringLiteral("local-default"))
-        || ((deletable_project || deletable_branch) && !real_data));
-    this->inspector_delete_button->setText(deletable_server ? tr("Delete database…")
-        : deletable_project ? tr("Delete project…") : tr("Delete branch…"));
-    this->source_save_button->setVisible(new_source);
-    this->source_cancel_button->setVisible(new_source);
+    // Route to the inspector associated with the selected model object.
+    QWidget *active_inspector = this->database_inspector;
+    if (this->selection_kind == SelectionKind::Project)
+        active_inspector = this->project_inspector;
+    else if (this->selection_kind == SelectionKind::Branch)
+        active_inspector = this->branch_inspector;
+    else if (this->selection_kind == SelectionKind::Revision)
+        active_inspector = this->revision_inspector;
+    this->inspector_actions_stack->showPanel(active_inspector);
     this->inspector_content_stack->setCurrentIndex(
         this->creation_kind == CreationKind::None ? 0 : 1);
     this->updating_ui = false;
     updateConnectionStatus();
+    updateButtons();
 }
 
 void ProjectsWidget::updateButtons()
 {
-    const bool ready = (isPreviewSource() || isSourceReady(this->server_id))
-        && !this->source_writer->isBusy();
-    const bool editing = this->creation_kind != CreationKind::None;
+    const bool busy = this->source_writer->isBusy();
+    const bool ready = (isPreviewSource() || isSourceReady(this->server_id)) && !busy;
+    const bool editing_project = this->creation_kind == CreationKind::Project;
+    const bool editing_branch = this->creation_kind == CreationKind::Branch;
+    const bool creating = editing_project || editing_branch;
     const bool new_source = this->selection_kind == SelectionKind::NewSource;
-    this->inspector_create_project_button->setVisible(!editing && !new_source
-        && this->selection_kind == SelectionKind::Server);
-    this->inspector_create_project_button->setEnabled(ready);
-    this->create_branch_button->setVisible(!editing && !new_source
-        && (this->selection_kind == SelectionKind::Project
-            || this->selection_kind == SelectionKind::Branch
-            || this->selection_kind == SelectionKind::Revision));
-    this->create_branch_button->setEnabled(ready && currentProject() != nullptr);
-    this->working_copies_button->setVisible(!editing && !new_source
-        && this->selection_kind == SelectionKind::Branch
-        && currentProject() != nullptr && currentProject()->database_backed);
-    this->working_copies_button->setEnabled(!this->source_writer->isBusy());
-    this->edit_network_button->setVisible(!editing && !new_source
-        && (this->selection_kind == SelectionKind::Project
-            || this->selection_kind == SelectionKind::Branch)
-        && currentProject() != nullptr && currentProject()->database_backed);
-    this->edit_network_button->setEnabled(ready);
-    this->inspector_import_button->setVisible(!editing && !new_source
-        && this->selection_kind == SelectionKind::Project);
-    this->inspector_import_button->setEnabled(!this->source_writer->isBusy());
-    const bool deletable_source = this->selection_kind == SelectionKind::Server
-        && currentServer() != nullptr && this->server_id != QStringLiteral("local-default");
-    const bool deletable_preview = isPreviewSource()
-        && (this->selection_kind == SelectionKind::Project
-            || this->selection_kind == SelectionKind::Branch);
-    this->inspector_delete_button->setVisible(!editing
-        && (deletable_source || deletable_preview));
-    this->creation_cancel_button->setVisible(editing);
-    this->creation_cancel_button->setEnabled(!this->source_writer->isBusy());
-    this->creation_confirm_button->setVisible(editing);
-    this->creation_confirm_button->setEnabled(editing && !this->source_writer->isBusy()
-        && this->creation_error->text().isEmpty());
+    const bool valid = this->creation_error->text().isEmpty();
+    const ProjectPreviewData *project = currentProject();
+    const bool backed = project != nullptr && project->database_backed;
+    const bool preview = isPreviewSource();
+    this->database_inspector->update(new_source, creating && this->selection_kind == SelectionKind::Server,
+        busy, ready, this->selection_kind == SelectionKind::Server
+            && currentServer() != nullptr && this->server_id != QStringLiteral("local-default"), valid);
+    this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
+        busy, ready && project != nullptr, backed, preview && project != nullptr, valid);
+    this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
+        busy, ready && project != nullptr, backed, preview && currentBranch() != nullptr, valid);
+    this->revision_inspector->update(creating && this->selection_kind == SelectionKind::Revision,
+        busy, ready && project != nullptr, valid);
+    if (this->inspector_actions_stack != nullptr)
+        this->inspector_actions_stack->setVisible(
+            this->selection_kind != SelectionKind::None);
 }
 
 void ProjectsWidget::broadcastContext()

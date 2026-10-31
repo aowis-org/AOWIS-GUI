@@ -50,6 +50,14 @@ bool require(bool condition, const char *reason)
     return condition;
 }
 
+QPushButton *activeInspectorAction(ProjectsWidget &projects, const QString &object_name)
+{
+    QStackedWidget *stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorActionsStack"));
+    return stack != nullptr && stack->currentWidget() != nullptr
+        ? stack->currentWidget()->findChild<QPushButton *>(object_name) : nullptr;
+}
+
 void waitFor(int milliseconds)
 {
     QEventLoop loop;
@@ -265,23 +273,29 @@ int main(int argc, char **argv)
                      && revisions != nullptr && name != nullptr && graph != nullptr,
                  "workspace did not create its dock and inspector controls"))
         return 1;
-    QPushButton *delete_in_inspector = projects.findChild<QPushButton *>(
+    QPushButton *delete_in_inspector = activeInspectorAction(projects,
         QStringLiteral("projectInspectorDeleteButton"));
     QToolButton *add_server = projects.findChild<QToolButton *>(
         QStringLiteral("serversCreateButton"));
     QPushButton *add_project = projects.findChild<QPushButton *>(
         QStringLiteral("projectsInspectorCreateProject"));
-    QPushButton *add_branch = projects.findChild<QPushButton *>(
+    QPushButton *add_branch = activeInspectorAction(projects,
         QStringLiteral("projectsInspectorCreateBranch"));
     QTabWidget *inspector_tabs = projects.findChild<QTabWidget *>(
         QStringLiteral("projectsInspectorTabs"));
     if (!require(delete_in_inspector != nullptr && add_server != nullptr
                      && add_project != nullptr && add_branch != nullptr
                      && inspector_tabs != nullptr && inspector_tabs->count() >= 1
-                     && delete_in_inspector->isVisible()
-                     && delete_in_inspector->text() == QStringLiteral("Delete branch…"),
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete branch…"),
                  "context-sensitive inspector tabs or actions are missing"))
         return 1;
+    QStackedWidget *action_stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorActionsStack"));
+    if (!require(action_stack != nullptr && action_stack->count() == 4
+                     && action_stack->currentWidget()->objectName()
+                         == QStringLiteral("projectsBranchInspector"),
+                 "Projects Inspector does not route to four independent domain action panels")) return 1;
     QPushButton *working_copies = projects.findChild<QPushButton *>(
         QStringLiteral("projectsInspectorWorkingCopies"));
     QPushButton *edit_network = projects.findChild<QPushButton *>(
@@ -410,12 +424,17 @@ int main(int argc, char **argv)
                      && server_options->isVisible() && endpoint->text().startsWith(QStringLiteral("https://")),
                  "remote server selection did not show its preview inspector"))
         return 1;
-    if (!require(delete_in_inspector->isVisible()
-                     && delete_in_inspector->text() == QStringLiteral("Delete database…"),
+    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete database…"),
                  "selecting a server did not offer deletion in the inspector"))
         return 1;
+    if (!require(action_stack->currentWidget()->objectName()
+                     == QStringLiteral("projectsDatabaseInspector")
+                     && activeInspectorAction(projects,
+                         QStringLiteral("projectsInspectorWorkingCopies")) == nullptr,
+                 "database inspector exposes branch-only controls")) return 1;
     if (!require(add_project->isVisible() && add_project->isEnabled()
-                     && !add_branch->isVisible(),
+                     && activeInspectorAction(projects, QStringLiteral("projectsInspectorCreateBranch")) == nullptr,
                  "database inspector did not offer only its relevant creation action"))
         return 1;
     add_project->click();
@@ -645,7 +664,7 @@ int main(int argc, char **argv)
         return 1;
     // A historical revision initiates an inline branch draft at the exact
     // selected revision, without creating an extra revision or opening a dialog.
-    QPushButton *revision_branch_action = projects.findChild<QPushButton *>(
+    QPushButton *revision_branch_action = activeInspectorAction(projects,
         QStringLiteral("projectsInspectorCreateBranch"));
     QStackedWidget *inspector_content = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorContentStack"));
@@ -655,9 +674,9 @@ int main(int argc, char **argv)
         QStringLiteral("projectsCreationName"));
     QLabel *creation_summary = projects.findChild<QLabel *>(
         QStringLiteral("projectsCreationSummary"));
-    QPushButton *creation_confirm = projects.findChild<QPushButton *>(
+    QPushButton *creation_confirm = activeInspectorAction(projects,
         QStringLiteral("projectsCreationConfirm"));
-    QPushButton *creation_cancel = projects.findChild<QPushButton *>(
+    QPushButton *creation_cancel = activeInspectorAction(projects,
         QStringLiteral("projectsCreationCancel"));
     if (!require(revision_branch_action != nullptr && revision_branch_action->isVisible()
                      && creation_source != nullptr && creation_name != nullptr
@@ -893,8 +912,8 @@ int main(int argc, char **argv)
     if (!require(graph->selectionId() == QStringLiteral("group:project:")
                      + selected_project_key.mid(2),
                  "sidebar project selection did not highlight its graph card")) return 1;
-    if (!require(delete_in_inspector->isVisible()
-                     && delete_in_inspector->text() == QStringLiteral("Delete project…"),
+    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete project…"),
                  "selecting a project did not offer deletion in the inspector"))
         return 1;
     // A selected card may intentionally be off-screen after manual zoom/pan.
@@ -916,8 +935,8 @@ int main(int argc, char **argv)
         return 1;
     if (!require(graph->selectionId().startsWith(QStringLiteral("group:branch:")),
                  "sidebar branch selection did not highlight its graph card")) return 1;
-    if (!require(delete_in_inspector->isVisible()
-                     && delete_in_inspector->text() == QStringLiteral("Delete branch…"),
+    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete branch…"),
                  "selecting a branch did not offer deletion in the inspector"))
         return 1;
 
@@ -928,9 +947,14 @@ int main(int argc, char **argv)
     if (!require(dock->isVisible() && name->text() == QStringLiteral("Pressure tuning"),
                  "selecting a revision on the graph did not reopen its inspector"))
         return 1;
-    if (!require(!delete_in_inspector->isVisible(),
+    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton")) == nullptr,
                  "immutable revision must not expose a delete action"))
         return 1;
+    if (!require(action_stack->currentWidget()->objectName()
+                     == QStringLiteral("projectsRevisionInspector")
+                     && activeInspectorAction(projects,
+                         QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
+                 "immutable revision inspector exposes editing actions")) return 1;
 
     dock->close();
     const double zoom_before_graph_selection = graph->zoomFactor();
@@ -1129,7 +1153,9 @@ int main(int argc, char **argv)
         return 1;
     delete_preview.selectProjectByName(QStringLiteral("Sample Pump Station"));
     app.processEvents();
-    if (!require(delete_action->text() == QStringLiteral("Delete project…"),
+    delete_action = activeInspectorAction(delete_preview,
+        QStringLiteral("projectInspectorDeleteButton"));
+    if (!require(delete_action != nullptr && delete_action->text() == QStringLiteral("Delete project…"),
                  "inspector project deletion is not available"))
         return 1;
     bool confirmed_deletion = false;
@@ -1218,8 +1244,8 @@ int main(int argc, char **argv)
     // Deletion must remove the profile from disk, without deleting any DVMDB data.
     servers->setCurrentItem(servers->topLevelItem(2));
     app.processEvents();
-    if (!require(delete_in_inspector->isVisible()
-                     && delete_in_inspector->text() == QStringLiteral("Delete database…"),
+    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete database…"),
                  "newly created database profile was not selected for deletion"))
         return 1;
     bool confirmed_server_deletion = false;
@@ -1243,7 +1269,7 @@ int main(int argc, char **argv)
         }
     });
     server_confirmation_timer.start();
-    delete_in_inspector->click();
+    activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->click();
     server_confirmation_timer.stop();
     if (!require(confirmed_server_deletion,
                  "database profile deletion confirmation was not accepted"))
