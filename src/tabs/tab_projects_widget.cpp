@@ -7,6 +7,7 @@
 #include "tabs/projects_inspector_panels.h"
 #include "tabs/projects_inspector_details.h"
 #include "tabs/projects_inspector_creation.h"
+#include "tabs/projects_inspector_presentation.h"
 
 #include "app/builtin_examples.h"
 #include "config/gui_configuration.h"
@@ -1947,130 +1948,26 @@ void ProjectsWidget::submitCreation()
 void ProjectsWidget::updateInspector()
 {
     this->updating_ui = true;
-    QString name;
-    QString description;
-    QStringList tags;
-    QString heading = tr("Inspector");
-    QString subtitle;
-    QString metadata;
-    bool editable = true;
-
     ProjectPreviewData *project = currentProject();
+    ProjectsInspectorPresentation view;
     if (this->selection_kind == SelectionKind::NewSource)
-    {
-        heading = tr("New database");
-        subtitle = tr("Configure a data source. Nothing is saved until you select Create.");
-        metadata = tr("Local and REST sources share the same read-only project explorer.");
-    }
+        view = ProjectsInspectorPresentations::newDatabase();
     else if (this->selection_kind == SelectionKind::Server)
     {
-        if (ProjectServerProfile *server = currentServer())
-        {
-            heading = tr("Database");
-            name = server->name;
-            description = server->description;
-            tags = server->tags;
-            subtitle = server->connection_type == QStringLiteral("local")
-                ? tr("Embedded DVMDB") : tr("REST DVMDB");
-            metadata = tr("Profile: %1").arg(server->id);
-            const SourceSession *session = this->source_sessions.value(server->id, nullptr);
-            if (session != nullptr && !session->repository_id.isEmpty())
-                metadata += tr("\nDVMDB repository UUIDv7: %1").arg(session->repository_id);
-            if (server->personal)
-                metadata += tr("\n♛ Personal working database");
-        }
+        const ProjectServerProfile *server = currentServer();
+        const SourceSession *session = server == nullptr ? nullptr
+            : this->source_sessions.value(server->id, nullptr);
+        view = ProjectsInspectorPresentations::database(server,
+            session == nullptr ? QString() : session->repository_id);
     }
     else if (this->selection_kind == SelectionKind::Project && project != nullptr)
-    {
-        heading = tr("Project");
-        name = project->name;
-        description = project->description;
-        tags = project->tags;
-        metadata = project->database_backed
-            ? tr("DVMDB project ID: %1 (read-only)").arg(project->backend_id)
-            : tr("Preview project ID: %1").arg(project->id);
-        if (project->database_backed && !project->repository_id.isEmpty())
-            metadata += tr("\nRepository UUIDv7: %1").arg(project->repository_id);
-        if (!project->source_example_resource.isEmpty())
-        {
-            metadata += tr("\nSource: bundled example (%1)\n"
-                "Network data is NOT stored on this server; this is only a GUI preview.")
-                .arg(project->source_example_resource);
-        }
-    }
+        view = ProjectsInspectorPresentations::project(project);
     else if (this->selection_kind == SelectionKind::Branch)
-    {
-        for (ProjectPreviewData &entry : this->projects)
-            for (const ProjectPreviewBranch &branch : entry.branches)
-                if (branch.id == this->selected_id)
-                {
-                    heading = tr("Branch");
-                    name = branch.name;
-                    description = branch.description;
-                    tags = branch.tags;
-                    metadata = branch.head.isEmpty()
-                        ? tr("No commits yet\nBranch: %1").arg(branch.name)
-                        : tr("Head revision: %1\nBranch: %2\nRevision identity: %3")
-                            .arg(branch.head, branch.name,
-                                 DvmdbIdentity::revisionFormatName(branch.head));
-                    if (!branch.origin_branch_id.isEmpty())
-                    {
-                        const QString origin_id = entry.database_backed
-                            ? entry.id + QStringLiteral(":") + branch.origin_branch_id
-                            : branch.origin_branch_id;
-                        QString origin_name;
-                        for (const ProjectPreviewBranch &candidate : entry.branches)
-                            if (candidate.id == origin_id) { origin_name = candidate.name; break; }
-                        metadata += tr("\nCreated from branch: %1")
-                            .arg(origin_name.isEmpty() ? branch.origin_branch_id : origin_name);
-                    }
-                    if (!branch.fork_revision_id.isEmpty())
-                        metadata += tr("\nOriginal fork revision UUIDv7: %1")
-                            .arg(branch.fork_revision_id);
-                    if (entry.database_backed)
-                    {
-                        const QString prefix = entry.id + QStringLiteral(":");
-                        const QString suffix = branch.id.mid(prefix.size());
-                        if (DvmdbIdentity::isUuidV7(suffix))
-                            metadata += tr("\nBranch UUIDv7: %1").arg(suffix);
-                    }
-                }
-    }
+        view = ProjectsInspectorPresentations::branch(this->projects, this->selected_id);
     else if (this->selection_kind == SelectionKind::Revision)
-    {
-        if (ProjectPreviewRevision *revision = selectedRevision())
-        {
-            heading = tr("Revision");
-            name = revision->title;
-            description = revision->description;
-            tags = revision->tags;
-            subtitle = project != nullptr && project->database_backed
-                ? tr("Immutable DVMDB revision (read-only; metadata editing unavailable).")
-                : tr("Historical model state is immutable; these are preview annotations only.");
-            if (project != nullptr && project->database_backed)
-            {
-                QStringList heads;
-                for (const ProjectPreviewBranch &branch : project->branches)
-                    if (branch.head == revision->id) heads.append(branch.name);
-                metadata = tr("Revision: %1\nIdentity: %2\nHEAD of: %3\nParents: %4")
-                    .arg(revision->id, DvmdbIdentity::revisionFormatName(revision->id),
-                         heads.isEmpty() ? tr("(none)") : heads.join(QStringLiteral(", ")),
-                         revision->parents.isEmpty() ? tr("(root)") : revision->parents.join(QStringLiteral(", ")));
-                if (!revision->record_sha256.isEmpty())
-                    metadata += tr("\nCanonical record SHA-256: %1").arg(revision->record_sha256);
-            }
-            else
-                metadata = tr("Revision: %1\nBranch: %2\nParents: %3\nAuthor: %4\nCreated: %5")
-                    .arg(revision->id, revision->branch,
-                         revision->parents.isEmpty() ? tr("(root)") : revision->parents.join(QStringLiteral(", ")),
-                         revision->author, revision->created_at);
-        }
-    }
+        view = ProjectsInspectorPresentations::revision(selectedRevision(), project);
     else
-    {
-        editable = false;
-        subtitle = tr("Select a server, project, branch, or revision.");
-    }
+        view = ProjectsInspectorPresentations::empty();
     const bool new_source = this->selection_kind == SelectionKind::NewSource;
     if (this->selection_kind == SelectionKind::Server && currentServer() != nullptr)
     {
@@ -2089,28 +1986,29 @@ void ProjectsWidget::updateInspector()
     updateSourceFields();
     if (this->creation_kind == CreationKind::Project)
     {
-        heading = tr("Create project");
-        subtitle = tr("Database: %1").arg(currentServer() == nullptr ? QString() : currentServer()->name);
+        view.heading = tr("Create project");
+        view.subtitle = tr("Database: %1").arg(currentServer() == nullptr ? QString() : currentServer()->name);
     }
     else if (this->creation_kind == CreationKind::Branch)
     {
-        heading = tr("Create branch");
-        subtitle = tr("Project: %1").arg(project == nullptr ? QString() : project->name);
+        view.heading = tr("Create branch");
+        view.subtitle = tr("Project: %1").arg(project == nullptr ? QString() : project->name);
     }
     // A domain overview now owns its fields and presentation state. No
     // ProjectsWidget member aliases point at whichever domain was last shown.
     ProjectsInspectorOverview *overview = activeOverview();
     this->inspector_overview_stack->setCurrentWidget(overview);
-    this->inspector_heading->setText(heading);
-    this->inspector_subtitle->setText(subtitle);
-    this->inspector_subtitle->setVisible(!subtitle.isEmpty());
-    this->database_connection->source_name_edit->setText(name);
+    this->inspector_heading->setText(view.heading);
+    this->inspector_subtitle->setText(view.subtitle);
+    this->inspector_subtitle->setVisible(!view.subtitle.isEmpty());
+    this->database_connection->source_name_edit->setText(view.name);
     this->database_connection->source_name_edit->setVisible(new_source);
     const bool real_data = project != nullptr && project->database_backed
         && (this->selection_kind == SelectionKind::Project
             || this->selection_kind == SelectionKind::Branch
             || this->selection_kind == SelectionKind::Revision);
-    overview->present(name, tags, description, metadata, editable && !real_data,
+    overview->present(view.name, view.tags, view.description, view.metadata,
+                      view.editable && !real_data,
                       !real_data && this->selection_kind != SelectionKind::None);
     updateInspectorTabs();
     // Route to the inspector associated with the selected model object.

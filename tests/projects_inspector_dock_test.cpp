@@ -1,5 +1,6 @@
 #include "tabs/tab_projects_widget.h"
 #include "tabs/projects_inspector_panels.h"
+#include "tabs/projects_inspector_presentation.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "widgets/group_box_collapsible.h"
 #include "config/gui_configuration.h"
@@ -101,6 +102,64 @@ int main(int argc, char **argv)
         return 1;
     qputenv("XDG_DATA_HOME", configuration_dir.path().toUtf8());
     QApplication app(argc, argv);
+
+    // Domain presentation must preserve identity, branch provenance and
+    // immutable revision metadata without borrowing fields from other forms.
+    {
+        ProjectServerProfile database;
+        database.id = QStringLiteral("database-profile");
+        database.name = QStringLiteral("Working DB");
+        database.connection_type = QStringLiteral("remote");
+        database.personal = true;
+        const ProjectsInspectorPresentation database_view = ProjectsInspectorPresentations::database(
+            &database, QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371"));
+        if (!require(database_view.name == database.name
+                         && database_view.metadata.contains(QStringLiteral("Personal working database"))
+                         && database_view.metadata.contains(QStringLiteral("DVMDB repository UUIDv7")),
+                     "database Inspector presentation lost repository identity or personal designation"))
+            return 1;
+
+        ProjectPreviewData project;
+        project.id = QStringLiteral("project-ui-id");
+        project.backend_id = QStringLiteral("project-uuid");
+        project.repository_id = QStringLiteral("repository-uuid");
+        project.name = QStringLiteral("Network project");
+        project.database_backed = true;
+        ProjectPreviewBranch main_branch;
+        main_branch.id = QStringLiteral("project-ui-id:branch-main");
+        main_branch.name = QStringLiteral("main");
+        main_branch.head = QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371");
+        ProjectPreviewBranch feature_branch;
+        feature_branch.id = QStringLiteral("project-ui-id:branch-feature");
+        feature_branch.name = QStringLiteral("feature");
+        feature_branch.origin_branch_id = QStringLiteral("branch-main");
+        feature_branch.fork_revision_id = main_branch.head;
+        project.branches.append(main_branch);
+        project.branches.append(feature_branch);
+        const ProjectsInspectorPresentation project_view = ProjectsInspectorPresentations::project(&project);
+        const ProjectsInspectorPresentation branch_view = ProjectsInspectorPresentations::branch(
+            QList<ProjectPreviewData>{project}, feature_branch.id);
+        if (!require(project_view.name == project.name
+                         && project_view.metadata.contains(project.repository_id)
+                         && branch_view.name == feature_branch.name
+                         && branch_view.metadata.contains(QStringLiteral("Created from branch: main"))
+                         && branch_view.metadata.contains(feature_branch.fork_revision_id),
+                     "project or branch Inspector presentation lost source and fork metadata"))
+            return 1;
+        ProjectPreviewRevision revision;
+        revision.id = main_branch.head;
+        revision.title = QStringLiteral("Initial revision");
+        revision.parents.clear();
+        revision.record_sha256 = QStringLiteral("canonical-sha256");
+        const ProjectsInspectorPresentation revision_view = ProjectsInspectorPresentations::revision(
+            &revision, &project);
+        if (!require(revision_view.name == revision.title
+                         && revision_view.subtitle.contains(QStringLiteral("read-only"))
+                         && revision_view.metadata.contains(QStringLiteral("HEAD of: main"))
+                         && revision_view.metadata.contains(revision.record_sha256),
+                     "revision Inspector presentation lost immutable ancestry metadata"))
+            return 1;
+    }
 
     // Network initialization and Monitor preview must not be available until
     // a real private draft has been reopened and canonically hydrated.
