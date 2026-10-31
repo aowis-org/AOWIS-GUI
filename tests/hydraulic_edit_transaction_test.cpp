@@ -929,6 +929,137 @@ void testStructuralDraftRecoveryAcrossRestart()
                             "second restart leaves no duplicates, ghost links or unsaved transactions");
 }
 
+void testPumpSimpleControlCaptureAndCascades()
+{
+    NetworkHydraulic initial;
+    initial.uuid = createUuidV7();
+    initial.id = QStringLiteral("HC02 controls");
+    HydraulicData data;
+    data.replaceNetworkHydraulic(std::move(initial), {});
+    const QUuid trigger = data.addJunction(coordinate(50.0, 8.0));
+    const QUuid other = data.addJunction(coordinate(50.1, 8.1));
+    const QUuid pump = data.addPump(trigger, other, coordinate(50.05, 8.05));
+    test_harness.expectTrue(!trigger.isNull() && !other.isNull() && !pump.isNull(),
+                            "HC02 creates a valid pump and trigger node");
+    if (pump.isNull())
+        return;
+    NetworkHydraulic staged = data.networkHydraulic();
+    QList<QByteArray> events;
+    QString capture_error;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed,
+                     &data, [&capture_error](const QString &error) { capture_error = error; });
+    data.setLogicalEditCaptureEnabled(true);
+
+    const QUuid control_uuid = data.addPumpSimpleControl(
+        pump, HydraulicControlSimpleType::LowLevel, trigger);
+    test_harness.expectTrue(!control_uuid.isNull() && events.size() == 1,
+                            "HC02 adding a pump control records one transaction");
+    if (control_uuid.isNull() || events.size() != 1)
+        return;
+    const QByteArray control_id_bytes = control_uuid.toRfc4122();
+    test_harness.expectTrue(control_id_bytes.size() == 16 &&
+                            ((static_cast<unsigned char>(control_id_bytes.at(6)) >> 4) == 7),
+                            "HC02 new pump controls use UUIDv7");
+    const std::optional<aowis::model::ModelEditTransaction> added = decoded(events.last());
+    test_harness.expectTrue(added.has_value() && added->edits.size() == 1 &&
+                            added->edits.first().entityId == control_uuid &&
+                            added->edits.first().entityType == QStringLiteral("HydraulicControlSimple") &&
+                            !added->edits.first().before.has_value() &&
+                            added->edits.first().after.has_value(),
+                            "HC02 control creation captures the control, not its pump");
+
+    HydraulicControlSimple changed = data.networkHydraulic().controls_simple.first();
+    changed.id = QStringLiteral("C-modified");
+    test_harness.expectTrue(data.setPumpSimpleControl(pump, changed) && events.size() == 2,
+                            "HC02 control modification records a transaction");
+    if (events.size() != 2) return;
+    const std::optional<aowis::model::ModelEditTransaction> changed_tx = decoded(events.last());
+    test_harness.expectTrue(changed_tx.has_value() && changed_tx->edits.size() == 1 &&
+                            changed_tx->edits.first().entityId == control_uuid &&
+                            changed_tx->edits.first().before.has_value() &&
+                            changed_tx->edits.first().after.has_value(),
+                            "HC02 control update records typed before/after images");
+    test_harness.expectTrue(data.setPumpSimpleControl(pump, changed) && events.size() == 2,
+                            "HC02 unchanged control does not create a spurious event");
+    test_harness.expectTrue(data.removePumpSimpleControl(pump, control_uuid) && events.size() == 3,
+                            "HC02 deleting control records one event");
+    if (events.size() != 3) return;
+    const std::optional<aowis::model::ModelEditTransaction> removed = decoded(events.last());
+    test_harness.expectTrue(removed.has_value() && removed->edits.size() == 1 &&
+                            removed->edits.first().entityId == control_uuid &&
+                            removed->edits.first().before.has_value() &&
+                            !removed->edits.first().after.has_value(),
+                            "HC02 control deletion is reversible");
+
+    const QUuid next_control = data.addPumpSimpleControl(
+        pump, HydraulicControlSimpleType::HighLevel, trigger);
+    const int before_pump_delete = events.size();
+    test_harness.expectTrue(!next_control.isNull() && data.deletePump(pump) &&
+                            events.size() == before_pump_delete + 1 &&
+                            data.networkHydraulic().controls_simple.isEmpty(),
+                            "HC02 pump deletion cascades to its controls in one transaction");
+    if (events.size() != before_pump_delete + 1) return;
+    const std::optional<aowis::model::ModelEditTransaction> deleted_pump = decoded(events.last());
+    bool pump_removed = false;
+    bool control_removed = false;
+    if (deleted_pump.has_value())
+    {
+        for (const aowis::model::ModelEntityEdit &edit : deleted_pump->edits)
+        {
+            if (edit.entityId == pump)
+                pump_removed = edit.before.has_value() && !edit.after.has_value();
+            if (edit.entityId == next_control)
+                control_removed = edit.before.has_value() && !edit.after.has_value();
+        }
+    }
+    test_harness.expectTrue(deleted_pump.has_value() && deleted_pump->edits.size() == 2 &&
+                            pump_removed && control_removed,
+                            "HC02 pump and dependent control share one logical transaction");
+
+    const QUuid second_pump = data.addPump(trigger, other, coordinate(50.05, 8.05));
+    const QUuid triggered_control = data.addPumpSimpleControl(
+        second_pump, HydraulicControlSimpleType::LowLevel, trigger);
+    const int before_node_delete = events.size();
+    test_harness.expectTrue(!second_pump.isNull() && !triggered_control.isNull() &&
+                            data.deleteJunction(trigger) &&
+                            events.size() == before_node_delete + 1 &&
+                            data.networkHydraulic().controls_simple.isEmpty() &&
+                            data.networkHydraulic().links_pumps.isEmpty(),
+                            "HC02 node deletion cascades pump and control together");
+    if (events.size() != before_node_delete + 1) return;
+    const std::optional<aowis::model::ModelEditTransaction> deleted_node = decoded(events.last());
+    test_harness.expectTrue(deleted_node.has_value() && deleted_node->edits.size() == 3,
+                            "HC02 node cascade contains node, pump and simple control");
+
+    // Replay every captured operation against a separate canonical stage,
+    // including membership inserts/removals and the dependent control cascades.
+    bool replay_successful = true;
+    QString replay_error;
+    for (const QByteArray &bytes : events)
+    {
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        if (!HydraulicDraftEventAdapter::prepareWithMembership(
+                bytes, staged, records, membership, &replay_error))
+        {
+            replay_successful = false;
+            break;
+        }
+    }
+    const QByteArray replay_message =
+        (QStringLiteral("HC02 replay of control edits succeeds: ") + replay_error).toUtf8();
+    test_harness.expectTrue(replay_successful, replay_message.constData());
+    if (replay_successful)
+        test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                                aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                                    data.networkHydraulic()),
+                                "HC02 control, pump and node cascades replay to exact MODEL bytes");
+    test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
+                            "HC02 controls never silently disable capture");
+}
+
 void testDraftStageRejectsOutOfOrderReplay()
 {
     QTemporaryDir root;
@@ -974,6 +1105,7 @@ int main(int argc, char **argv)
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);
     test_harness.runCase("HydraulicData logical operations", testHydraulicDataLogicalOperations);
     test_harness.runCase("Hydraulic property capture and no-op", testPropertyCaptureAndNoop);
+    test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);
     test_harness.runCase("Hydraulic event to canonical DVMDB records", testOrderedHydraulicDraftRecordMapping);
     test_harness.runCase("Hydraulic membership intent mapping", testHydraulicDraftMembershipIntents);

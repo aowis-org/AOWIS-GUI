@@ -59,6 +59,22 @@ It does not mean every UI mutation path produces a transaction (HC-02), nor
 that persistent network-level metadata is saved (HC-03 to HC-05). Do not
 interpret 18/18 registered entity types as 100% end-to-end editor autosave.
 
+## HC-02 — Auditing actual editor mutation paths (in progress)
+
+The pump simple-control workflow is the first closed gap: `addPumpSimpleControl`,
+`setPumpSimpleControl` and `removePumpSimpleControl` now capture the **control's**
+UUID instead of incorrectly watching its owning pump. Newly created control IDs
+use UUIDv7. Removing a link or node cascades simple controls referencing that
+link or trigger node; the GUI watches all dependents before applying the edit,
+so one logical MODEL event contains the entire change. A dedicated test checks
+create/update/no-op/delete, pump and node cascades, membership replay and the
+reconstructed network's canonical bytes.
+
+**Still to audit in HC-02:** other reference-bearing collections (rules,
+labels, patterns, curves and materials), their editing surfaces, and the
+remaining import and bulk-edit paths. HC-02 is **not yet complete**; network-root
+settings require HC-03/04 and are outside this patch.
+
 ## Required editor synchronization
 
 1. Checkout a known immutable branch base (or unborn branch) into a personal

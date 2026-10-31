@@ -100,23 +100,36 @@ public:
     {
         if (!this->enabled_ || node_uuid.isNull())
             return;
+        QSet<QUuid> deleted_links;
         QSet<QUuid> deleted_pipes;
         for (const HydraulicLinkPipe &pipe : this->owner_.network_hydraulic.links_pipes)
         {
             if (pipe.node_uuid_from != node_uuid && pipe.node_uuid_to != node_uuid)
                 continue;
             deleted_pipes.insert(pipe.uuid);
+            deleted_links.insert(pipe.uuid);
             this->capture_.watch(this->owner_.network_hydraulic, pipe.uuid);
         }
         for (const HydraulicLinkPump &pump : this->owner_.network_hydraulic.links_pumps)
         {
             if (pump.node_uuid_from == node_uuid || pump.node_uuid_to == node_uuid)
+            {
+                deleted_links.insert(pump.uuid);
                 this->capture_.watch(this->owner_.network_hydraulic, pump.uuid);
+            }
         }
         for (const HydraulicLinkValve &valve : this->owner_.network_hydraulic.links_valves)
         {
             if (valve.node_uuid_from == node_uuid || valve.node_uuid_to == node_uuid)
+            {
+                deleted_links.insert(valve.uuid);
                 this->capture_.watch(this->owner_.network_hydraulic, valve.uuid);
+            }
+        }
+        for (const HydraulicControlSimple &control : this->owner_.network_hydraulic.controls_simple)
+        {
+            if (control.trigger_node_uuid == node_uuid || deleted_links.contains(control.link_uuid))
+                this->capture_.watch(this->owner_.network_hydraulic, control.uuid);
         }
         for (const HydraulicDemandPoint &point : this->owner_.network_hydraulic.demand_points)
         {
@@ -130,6 +143,17 @@ public:
                  point.attachment.pipe_assigned_junction_uuid == node_uuid);
             if (linked_to_deleted_pipe || linked_to_deleted_junction)
                 this->capture_.watch(this->owner_.network_hydraulic, point.uuid);
+        }
+    }
+
+    void watchLinkDeletionDependents(const QUuid &link_uuid)
+    {
+        if (!this->enabled_ || link_uuid.isNull())
+            return;
+        for (const HydraulicControlSimple &control : this->owner_.network_hydraulic.controls_simple)
+        {
+            if (control.link_uuid == link_uuid)
+                this->capture_.watch(this->owner_.network_hydraulic, control.uuid);
         }
     }
 
@@ -3140,7 +3164,7 @@ bool HydraulicData::setPumpSpeedPatternUuid(
 QUuid HydraulicData::addPumpSimpleControl(
     const QUuid &pump_uuid, HydraulicControlSimpleType type, const QUuid &trigger_node_uuid)
 {
-    EditScope edit_scope(*this, QStringLiteral("hydraulic.addPumpSimpleControl"), pump_uuid);
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.addPumpSimpleControl"));
     const QUuid control_uuid = this->network_editor.addPumpSimpleControl(
         pump_uuid, type, trigger_node_uuid);
     if (control_uuid.isNull())
@@ -3148,13 +3172,18 @@ QUuid HydraulicData::addPumpSimpleControl(
 
     markNetworkChanged(NetworkChange::Visual, pump_uuid);
     emit signalLinkChanged(InfrastructureEntity::Pump, pump_uuid);
+    if (this->logical_edit_capture_enabled)
+    {
+        capture.watchCreated(control_uuid);
+        publishCapturedEdit(capture);
+    }
     return control_uuid;
 }
 
 bool HydraulicData::setPumpSimpleControl(
     const QUuid &pump_uuid, const HydraulicControlSimple &control)
 {
-    EditScope edit_scope(*this, QStringLiteral("hydraulic.setPumpSimpleControl"), pump_uuid);
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.setPumpSimpleControl"), control.uuid);
     return emitLinkChangedIfSuccessful(
         pump_uuid, this->network_editor.setPumpSimpleControl(pump_uuid, control));
 }
@@ -3162,7 +3191,7 @@ bool HydraulicData::setPumpSimpleControl(
 bool HydraulicData::removePumpSimpleControl(
     const QUuid &pump_uuid, const QUuid &control_uuid)
 {
-    EditScope edit_scope(*this, QStringLiteral("hydraulic.removePumpSimpleControl"), pump_uuid);
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.removePumpSimpleControl"), control_uuid);
     return emitLinkChangedIfSuccessful(
         pump_uuid, this->network_editor.removePumpSimpleControl(pump_uuid, control_uuid));
 }
@@ -3680,6 +3709,11 @@ bool HydraulicData::deletePipe(const QUuid &uuid)
     if (this->logical_edit_capture_enabled)
     {
         capture.watch(this->network_hydraulic, uuid);
+        for (const HydraulicControlSimple &control : this->network_hydraulic.controls_simple)
+        {
+            if (control.link_uuid == uuid)
+                capture.watch(this->network_hydraulic, control.uuid);
+        }
         for (const HydraulicDemandPoint &point : this->network_hydraulic.demand_points)
         {
             if (point.attachment.type == HydraulicDemandPointAttachmentType::Pipe &&
@@ -3701,6 +3735,7 @@ bool HydraulicData::deletePipe(const QUuid &uuid)
 bool HydraulicData::deletePump(const QUuid &uuid)
 {
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deletePump"), uuid);
+    edit_scope.watchLinkDeletionDependents(uuid);
     const bool successful = this->network_editor.deletePump(uuid);
     if (successful)
     {
@@ -3713,6 +3748,7 @@ bool HydraulicData::deletePump(const QUuid &uuid)
 bool HydraulicData::deleteValve(const QUuid &uuid)
 {
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deleteValve"), uuid);
+    edit_scope.watchLinkDeletionDependents(uuid);
     const bool successful = this->network_editor.deleteValve(uuid);
     if (successful)
     {

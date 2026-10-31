@@ -45,6 +45,19 @@ bool removeEntityByUuid(QList<Entity> &entities, const QUuid &uuid)
     return false;
 }
 
+// Removing a referenced node or link must not leave orphaned simple controls.
+// The corresponding GUI mutation watches these dependent control UUIDs before
+// invoking the editor, so all deletions belong to the same MODEL transaction.
+void removeSimpleControlsReferencing(NetworkHydraulic &network, const QUuid &entity_uuid)
+{
+    for (int index = network.controls_simple.size() - 1; index >= 0; --index)
+    {
+        const HydraulicControlSimple &control = network.controls_simple.at(index);
+        if (control.link_uuid == entity_uuid || control.trigger_node_uuid == entity_uuid)
+            network.controls_simple.removeAt(index);
+    }
+}
+
 template<typename Mutation>
 bool mutateNode(NetworkHydraulic &network, const QUuid &uuid, Mutation mutation)
 {
@@ -1488,7 +1501,7 @@ QUuid HydraulicNetworkEditor::addPumpSimpleControl(
 
     HydraulicControlSimple control;
     control.id = nextSimpleControlId();
-    control.uuid = QUuid::createUuid();
+    control.uuid = createUuidV7();
     control.type = type;
     control.link_uuid = pump_uuid;
     control.action = type == HydraulicControlSimpleType::HighLevel
@@ -2113,6 +2126,7 @@ bool HydraulicNetworkEditor::deleteJunction(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.nodes_junctions, uuid))
         return false;
 
+    removeSimpleControlsReferencing(this->network, uuid);
     clearDemandPointAttachmentsToJunction(uuid);
     deleteConnectedLinks(uuid);
     return true;
@@ -2123,6 +2137,7 @@ bool HydraulicNetworkEditor::deleteReservoir(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.nodes_reservoirs, uuid))
         return false;
 
+    removeSimpleControlsReferencing(this->network, uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2132,6 +2147,7 @@ bool HydraulicNetworkEditor::deleteTank(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.nodes_tanks, uuid))
         return false;
 
+    removeSimpleControlsReferencing(this->network, uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2146,18 +2162,25 @@ bool HydraulicNetworkEditor::deletePipe(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.links_pipes, uuid))
         return false;
 
+    removeSimpleControlsReferencing(this->network, uuid);
     clearDemandPointAttachmentsToPipe(uuid);
     return true;
 }
 
 bool HydraulicNetworkEditor::deletePump(const QUuid &uuid)
 {
-    return removeEntityByUuid(this->network.links_pumps, uuid);
+    if (!removeEntityByUuid(this->network.links_pumps, uuid))
+        return false;
+    removeSimpleControlsReferencing(this->network, uuid);
+    return true;
 }
 
 bool HydraulicNetworkEditor::deleteValve(const QUuid &uuid)
 {
-    return removeEntityByUuid(this->network.links_valves, uuid);
+    if (!removeEntityByUuid(this->network.links_valves, uuid))
+        return false;
+    removeSimpleControlsReferencing(this->network, uuid);
+    return true;
 }
 
 bool HydraulicNetworkEditor::assignDemandPointToNearestPipeJunction(
@@ -2242,6 +2265,7 @@ void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
 
         const QUuid pipe_uuid = pipe.uuid;
         this->network.links_pipes.removeAt(i);
+        removeSimpleControlsReferencing(this->network, pipe_uuid);
         clearDemandPointAttachmentsToPipe(pipe_uuid);
     }
 
@@ -2249,14 +2273,22 @@ void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
     {
         const HydraulicLinkPump &pump = this->network.links_pumps[i];
         if (pump.node_uuid_from == node_uuid || pump.node_uuid_to == node_uuid)
+        {
+            const QUuid link_uuid = pump.uuid;
             this->network.links_pumps.removeAt(i);
+            removeSimpleControlsReferencing(this->network, link_uuid);
+        }
     }
 
     for (int i = this->network.links_valves.size() - 1; i >= 0; i--)
     {
         const HydraulicLinkValve &valve = this->network.links_valves[i];
         if (valve.node_uuid_from == node_uuid || valve.node_uuid_to == node_uuid)
+        {
+            const QUuid link_uuid = valve.uuid;
             this->network.links_valves.removeAt(i);
+            removeSimpleControlsReferencing(this->network, link_uuid);
+        }
     }
 }
 
