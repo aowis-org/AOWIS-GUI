@@ -518,24 +518,28 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->inspector_overview_page->setObjectName(QStringLiteral("projectsInspectorOverview"));
     QVBoxLayout *overview_layout = new QVBoxLayout(this->inspector_overview_page);
     overview_layout->setContentsMargins(0, 12, 0, 4);
-    this->inspector_fields = new QWidget(this->inspector_overview_page);
-    QFormLayout *form = new QFormLayout(this->inspector_fields);
-    form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-    form->setLabelAlignment(Qt::AlignLeft);
-    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    this->name_edit = new QLineEdit(this->inspector_fields);
-    this->name_edit->setObjectName(QStringLiteral("projectInspectorName"));
-    this->tags_edit = new QLineEdit(this->inspector_fields);
-    this->tags_edit->setObjectName(QStringLiteral("projectInspectorTags"));
-    this->tags_edit->setPlaceholderText(tr("hydraulics, approved, scenario"));
-    this->description_edit = new QTextEdit(this->inspector_fields);
-    this->description_edit->setObjectName(QStringLiteral("projectInspectorDescription"));
-    this->description_edit->setMinimumHeight(90);
-    this->description_edit->setMaximumHeight(170);
-    form->addRow(tr("Name / title"), this->name_edit);
-    form->addRow(tr("Tags"), this->tags_edit);
-    form->addRow(tr("Description"), this->description_edit);
-    overview_layout->addWidget(this->inspector_fields);
+    this->inspector_overview_stack = new QStackedWidget(this->inspector_overview_page);
+    this->inspector_overview_stack->setObjectName(QStringLiteral("projectsInspectorOverviewStack"));
+    this->inspector_overview_stack->setMinimumWidth(0);
+    this->inspector_overview_stack->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
+    this->database_overview = new DatabaseInspectorOverview(this->inspector_overview_stack);
+    this->project_overview = new ProjectInspectorOverview(this->inspector_overview_stack);
+    this->branch_overview = new BranchInspectorOverview(this->inspector_overview_stack);
+    this->revision_overview = new RevisionInspectorOverview(this->inspector_overview_stack);
+    for (ProjectsInspectorOverview *overview : {
+             static_cast<ProjectsInspectorOverview *>(this->database_overview),
+             static_cast<ProjectsInspectorOverview *>(this->project_overview),
+             static_cast<ProjectsInspectorOverview *>(this->branch_overview),
+             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
+        this->inspector_overview_stack->addWidget(overview);
+    overview_layout->addWidget(this->inspector_overview_stack);
+    // Aliases always refer to the selected domain's form, never another kind.
+    this->inspector_fields = this->database_overview->fields;
+    this->name_edit = this->database_overview->name;
+    this->tags_edit = this->database_overview->tags;
+    this->description_edit = this->database_overview->description;
+    this->metadata_info = this->database_overview->metadata;
+    this->inspector_preview_note = this->database_overview->preview_note;
     this->inspector_connection_page = new QWidget(this->inspector_tabs);
     this->inspector_connection_page->setObjectName(QStringLiteral("projectsInspectorConnection"));
     // A page not yet added to QTabWidget is an ordinary visible child widget.
@@ -626,17 +630,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     source_layout->addWidget(this->local_options);
     connection_layout->addWidget(this->server_options);
     connection_layout->addStretch(1);
-    this->metadata_info = new QLabel(this->inspector_overview_page);
-    this->metadata_info->setObjectName(QStringLiteral("projectInspectorMetadata"));
-    wrapInspectorLabel(this->metadata_info);
-    this->metadata_info->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    overview_layout->addWidget(this->metadata_info);
-    this->inspector_preview_note = new QLabel(this->inspector_overview_page);
-    wrapInspectorLabel(this->inspector_preview_note);
-    this->inspector_preview_note->setObjectName(QStringLiteral("inspectorPreviewNote"));
-    overview_layout->addWidget(this->inspector_preview_note);
-    overview_layout->addStretch(1);
-
     QWidget *creation_page = new QWidget(this->inspector_content_stack);
     creation_page->setObjectName(QStringLiteral("projectsInspectorCreationPage"));
     QVBoxLayout *creation_layout = new QVBoxLayout(creation_page);
@@ -712,7 +705,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (this->selection_kind == SelectionKind::NewSource)
             this->name_edit->setText(name);
     });
-    connect(this->name_edit, &QLineEdit::textEdited, this,
+    connect(this->database_overview->name, &QLineEdit::textEdited, this,
             [this](const QString &name)
     {
         if (this->selection_kind == SelectionKind::NewSource)
@@ -921,9 +914,19 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this, &ProjectsWidget::deleteSelection);
     connect(this->branch_inspector->delete_branch, &QPushButton::clicked,
             this, &ProjectsWidget::deleteSelection);
-    connect(this->name_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
-    connect(this->tags_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
-    connect(this->description_edit, &QTextEdit::textChanged, this, &ProjectsWidget::applyInspectorEdits);
+    for (ProjectsInspectorOverview *overview : {
+             static_cast<ProjectsInspectorOverview *>(this->database_overview),
+             static_cast<ProjectsInspectorOverview *>(this->project_overview),
+             static_cast<ProjectsInspectorOverview *>(this->branch_overview),
+             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
+    {
+        connect(overview->name, &QLineEdit::editingFinished,
+                this, &ProjectsWidget::applyInspectorEdits);
+        connect(overview->tags, &QLineEdit::editingFinished,
+                this, &ProjectsWidget::applyInspectorEdits);
+        connect(overview->description, &QTextEdit::textChanged,
+                this, &ProjectsWidget::applyInspectorEdits);
+    }
 
     populateServerTree();
     updateEmptyState();
@@ -2363,6 +2366,22 @@ void ProjectsWidget::updateInspector()
         heading = tr("Create branch");
         subtitle = tr("Project: %1").arg(project == nullptr ? QString() : project->name);
     }
+    // Switch whole forms, not a shared set of input fields. Inactive domains
+    // retain their independent widgets but cannot receive visible edits.
+    ProjectsInspectorOverview *overview = this->database_overview;
+    if (this->selection_kind == SelectionKind::Project)
+        overview = this->project_overview;
+    else if (this->selection_kind == SelectionKind::Branch)
+        overview = this->branch_overview;
+    else if (this->selection_kind == SelectionKind::Revision)
+        overview = this->revision_overview;
+    this->inspector_overview_stack->setCurrentWidget(overview);
+    this->inspector_fields = overview->fields;
+    this->name_edit = overview->name;
+    this->tags_edit = overview->tags;
+    this->description_edit = overview->description;
+    this->metadata_info = overview->metadata;
+    this->inspector_preview_note = overview->preview_note;
     this->inspector_heading->setText(heading);
     this->inspector_subtitle->setText(subtitle);
     this->inspector_subtitle->setVisible(!subtitle.isEmpty());

@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSet>
 #include <QScrollBar>
 #include <QSettings>
 #include <QMainWindow>
@@ -56,6 +57,27 @@ QPushButton *activeInspectorAction(ProjectsWidget &projects, const QString &obje
         QStringLiteral("projectsInspectorActionsStack"));
     return stack != nullptr && stack->currentWidget() != nullptr
         ? stack->currentWidget()->findChild<QPushButton *>(object_name) : nullptr;
+}
+
+QWidget *activeInspectorOverview(ProjectsWidget &projects)
+{
+    QStackedWidget *stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorOverviewStack"));
+    return stack != nullptr ? stack->currentWidget() : nullptr;
+}
+
+QLineEdit *activeInspectorName(ProjectsWidget &projects)
+{
+    QWidget *overview = activeInspectorOverview(projects);
+    return overview != nullptr
+        ? overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+}
+
+QLabel *activeInspectorMetadata(ProjectsWidget &projects)
+{
+    QWidget *overview = activeInspectorOverview(projects);
+    return overview != nullptr
+        ? overview->findChild<QLabel *>(QStringLiteral("projectInspectorMetadata")) : nullptr;
 }
 
 void waitFor(int milliseconds)
@@ -266,7 +288,7 @@ int main(int argc, char **argv)
     QMainWindow *host = projects.findChild<QMainWindow *>(QStringLiteral("projectsDockHost"));
     QDockWidget *dock = projects.findChild<QDockWidget *>(QStringLiteral("projectsInspectorDock"));
     QTreeWidget *revisions = projects.findChild<QTreeWidget *>(QStringLiteral("revisionsTree"));
-    QLineEdit *name = projects.findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
+    QLineEdit *name = activeInspectorName(projects);
     ProjectRevisionGraph *graph = projects.findChild<ProjectRevisionGraph *>(
         QStringLiteral("projectRevisionGraph"));
     if (!require(host != nullptr && dock != nullptr
@@ -290,6 +312,26 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete branch…"),
                  "context-sensitive inspector tabs or actions are missing"))
         return 1;
+    // All four domains own separate Overview widgets, not just separate
+    // buttons; choosing a different object swaps the complete form.
+    QStackedWidget *overview_stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorOverviewStack"));
+    if (!require(overview_stack != nullptr && overview_stack->count() == 4,
+                 "Projects Inspector has not extracted four domain overview forms")) return 1;
+    QSet<QLineEdit *> domain_names;
+    for (int index = 0; index < overview_stack->count(); ++index)
+    {
+        QWidget *page = overview_stack->widget(index);
+        QLineEdit *field = page->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
+        if (!require(field != nullptr && page->findChild<QLabel *>(
+                         QStringLiteral("projectInspectorMetadata")) != nullptr,
+                     "domain form lacks its own fields and metadata")) return 1;
+        domain_names.insert(field);
+    }
+    if (!require(domain_names.size() == 4
+                     && overview_stack->currentWidget()->objectName()
+                         == QStringLiteral("projectsBranchOverviewForm"),
+                 "Overview forms share input widgets or do not track selected branch")) return 1;
     QStackedWidget *action_stack = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorActionsStack"));
     if (!require(action_stack != nullptr && action_stack->count() == 4
@@ -354,8 +396,7 @@ int main(int argc, char **argv)
     // Inspector notes (including UUIDs, long source names and errors) must
     // wrap within the standardized dock, never widen its scrollable content.
     QScrollArea *inspector_scroll = qobject_cast<QScrollArea *>(dock->widget());
-    QLabel *inspector_metadata = projects.findChild<QLabel *>(
-        QStringLiteral("projectInspectorMetadata"));
+    QLabel *inspector_metadata = activeInspectorMetadata(projects);
     if (!require(inspector_scroll != nullptr && inspector_metadata != nullptr
                      && inspector_scroll->widgetResizable()
                      && inspector_scroll->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
@@ -420,7 +461,10 @@ int main(int argc, char **argv)
                      && inspector_scroll->widget()->width() <= inspector_scroll->viewport()->width()
                      && inspector_scroll->horizontalScrollBar()->maximum() == 0,
                  "connection inspector labels force horizontal scrolling")) return 1;
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Remote preview")
+    if (!require(overview_stack->currentWidget()->objectName()
+                     == QStringLiteral("projectsDatabaseOverviewForm"),
+                 "server selection did not activate the database-owned form")) return 1;
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Remote preview")
                      && server_options->isVisible() && endpoint->text().startsWith(QStringLiteral("https://")),
                  "remote server selection did not show its preview inspector"))
         return 1;
@@ -468,14 +512,14 @@ int main(int argc, char **argv)
     if (!require(project_draft_stack->currentIndex() == 0 && add_project->isVisible(),
                  "cancelled project draft did not restore the database inspector")) return 1;
     // Inspector renaming replaces the redundant Rename buttons in the trees.
-    name->setText(QStringLiteral("Renamed remote preview"));
-    QMetaObject::invokeMethod(name, "editingFinished", Qt::DirectConnection);
+    activeInspectorName(projects)->setText(QStringLiteral("Renamed remote preview"));
+    QMetaObject::invokeMethod(activeInspectorName(projects), "editingFinished", Qt::DirectConnection);
     app.processEvents();
     if (!require(servers->topLevelItem(1)->text(0) == QStringLiteral("Renamed remote preview"),
                  "server rename through inspector was not reflected in the tree"))
         return 1;
-    name->setText(QStringLiteral("Remote preview"));
-    QMetaObject::invokeMethod(name, "editingFinished", Qt::DirectConnection);
+    activeInspectorName(projects)->setText(QStringLiteral("Remote preview"));
+    QMetaObject::invokeMethod(activeInspectorName(projects), "editingFinished", Qt::DirectConnection);
     app.processEvents();
     if (!require(project_tree->topLevelItemCount() == 1
                      || project_tree->topLevelItemCount() == 0,
@@ -631,7 +675,7 @@ int main(int argc, char **argv)
         return 1;
     revisions->setCurrentItem(find_revision(scenario_head_id));
     app.processEvents();
-    if (!require(name->text() == QStringLiteral("Pressure tuning")
+    if (!require(activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning")
                      && find_revision(scenario_head_id)->isSelected(),
                  "Selecting a head did not synchronize the inspector and tree"))
         return 1;
@@ -649,7 +693,7 @@ int main(int argc, char **argv)
     if (!require(heads_view->isChecked() && find_revision(baseline_id) == nullptr
                      && find_revision(main_head_id) != nullptr
                      && find_revision(main_head_id)->isSelected()
-                     && name->text() == QStringLiteral("Validated network"),
+                     && activeInspectorName(projects)->text() == QStringLiteral("Validated network"),
                  "Filtering a historical selection must select its branch head"))
         return 1;
     // A historical revision picked in the central DAG should be made visible
@@ -659,7 +703,7 @@ int main(int argc, char **argv)
     if (!require(full_tree_view->isChecked()
                      && find_revision(baseline_id) != nullptr
                      && find_revision(baseline_id)->isSelected()
-                     && name->text() == QStringLiteral("Network baseline"),
+                     && activeInspectorName(projects)->text() == QStringLiteral("Network baseline"),
                  "Graph selection of history should reveal the Full tree"))
         return 1;
     // A historical revision initiates an inline branch draft at the exact
@@ -892,7 +936,7 @@ int main(int argc, char **argv)
         return 1;
     revisions->setCurrentItem(find_revision(main_head_id));
     app.processEvents();
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Validated network"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Validated network"),
                  "selecting a revision in the tree did not reopen its inspector"))
         return 1;
 
@@ -905,7 +949,7 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(near(zoom_before_project_selection, graph->zoomFactor()),
                  "sidebar project selection unexpectedly fitted the graph")) return 1;
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Sample Pump Station"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Sample Pump Station"),
                  "selecting a project in the tree did not reopen its inspector"))
         return 1;
     const QString selected_project_key = project_tree->currentItem()->data(0, Qt::UserRole).toString();
@@ -923,14 +967,14 @@ int main(int argc, char **argv)
     dock->close();
     projects.selectProjectByName(QStringLiteral("Sample North Network"));
     app.processEvents();
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Sample North Network"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Sample North Network"),
                  "toolbar project change did not reopen its inspector"))
         return 1;
 
     dock->close();
     projects.selectBranchByName(QStringLiteral("pressure-study"));
     app.processEvents();
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("pressure-study"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("pressure-study"),
                  "toolbar branch change did not reopen its inspector"))
         return 1;
     if (!require(graph->selectionId().startsWith(QStringLiteral("group:branch:")),
@@ -944,7 +988,7 @@ int main(int argc, char **argv)
     dock->close();
     graph->revisionActivated(QStringLiteral("ec9045df"));
     app.processEvents();
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Pressure tuning"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning"),
                  "selecting a revision on the graph did not reopen its inspector"))
         return 1;
     if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton")) == nullptr,
@@ -962,7 +1006,7 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(near(zoom_before_graph_selection, graph->zoomFactor()),
                  "graph branch selection unexpectedly fitted the graph")) return 1;
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("main"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main"),
                  "selecting a branch on the graph did not reopen its inspector"))
         return 1;
 
@@ -977,7 +1021,7 @@ int main(int argc, char **argv)
     dock->close();
     projects.showRevisionHistory();
     app.processEvents();
-    if (!require(dock->isVisible() && name->text() == QStringLiteral("Pressure tuning"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning"),
                  "History did not reopen the already selected revision"))
         return 1;
 
@@ -1061,13 +1105,13 @@ int main(int argc, char **argv)
     browse_action->click();
     app.processEvents();
     if (!require(wizard_ok && opened_resource.isEmpty()
-                     && name->text() == QStringLiteral("NET3 Remote Experiment")
+                     && activeInspectorName(projects)->text() == QStringLiteral("NET3 Remote Experiment")
                      && project_tree->topLevelItemCount() == 1
                      && revisions->topLevelItemCount() == 1
                      && revisions->topLevelItem(0)->text(0) == QStringLiteral("Initial import (preview)"),
                  "creating a project from an example did not create a remote-scoped preview"))
         return 1;
-    QLabel *metadata = projects.findChild<QLabel *>(QStringLiteral("projectInspectorMetadata"));
+    QLabel *metadata = activeInspectorMetadata(projects);
     if (!require(metadata != nullptr
                      && metadata->text().contains(QStringLiteral("NOT stored")),
                  "example-origin projects must disclose that no network was saved"))

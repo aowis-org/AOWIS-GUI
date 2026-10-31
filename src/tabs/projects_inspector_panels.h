@@ -1,6 +1,10 @@
 #pragma once
 
 #include <QHBoxLayout>
+#include <QFormLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QTextEdit>
 #include <QPushButton>
 #include <QString>
 #include <QSize>
@@ -11,7 +15,91 @@
 
 // Each domain owns its action surface. ProjectsWidget routes selection and
 // performs operations; no action button is shared or reparented between kinds.
-// A later split of metadata forms can use these same stable widget boundaries.
+// The four kinds have independent form widgets (and hence independent edit
+// state). Only their visual layout is shared; selecting a different kind never
+// reparents or repurposes another kind's input widgets.
+class ProjectsInspectorOverview : public QWidget
+{
+public:
+    explicit ProjectsInspectorOverview(const QString &kind, QWidget *parent = nullptr)
+        : QWidget(parent)
+    {
+        this->setObjectName(QStringLiteral("projects") + kind + QStringLiteral("OverviewForm"));
+        this->setMinimumWidth(0);
+        this->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        QVBoxLayout *column = new QVBoxLayout(this);
+        column->setContentsMargins(0, 0, 0, 0);
+        this->fields = new QWidget(this);
+        QFormLayout *form = new QFormLayout(this->fields);
+        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+        form->setLabelAlignment(Qt::AlignLeft);
+        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+        this->name = new QLineEdit(this->fields);
+        this->name->setObjectName(QStringLiteral("projectInspectorName"));
+        this->tags = new QLineEdit(this->fields);
+        this->tags->setObjectName(QStringLiteral("projectInspectorTags"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+        this->description = new QTextEdit(this->fields);
+        this->description->setObjectName(QStringLiteral("projectInspectorDescription"));
+        this->description->setMinimumHeight(90);
+        this->description->setMaximumHeight(170);
+        form->addRow(tr("Name / title"), this->name);
+        form->addRow(tr("Tags"), this->tags);
+        form->addRow(tr("Description"), this->description);
+        column->addWidget(this->fields);
+        this->metadata = new QLabel(this);
+        this->metadata->setObjectName(QStringLiteral("projectInspectorMetadata"));
+        wrapLabel(this->metadata);
+        this->metadata->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        column->addWidget(this->metadata);
+        this->preview_note = new QLabel(this);
+        this->preview_note->setObjectName(QStringLiteral("inspectorPreviewNote"));
+        wrapLabel(this->preview_note);
+        column->addWidget(this->preview_note);
+        column->addStretch(1);
+    }
+    QWidget *fields = nullptr;
+    QLineEdit *name = nullptr;
+    QLineEdit *tags = nullptr;
+    QTextEdit *description = nullptr;
+    QLabel *metadata = nullptr;
+    QLabel *preview_note = nullptr;
+private:
+    static void wrapLabel(QLabel *label)
+    {
+        label->setWordWrap(true);
+        label->setMinimumWidth(0);
+        QSizePolicy policy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        policy.setHeightForWidth(true);
+        label->setSizePolicy(policy);
+    }
+};
+
+class DatabaseInspectorOverview final : public ProjectsInspectorOverview
+{
+public:
+    explicit DatabaseInspectorOverview(QWidget *parent = nullptr)
+        : ProjectsInspectorOverview(QStringLiteral("Database"), parent) {}
+};
+class ProjectInspectorOverview final : public ProjectsInspectorOverview
+{
+public:
+    explicit ProjectInspectorOverview(QWidget *parent = nullptr)
+        : ProjectsInspectorOverview(QStringLiteral("Project"), parent) {}
+};
+class BranchInspectorOverview final : public ProjectsInspectorOverview
+{
+public:
+    explicit BranchInspectorOverview(QWidget *parent = nullptr)
+        : ProjectsInspectorOverview(QStringLiteral("Branch"), parent) {}
+};
+class RevisionInspectorOverview final : public ProjectsInspectorOverview
+{
+public:
+    explicit RevisionInspectorOverview(QWidget *parent = nullptr)
+        : ProjectsInspectorOverview(QStringLiteral("Revision"), parent) {}
+};
+
 class ProjectsInspectorActionStack final : public QStackedWidget
 {
 public:

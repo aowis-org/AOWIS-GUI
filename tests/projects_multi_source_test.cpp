@@ -10,6 +10,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QStackedWidget>
 #include <QTcpServer>
 #include <QPushButton>
 #include <QTcpSocket>
@@ -179,7 +180,11 @@ int main(int argc, char **argv)
     if (!require(edit_network != nullptr && edit_network->isVisible()
                      && edit_network->isEnabled(),
                  "database project does not expose its hydraulic editor action")) return 1;
-    QLabel *metadata = projects.findChild<QLabel *>(QStringLiteral("projectInspectorMetadata"));
+    QStackedWidget *overview_stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorOverviewStack"));
+    QLabel *metadata = overview_stack != nullptr && overview_stack->currentWidget() != nullptr
+        ? overview_stack->currentWidget()->findChild<QLabel *>(
+            QStringLiteral("projectInspectorMetadata")) : nullptr;
     if (!require(metadata != nullptr
                  && metadata->text().contains(QStringLiteral("Repository UUIDv7: ") + second.repository_id),
                  "project inspector lost the repository-qualified project identity")) return 1;
