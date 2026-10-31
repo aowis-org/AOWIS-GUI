@@ -126,6 +126,7 @@ private:
     bool isBranchHead(const QString &revision_id) const;
     void rebuildGraph();
     void updateInspector();
+    ProjectsInspectorOverview *activeOverview() const;
     void updateEmptyState();
     void updateSourceFields();
     void updateButtons();
@@ -205,7 +206,6 @@ private:
     ProjectInspectorRelations *project_relations = nullptr;
     BranchInspectorRelations *branch_relations = nullptr;
     RevisionInspectorRelations *revision_relations = nullptr;
-    QWidget *inspector_fields = nullptr;
     QStackedWidget *creation_forms = nullptr;
     ProjectInspectorCreationForm *project_creation = nullptr;
     BranchInspectorCreationForm *branch_creation = nullptr;
@@ -213,10 +213,6 @@ private:
     QString creation_server_id;
     QString creation_project_id;
     SelectionKind inspector_tab_kind = SelectionKind::None;
-    QLabel *metadata_info = nullptr;
-    QLineEdit *name_edit = nullptr;
-    QLineEdit *tags_edit = nullptr;
-    QTextEdit *description_edit = nullptr;
     ProjectsInspectorActionStack *inspector_actions_stack = nullptr;
     DatabaseInspector *database_inspector = nullptr;
     ProjectInspector *project_inspector = nullptr;
@@ -230,7 +226,6 @@ private:
     QLabel *no_projects_description = nullptr;
     QLabel *no_projects_title = nullptr;
     QLabel *preview_banner = nullptr;
-    QLabel *inspector_preview_note = nullptr;
     enum class SourceState { Checking, Loading, Connected, Error };
     int personal_designation_request = 0;
     bool updating_ui = false;

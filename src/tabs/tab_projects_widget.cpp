@@ -535,13 +535,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
              static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
         this->inspector_overview_stack->addWidget(overview);
     overview_layout->addWidget(this->inspector_overview_stack);
-    // Aliases always refer to the selected domain's form, never another kind.
-    this->inspector_fields = this->database_overview->fields;
-    this->name_edit = this->database_overview->name;
-    this->tags_edit = this->database_overview->tags;
-    this->description_edit = this->database_overview->description;
-    this->metadata_info = this->database_overview->metadata;
-    this->inspector_preview_note = this->database_overview->preview_note;
     this->database_connection = new DatabaseInspectorConnection(
         defaultLocalDvmdbPath(), this->inspector_tabs);
     this->database_connection->hide();
@@ -615,7 +608,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             [this](const QString &name)
     {
         if (this->selection_kind == SelectionKind::NewSource)
-            this->name_edit->setText(name);
+            this->database_overview->name->setText(name);
     });
     connect(this->database_overview->name, &QLineEdit::textEdited, this,
             [this](const QString &name)
@@ -1055,10 +1048,9 @@ void ProjectsWidget::updateConnectionStatus()
     if (this->preview_banner != nullptr)
         this->preview_banner->setText(isPreviewSource() ? tr("IN-MEMORY PREVIEW")
             : tr("DVMDB · CATALOGUE WRITABLE · REVISIONS READ-ONLY"));
-    if (this->inspector_preview_note != nullptr)
-        this->inspector_preview_note->setText(isPreviewSource()
-            ? tr("Only this demonstration uses in-memory project and revision edits.")
-            : tr("DVMDB supports creating projects and branches. Rename, delete, revision editing and annotations are not available yet."));
+    activeOverview()->setPreviewExplanation(isPreviewSource()
+        ? tr("Only this demonstration uses in-memory project and revision edits.")
+        : tr("DVMDB supports creating projects and branches. Rename, delete, revision editing and annotations are not available yet."));
 }
 
 void ProjectsWidget::restoreVisibleSelection()
@@ -1802,6 +1794,20 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
     broadcastContext();
 }
 
+ProjectsInspectorOverview *ProjectsWidget::activeOverview() const
+{
+    switch (this->selection_kind)
+    {
+    case SelectionKind::Project: return this->project_overview;
+    case SelectionKind::Branch: return this->branch_overview;
+    case SelectionKind::Revision: return this->revision_overview;
+    case SelectionKind::Server:
+    case SelectionKind::NewSource:
+    case SelectionKind::None: return this->database_overview;
+    }
+    return this->database_overview;
+}
+
 void ProjectsWidget::updateInspectorTabs()
 {
     const int old_tab = this->inspector_tabs->currentIndex();
@@ -2091,39 +2097,21 @@ void ProjectsWidget::updateInspector()
         heading = tr("Create branch");
         subtitle = tr("Project: %1").arg(project == nullptr ? QString() : project->name);
     }
-    // Switch whole forms, not a shared set of input fields. Inactive domains
-    // retain their independent widgets but cannot receive visible edits.
-    ProjectsInspectorOverview *overview = this->database_overview;
-    if (this->selection_kind == SelectionKind::Project)
-        overview = this->project_overview;
-    else if (this->selection_kind == SelectionKind::Branch)
-        overview = this->branch_overview;
-    else if (this->selection_kind == SelectionKind::Revision)
-        overview = this->revision_overview;
+    // A domain overview now owns its fields and presentation state. No
+    // ProjectsWidget member aliases point at whichever domain was last shown.
+    ProjectsInspectorOverview *overview = activeOverview();
     this->inspector_overview_stack->setCurrentWidget(overview);
-    this->inspector_fields = overview->fields;
-    this->name_edit = overview->name;
-    this->tags_edit = overview->tags;
-    this->description_edit = overview->description;
-    this->metadata_info = overview->metadata;
-    this->inspector_preview_note = overview->preview_note;
     this->inspector_heading->setText(heading);
     this->inspector_subtitle->setText(subtitle);
     this->inspector_subtitle->setVisible(!subtitle.isEmpty());
-    this->name_edit->setText(name);
     this->database_connection->source_name_edit->setText(name);
     this->database_connection->source_name_edit->setVisible(new_source);
-    this->tags_edit->setText(tags.join(QStringLiteral(", ")));
-    this->description_edit->setPlainText(description);
-    this->metadata_info->setText(metadata);
     const bool real_data = project != nullptr && project->database_backed
         && (this->selection_kind == SelectionKind::Project
             || this->selection_kind == SelectionKind::Branch
             || this->selection_kind == SelectionKind::Revision);
-    this->name_edit->setEnabled(editable && !real_data);
-    this->tags_edit->setEnabled(editable && !real_data);
-    this->description_edit->setEnabled(editable && !real_data);
-    this->inspector_fields->setVisible(!real_data && this->selection_kind != SelectionKind::None);
+    overview->present(name, tags, description, metadata, editable && !real_data,
+                      !real_data && this->selection_kind != SelectionKind::None);
     updateInspectorTabs();
     // Route to the inspector associated with the selected model object.
     QWidget *active_inspector = this->database_inspector;
@@ -2242,7 +2230,7 @@ void ProjectsWidget::createServer()
     this->database_connection->local_path_edit->setText(defaultLocalDvmdbPath());
     updateSourceFields();
     this->inspector_dock->show();
-    this->name_edit->setFocus();
+    this->database_overview->name->setFocus();
 }
 
 void ProjectsWidget::cancelNewSource()
@@ -2258,11 +2246,11 @@ void ProjectsWidget::cancelNewSource()
 void ProjectsWidget::saveNewSource()
 {
     if (this->selection_kind != SelectionKind::NewSource) return;
-    const QString name = this->name_edit->text().trimmed();
+    const QString name = this->database_overview->name->text().trimmed();
     if (name.isEmpty())
     {
         QMessageBox::warning(this, tr("Invalid name"), tr("Enter a database name."));
-        this->name_edit->setFocus();
+        this->database_overview->name->setFocus();
         return;
     }
     for (const ProjectServerProfile &server : this->servers)
@@ -2275,8 +2263,8 @@ void ProjectsWidget::saveNewSource()
     server.id = makeId(QStringLiteral("s-"));
     server.name = name;
     server.connection_type = this->database_connection->source_kind_combo->currentData().toString();
-    server.description = this->description_edit->toPlainText();
-    server.tags = parseTags(this->tags_edit->text());
+    server.description = this->database_overview->description->toPlainText();
+    server.tags = parseTags(this->database_overview->tags->text());
     server.auth_mode = this->database_connection->server_auth_combo->currentData().toString();
     if (server.connection_type == QStringLiteral("local"))
     {
@@ -3080,9 +3068,10 @@ void ProjectsWidget::setPersonalServer(bool enabled)
 void ProjectsWidget::applyInspectorEdits()
 {
     if (this->updating_ui || this->source_writer->isBusy()) return;
-    const QString name = this->name_edit->text().trimmed();
-    const QString description = this->description_edit->toPlainText();
-    const QStringList tags = parseTags(this->tags_edit->text());
+    ProjectsInspectorOverview *overview = activeOverview();
+    const QString name = overview->name->text().trimmed();
+    const QString description = overview->description->toPlainText();
+    const QStringList tags = parseTags(overview->tags->text());
     bool tree_changed = false;
     if (this->selection_kind == SelectionKind::Server)
     {
@@ -3091,10 +3080,10 @@ void ProjectsWidget::applyInspectorEdits()
         const ProjectServerProfile previous = *server;
         if (name.isEmpty())
         {
-            if (sender() == this->name_edit)
+            if (sender() == overview->name)
             {
                 QMessageBox::warning(this, tr("Invalid database name"), tr("A database name cannot be empty."));
-                this->name_edit->setText(server->name);
+                overview->name->setText(server->name);
             }
         }
         else if (name != server->name)
@@ -3105,10 +3094,10 @@ void ProjectsWidget::applyInspectorEdits()
                     exists = true;
             if (exists)
             {
-                if (sender() == this->name_edit)
+                if (sender() == overview->name)
                 {
                     QMessageBox::warning(this, tr("Already exists"), tr("Choose a different database name."));
-                    this->name_edit->setText(server->name);
+                    overview->name->setText(server->name);
                 }
             }
             else server->name = name;

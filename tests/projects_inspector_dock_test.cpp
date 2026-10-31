@@ -1,4 +1,5 @@
 #include "tabs/tab_projects_widget.h"
+#include "tabs/projects_inspector_panels.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "widgets/group_box_collapsible.h"
 #include "config/gui_configuration.h"
@@ -332,6 +333,33 @@ int main(int argc, char **argv)
                      && overview_stack->currentWidget()->objectName()
                          == QStringLiteral("projectsBranchOverviewForm"),
                  "Overview forms share input widgets or do not track selected branch")) return 1;
+    // Presentation is domain-owned and must neither change another form
+    // nor emit editing callbacks while restoring a selection's values.
+    ProjectInspectorOverview isolated_project;
+    BranchInspectorOverview isolated_branch;
+    int name_signals = 0;
+    int description_signals = 0;
+    QObject::connect(isolated_project.name, &QLineEdit::textChanged,
+                     &isolated_project, [&name_signals](const QString &) { ++name_signals; });
+    QObject::connect(isolated_project.description, &QTextEdit::textChanged,
+                     &isolated_project, [&description_signals]() { ++description_signals; });
+    isolated_project.present(QStringLiteral("Independent project"),
+        QStringList{QStringLiteral("hydraulics")}, QStringLiteral("Project details"),
+        QStringLiteral("Project metadata"), false, false);
+    isolated_branch.present(QStringLiteral("Independent branch"),
+        QStringList{}, QStringLiteral("Branch details"),
+        QStringLiteral("Branch metadata"), true, true);
+    if (!require(isolated_project.name->text() == QStringLiteral("Independent project")
+                     && isolated_project.metadata->text() == QStringLiteral("Project metadata")
+                     && isolated_branch.name->text() == QStringLiteral("Independent branch")
+                     && isolated_project.description->toPlainText() == QStringLiteral("Project details")
+                     && isolated_branch.description->toPlainText() == QStringLiteral("Branch details")
+                     && !isolated_project.name->isEnabled()
+                     && isolated_branch.name->isEnabled()
+                     && isolated_project.fields->isHidden()
+                     && !isolated_branch.fields->isHidden()
+                     && name_signals == 0 && description_signals == 0,
+                 "domain overview presentation leaked shared state or emitted edits")) return 1;
     // Connection is database-owned, and Related lists must be distinct pages
     // with independent row data. No one shared list is reconfigured by kind.
     QWidget *database_connection = projects.findChild<QWidget *>(

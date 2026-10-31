@@ -7,9 +7,11 @@
 #include <QTextEdit>
 #include <QPushButton>
 #include <QString>
+#include <QStringList>
 #include <QSize>
 #include <QStackedWidget>
 #include <QSizePolicy>
+#include <QSignalBlocker>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -58,6 +60,30 @@ public:
         column->addWidget(this->preview_note);
         column->addStretch(1);
     }
+    // A form owns its content and presentation state. The selection coordinator
+    // passes domain values, rather than repointing shared member aliases.
+    void present(const QString &title, const QStringList &tag_list,
+                 const QString &details, const QString &info,
+                 bool editable, bool show_fields)
+    {
+        const QSignalBlocker name_blocker(this->name);
+        const QSignalBlocker tags_blocker(this->tags);
+        const QSignalBlocker description_blocker(this->description);
+        this->name->setText(title);
+        this->tags->setText(tag_list.join(QStringLiteral(", ")));
+        this->description->setPlainText(details);
+        this->metadata->setText(info);
+        this->name->setEnabled(editable);
+        this->tags->setEnabled(editable);
+        this->description->setEnabled(editable);
+        this->fields->setVisible(show_fields);
+    }
+
+    void setPreviewExplanation(const QString &explanation)
+    {
+        this->preview_note->setText(explanation);
+    }
+
     QWidget *fields = nullptr;
     QLineEdit *name = nullptr;
     QLineEdit *tags = nullptr;
