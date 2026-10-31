@@ -120,7 +120,16 @@ public:
         this->remote_options->setVisible(!local);
         this->local_options->setVisible(local);
         this->personal_server_checkbox->setVisible(!creating);
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
         this->personal_server_checkbox->setEnabled(!busy);
+#else
+        // The ordinary GUI can display local profiles, but only Standalone
+        // embeds DVMDB. Do not offer a designation that only opens a warning.
+        this->personal_server_checkbox->setEnabled(!busy && !local);
+        this->personal_server_checkbox->setToolTip(local
+            ? tr("Selecting an embedded personal database requires AOWIS Standalone.")
+            : tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
+#endif
     }
 
     QLineEdit *source_name_edit = nullptr;

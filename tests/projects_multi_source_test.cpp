@@ -175,9 +175,17 @@ int main(int argc, char **argv)
                  "second database UUID was not shown separately")) return 1;
     tree->setCurrentItem(tree->topLevelItem(1)->child(0));
     app.processEvents();
-    QPushButton *edit_network = projects.findChild<QPushButton *>(
-        QStringLiteral("projectsInspectorEditNetwork"));
-    if (!require(edit_network != nullptr && edit_network->isVisible()
+    // Project and Branch inspectors each own an Edit network action. Query the
+    // selected inspector, not the first identically named action in the tree.
+    QStackedWidget *action_stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorActionsStack"));
+    QWidget *active_actions = action_stack != nullptr ? action_stack->currentWidget() : nullptr;
+    QPushButton *edit_network = active_actions != nullptr
+        ? active_actions->findChild<QPushButton *>(QStringLiteral("projectsInspectorEditNetwork"))
+        : nullptr;
+    if (!require(active_actions != nullptr
+                     && active_actions->objectName() == QStringLiteral("projectsProjectInspector")
+                     && edit_network != nullptr && edit_network->isVisible()
                      && edit_network->isEnabled(),
                  "database project does not expose its hydraulic editor action")) return 1;
     QStackedWidget *overview_stack = projects.findChild<QStackedWidget *>(

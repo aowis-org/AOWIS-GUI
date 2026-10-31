@@ -243,6 +243,10 @@ int main(int argc, char **argv)
             QStringLiteral("projectsPersonalServerCheckbox"));
         if (!require(personal != nullptr && personal->isVisible() && !personal->isChecked(),
                      "server inspector missing personal database designation")) return 1;
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+        // Only Standalone has a native DVMDB service behind a local profile.
+        if (!require(personal->isEnabled(),
+                     "Standalone disabled embedded personal designation")) return 1;
         personal->setChecked(true);
         app.processEvents();
         QList<ProjectServerProfile> designated = loadProjectServerProfiles();
@@ -257,6 +261,14 @@ int main(int argc, char **argv)
         app.processEvents();
         if (!require(!loadProjectServerProfiles().first().personal,
                      "clearing personal designation was not persisted")) return 1;
+#else
+        // Local profiles are inspectable in the ordinary GUI, but cannot
+        // acquire a native database role. Calling setChecked(true) here used
+        // to open a blocking QMessageBox and hang the offscreen CTest run.
+        if (!require(!personal->isEnabled()
+                         && !loadProjectServerProfiles().first().personal,
+                     "GUI-only local source incorrectly allows personal designation")) return 1;
+#endif
         path->setText(configuration_dir.path() + QStringLiteral("/updated-embedded"));
         QMetaObject::invokeMethod(path, "editingFinished", Qt::DirectConnection);
         if (!require(loadProjectServerProfiles().first().local_path == path->text(),
@@ -264,6 +276,7 @@ int main(int argc, char **argv)
             return 1;
     }
 
+    std::fprintf(stderr, "projects_inspector_dock: embedded profile checks complete\n");
     // Explicit demo fixtures retain the existing version-explorer regression
     // coverage without forcing fake servers on users of a new installation.
     const QList<ProjectServerProfile> sample_profiles{
@@ -472,19 +485,18 @@ int main(int argc, char **argv)
     inspector_metadata->setText(saved_metadata);
     app.processEvents();
 
+    std::fprintf(stderr, "projects_inspector_dock: inspector overview and graph checks complete\n");
     // Servers are managed as GUI-only profiles. Selecting one scopes the
     // preview projects and reopens its inspector, without creating a session.
     GroupBoxCollapsible *server_section = projects.findChild<GroupBoxCollapsible *>(
         QStringLiteral("serversCollapsibleGroup"));
     QTreeWidget *servers = projects.findChild<QTreeWidget *>(QStringLiteral("serversTree"));
     QLineEdit *endpoint = projects.findChild<QLineEdit *>(QStringLiteral("projectServerEndpoint"));
-    QLineEdit *tags_edit = projects.findChild<QLineEdit *>(QStringLiteral("projectInspectorTags"));
-    QTextEdit *description_edit = projects.findChild<QTextEdit *>(QStringLiteral("projectInspectorDescription"));
     QComboBox *auth_mode = projects.findChild<QComboBox *>(QStringLiteral("projectServerAuthMode"));
     QWidget *server_options = projects.findChild<QWidget *>(QStringLiteral("projectServerOptions"));
     if (!require(server_section != nullptr && servers != nullptr
                      && servers->topLevelItemCount() == 2
-                     && endpoint != nullptr && tags_edit != nullptr && description_edit != nullptr
+                     && endpoint != nullptr
                      && auth_mode != nullptr && server_options != nullptr,
                  "Servers panel or inspector configuration fields are missing"))
         return 1;
@@ -519,6 +531,19 @@ int main(int argc, char **argv)
     if (!require(overview_stack->currentWidget()->objectName()
                      == QStringLiteral("projectsDatabaseOverviewForm"),
                  "server selection did not activate the database-owned form")) return 1;
+    // Each domain has its own Tags and Description widgets. Resolve them only
+    // after selecting the database: looking them up globally while a branch
+    // is active can select the branch's fields and never persist server edits.
+    QWidget *server_overview = activeInspectorOverview(projects);
+    QLineEdit *tags_edit = server_overview != nullptr
+        ? server_overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorTags"))
+        : nullptr;
+    QTextEdit *description_edit = server_overview != nullptr
+        ? server_overview->findChild<QTextEdit *>(QStringLiteral("projectInspectorDescription"))
+        : nullptr;
+    if (!require(tags_edit != nullptr && description_edit != nullptr
+                     && tags_edit->isEnabled() && description_edit->isEnabled(),
+                 "database Inspector does not expose its editable metadata fields")) return 1;
     if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Remote preview")
                      && server_options->isVisible() && endpoint->text().startsWith(QStringLiteral("https://")),
                  "remote server selection did not show its preview inspector"))
@@ -536,6 +561,7 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects, QStringLiteral("projectsInspectorCreateBranch")) == nullptr,
                  "database inspector did not offer only its relevant creation action"))
         return 1;
+    std::fprintf(stderr, "projects_inspector_dock: opening project creation\n");
     add_project->click();
     app.processEvents();
     QLabel *inspector_creation_summary = projects.findChild<QLabel *>(
@@ -550,9 +576,11 @@ int main(int argc, char **argv)
         QStringLiteral("projectsInspectorContentStack"));
     QLineEdit *project_draft_name = projects.findChild<QLineEdit *>(
         QStringLiteral("projectsProjectCreationName"));
-    QPushButton *project_draft_confirm = projects.findChild<QPushButton *>(
+    // Every domain owns its own Create/Cancel buttons. Inspect the active
+    // action page so tests cannot operate on a hidden sibling's controls.
+    QPushButton *project_draft_confirm = activeInspectorAction(projects,
         QStringLiteral("projectsCreationConfirm"));
-    QPushButton *project_draft_cancel = projects.findChild<QPushButton *>(
+    QPushButton *project_draft_cancel = activeInspectorAction(projects,
         QStringLiteral("projectsCreationCancel"));
     QStackedWidget *creation_forms = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorCreationForms"));
@@ -597,6 +625,11 @@ int main(int argc, char **argv)
     QMetaObject::invokeMethod(tags_edit, "editingFinished", Qt::DirectConnection);
     description_edit->setPlainText(QStringLiteral("Persisted remote server description"));
     app.processEvents();
+    if (!require(tags_edit->parentWidget() == description_edit->parentWidget()
+                     && tags_edit->text() == QStringLiteral("remote, study")
+                     && description_edit->toPlainText()
+                         == QStringLiteral("Persisted remote server description"),
+                 "metadata edits did not target the same active database form")) return 1;
     servers->setCurrentItem(servers->topLevelItem(0));
     app.processEvents();
     if (!require(project_tree->topLevelItemCount() >= 2
@@ -796,6 +829,7 @@ int main(int argc, char **argv)
                      && creation_summary != nullptr && creation_confirm != nullptr
                      && creation_cancel != nullptr && inspector_content != nullptr,
                  "revision branch workflow is missing from inspector")) return 1;
+    std::fprintf(stderr, "projects_inspector_dock: opening revision branch creation\n");
     revision_branch_action->click();
     app.processEvents();
     if (!require(creation_forms->currentWidget()->objectName()
@@ -1256,6 +1290,7 @@ int main(int argc, char **argv)
                  "selection did not restore the inspector in an embedded Projects page"))
         return 1;
 
+    std::fprintf(stderr, "projects_inspector_dock: inspector navigation checks complete\n");
     // Deleting from the inspector still performs the original preview-only
     // action, including its confirmation, without sidebar Delete buttons.
     ProjectsWidget delete_preview;
@@ -1298,6 +1333,7 @@ int main(int argc, char **argv)
         }
     });
     confirmation_timer.start();
+    std::fprintf(stderr, "projects_inspector_dock: confirming preview project deletion\n");
     delete_action->click();
     confirmation_timer.stop();
     if (!require(confirmed_deletion, "inspector Delete project confirmation was not displayed"))
@@ -1402,6 +1438,7 @@ int main(int argc, char **argv)
                  "server deletion was not persisted"))
         return 1;
 
+    std::fprintf(stderr, "projects_inspector_dock: preview/database CRUD checks complete\n");
     // An unconfigured HTTP DVMDB must become the personal database directly
     // from Projects Inspector. It must not require an out-of-band UUID input.
     {
