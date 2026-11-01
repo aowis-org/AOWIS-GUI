@@ -3292,6 +3292,10 @@ void ProjectsWidget::applyInspectorEdits()
             populateServerTree();
             if (server->name != previous.name)
             {
+                // The heading includes the database name, so update it as
+                // soon as the configuration save succeeds.
+                this->inspector_heading->setText(
+                    ProjectsInspectorPresentations::database(server, QString()).heading);
                 populateProjectTree();
                 rebuildGraph();
                 broadcastContext();

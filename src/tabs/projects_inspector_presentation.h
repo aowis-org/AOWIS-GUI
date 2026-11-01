@@ -45,12 +45,11 @@ public:
     {
         ProjectsInspectorPresentation view;
         if (server == nullptr) return view;
-        view.heading = translate("Database");
+        view.heading = (server->connection_type == QStringLiteral("local")
+            ? translate("Local: %1") : translate("Remote: %1")).arg(server->name);
         view.name = server->name;
         view.description = server->description;
         view.tags = server->tags;
-        view.subtitle = server->connection_type == QStringLiteral("local")
-            ? translate("Embedded DVMDB") : translate("REST DVMDB");
         view.metadata = server->pending
             ? translate("Identity: pending verification (temporary ID: %1)").arg(server->id)
             : DvmdbIdentity::isUuidV7(server->id)
