@@ -122,6 +122,33 @@ public:
         return view;
     }
 
+    static ProjectsInspectorPresentation head(const ProjectPreviewBranch *branch,
+                                              const ProjectPreviewData *project)
+    {
+        ProjectsInspectorPresentation view;
+        if (branch == nullptr) return view;
+        view.heading = translate("HEAD");
+        view.name = branch->name;
+        view.description = branch->description;
+        view.tags = branch->tags;
+        view.editable = false;
+        view.subtitle = translate("Writable working state · Branch: %1").arg(branch->name);
+        view.metadata = branch->head.isEmpty()
+            ? translate("No commits yet")
+            : translate("Base revision: %1").arg(branch->head);
+        if (project != nullptr && project->database_backed)
+        {
+            const QString prefix = project->id + QStringLiteral(":");
+            if (branch->id.startsWith(prefix))
+                view.metadata += translate("\nBranch UUIDv7: %1")
+                    .arg(branch->id.mid(prefix.size()));
+        }
+        if (!branch->fork_revision_id.isEmpty())
+            view.metadata += translate("\nOriginal fork revision: %1")
+                .arg(branch->fork_revision_id);
+        return view;
+    }
+
     static ProjectsInspectorPresentation revision(const ProjectPreviewRevision *revision,
                                                    const ProjectPreviewData *project)
     {

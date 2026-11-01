@@ -684,6 +684,10 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
     connect(this->branch_inspector->working_copies, &QPushButton::clicked,
             this, &ProjectsWidget::showWorkingCopies);
+    connect(this->revision_inspector->head_working_copies, &QPushButton::clicked,
+            this, &ProjectsWidget::showWorkingCopies);
+    connect(this->revision_inspector->edit_head_network, &QPushButton::clicked,
+            this, &ProjectsWidget::editProjectNetwork);
     for (QPushButton *button : {this->project_overview->edit_network,
                                 this->branch_inspector->edit_network})
         connect(button, &QPushButton::clicked, this, &ProjectsWidget::editProjectNetwork);
@@ -756,6 +760,18 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         else if (key.startsWith(QStringLiteral("p:"))) select(SelectionKind::Project, key.mid(2));
         else if (key.startsWith(QStringLiteral("b:"))) select(SelectionKind::Branch, key.mid(2));
     });
+    connect(this->project_tree, &QTreeWidget::itemClicked, this,
+            [this](QTreeWidgetItem *item, int)
+    {
+        // A HEAD card also highlights its owning branch in the sidebar.
+        // Clicking that already-selected branch must still switch to the
+        // branch-management Inspector (selectionChanged would not fire).
+        if (this->updating_ui || this->selection_kind != SelectionKind::Head
+            || item == nullptr) return;
+        const QString key = item->data(0, role_key).toString();
+        if (key.startsWith(QStringLiteral("b:")))
+            select(SelectionKind::Branch, key.mid(2));
+    });
     connect(heads_button, &QPushButton::clicked, this, [this]
     {
         this->show_full_revision_tree = false;
@@ -797,6 +813,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         select(SelectionKind::Project, target.first);
         select(SelectionKind::Revision, target.second);
     });
+    connect(this->graph, &ProjectRevisionGraph::headActivated, this, [this](const QString &id)
+    {
+        // A graph HEAD is a writable state: show its HEAD/Revision Inspector,
+        // not the branch-management Inspector used by the sidebar tree.
+        select(SelectionKind::Head, id);
+    });
     connect(this->graph, &ProjectRevisionGraph::serverActivated, this, [this](const QString &id)
     {
         select(SelectionKind::Server, id);
@@ -804,30 +826,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->graph, &ProjectRevisionGraph::projectActivated, this, [this](const QString &id)
     {
         select(SelectionKind::Project, id);
-    });
-    connect(this->graph, &ProjectRevisionGraph::branchActivated, this, [this](const QString &name)
-    {
-        // Graph cards and badges use stable branch IDs; legacy preview
-        // fixtures still emit plain names when there is no branch ID.
-        for (const ProjectPreviewData &project : this->projects)
-            for (const ProjectPreviewBranch &branch : project.branches)
-                if (branch.id == name)
-                {
-                    select(SelectionKind::Branch, branch.id);
-                    return;
-                }
-        // The graph has qualified lane names across all databases.
-        for (const ProjectServerProfile &source : this->servers)
-            if (source.visible)
-                for (const ProjectPreviewData &project : this->projects)
-                    if (project.server_id == source.id)
-                        for (const ProjectPreviewBranch &branch : project.branches)
-                            if (name == tr("%1 / %2 / %3").arg(source.name, project.name, branch.name))
-                            {
-                                select(SelectionKind::Branch, branch.id);
-                                return;
-                            }
-        selectBranchByName(name);
     });
     connect(this->database_connection->personal_server_checkbox, &QCheckBox::toggled,
             this, &ProjectsWidget::setPersonalServer);
@@ -1167,6 +1165,7 @@ void ProjectsWidget::restoreVisibleSelection()
     this->branch_id.clear();
     if (this->selection_kind == SelectionKind::Project
         || this->selection_kind == SelectionKind::Branch
+        || this->selection_kind == SelectionKind::Head
         || this->selection_kind == SelectionKind::Revision)
     {
         this->selection_kind = SelectionKind::None;
@@ -1699,7 +1698,8 @@ void ProjectsWidget::rebuildGraph()
         graph_selection = QStringLiteral("group:server:") + this->selected_id;
     else if (this->selection_kind == SelectionKind::Project)
         graph_selection = QStringLiteral("group:project:") + this->selected_id;
-    else if (this->selection_kind == SelectionKind::Branch)
+    else if (this->selection_kind == SelectionKind::Branch
+             || this->selection_kind == SelectionKind::Head)
         graph_selection = QStringLiteral("group:branch:") + this->selected_id;
     else if (this->selection_kind == SelectionKind::Revision && currentProject() != nullptr)
         graph_selection = isPreviewSource() ? this->selected_id
@@ -1747,6 +1747,7 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                 this->selection_kind == SelectionKind::Project
                     ? keyFor(QStringLiteral("p"), this->selected_id)
                     : this->selection_kind == SelectionKind::Branch
+                        || this->selection_kind == SelectionKind::Head
                         ? keyFor(QStringLiteral("b"), this->selected_id) : QString());
             selectTreeItem(this->revision_tree,
                 this->selection_kind == SelectionKind::Revision
@@ -1809,7 +1810,7 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
             rebuildGraph();
         }
     }
-    else if (kind == SelectionKind::Branch)
+    else if (kind == SelectionKind::Branch || kind == SelectionKind::Head)
     {
         bool found = false;
         for (const ProjectPreviewData &project : this->projects)
@@ -1869,7 +1870,8 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
     selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
     selectTreeItem(this->project_tree,
                    kind == SelectionKind::Project ? keyFor(QStringLiteral("p"), id)
-                   : kind == SelectionKind::Branch ? keyFor(QStringLiteral("b"), id) : QString());
+                   : kind == SelectionKind::Branch || kind == SelectionKind::Head
+                       ? keyFor(QStringLiteral("b"), id) : QString());
     selectTreeItem(this->revision_tree,
                    kind == SelectionKind::Revision ? keyFor(QStringLiteral("r"), id) : QString());
     this->updating_ui = false;
@@ -1878,7 +1880,7 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
         graph_selection = QStringLiteral("group:server:") + id;
     else if (kind == SelectionKind::Project)
         graph_selection = QStringLiteral("group:project:") + id;
-    else if (kind == SelectionKind::Branch)
+    else if (kind == SelectionKind::Branch || kind == SelectionKind::Head)
         graph_selection = QStringLiteral("group:branch:") + id;
     else if (kind == SelectionKind::Revision)
         graph_selection = isPreviewSource() ? id : this->project_id + QStringLiteral("|") + id;
@@ -1897,6 +1899,7 @@ ProjectsInspectorOverview *ProjectsWidget::activeOverview() const
     {
     case SelectionKind::Project: return this->project_overview;
     case SelectionKind::Branch: return this->branch_overview;
+    case SelectionKind::Head:
     case SelectionKind::Revision: return this->revision_overview;
     case SelectionKind::Server:
     case SelectionKind::NewSource:
@@ -1943,7 +1946,8 @@ void ProjectsWidget::updateInspectorTabs()
         related = this->project_relations;
         title = tr("Branches");
     }
-    else if (this->selection_kind == SelectionKind::Branch)
+    else if (this->selection_kind == SelectionKind::Branch
+             || this->selection_kind == SelectionKind::Head)
     {
         this->branch_relations->populate(currentProject(), currentBranch());
         related = this->branch_relations;
@@ -1993,7 +1997,8 @@ void ProjectsWidget::beginCreation(bool branch)
         QString chosen;
         if (this->selection_kind == SelectionKind::Revision)
             chosen = QStringLiteral("revision:") + this->selected_id;
-        else if (this->selection_kind == SelectionKind::Branch)
+        else if (this->selection_kind == SelectionKind::Branch
+                 || this->selection_kind == SelectionKind::Head)
             if (const ProjectPreviewBranch *selected = currentBranch())
                 chosen = QStringLiteral("branch:") + selected->id;
         this->branch_creation->begin(*currentProject(), chosen);
@@ -2069,6 +2074,8 @@ void ProjectsWidget::updateInspector()
         view = ProjectsInspectorPresentations::project(project);
     else if (this->selection_kind == SelectionKind::Branch)
         view = ProjectsInspectorPresentations::branch(this->projects, this->selected_id);
+    else if (this->selection_kind == SelectionKind::Head)
+        view = ProjectsInspectorPresentations::head(currentBranch(), project);
     else if (this->selection_kind == SelectionKind::Revision)
         view = ProjectsInspectorPresentations::revision(selectedRevision(), project);
     else
@@ -2111,11 +2118,13 @@ void ProjectsWidget::updateInspector()
     const bool real_data = project != nullptr && project->database_backed
         && (this->selection_kind == SelectionKind::Project
             || this->selection_kind == SelectionKind::Branch
+            || this->selection_kind == SelectionKind::Head
             || this->selection_kind == SelectionKind::Revision);
     overview->present(view.name, view.tags, view.description, view.metadata,
                       view.editable && !real_data,
                       this->selection_kind != SelectionKind::None
-                          && (!real_data || this->selection_kind == SelectionKind::Project));
+                          && (!real_data || this->selection_kind == SelectionKind::Project
+                              || this->selection_kind == SelectionKind::Head));
     // Project UUIDs are immutable, but the display name is stored by DVMDB.
     // Keep Tags/Description selectable until their persistent edit API exists.
     if (real_data && this->selection_kind == SelectionKind::Project)
@@ -2124,6 +2133,17 @@ void ProjectsWidget::updateInspector()
         overview->tags->setEnabled(true);
         overview->description->setEnabled(true);
         overview->name->setReadOnly(false);
+        overview->tags->setReadOnly(true);
+        overview->description->setReadOnly(true);
+    }
+    else if (this->selection_kind == SelectionKind::Head)
+    {
+        // HEAD displays its owning branch metadata here, but editing it is
+        // the responsibility of the branch-management inspector.
+        overview->name->setEnabled(true);
+        overview->tags->setEnabled(true);
+        overview->description->setEnabled(true);
+        overview->name->setReadOnly(true);
         overview->tags->setReadOnly(true);
         overview->description->setReadOnly(true);
     }
@@ -2144,7 +2164,8 @@ void ProjectsWidget::updateInspector()
         active_inspector = this->project_inspector;
     else if (this->selection_kind == SelectionKind::Branch)
         active_inspector = this->branch_inspector;
-    else if (this->selection_kind == SelectionKind::Revision)
+    else if (this->selection_kind == SelectionKind::Head
+             || this->selection_kind == SelectionKind::Revision)
         active_inspector = this->revision_inspector;
     this->inspector_actions_stack->showPanel(active_inspector);
     this->inspector_content_stack->setCurrentIndex(
@@ -2197,8 +2218,10 @@ void ProjectsWidget::updateButtons()
         busy, preview && project != nullptr, valid);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
         busy, ready && project != nullptr, backed, preview && currentBranch() != nullptr, valid);
-    this->revision_inspector->update(creating && this->selection_kind == SelectionKind::Revision,
-        busy, ready && project != nullptr, valid);
+    this->revision_inspector->update(creating && (this->selection_kind == SelectionKind::Revision
+                                                  || this->selection_kind == SelectionKind::Head),
+        busy, ready && project != nullptr, valid,
+        this->selection_kind == SelectionKind::Head, backed);
     if (this->inspector_actions_stack != nullptr)
         this->inspector_actions_stack->setVisible(
             this->selection_kind != SelectionKind::None);
@@ -2663,7 +2686,8 @@ void ProjectsWidget::openWorkingCopy(bool direct_edit)
     const ProjectPreviewData *project = currentProject();
     if (project == nullptr || !project->database_backed) return;
     const ProjectPreviewBranch *branch = currentBranch();
-    if (!direct_edit && (this->selection_kind != SelectionKind::Branch || branch == nullptr))
+    if (!direct_edit && ((this->selection_kind != SelectionKind::Branch
+                          && this->selection_kind != SelectionKind::Head) || branch == nullptr))
         return;
     if (direct_edit && this->selection_kind == SelectionKind::Project)
     {
@@ -3532,6 +3556,8 @@ void ProjectsWidget::applyInspectorEdits()
                 break;
             }
     }
+    else if (this->selection_kind == SelectionKind::Head)
+        return; // HEAD fields display branch identity; edit branch metadata in its own inspector.
     else if (this->selection_kind == SelectionKind::Revision)
     {
         if (currentProject() != nullptr && currentProject()->database_backed) return;

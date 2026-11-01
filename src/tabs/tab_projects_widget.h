@@ -118,7 +118,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    enum class SelectionKind { None, Server, Project, Branch, Revision, NewSource };
+    enum class SelectionKind { None, Server, Project, Branch, Head, Revision, NewSource };
     enum class CreationKind { None, Project, Branch };
     void seedPreview();
     void populateServerTree();

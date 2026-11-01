@@ -129,21 +129,28 @@ int main(int argc, char **argv)
     waitFor(110); // allow first-show geometry and automatic fit to settle
 
     QString revision_clicked;
-    QString branch_clicked;
+    QString head_clicked;
     QObject::connect(&graph, &ProjectRevisionGraph::revisionActivated,
                      &graph, [&revision_clicked](const QString &id)
     {
         revision_clicked = id;
     });
-    QObject::connect(&graph, &ProjectRevisionGraph::branchActivated,
-                     &graph, [&branch_clicked](const QString &name)
+    QObject::connect(&graph, &ProjectRevisionGraph::headActivated,
+                     &graph, [&head_clicked](const QString &id)
     {
-        branch_clicked = name;
+        head_clicked = id;
     });
 
     click(graph, QPointF(400, 250));
     if (!require(revision_clicked == node.id, "revision click did not emit selected hash"))
         return 1;
+    // The old embedded HEAD badge area is no longer a separate hit target:
+    // clicking anywhere on an immutable revision must activate its inspector.
+    revision_clicked.clear();
+    click(graph, graph.graphToViewport(ProjectRevisionCardGeometry::headRect(
+        ProjectRevisionCardGeometry::bounds(node.position, 0), 0).center()));
+    if (!require(revision_clicked == node.id && head_clicked.isEmpty(),
+                 "revision card retained an invisible HEAD badge hit target")) return 1;
 
     // An unborn branch has a standalone selectable HEAD card without
     // needing a committed revision or a badge in another card.
@@ -156,7 +163,7 @@ int main(int argc, char **argv)
     graph.setNodes(QVector<ProjectGraphNode>{unborn});
     graph.setSelection(unborn.id);
     click(graph, graph.nodeViewportPosition(unborn.id));
-    if (!require(branch_clicked == QStringLiteral("unborn-main"),
+    if (!require(head_clicked == QStringLiteral("unborn-main"),
                  "unborn HEAD card did not activate its branch")) return 1;
 
     // Top-down is the default: older revisions sit ABOVE their newer
@@ -401,7 +408,7 @@ int main(int argc, char **argv)
     // Same transform drives both rendering and hit testing after navigation.
     graph.fitGraph();
     revision_clicked.clear();
-    branch_clicked.clear();
+    head_clicked.clear();
     sendKey(graph, QEvent::KeyPress, Qt::Key_D);
     waitFor(85);
     sendKey(graph, QEvent::KeyRelease, Qt::Key_D);
@@ -412,7 +419,7 @@ int main(int argc, char **argv)
     if (!require(revision_clicked == node.id, "revision selection broke after keyboard pan"))
         return 1;
     click(graph, graph.nodeViewportPosition(panning_head.id));
-    if (!require(branch_clicked == QStringLiteral("panning-main"),
+    if (!require(head_clicked == QStringLiteral("panning-main"),
                  "HEAD card selection broke after keyboard pan"))
         return 1;
 
@@ -612,22 +619,22 @@ int main(int argc, char **argv)
     graph.fitGraph();
     QString selected_source;
     QString selected_project;
-    QString selected_branch;
+    QString selected_head;
     QObject::connect(&graph, &ProjectRevisionGraph::serverActivated,
         &graph, [&selected_source](const QString &id) { selected_source = id; });
     QObject::connect(&graph, &ProjectRevisionGraph::projectActivated,
         &graph, [&selected_project](const QString &id) { selected_project = id; });
-    QObject::connect(&graph, &ProjectRevisionGraph::branchActivated,
-        &graph, [&selected_branch](const QString &id) { selected_branch = id; });
+    QObject::connect(&graph, &ProjectRevisionGraph::headActivated,
+        &graph, [&selected_head](const QString &id) { selected_head = id; });
     click(graph, graph.nodeViewportPosition(server_card.id));
     click(graph, graph.nodeViewportPosition(project_card.id));
     if (!require(selected_source == QStringLiteral("test-source")
                      && selected_project == QStringLiteral("test-project"),
                  "server/project cards did not open their inspectors")) return 1;
-    selected_branch.clear();
+    selected_head.clear();
     click(graph, graph.nodeViewportPosition(inspector_head.id));
-    if (!require(selected_branch == QStringLiteral("test-branch"),
-                 "standalone HEAD did not select its branch")) return 1;
+    if (!require(selected_head == QStringLiteral("test-branch"),
+                 "standalone HEAD did not activate its HEAD inspector")) return 1;
     graph.setSelection(inspector_head.id);
     if (!require(graph.selectionId() == inspector_head.id,
                  "sidebar branch selection did not highlight its HEAD card")) return 1;
@@ -676,10 +683,10 @@ int main(int argc, char **argv)
     graph.fitGraph();
     for (int index = 3; index < references.size(); ++index)
     {
-        selected_branch.clear();
+        selected_head.clear();
         click(graph, graph.nodeViewportPosition(references.at(index).id));
-        if (!require(selected_branch == QStringLiteral("shared-%1").arg(index - 3),
-                     "independent HEAD did not select its own branch")) return 1;
+        if (!require(selected_head == QStringLiteral("shared-%1").arg(index - 3),
+                     "independent HEAD did not activate its own identity")) return 1;
     }
     graph.setShowFullTree(false);
     for (int index = 3; index < references.size(); ++index)

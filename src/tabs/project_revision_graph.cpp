@@ -471,10 +471,6 @@ void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes)
     if (!same_layout)
         this->expanded_revisions.clear();
     this->source_nodes = nodes;
-    this->reference_head_revisions.clear();
-    for (const ProjectGraphNode &node : this->source_nodes)
-        if (node.kind == ProjectGraphNode::Kind::Branch)
-            this->reference_head_revisions.insert(node.head_revision_id);
     rebuildDisplayNodes();
     // The first server card can arrive before the asynchronous catalogue.
     // Frame that placeholder once, then frame the first actual project load
@@ -583,11 +579,6 @@ void ProjectRevisionGraph::setSelection(const QString &revision_id)
     update();
 }
 
-bool ProjectRevisionGraph::hasBranchReferenceCards(const QString &revision_id) const
-{
-    return this->reference_head_revisions.contains(revision_id);
-}
-
 QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
 {
     if (node.kind == ProjectGraphNode::Kind::Revision)
@@ -601,11 +592,6 @@ QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
             ? 70.0 : project_node_height;
     return QRectF(node.position.x() - width / 2.0,
                   node.position.y() - height / 2.0, width, height);
-}
-
-QRectF ProjectRevisionGraph::branchLabelRect(const ProjectGraphNode &node, int index) const
-{
-    return ProjectRevisionCardGeometry::headRect(nodeRect(node), index);
 }
 
 QPointF ProjectRevisionGraph::mapToGraph(const QPointF &point) const
@@ -1329,20 +1315,9 @@ void ProjectRevisionGraph::mouseReleaseEvent(QMouseEvent *event)
                 else if (node->kind == ProjectGraphNode::Kind::Project)
                     emit projectActivated(node->id.mid(QStringLiteral("group:project:").size()));
                 else if (node->kind == ProjectGraphNode::Kind::Branch)
-                    emit branchActivated(node->id.mid(QStringLiteral("group:branch:").size()));
+                    emit headActivated(node->id.mid(QStringLiteral("group:branch:").size()));
                 else
-                {
-                    bool branch_hit = false;
-                    for (int i = 0; i < node->heads.size(); ++i)
-                        if (branchLabelRect(*node, i).contains(point))
-                        {
-                            emit branchActivated(node->heads.at(i).id);
-                            branch_hit = true;
-                            break;
-                        }
-                    if (!branch_hit)
-                        emit revisionActivated(node->id);
-                }
+                    emit revisionActivated(node->id);
             }
         }
         else if (this->drag_elapsed.isValid()

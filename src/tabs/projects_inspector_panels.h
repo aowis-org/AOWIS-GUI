@@ -348,13 +348,28 @@ public:
         this->setObjectName(QStringLiteral("projectsRevisionInspector"));
         this->create_branch = addButton(tr("Create branch"),
             QStringLiteral("projectsInspectorCreateBranch"),
-            tr("Create a named branch from this immutable revision"));
+            tr("Create a named branch from this selected revision or HEAD"));
+        this->edit_head_network = addButton(tr("Edit network"),
+            QStringLiteral("projectsHeadInspectorEditNetwork"),
+            tr("Edit this HEAD through a durable private working copy"));
+        this->head_working_copies = addButton(tr("Personal working copies…"),
+            QStringLiteral("projectsHeadInspectorWorkingCopies"),
+            tr("Create or reopen a private working copy of this branch HEAD"));
+        moveToFullWidth(this->edit_head_network);
+        moveToFullWidth(this->head_working_copies);
     }
     QPushButton *create_branch = nullptr;
-    void update(bool creating, bool busy, bool ready, bool valid)
+    QPushButton *edit_head_network = nullptr;
+    QPushButton *head_working_copies = nullptr;
+    void update(bool creating, bool busy, bool ready, bool valid,
+                bool head, bool database_backed)
     {
         this->create_branch->setVisible(!creating);
         this->create_branch->setEnabled(ready);
+        this->edit_head_network->setVisible(!creating && head && database_backed);
+        this->edit_head_network->setEnabled(ready);
+        this->head_working_copies->setVisible(!creating && head && database_backed);
+        this->head_working_copies->setEnabled(!busy);
         setCreationState(creating, busy, valid);
     }
 };

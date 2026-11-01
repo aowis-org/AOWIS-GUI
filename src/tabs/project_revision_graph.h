@@ -90,7 +90,7 @@ public:
 
 signals:
     void revisionActivated(const QString &revision_id);
-    void branchActivated(const QString &branch_id);
+    void headActivated(const QString &branch_id); // Dedicated writable HEAD card.
     void serverActivated(const QString &server_id);
     void projectActivated(const QString &project_id);
 
@@ -123,8 +123,6 @@ private:
     void scheduleInitialFit();
     QPointF mapToGraph(const QPointF &point) const;
     QRectF nodeRect(const ProjectGraphNode &node) const;
-    bool hasBranchReferenceCards(const QString &revision_id) const;
-    QRectF branchLabelRect(const ProjectGraphNode &node, int index) const;
     void clampCamera();
     const ProjectGraphNode *hitNode(const QPointF &point) const;
     void startNavigation();
@@ -143,7 +141,6 @@ private:
     void setZoomAnchor(const QPointF &anchor);
     QPointF keyboardDirection() const;
     QVector<ProjectGraphNode> source_nodes;
-    QSet<QString> reference_head_revisions;
     QVector<ProjectGraphNode> nodes;
     QVector<Omission> omissions;
     QSet<QString> expanded_revisions;

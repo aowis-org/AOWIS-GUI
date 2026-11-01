@@ -142,6 +142,16 @@ int main(int argc, char **argv)
         const ProjectsInspectorPresentation project_view = ProjectsInspectorPresentations::project(&project);
         const ProjectsInspectorPresentation branch_view = ProjectsInspectorPresentations::branch(
             QList<ProjectPreviewData>{project}, feature_branch.id);
+        const ProjectsInspectorPresentation head_view = ProjectsInspectorPresentations::head(
+            &main_branch, &project);
+        const ProjectsInspectorPresentation unborn_view = ProjectsInspectorPresentations::head(
+            &feature_branch, &project);
+        if (!require(head_view.heading == QStringLiteral("HEAD")
+                         && head_view.name == main_branch.name
+                         && head_view.metadata.contains(main_branch.head)
+                         && !head_view.editable
+                         && unborn_view.metadata.contains(QStringLiteral("No commits yet")),
+                     "HEAD Inspector lost its branch identity or unborn state")) return 1;
         if (!require(project_view.name == project.name
                          && project_view.metadata.contains(project.repository_id)
                          && !project_view.metadata.contains(QStringLiteral("(read-only)"))
@@ -1292,16 +1302,34 @@ int main(int argc, char **argv)
 
     dock->close();
     const double zoom_before_graph_selection = graph->zoomFactor();
-    graph->branchActivated(QStringLiteral("main"));
+    graph->headActivated(QStringLiteral("north-main"));
     app.processEvents();
     if (!require(near(zoom_before_graph_selection, graph->zoomFactor()),
-                 "graph branch selection unexpectedly fitted the graph")) return 1;
-    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main"),
-                 "selecting a branch on the graph did not reopen its inspector"))
+                 "graph HEAD selection unexpectedly fitted the graph")) return 1;
+    QPushButton *head_edit = activeInspectorAction(projects,
+        QStringLiteral("projectsHeadInspectorEditNetwork"));
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main")
+                     && action_stack->currentWidget()->objectName()
+                         == QStringLiteral("projectsRevisionInspector")
+                     && inspector_tabs->count() > 1
+                     && inspector_tabs->tabText(1) == QStringLiteral("Revisions")
+                     && head_edit != nullptr && !head_edit->isVisible(),
+                 "selecting a HEAD card did not open its HEAD/Revision Inspector"))
         return 1;
-
-    if (!require(graph->selectionId().startsWith(QStringLiteral("group:branch:")),
-                 "graph branch activation did not synchronize graph selection")) return 1;
+    if (!require(graph->selectionId() == QStringLiteral("group:branch:north-main"),
+                 "graph HEAD activation did not synchronize the selected HEAD")) return 1;
+    // The highlighted branch row must remain clickable after HEAD selection,
+    // even though the row's selection has not changed.
+    const QList<QTreeWidgetItem *> branch_rows = project_tree->selectedItems();
+    if (!require(branch_rows.size() == 1
+                     && branch_rows.first()->data(0, Qt::UserRole).toString().endsWith(
+                         QStringLiteral("north-main")),
+                 "HEAD selection lost synchronization with the branch tree")) return 1;
+    project_tree->itemClicked(branch_rows.first(), 0);
+    app.processEvents();
+    if (!require(action_stack->currentWidget()->objectName()
+                     == QStringLiteral("projectsBranchInspector"),
+                 "clicking the selected branch row did not open its Branch Inspector")) return 1;
 
     // Return to a revision; then close it and ask for History again.
     graph->revisionActivated(QStringLiteral("ec9045df"));
