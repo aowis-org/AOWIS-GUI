@@ -657,7 +657,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             return;
         }
     });
-    connect(this->database_inspector->create_project, &QPushButton::clicked,
+    connect(this->database_overview->create_project, &QPushButton::clicked,
             this, [this] { beginCreation(false); });
     for (QPushButton *button : {this->project_inspector->create_branch,
                                 this->branch_inspector->create_branch,
@@ -1056,7 +1056,7 @@ void ProjectsWidget::updateConnectionStatus()
         this->no_projects_description->setText(tr("Check a database in the sidebar to show it on the canvas."));
     activeOverview()->setPreviewExplanation(isPreviewSource()
         ? tr("Only this demonstration uses in-memory project and revision edits.")
-        : tr("DVMDB supports creating projects and branches. Rename, delete, revision editing and annotations are not available yet."));
+        : QString());
 }
 
 void ProjectsWidget::restoreVisibleSelection()
@@ -1640,7 +1640,7 @@ void ProjectsWidget::selectTreeItem(QTreeWidget *tree, const QString &key)
                 ancestor->setExpanded(true);
                 ancestor = ancestor->parent();
             }
-            (*it)->setSelected(true);
+            tree->setCurrentItem(*it);
             tree->scrollToItem(*it);
             return;
         }
@@ -2024,6 +2024,10 @@ void ProjectsWidget::updateInspector()
     overview->present(view.name, view.tags, view.description, view.metadata,
                       view.editable && !real_data,
                       !real_data && this->selection_kind != SelectionKind::None);
+    const ProjectServerProfile *overview_database = currentServer();
+    this->database_overview->personal_banner->setVisible(
+        this->selection_kind == SelectionKind::Server && overview_database != nullptr
+        && overview_database->personal);
     updateInspectorTabs();
     // Route to the inspector associated with the selected model object.
     QWidget *active_inspector = this->database_inspector;
@@ -2061,7 +2065,10 @@ void ProjectsWidget::updateButtons()
                 != QDir::cleanPath(defaultLocalDvmdbPath()));
     this->database_inspector->update(new_source,
         creating && this->selection_kind == SelectionKind::Server,
-        busy, ready, valid);
+        busy, valid);
+    this->database_overview->create_project->setVisible(
+        this->selection_kind == SelectionKind::Server && !creating);
+    this->database_overview->create_project->setEnabled(ready);
     this->database_connection->delete_connection->setVisible(removable_connection);
     this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,

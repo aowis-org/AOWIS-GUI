@@ -115,9 +115,9 @@ int main(int argc, char **argv)
         const ProjectsInspectorPresentation database_view = ProjectsInspectorPresentations::database(
             &database, QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371"));
         if (!require(database_view.name == database.name
-                         && database_view.metadata.contains(QStringLiteral("Personal working database"))
+                         && !database_view.metadata.contains(QStringLiteral("Personal working database"))
                          && database_view.metadata.contains(QStringLiteral("DVMDB repository UUIDv7")),
-                     "database Inspector presentation lost repository identity or personal designation"))
+                     "database Inspector presentation lost repository identity or retained the old crown text"))
             return 1;
 
         ProjectPreviewData project;
@@ -625,9 +625,20 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects,
                          QStringLiteral("projectsInspectorWorkingCopies")) == nullptr,
                  "database inspector exposes branch-only controls")) return 1;
+    inspector_tabs->setCurrentIndex(0);
+    app.processEvents();
+    QWidget *database_overview_page = activeInspectorOverview(projects);
+    QLabel *personal_banner = database_overview_page != nullptr
+        ? database_overview_page->findChild<QLabel *>(
+              QStringLiteral("projectsPersonalDatabaseBanner")) : nullptr;
+    QLabel *database_metadata = database_overview_page != nullptr
+        ? database_overview_page->findChild<QLabel *>(
+              QStringLiteral("projectInspectorMetadata")) : nullptr;
     if (!require(add_project->isVisible() && add_project->isEnabled()
+                     && add_project->parentWidget() == database_overview_page
+                     && personal_banner != nullptr && database_metadata != nullptr
                      && activeInspectorAction(projects, QStringLiteral("projectsInspectorCreateBranch")) == nullptr,
-                 "database inspector did not offer only its relevant creation action"))
+                 "database Overview did not expose its project creation action"))
         return 1;
     std::fprintf(stderr, "projects_inspector_dock: opening project creation\n");
     add_project->click();

@@ -58,8 +58,6 @@ public:
                 : translate("In-memory demonstration source (no DVMDB repository)");
         if (!repository_id.isEmpty() && !server->pending && repository_id != server->id)
             view.metadata += translate("\nIdentity mismatch: %1").arg(repository_id);
-        if (server->personal)
-            view.metadata += translate("\n♛ Personal working database");
         return view;
     }
 

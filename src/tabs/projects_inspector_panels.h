@@ -2,6 +2,7 @@
 
 #include <QHBoxLayout>
 #include <QFormLayout>
+#include <QFont>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTextEdit>
@@ -105,7 +106,31 @@ class DatabaseInspectorOverview final : public ProjectsInspectorOverview
 {
 public:
     explicit DatabaseInspectorOverview(QWidget *parent = nullptr)
-        : ProjectsInspectorOverview(QStringLiteral("Database"), parent) {}
+        : ProjectsInspectorOverview(QStringLiteral("Database"), parent)
+    {
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        // Only the Database Overview has this order: personal designation,
+        // name and other editable fields, Create project, then repository ID.
+        QLayoutItem *old_stretch = column->takeAt(column->count() - 1);
+        delete old_stretch;
+        this->personal_banner = new QLabel(tr("♛ Personal working database"), this);
+        this->personal_banner->setObjectName(QStringLiteral("projectsPersonalDatabaseBanner"));
+        QFont banner_font = this->personal_banner->font();
+        banner_font.setBold(true);
+        this->personal_banner->setFont(banner_font);
+        this->personal_banner->hide();
+        column->insertWidget(0, this->personal_banner);
+
+        this->create_project = new QPushButton(tr("Create project"), this);
+        this->create_project->setObjectName(QStringLiteral("projectsInspectorCreateProject"));
+        this->create_project->setToolTip(tr("Create a project in this database"));
+        column->insertWidget(column->indexOf(this->metadata),
+                             this->create_project, 0, Qt::AlignRight);
+        column->insertStretch(column->indexOf(this->metadata), 1);
+    }
+
+    QLabel *personal_banner = nullptr;
+    QPushButton *create_project = nullptr;
 };
 class ProjectInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -209,21 +234,16 @@ public:
     explicit DatabaseInspector(QWidget *parent = nullptr) : ProjectsInspectorPanel(parent)
     {
         this->setObjectName(QStringLiteral("projectsDatabaseInspector"));
-        this->create_project = addButton(tr("Create project"),
-            QStringLiteral("projectsInspectorCreateProject"), tr("Create a project in this database"));
         this->cancel_source = addButton(tr("Cancel"),
             QStringLiteral("projectSourceCancelButton"), tr("Discard this unsaved database"));
         this->save_source = addButton(tr("Create"),
             QStringLiteral("projectSourceCreateButton"), tr("Save the new database profile"));
     }
-    QPushButton *create_project = nullptr;
     QPushButton *save_source = nullptr;
     QPushButton *cancel_source = nullptr;
 
-    void update(bool new_source, bool creating, bool busy, bool ready, bool valid)
+    void update(bool new_source, bool creating, bool busy, bool valid)
     {
-        this->create_project->setVisible(!new_source && !creating);
-        this->create_project->setEnabled(ready);
         this->save_source->setVisible(new_source);
         this->cancel_source->setVisible(new_source);
         setCreationState(creating, busy, valid);
