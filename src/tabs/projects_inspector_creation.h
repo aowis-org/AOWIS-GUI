@@ -7,6 +7,7 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QTextEdit>
 #include <QSet>
 #include <QSizePolicy>
 #include <QStandardItemModel>
@@ -110,11 +111,26 @@ public:
         this->source->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
         this->source->setMinimumWidth(0);
         this->fields->addRow(tr("Start from"), this->source);
+        this->tags = new QLineEdit(this);
+        this->tags->setObjectName(QStringLiteral("projectsBranchCreationTags"));
+        this->tags->setPlaceholderText(tr("hydraulics, testing"));
+        this->fields->addRow(tr("Tags"), this->tags);
+        this->description = new QTextEdit(this);
+        this->description->setObjectName(QStringLiteral("projectsBranchCreationDescription"));
+        this->description->setMinimumHeight(85);
+        this->description->setMaximumHeight(160);
+        this->fields->addRow(tr("Description"), this->description);
     }
 
     void begin(const ProjectPreviewData &project, const QString &chosen_origin)
     {
         reset();
+        this->tags->clear();
+        this->description->clear();
+        this->project_origin = chosen_origin.isEmpty();
+        this->source->setVisible(!this->project_origin);
+        if (QWidget *label = this->fields->labelForField(this->source))
+            label->setVisible(!this->project_origin);
         this->source->clear();
         for (const ProjectPreviewBranch &entry : project.branches)
         {
@@ -171,6 +187,11 @@ public:
             for (const ProjectPreviewBranch &entry : project->branches)
                 if (entry.name.compare(name_text, Qt::CaseInsensitive) == 0)
                     error_text = tr("A branch with this name already exists.");
+        if (this->project_origin)
+        {
+            showValidation(tr("Creates a new unborn HEAD in this project. No revision is created."), error_text);
+            return;
+        }
         QString revision;
         const QString origin = this->source->currentData().toString();
         if (origin.startsWith(QStringLiteral("branch:")) && project != nullptr)
@@ -240,4 +261,7 @@ public:
     }
 
     QComboBox *source = nullptr;
+    QLineEdit *tags = nullptr;
+    QTextEdit *description = nullptr;
+    bool project_origin = false;
 };

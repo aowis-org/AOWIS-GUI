@@ -677,7 +677,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (QPushButton *button : {this->database_overview->create_project,
                                 this->database_relations->create_project})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
-    for (QPushButton *button : {this->project_inspector->create_branch,
+    for (QPushButton *button : {this->project_overview->create_branch,
                                 this->branch_inspector->create_branch,
                                 this->revision_inspector->create_branch})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
@@ -2153,6 +2153,9 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Server && !creating);
     this->database_overview->create_project->setEnabled(ready);
     this->database_relations->create_project->setEnabled(ready);
+    this->project_overview->create_branch->setVisible(
+        this->selection_kind == SelectionKind::Project && !creating);
+    this->project_overview->create_branch->setEnabled(ready && project != nullptr);
     this->database_connection->delete_connection->setVisible(removable_connection);
     this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
@@ -2586,6 +2589,12 @@ void ProjectsWidget::createProject()
             QMessageBox::information(this, tr("Already exists"), tr("Choose a different project name."));
             return;
         }
+    if (!preview && this->selection_kind == SelectionKind::Project)
+    {
+        this->branch_creation->error->setText(tr("This DVMDB version cannot create an unborn branch or persist branch tags and description. The server API must be extended first."));
+        updateButtons();
+        return;
+    }
     if (!preview)
     {
         const ProjectServerProfile *server = currentServer();
@@ -2703,6 +2712,12 @@ void ProjectsWidget::createBranch()
             QMessageBox::information(this, tr("Already exists"), tr("Choose a different branch name."));
             return;
         }
+    if (!preview && this->selection_kind == SelectionKind::Project)
+    {
+        this->branch_creation->error->setText(tr("DVMDB does not yet support creating additional unborn branches or persisting branch tags and description."));
+        updateButtons();
+        return;
+    }
     if (!preview)
     {
         const ProjectServerProfile *server = currentServer();
@@ -2771,7 +2786,14 @@ void ProjectsWidget::createBranch()
     ProjectPreviewBranch branch;
     branch.id = makeId(QStringLiteral("b-"));
     branch.name = name;
-    const QString origin = this->branch_creation->source->currentData().toString();
+    branch.description = this->branch_creation->description->toPlainText().trimmed();
+    for (const QString &tag : this->branch_creation->tags->text().split(QLatin1Char(','), Qt::SkipEmptyParts))
+    {
+        const QString cleaned = tag.trimmed();
+        if (!cleaned.isEmpty() && !branch.tags.contains(cleaned)) branch.tags.append(cleaned);
+    }
+    const QString origin = this->selection_kind == SelectionKind::Project
+        ? QString() : this->branch_creation->source->currentData().toString();
     if (origin.startsWith(QStringLiteral("branch:")))
     {
         for (const ProjectPreviewBranch &candidate : project->branches)

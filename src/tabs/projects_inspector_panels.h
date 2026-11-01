@@ -136,7 +136,15 @@ class ProjectInspectorOverview final : public ProjectsInspectorOverview
 {
 public:
     explicit ProjectInspectorOverview(QWidget *parent = nullptr)
-        : ProjectsInspectorOverview(QStringLiteral("Project"), parent) {}
+        : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
+    {
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        this->create_branch = new QPushButton(tr("Create branch"), this);
+        this->create_branch->setObjectName(QStringLiteral("projectsInspectorCreateBranch"));
+        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        column->insertWidget(0, this->create_branch, 0, Qt::AlignLeft);
+    }
+    QPushButton *create_branch = nullptr;
 };
 class BranchInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -261,9 +269,6 @@ public:
         this->edit_network = addButton(tr("Edit network"),
             QStringLiteral("projectsInspectorEditNetwork"),
             tr("Open the hydraulic network in Distribution Editor with durable autosave"));
-        this->create_branch = addButton(tr("Create branch"),
-            QStringLiteral("projectsInspectorCreateBranch"),
-            tr("Create a named branch from an explicitly chosen revision"));
         this->delete_project = addButton(tr("Delete project…"),
             QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview project"));
         moveToFullWidth(this->edit_network);
@@ -271,7 +276,6 @@ public:
     }
     QPushButton *import_network = nullptr;
     QPushButton *edit_network = nullptr;
-    QPushButton *create_branch = nullptr;
     QPushButton *delete_project = nullptr;
 
     void update(bool creating, bool busy, bool ready, bool backed, bool preview, bool valid)
@@ -280,8 +284,6 @@ public:
         this->import_network->setEnabled(!busy);
         this->edit_network->setVisible(!creating && backed);
         this->edit_network->setEnabled(ready);
-        this->create_branch->setVisible(!creating);
-        this->create_branch->setEnabled(ready);
         this->delete_project->setVisible(!creating && preview);
         setCreationState(creating, busy, valid);
     }
