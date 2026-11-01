@@ -188,14 +188,14 @@ actions do not create persisted DVMDB revisions.
 
 ### DVMDB database profiles
 
-The Projects **Databases** section stores named profiles in the same native
-INI at `projects/servers` (serialized JSON). Older endpoint-only profiles
-are treated as remote REST sources. In the WebAssembly build, profiles are
-stored in browser `localStorage` under `aowis.projects.servers`, not in the
-deployed read-only INI file.
+The Projects **Databases** section stores named profiles in the native
+INI under `[servers]` as `profiles` (serialized JSON). In the WebAssembly
+build, profiles are stored in browser `localStorage` under
+`aowis.servers.profiles`, not in the deployed read-only INI file.
 
 Use the GUI inspector to create or edit profiles rather than hand-editing
-their JSON. The stored fields include stable profile ID, name,
+their JSON. The stored fields include repository UUIDv7 (or a temporary
+UUIDv7 for an unverified connection), name,
 `connection_type` (`remote` or `local`), remote endpoint or local data
 directory, a descriptive authentication mode and the visibility flag.
 **Authentication choices do not implement authentication.** The current

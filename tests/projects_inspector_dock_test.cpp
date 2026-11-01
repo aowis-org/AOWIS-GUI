@@ -719,7 +719,8 @@ int main(int argc, char **argv)
                      && saved_profiles.at(1).auth_mode == QStringLiteral("User login")
                      && saved_profiles.at(1).description == QStringLiteral("Persisted remote server description")
                      && saved_profiles.at(1).tags == QStringList({QStringLiteral("remote"), QStringLiteral("study")})
-                     && saved_ini.contains(QStringLiteral("projects/servers")),
+                     && saved_ini.contains(QStringLiteral("servers/profiles"))
+                     && !saved_ini.contains(QStringLiteral("projects/servers")),
                  "inspector modifications were not saved in the GUI INI file"))
         return 1;
     servers->setCurrentItem(servers->topLevelItem(0));

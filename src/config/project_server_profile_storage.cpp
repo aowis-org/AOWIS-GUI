@@ -22,7 +22,7 @@ EM_JS(char *, aowisLoadProjectServers, (),
     try
     {
         const value = globalThis.localStorage
-            ? globalThis.localStorage.getItem("aowis.projects.servers") : null;
+            ? globalThis.localStorage.getItem("aowis.servers.profiles") : null;
         return stringToNewUTF8(value === null ? "[]" : value);
     }
     catch (error)
@@ -37,7 +37,7 @@ EM_JS(int, aowisSaveProjectServers, (const char *json),
     {
         if (!globalThis.localStorage)
             return 0;
-        globalThis.localStorage.setItem("aowis.projects.servers", UTF8ToString(json));
+        globalThis.localStorage.setItem("aowis.servers.profiles", UTF8ToString(json));
         return 1;
     }
     catch (error)
@@ -51,7 +51,7 @@ EM_JS(int, aowisSaveProjectServers, (const char *json),
 
 namespace
 {
-const QString servers_key = QStringLiteral("projects/servers");
+const QString servers_key = QStringLiteral("servers/profiles");
 
 // These two IDs belong exclusively to the in-memory demonstration explorer.
 // All actual configured DVMDB connections use full UUIDv7 identifiers.
@@ -182,6 +182,8 @@ bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles)
     (void)guiConfiguration();
     QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
     settings.setValue(servers_key, QString::fromUtf8(json));
+    // The old Projects section is no longer a server configuration source.
+    settings.remove(QStringLiteral("projects/servers"));
     settings.sync();
     const bool saved = settings.status() == QSettings::NoError;
 #endif

@@ -1,9 +1,11 @@
+#include "config/gui_configuration.h"
 #include "config/personal_repository_storage.h"
 #include "config/project_server_profile_storage.h"
 
 #include <QApplication>
 #include <QDir>
 #include <QTemporaryDir>
+#include <QSettings>
 
 #include <cstdio>
 
@@ -33,7 +35,17 @@ int main(int argc, char **argv)
     b.id = known_id;
     b.name = QStringLiteral("My working server");
     b.endpoint = QStringLiteral("https://private.example.invalid");
+    // Saving the new server list removes the obsolete Projects-section key.
+    {
+        QSettings obsolete_settings(guiConfigurationFilePath(), QSettings::IniFormat);
+        obsolete_settings.setValue(QStringLiteral("projects/servers"), QStringLiteral("[]"));
+        obsolete_settings.sync();
+    }
     if (!check(saveProjectServerProfiles({a, b}), "unable to save initial server profiles")) return 1;
+    QSettings saved_settings(guiConfigurationFilePath(), QSettings::IniFormat);
+    if (!check(saved_settings.contains(QStringLiteral("servers/profiles"))
+               && !saved_settings.contains(QStringLiteral("projects/servers")),
+               "database profiles must be stored in the servers section")) return 1;
     if (!check(resolvePersonalRepositoryTarget().kind == PersonalRepositoryTarget::Kind::Unavailable,
                "an unmarked source was used implicitly")) return 1;
 

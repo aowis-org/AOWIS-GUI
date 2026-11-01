@@ -302,7 +302,7 @@ MainWindow::MainWindow(QWidget *parent)
     
     this->main_navigation->addPage(this->projects_workspace,
                                   QIcon(":/icon/projects.png"),
-                                  "Projects");
+                                  "Servers and projects");
     this->main_navigation->addPage(new QWidget(this->main_navigation),
                                   QIcon(":/icon/dashboard_global.png"),
                                   "Dashboard");
