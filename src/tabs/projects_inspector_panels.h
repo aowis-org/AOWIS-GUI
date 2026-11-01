@@ -125,7 +125,7 @@ public:
         this->create_project->setObjectName(QStringLiteral("projectsInspectorCreateProject"));
         this->create_project->setToolTip(tr("Create a project in this database"));
         column->insertWidget(column->indexOf(this->metadata),
-                             this->create_project, 0, Qt::AlignRight);
+                             this->create_project, 0, Qt::AlignLeft);
         column->insertStretch(column->indexOf(this->metadata), 1);
     }
 

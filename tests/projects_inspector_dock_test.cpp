@@ -580,9 +580,18 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(inspector_tabs->tabText(1) == QStringLiteral("Connection"),
                  "server inspector is missing the Connection tab")) return 1;
+    QWidget *database_projects_tab = inspector_tabs->count() > 2
+        ? inspector_tabs->widget(2) : nullptr;
+    QPushButton *database_projects_create = database_projects_tab == nullptr
+        ? nullptr : database_projects_tab->findChild<QPushButton *>(
+              QStringLiteral("projectsDatabaseProjectsCreateProject"));
     if (!require(inspector_tabs->widget(1) == database_connection
-                     && inspector_tabs->count() == 2,
-                 "empty remote server did not mount only its dedicated Connection page"))
+                     && inspector_tabs->count() == 3
+                     && inspector_tabs->tabText(2) == QStringLiteral("Projects")
+                     && database_projects_tab->objectName()
+                         == QStringLiteral("projectsDatabaseRelations")
+                     && database_projects_create != nullptr,
+                 "empty remote server must keep its Projects tab and Create project action"))
         return 1;
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();

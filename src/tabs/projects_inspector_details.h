@@ -192,7 +192,16 @@ class DatabaseInspectorRelations final : public ProjectsInspectorRelations
 {
 public:
     explicit DatabaseInspectorRelations(QWidget *parent = nullptr)
-        : ProjectsInspectorRelations(QStringLiteral("projectsDatabaseRelations"), parent) {}
+        : ProjectsInspectorRelations(QStringLiteral("projectsDatabaseRelations"), parent)
+    {
+        this->create_project = new QPushButton(tr("Create project"), this);
+        this->create_project->setObjectName(QStringLiteral("projectsDatabaseProjectsCreateProject"));
+        this->create_project->setToolTip(tr("Create a project in this database"));
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        column->insertWidget(0, this->create_project, 0, Qt::AlignLeft);
+    }
+    QPushButton *create_project = nullptr;
+
     void populate(const QList<ProjectPreviewData> &projects, const QString &server_id)
     {
         this->list->clear();

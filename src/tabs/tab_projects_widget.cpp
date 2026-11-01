@@ -657,8 +657,9 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             return;
         }
     });
-    connect(this->database_overview->create_project, &QPushButton::clicked,
-            this, [this] { beginCreation(false); });
+    for (QPushButton *button : {this->database_overview->create_project,
+                                this->database_relations->create_project})
+        connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
     for (QPushButton *button : {this->project_inspector->create_branch,
                                 this->branch_inspector->create_branch,
                                 this->revision_inspector->create_branch})
@@ -1867,7 +1868,9 @@ void ProjectsWidget::updateInspectorTabs()
         related = this->revision_relations;
         title = tr("Ancestry");
     }
-    if (related != nullptr && related->list->count() > 0)
+    // An empty database still needs its Projects tab to offer Create project.
+    if (related != nullptr && (this->selection_kind == SelectionKind::Server
+                               || related->list->count() > 0))
         this->inspector_tabs->addTab(related, title);
     this->inspector_tabs->setCurrentIndex(this->selection_kind == SelectionKind::NewSource
         ? 1 : same_kind
@@ -2069,6 +2072,7 @@ void ProjectsWidget::updateButtons()
     this->database_overview->create_project->setVisible(
         this->selection_kind == SelectionKind::Server && !creating);
     this->database_overview->create_project->setEnabled(ready);
+    this->database_relations->create_project->setEnabled(ready);
     this->database_connection->delete_connection->setVisible(removable_connection);
     this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
