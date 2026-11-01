@@ -3635,6 +3635,16 @@ bool HydraulicData::undoPipeSplit(const QUuid &first_pipe_uuid, const QUuid &sec
     {
         capture.watch(this->network_hydraulic, first_pipe_uuid);
         capture.watch(this->network_hydraulic, second_pipe_uuid);
+        for (const HydraulicControlSimple &control : this->network_hydraulic.controls_simple)
+        {
+            if (control.link_uuid == second_pipe_uuid)
+                capture.watch(this->network_hydraulic, control.uuid);
+        }
+        for (const HydraulicControlRule &rule : this->network_hydraulic.controls_rules)
+        {
+            if (hydraulic_rule_dependencies::referencesEntity(rule, second_pipe_uuid))
+                capture.watch(this->network_hydraulic, rule.uuid);
+        }
         for (const HydraulicDemandPoint &point : this->network_hydraulic.demand_points)
         {
             if ((point.attachment.type == HydraulicDemandPointAttachmentType::Pipe &&

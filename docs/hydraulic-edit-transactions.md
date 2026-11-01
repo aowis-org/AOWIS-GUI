@@ -82,9 +82,18 @@ A shared rule-reference predicate keeps the edit and capture paths consistent.
 The HC-02.2 test checks all six deletion entry points, unrelated-rule retention,
 anchored-label detachment and exact canonical draft replay.
 
+**HC-02.3 — split/rejoin dependency capture:** Pipe splitting already watches
+its original pipe, the created second pipe and reattached demand points.
+Rejoining deletes that second pipe UUID, so the editor now removes controls
+referencing it in the same manner as ordinary link deletion. The GUI watches
+those simple/rule controls (including rule premises and THEN/ELSE actions)
+before rejoining, alongside both pipes and the affected demand points. A
+regression proves one transaction with the proper membership removals,
+independent-rule retention, and canonical draft replay.
+
 **Still to audit in HC-02:** actual editing surfaces for rule controls, labels,
-patterns, curves and materials, link split/rejoin dependencies, remaining import
-and bulk-edit paths, and references from network-root settings. HC-02 is **not
+patterns, curves and materials, remaining import/bulk-edit paths, and references
+from network-root settings. HC-02 is **not
 yet complete**; network-root settings require HC-03/04 and are outside this patch.
 
 ## Required editor synchronization

@@ -1247,6 +1247,153 @@ void testRuleControlDeletionCascades()
     }
 }
 
+// Rejoining a split pipe removes the second link UUID. The GUI must watch
+// dependent controls before the mutation; otherwise the model can change
+// without matching DVMDB draft events and/or retain dangling references.
+void testPipeRejoinCapturesControlCascades()
+{
+    NetworkHydraulic baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("HC02 pipe rejoin dependencies");
+    HydraulicNetworkEditor seed(baseline);
+    const QUuid first_node = seed.addJunction(coordinate(50.00, 8.00));
+    const QUuid joining_node = seed.addJunction(coordinate(50.01, 8.01));
+    const QUuid last_node = seed.addJunction(coordinate(50.02, 8.02));
+    QList<CoordinateWGS84> vertices;
+    vertices.append(coordinate(50.01, 8.01));
+    const QUuid first_pipe = seed.addPipe(first_node, last_node, vertices);
+    const QUuid second_pipe = seed.splitPipeAtVertex(first_pipe, 0, joining_node);
+    const QUuid demand = seed.addDemandPoint(coordinate(50.015, 8.015));
+    const bool attached = seed.attachDemandPointToPipe(demand, second_pipe, 0.5);
+    test_harness.expectTrue(!first_pipe.isNull() && !second_pipe.isNull() &&
+                            !demand.isNull() && attached,
+                            "HC02 pipe rejoin fixture includes two pipes and an attached demand point");
+    if (first_pipe.isNull() || second_pipe.isNull() || !attached)
+        return;
+
+    HydraulicControlSimple target_control;
+    target_control.uuid = createUuidV7();
+    target_control.id = QStringLiteral("dependent-control");
+    target_control.link_uuid = second_pipe;
+    target_control.trigger_node_uuid = first_node;
+    baseline.controls_simple.append(target_control);
+
+    HydraulicControlRulePremise premise;
+    premise.object = HydraulicControlRuleObject::System;
+    premise.variable = HydraulicControlRuleVariable::Time;
+    premise.elapsed_time_s = 3600;
+    HydraulicControlRulePremise link_premise;
+    link_premise.object = HydraulicControlRuleObject::Link;
+    link_premise.object_uuid = second_pipe;
+    link_premise.variable = HydraulicControlRuleVariable::Flow;
+    link_premise.flow_m3_per_h = 1.0;
+    HydraulicControlRuleAction affected_action;
+    affected_action.link_uuid = second_pipe;
+    affected_action.status = HydraulicControlRuleStatus::Open;
+    HydraulicControlRuleAction independent_action;
+    independent_action.link_uuid = first_pipe;
+    independent_action.status = HydraulicControlRuleStatus::Open;
+
+    HydraulicControlRule then_rule;
+    then_rule.uuid = createUuidV7();
+    then_rule.id = QStringLiteral("dependent-then");
+    then_rule.premises.append(premise);
+    then_rule.actions_then.append(affected_action);
+    HydraulicControlRule else_rule;
+    else_rule.uuid = createUuidV7();
+    else_rule.id = QStringLiteral("dependent-else");
+    else_rule.premises.append(premise);
+    else_rule.actions_then.append(independent_action);
+    else_rule.actions_else.append(affected_action);
+    HydraulicControlRule premise_rule;
+    premise_rule.uuid = createUuidV7();
+    premise_rule.id = QStringLiteral("dependent-premise");
+    premise_rule.premises.append(link_premise);
+    premise_rule.actions_then.append(independent_action);
+    HydraulicControlRule independent_rule;
+    independent_rule.uuid = createUuidV7();
+    independent_rule.id = QStringLiteral("independent-rule");
+    independent_rule.premises.append(premise);
+    independent_rule.actions_then.append(independent_action);
+    baseline.controls_rules = {then_rule, else_rule, premise_rule, independent_rule};
+
+    HydraulicData data;
+    data.replaceNetworkHydraulic(baseline, {});
+    NetworkHydraulic staged = baseline;
+    QList<QByteArray> events;
+    QString capture_error;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed,
+                     &data, [&capture_error](const QString &error) { capture_error = error; });
+    data.setLogicalEditCaptureEnabled(true);
+    test_harness.expectTrue(!data.undoPipeSplit(first_pipe, createUuidV7(), joining_node) &&
+                            events.isEmpty(),
+                            "HC02 rejected pipe rejoin does not produce a logical transaction");
+    const bool joined = data.undoPipeSplit(first_pipe, second_pipe, joining_node);
+    test_harness.expectTrue(joined && events.size() == 1 &&
+                            data.networkHydraulic().controls_simple.isEmpty() &&
+                            data.networkHydraulic().controls_rules.size() == 1 &&
+                            data.networkHydraulic().controls_rules.first().uuid == independent_rule.uuid &&
+                            data.networkHydraulic().links_pipes.size() == 1 &&
+                            data.networkHydraulic().demand_points.first().attachment.pipe_uuid == first_pipe,
+                            "HC02 rejoin removes dependent controls and preserves independent rules and demand");
+    if (!joined || events.size() != 1)
+        return;
+    const std::optional<aowis::model::ModelEditTransaction> tx = decoded(events.first());
+    bool second_removed = false;
+    bool simple_removed = false;
+    bool then_removed = false;
+    bool else_removed = false;
+    bool premise_removed = false;
+    bool first_updated = false;
+    bool demand_updated = false;
+    if (tx.has_value())
+    {
+        for (const aowis::model::ModelEntityEdit &edit : tx->edits)
+        {
+            const bool removed = edit.before.has_value() && !edit.after.has_value();
+            const bool updated = edit.before.has_value() && edit.after.has_value() &&
+                                 edit.before != edit.after;
+            if (edit.entityId == second_pipe) second_removed = removed;
+            if (edit.entityId == target_control.uuid) simple_removed = removed;
+            if (edit.entityId == then_rule.uuid) then_removed = removed;
+            if (edit.entityId == else_rule.uuid) else_removed = removed;
+            if (edit.entityId == premise_rule.uuid) premise_removed = removed;
+            if (edit.entityId == first_pipe) first_updated = updated;
+            if (edit.entityId == demand) demand_updated = updated;
+        }
+    }
+    test_harness.expectTrue(tx.has_value() && tx->edits.size() == 7 &&
+                            second_removed && simple_removed && then_removed &&
+                            else_removed && premise_removed && first_updated && demand_updated,
+                            "HC02 rejoin captures five removals and two before/after updates atomically");
+    QList<PersonalWorkingCopyChange> records;
+    QList<HydraulicDraftMembershipEdit> membership;
+    QString error;
+    const bool replayed = HydraulicDraftEventAdapter::prepareWithMembership(
+        events.first(), staged, records, membership, &error);
+    const QByteArray replay_message =
+        (QStringLiteral("HC02 pipe rejoin replay: ") + error).toUtf8();
+    test_harness.expectTrue(replayed, replay_message.constData());
+    if (replayed)
+    {
+        int deletions = 0;
+        for (const HydraulicDraftMembershipEdit &entry : membership)
+        {
+            if (!entry.inserted) ++deletions;
+        }
+        test_harness.expectTrue(records.size() == 7 && membership.size() == 5 &&
+                                deletions == 5 &&
+                                aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                                aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                                    data.networkHydraulic()),
+                                "HC02 rejoin reconstructs exact canonical network and membership removals");
+    }
+    test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
+                            "HC02 pipe rejoin retains an active, error-free edit capture");
+}
+
 void testDraftStageRejectsOutOfOrderReplay()
 {
     QTemporaryDir root;
@@ -1294,6 +1441,7 @@ int main(int argc, char **argv)
     test_harness.runCase("Hydraulic property capture and no-op", testPropertyCaptureAndNoop);
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
+    test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);
     test_harness.runCase("Hydraulic event to canonical DVMDB records", testOrderedHydraulicDraftRecordMapping);
     test_harness.runCase("Hydraulic membership intent mapping", testHydraulicDraftMembershipIntents);

@@ -2128,6 +2128,10 @@ bool HydraulicNetworkEditor::undoPipeSplit(const QUuid &first_pipe_uuid, const Q
             }
         }
 
+        // Rejoining deletes the second pipe just like a normal link deletion.
+        // Its controls must not keep dangling references to that pipe UUID.
+        removeSimpleControlsReferencing(this->network, second_pipe_uuid);
+        removeRuleControlsReferencing(this->network, second_pipe_uuid);
         return true;
     }
 
