@@ -45,7 +45,8 @@ public:
     {
         ProjectsInspectorPresentation view;
         if (server == nullptr) return view;
-        view.heading = (server->connection_type == QStringLiteral("local")
+        view.heading = translate("Database");
+        view.subtitle = (server->connection_type == QStringLiteral("local")
             ? translate("Local: %1") : translate("Remote: %1")).arg(server->name);
         view.name = server->name;
         view.description = server->description;
