@@ -19,6 +19,7 @@ struct BuiltinExampleRevision;
 class QDockWidget;
 class QComboBox;
 class QCheckBox;
+class QColor;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -142,6 +143,8 @@ private:
 
     void applySourceSnapshot(const QString &source_id, const SourceSnapshot &snapshot);
     void updateConnectionStatus();
+    void databaseAvailability(const ProjectServerProfile &profile, QColor &color,
+                              QString &status, QString &details) const;
     bool isPreviewSource() const;
     void broadcastContext();
     void select(SelectionKind kind, const QString &id);
@@ -195,6 +198,9 @@ private:
     QDockWidget *inspector_dock = nullptr;
     QLabel *inspector_heading = nullptr;
     QLabel *inspector_subtitle = nullptr;
+    QWidget *inspector_health_row = nullptr;
+    QLabel *inspector_health_icon = nullptr;
+    QLabel *inspector_health_text = nullptr;
     QStackedWidget *inspector_content_stack = nullptr;
     QTabWidget *inspector_tabs = nullptr;
     QWidget *inspector_overview_page = nullptr;

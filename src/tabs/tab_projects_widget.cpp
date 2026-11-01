@@ -498,6 +498,23 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->inspector_subtitle = new QLabel(right);
     wrapInspectorLabel(this->inspector_subtitle);
     right_layout->addWidget(this->inspector_subtitle);
+    // One live database-status line for every Database Inspector tab.
+    // It uses the same source sessions and health monitor as the sidebar.
+    this->inspector_health_row = new QWidget(right);
+    this->inspector_health_row->setObjectName(QStringLiteral("projectsDatabaseHealthRow"));
+    QHBoxLayout *health_layout = new QHBoxLayout(this->inspector_health_row);
+    health_layout->setContentsMargins(0, 0, 0, 0);
+    health_layout->setSpacing(7);
+    this->inspector_health_icon = new QLabel(this->inspector_health_row);
+    this->inspector_health_icon->setObjectName(QStringLiteral("projectsDatabaseHealthIndicator"));
+    this->inspector_health_icon->setFixedSize(16, 16);
+    health_layout->addWidget(this->inspector_health_icon);
+    this->inspector_health_text = new QLabel(this->inspector_health_row);
+    this->inspector_health_text->setObjectName(QStringLiteral("projectsDatabaseHealthStatus"));
+    wrapInspectorLabel(this->inspector_health_text);
+    health_layout->addWidget(this->inspector_health_text, 1);
+    right_layout->addWidget(this->inspector_health_row);
+    this->inspector_health_row->hide();
     this->inspector_content_stack = new QStackedWidget(right);
     this->inspector_content_stack->setObjectName(QStringLiteral("projectsInspectorContentStack"));
     this->inspector_content_stack->setMinimumWidth(0);
@@ -932,6 +949,73 @@ ProjectServerProfile *ProjectsWidget::currentServer()
     return nullptr;
 }
 
+void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
+                                          QColor &color, QString &status,
+                                          QString &details) const
+{
+    const SourceSession *session = this->source_sessions.value(profile.id, nullptr);
+    color = QColor(QStringLiteral("#c9a227"));
+    status = tr("Checking");
+    details = tr("Waiting for a database response");
+
+    if (profile.pending)
+    {
+        color = QColor(QStringLiteral("#777777"));
+        status = tr("Unverified");
+        details = session != nullptr && !session->error.isEmpty()
+            ? tr("Repository identity not yet verified: %1").arg(session->error)
+            : tr("Repository UUIDv7 not yet verified");
+        return;
+    }
+    if (profile.id == QStringLiteral("preview-local")
+        || profile.id == QStringLiteral("preview-remote"))
+    {
+        color = QColor(QStringLiteral("#777777"));
+        status = tr("Preview");
+        details = tr("In-memory demonstration; no database connection");
+        return;
+    }
+    if (session == nullptr) return;
+
+    if (session->health != nullptr
+        && session->health->currentState() == HttpHealthMonitor::State::Degraded)
+    {
+        color = QColor(QStringLiteral("#dd9537"));
+        status = tr("Unstable");
+        details = session->error.isEmpty()
+            ? tr("A recent health check failed; retrying") : session->error;
+        return;
+    }
+    if (session->state == SourceState::Error
+        || (session->health != nullptr
+            && session->health->currentState() == HttpHealthMonitor::State::Offline))
+    {
+        color = QColor(QStringLiteral("#c24848"));
+        status = tr("Unavailable");
+        details = session->error.isEmpty()
+            ? tr("Database connection unavailable") : session->error;
+        return;
+    }
+    if (session->state == SourceState::Connected
+        && (session->health == nullptr
+            || session->health->currentState() == HttpHealthMonitor::State::Healthy))
+    {
+        color = QColor(QStringLiteral("#339950"));
+        status = tr("Available");
+        details = profile.connection_type == QStringLiteral("local")
+            ? tr("Embedded database is open and its catalogue is loaded")
+            : tr("Database is responding and its catalogue is loaded");
+        return;
+    }
+    if (session->state == SourceState::Loading)
+    {
+        status = tr("Loading");
+        details = tr("Loading the database catalogue");
+    }
+    else if (!session->error.isEmpty())
+        details = session->error;
+}
+
 void ProjectsWidget::populateServerTree()
 {
     const QSignalBlocker blocked(this->server_tree);
@@ -946,19 +1030,15 @@ void ProjectsWidget::populateServerTree()
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(0, server.visible ? Qt::Checked : Qt::Unchecked);
         const SourceSession *session = this->source_sessions.value(server.id, nullptr);
+        QColor color;
+        QString status;
+        QString status_details;
+        databaseAvailability(server, color, status, status_details);
         if (local)
             item->setIcon(0, QIcon::fromTheme(QStringLiteral("drive-harddisk"),
                 style()->standardIcon(QStyle::SP_DriveHDIcon)));
         else
         {
-            QColor color = QColor(QStringLiteral("#c9a227")); // starting / loading
-            if (server.pending) color = QColor(QStringLiteral("#777777"));
-            else if (session != nullptr && session->state == SourceState::Connected
-                && (session->health == nullptr
-                    || session->health->currentState() == HttpHealthMonitor::State::Healthy))
-                color = QColor(QStringLiteral("#339950"));
-            else if (session != nullptr && session->state == SourceState::Error)
-                color = QColor(QStringLiteral("#c24848"));
             QPixmap indicator(16, 16);
             indicator.fill(Qt::transparent);
             QPainter painter(&indicator);
@@ -968,20 +1048,9 @@ void ProjectsWidget::populateServerTree()
             painter.drawEllipse(QRectF(3, 3, 10, 10));
             item->setIcon(0, QIcon(indicator));
         }
-        QString status = server.pending ? tr("Pending repository verification")
-            : local ? tr("Embedded · no network check") : tr("Checking…");
-        if (session != nullptr)
-            status = session->health != nullptr
-                     && session->health->currentState() == HttpHealthMonitor::State::Degraded
-                ? tr("Connection unstable")
-                : session->state == SourceState::Connected ? tr("Available")
-                : session->state == SourceState::Loading ? tr("Loading…")
-                : session->state == SourceState::Error ? tr("Unavailable: %1").arg(session->error)
-                : tr("Checking…");
-        item->setToolTip(0, tr("%1%2\n%3\n%4\nCheckbox: show in explorer and graph")
+        item->setToolTip(0, tr("%1%2\n%3\n%4: %5\nCheckbox: show in explorer and graph")
             .arg(server.name, server.personal ? tr(" (personal working database)") : QString(),
-                 local ? server.local_path : server.endpoint,
-                 server.pending ? tr("Unverified · %1").arg(status) : status));
+                 local ? server.local_path : server.endpoint, status, status_details));
         if (session != nullptr && session->state == SourceState::Error)
             item->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
     }
@@ -1030,6 +1099,29 @@ void ProjectsWidget::updateConnectionStatus()
     for (const ProjectServerProfile &candidate : this->servers)
         if (candidate.id == this->server_id) { server = &candidate; break; }
     const bool has_server = server != nullptr && this->selection_kind == SelectionKind::Server;
+    // This row lives above the tabs, so it follows the selected database
+    // across Overview, Connection and Projects without a second health poll.
+    this->inspector_health_row->setVisible(has_server);
+    if (has_server)
+    {
+        QColor color;
+        QString status;
+        QString details;
+        databaseAvailability(*server, color, status, details);
+        QPixmap indicator(16, 16);
+        indicator.fill(Qt::transparent);
+        QPainter painter(&indicator);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(QRectF(3, 3, 10, 10));
+        painter.end();
+        this->inspector_health_icon->setPixmap(indicator);
+        this->inspector_health_text->setText(status);
+        this->inspector_health_row->setToolTip(details);
+        this->inspector_health_icon->setToolTip(details);
+        this->inspector_health_text->setToolTip(details);
+    }
     const SourceSession *session = has_server ? this->source_sessions.value(server->id, nullptr) : nullptr;
     const QString status = isPreviewSource() ? tr("In-memory demonstration")
         : session == nullptr ? tr("Starting automatically…")
