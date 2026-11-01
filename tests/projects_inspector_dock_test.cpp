@@ -1457,25 +1457,39 @@ int main(int argc, char **argv)
             if (confirmation != nullptr && confirmation->isVisible()
                 && confirmation->windowTitle() == QStringLiteral("Database unreachable"))
             {
-                accepted_pending = true;
-                confirmation->done(QMessageBox::Yes);
-                pending_confirmation_timer.stop();
+                // Click the actual standard button: forcing QDialog::done()
+                // bypasses QMessageBox's clicked-button handling and can
+                // cause question() to return NoButton instead of Yes.
+                if (QAbstractButton *yes = confirmation->button(QMessageBox::Yes))
+                {
+                    accepted_pending = true;
+                    pending_confirmation_timer.stop();
+                    yes->click();
+                }
                 break;
             }
         }
     });
     pending_confirmation_timer.start();
     create_source->click();
-    for (int attempt = 0; attempt < 650 && loadProjectServerProfiles().size() != 3; ++attempt)
+    for (int attempt = 0; attempt < 300 && loadProjectServerProfiles().size() != 3; ++attempt)
         waitFor(10);
     pending_confirmation_timer.stop();
-    if (!require(accepted_pending, "unreachable database did not ask before saving pending")
-        || !require(servers->topLevelItemCount() == 3
-                     && loadProjectServerProfiles().size() == 3
-                     && loadProjectServerProfiles().at(2).connection_type == QStringLiteral("remote")
-                     && loadProjectServerProfiles().at(2).pending
-                     && DvmdbIdentity::isUuidV7(loadProjectServerProfiles().at(2).id),
-                 "inspector Create did not persist a configured remote database"))
+    if (!require(accepted_pending, "unreachable database did not ask before saving pending"))
+        return 1;
+    const QList<ProjectServerProfile> created_profiles = loadProjectServerProfiles();
+    if (servers->topLevelItemCount() != 3 || created_profiles.size() != 3)
+    {
+        std::fprintf(stderr,
+            "projects_inspector_dock: after adding remote database: tree=%d profiles=%lld\n",
+            servers->topLevelItemCount(), static_cast<long long>(created_profiles.size()));
+        if (!require(false, "inspector Create did not persist a configured remote database"))
+            return 1;
+    }
+    if (!require(created_profiles.at(2).connection_type == QStringLiteral("remote")
+                     && created_profiles.at(2).pending
+                     && DvmdbIdentity::isUuidV7(created_profiles.at(2).id),
+                 "new remote database did not retain pending UUIDv7 identity"))
         return 1;
     ProjectsWidget reloaded;
     QTreeWidget *reloaded_servers = reloaded.findChild<QTreeWidget *>(

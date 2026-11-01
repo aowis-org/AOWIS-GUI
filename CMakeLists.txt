@@ -787,7 +787,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-projects-inspector-dock-tests)
     set_tests_properties(aowis-projects-inspector-dock PROPERTIES
         LABELS "aowis"
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30)
 
     add_executable(aowis-projects-multi-source-tests
         tests/projects_multi_source_test.cpp
