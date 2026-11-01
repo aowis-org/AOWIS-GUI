@@ -62,6 +62,7 @@ MainWindow::MainWindow(QWidget *parent)
                                        this->map_terrain_repository, this->hydraulic_data,
                                        this->gps, this->dock_entity_inspector, this->map_monitor, this) ),
     energy( new EnergyWidget(this) ),
+    hydraulic_libraries( new HydraulicLibrariesWidget(this->hydraulic_data, this) ),
     reservoirs( new ReservoirsWidget(this->hydraulic_data, this) ),
     tanks( new TanksWidget(this->hydraulic_data, this) ),
     pumps( new PumpsWidget(this->hydraulic_data, this) ),
@@ -319,6 +320,9 @@ MainWindow::MainWindow(QWidget *parent)
     this->main_navigation->addPage(this->energy,
                                   QIcon(":/icon/energy.png"),
                                   "Energy");
+    this->main_navigation->addPage(this->hydraulic_libraries,
+                                  QIcon(":/icon/hydraulic_library.png"),
+                                  "Hydraulic Libraries");
     this->main_navigation->addPage(this->reservoirs,
                                   QIcon(":/icon/reservoir.png"),
                                   "Reservoirs");

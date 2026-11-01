@@ -42,6 +42,7 @@
 #include "tabs/tab_map_editor_container.h"
 
 #include "tabs/tab_energy_widget.h"
+#include "tabs/tab_hydraulic_libraries_widget.h"
 #include "tabs/tab_reservoirs_widget.h"
 #include "tabs/tab_tanks_widget.h"
 #include "tabs/tab_pumps_widget.h"
@@ -160,6 +161,7 @@ private:
     MapMonitorContainer *map_monitor;
     MapEditorContainer *map_editor;
     EnergyWidget *energy;
+    HydraulicLibrariesWidget *hydraulic_libraries;
     ReservoirsWidget *reservoirs;
     TanksWidget *tanks;
     PumpsWidget *pumps;

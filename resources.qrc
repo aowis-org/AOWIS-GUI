@@ -28,6 +28,7 @@
         <file alias="crosshair.png">assets/iconsets/gothic/crosshair.png</file>
         
         <file alias="pipe.png">assets/iconsets/gothic/pipe.png</file>
+        <file alias="hydraulic_library.png">assets/iconsets/gothic/hydraulic_library.png</file>
         <file alias="junction.png">assets/iconsets/gothic/junction.png</file>
         <file alias="lake.png">assets/iconsets/gothic/lake.png</file>
         <file alias="map_edit.png">assets/iconsets/gothic/map_edit.png</file>
