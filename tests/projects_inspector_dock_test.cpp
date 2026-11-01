@@ -1458,8 +1458,10 @@ int main(int argc, char **argv)
     add_server->click();
     app.processEvents();
     if (!require(inspector_tabs->tabText(inspector_tabs->currentIndex())
-                     == QStringLiteral("Connection"),
-                 "new database must open its Connection tab")) return 1;
+                     == QStringLiteral("Connection")
+                     && !inspector_tabs->isTabEnabled(0)
+                     && !inspector_tabs->tabToolTip(0).isEmpty(),
+                 "new database must open Connection with Overview disabled and explained")) return 1;
     QPushButton *create_source = projects.findChild<QPushButton *>(
         QStringLiteral("projectSourceCreateButton"));
     QPushButton *cancel_source = projects.findChild<QPushButton *>(

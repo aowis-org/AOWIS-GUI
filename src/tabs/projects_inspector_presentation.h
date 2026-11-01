@@ -36,7 +36,6 @@ public:
         ProjectsInspectorPresentation view;
         view.heading = translate("New database");
         view.subtitle = translate("Configure a data source. Nothing is saved until you select Create.");
-        view.metadata = translate("Local and REST sources share the same read-only project explorer.");
         return view;
     }
 

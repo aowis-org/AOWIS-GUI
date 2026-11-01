@@ -1838,6 +1838,12 @@ void ProjectsWidget::updateInspectorTabs()
              static_cast<ProjectsInspectorRelations *>(this->revision_relations)})
         panel->hide();
     this->inspector_tabs->addTab(this->inspector_overview_page, tr("Overview"));
+    // A database has no Overview until its connection has been created.
+    // Keep the reason discoverable on the disabled tab.
+    const bool creating_database = this->selection_kind == SelectionKind::NewSource;
+    this->inspector_tabs->setTabEnabled(0, !creating_database);
+    this->inspector_tabs->setTabToolTip(0, creating_database
+        ? tr("Create the database connection in the Connection tab first.") : QString());
     if (this->selection_kind == SelectionKind::Server
         || this->selection_kind == SelectionKind::NewSource)
         this->inspector_tabs->addTab(this->database_connection, tr("Connection"));
