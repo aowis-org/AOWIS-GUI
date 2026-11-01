@@ -1,195 +1,133 @@
-# Projects workspace — interaction contract
+# Projects workspace — visible controls and version-control contract
 
-**Normative product design, not a declaration that every action is already
-wired in the GUI.** Real DVMDB browsing and graph inspection are available;
-the complete checked-out `HydraulicData` autosave and local Commit workflows
-are pending integrated acceptance. See the
-[current integration status](dvmdb-integration-roadmap.md#current-implementation-state-and-immediate-delivery-priority).
+The **Projects** tab brings together database servers, projects, branches,
+revision history and a context-sensitive Inspector. It is the entry point
+for editing hydraulic networks stored in DVMDB. The product's Git-like
+object model is specified here; where a control is not yet implemented it is
+explicitly identified as a future action.
 
-The Projects workspace follows the
-[DVMDB version-control model](../../AOWIS-SERVER-DVMDB/docs/version-control-semantics.md)
-and [graph presentation](project-graph-layout.md). A database connection,
-project, branch, committed revision and private working copy are **different
-objects** with different lifecycles and actions.
+## 1. Screen layout
 
-## Workspace responsibilities
-
-| Region | Responsibility |
+| Area | What it shows/does |
 |---|---|
-| Database navigator | List saved embedded/REST source profiles and their availability and visibility |
-| Project / branch navigator | Navigate projects and branches within the selected visible databases |
-| History canvas | Show one Git-style immutable commit DAG with branch HEAD labels |
-| Right inspector | Show selected identity, context-specific information tabs and permitted actions |
-| Model editor | Edit one private working copy in the user's configured personal DVMDB; never edit a committed revision |
+| Left — Servers | Configured local/remote DVMDB databases; a visibility checkbox filters that source from the displayed workspace; the **♛** marks the personal working database |
+| Left — Projects & Branches | Actual projects and their named branches; expand a project to select a **branch** and reveal branch-only Inspector actions |
+| Left — Revisions | Committed revisions for the current source/context; an unborn branch has no revision |
+| Center — graph | Server/project/branch presentation and committed revision ancestry; each server has a left-hand server icon; the personal server's card is **gold with a crown** beside its name |
+| Right — Inspector | Selection-specific identity, project/branch/revision information, creation/edit actions and connection configuration |
 
-The database selector remains visible even when a source has no projects.
-Unchecking a database filters it from the canvas and project tree; it is not
-an implicit disconnect/delete operation. Multiple visible databases remain
-source-qualified so equal human-readable names never collide.
+The Inspector is shown for relevant selections/actions. Selecting a server,
+project, branch or revision changes its content. Branch actions should not
+be expected when the **project row** is selected. Hiding a database from
+the graph is not disconnecting or deleting it.
 
-The inspector uses the shared `Sizes::SidebarRightWidth` sizing convention,
-not a half-window layout. Optional tab pages are hidden when inactive, and
-selection of another object changes the inspector without a modal duplicate.
+All project/branch/revision identities are UUIDv7, not labels. A repository
+ID qualifies a branch reference: two repositories may have the same
+logical project and branch UUIDs but different committed HEADs.
 
-## Working repository versus published database sources
+## 2. Configure and identify databases
 
-Each user has one configured **personal working DVMDB** for durable drafts,
-local commits and tracking of shared branches. Standalone uses its built-in
-native DVMDB; basic desktop and web clients require an explicit private
-HTTP DVMDB repository. A visible/selected shared project source is **not**
-the working repository. The GUI must distinguish Save draft, Commit locally,
-and Publish/Push to shared HEAD. See
-[working-repository configuration](working-repository-configuration.md).
+The **Server Inspector** includes **Use as my personal working database**.
+Exactly one source can be designated at a time. For a reachable source the
+GUI verifies repository identity and role; an unconfigured repository can
+be explicitly configured as private, but a shared repository cannot be
+silently repurposed. This selected source owns private drafts and future
+local commits, regardless of which shared source is being browsed.
 
-## Creation and opening
+Standalone has a native DVMDB service embedded in its own process, accessed
+through temporary loopback HTTP routes. Local profiles select persistent
+absolute storage directories; the runtime endpoint is not persisted.
+Desktop/basic GUI connects to configured HTTP repositories. Selecting a
+server is **not** the same as selecting a working copy.
 
-### Database/source profile
+## 3. Projects, branches and revisions
 
-Creating a database chooses embedded/REST and connection information. For
-reachable DVMDB endpoints, the GUI verifies `GET /dvmdb/v1/repository` before
-saving, and uses its persistent repository UUIDv7 as the database identity in
-the configuration, navigator and graph (not a separate generated profile ID).
-If the endpoint is unreachable, the user may explicitly save it as **pending**.
-This temporary entry has a local UUIDv7 plus `pending: true` and cannot be a
-personal working database. The existing health monitor retries discovery;
-a successful complete catalogue read atomically promotes the pending entry to
-the actual repository UUIDv7 and rekeys selection, graph and source sessions.
-A verified offline database keeps its UUID; a different repository at its
-endpoint is rejected. If another configured entry already has the discovered
-UUID, no duplicate database is created. The server name and endpoint remain
-GUI settings, not database identity. Removing the entry does not delete data.
-Standalone discovers embedded DVMDB identity from the native service.
+A newly created project has a UUIDv7 and an unborn `main` branch. Unborn
+means `headRevisionId` is null; **no R0 or empty synthetic Commit** is
+created. Branch creation from an immutable committed revision records
+origin branch and exact fork revision without adding an extra revision.
+Branch UUIDs and names are distinct; names may include UTF-8/spaces subject
+to the backend's validation.
 
-The configuration schema is pre-release and intentionally does not migrate
-obsolete truncated `s-...` profile IDs or `local-default` IDs. Re-add those
-connections once using the repository-based identity model.
+A **revision** is an immutable whole-model snapshot with genuine parent
+revisions; SHA-256 is an integrity check, not the revision ID. One committed
+revision may be referenced by several branches. The graph must not invent
+branch-creation ancestry or present a writable draft as an immutable
+revision. See [graph layout](project-graph-layout.md).
 
-### Project
+## 4. Current editing workflow
 
-`Create project` allocates a project UUIDv7 and its default `main` branch
-UUIDv7. The branch is **unborn**: no committed HEAD revision and no synthetic
-R0. Show the project and branch immediately with `No commits yet`. To edit,
-start a private working copy from the project's empty model state. A user
-must explicitly commit to create the first immutable revision.
+1. Mark one database personal in its **Server Inspector** (♛).
+2. Create/select a project **on the personal database**. If it has one
+   branch, **Project Inspector → Edit network** can open that branch. With
+   multiple branches, select the intended branch before editing.
+3. The GUI opens/creates a private working copy and its network, verifies
+   the candidate, replays durable local pending edits, obtains a fenced
+   writer session and opens **Distribution Editor**.
+4. `HydraulicData` captures supported logical entity changes; the local
+   queue and DVMDB Save persist them without moving the committed HEAD.
+5. Stopping and reopening the session is distinct from Commit. An actual
+   external HTTP GUI-restart recovery was reported for tested edits; full
+   coverage remains incomplete.
 
-### Branch
+For branch-level checkout/working-copy administration, select an actual
+**database-backed branch** in Projects & Branches and use the **Personal
+working copies…** Inspector button. The advanced dialog offers one-branch
+**Checkout branch privately**, draft operations, read-only **View in
+Distribution Monitor** and writable **Edit in Distribution Editor**.
+This is **not** an existing one-click whole-project clone UI.
 
-`Create branch` requires an explicit **committed source revision**.
-An unborn `main` must receive its first successful commit before any branch
-can be created from it. If a source branch is selected, display its
-committed HEAD and retain both `originBranchId` and exact `forkRevisionId`.
-The form must not silently pick a remembered branch or a different root.
+The narrow left application navigation bar also has **Hydraulic Libraries**
+and **Controls & Map Labels** pages. They edit the current shared in-memory
+`HydraulicData` using transaction-safe APIs. Only a properly bound private
+draft session makes supported edits eligible for durable Save.
 
-If the user has uncommitted edits, offer `Commit first` or `Branch from last
-commit (without my edits)`; do not silently finalize, copy or discard private
-changes. Branch creation from a committed revision does **not** create an
-extra revision. Branch labels may include spaces and valid UTF-8, with
-validation aligned to DVMDB rather than an ASCII-only GUI regex.
+## 5. Save, Commit, Publish — different operations
 
-## Working-copy editor
-
-A session checks out a **separate private working copy** from a fixed base
-revision UUIDv7 (or `null` for the unborn initial branch). Each working copy
-has its own UUIDv7, owner/session and target branch. Different users may
-check out the same branch and base concurrently. Only their own working
-copies are editable; the shared committed HEAD is always immutable.
-
-The editor must display the target branch, its **current committed HEAD**,
-its **pinned working-copy base**, dirty state and validation errors. It must
-preserve uncommitted changes through safe navigation and service errors.
-Opening a historical revision for inspection must not move a branch HEAD;
-editing historical content requires an explicit checkout/fork workflow.
-
-### Commit
-
-`Commit locally` submits the whole validated model state or a deterministic
-change set to the user's **personal DVMDB**, with exact expected **local**
-branch HEAD/null, target local branch and an idempotency key. Success creates
-one immutable revision UUIDv7 and advances only its local branch HEAD.
-
-`Publish` transmits verified immutable commits to the shared project
-repository and conditionally advances the **shared** branch HEAD. An
-explicitly null expected remote HEAD is required on first publication.
-A successful local commit is never undone by rejected or timed-out Publish.
-
-If the local HEAD changed before Commit or the shared HEAD changed before
-Publish, show which **local or shared branch advanced**, preserving both
-private drafts and all successful local commits. Offer compare/reconcile,
-explicit fast-forward or three-way merge resolution. Never automatically reset another
-user's work, force-publish, or blindly retry a timed-out write. A HEAD
-mismatch is an optimistic-concurrency collision and might or might not be
-an overlapping model-data conflict. Validate the complete hydraulic network
-before publishing a reconciled commit.
-
-## Inspector tabs and actions
-
-| Selection | Contextual tabs | Principal actions |
+| Action | Effect | GUI availability |
 |---|---|---|
-| Database | Overview, Connection, Projects | Create project, refresh |
-| Project | Overview, Branches, Networks | Start working copy, create branch |
-| Branch | Overview, Revisions, Working copies | Checkout, create branch from committed HEAD, compare/merge |
-| Committed revision | Overview, Parents/History, Snapshot | Inspect, compare, branch from this finalized revision |
-| Private working copy | Overview, Model, Changes/Validation | Edit, commit, reconcile, discard with confirmation |
+| **Save draft** | Persist changes in the private working copy; no revision or committed HEAD movement | Available for captured entity edits in a fenced session; incomplete metadata coverage |
+| **Commit locally** | Create immutable revision UUIDv7 from validated private state, CAS-update **personal** branch HEAD | **Not yet integrated in GUI** |
+| **Fetch/Clone** | Transfer/present verified remote history and tracking | Advanced **branch-level** checkout exists; whole-project Clone absent |
+| **Publish** | Transfer local commits and CAS-update **shared** branch HEAD | **Not yet complete in GUI** |
+| **Reconcile/merge** | Explicitly compare divergent histories and resolve model conflicts | Planned; no silent force-push/rebase |
 
-Only show tabs with implemented, meaningful content. Creation forms live
-**inside** the inspector, with validation, Cancel and explicit source context;
-they are not permanent Creation tabs or separate modal inspectors. Dangerous
-operations require appropriate confirmation and permissions.
+A timeout after Commit/Publish must be reconciled by the **same persisted
+operation UUID and digest**, not by issuing a second unrelated action. A
+local branch HEAD and a shared branch HEAD are independent even when their
+branch UUID is identical.
 
-The `Created from` field displays source **branch UUIDv7** and exact immutable
-**fork revision UUIDv7**, not just the source's current moving HEAD. It is
-metadata rather than a second edge in history. The revision inspector shows
-full revision UUID, ordered parent IDs and SHA-256 verification metadata.
+## 6. Open network versus import
 
-## Graph and terminology
+Loading an authoritative DVMDB network into `HydraulicData` is a read,
+not a user edit. Importing EPANET/EPANET-JS data as new project, replacing
+an existing working network and merging entities are **distinct potential
+operations**. The GUI currently has whole-model replacement code that
+resets capture; it is not an accepted persistent replacement operation.
 
-The canvas draws a **Git-style single committed revision DAG with branch
-labels and optional visual lanes**, not branch-owned duplicate histories; see
-[graph rules](project-graph-layout.md). It must not draw a branch as a
-revision leaf, treat an editable working copy as a committed revision, or
-connect the same branch with both a HEAD edge and a creation-origin edge.
-Several branches can reference one committed revision. Their future commits,
-not their creation events, create a true history fork.
+No blanket rule against import during private editing has been approved.
+The HC-02.9 proposed restriction was **rejected and not applied**. Before
+implementing more behavior, decide target identity, transaction atomicity,
+pending queue handling and conflict/recovery semantics in
+[network import decisions](network-open-import-replacement.md).
 
-User-facing labels:
+## 7. Acceptance and known limits
 
-- **Branch:** stable named development line.
-- **HEAD:** latest **committed** revision of that branch, or `No commits yet`.
-- **Revision / Commit:** immutable finalized whole-model snapshot.
-- **Working copy:** editable state owned by the user/session, not a revision.
-- **Save draft:** persist uncommitted edits in the personal working DVMDB.
-- **Commit:** create one immutable commit and advance a **local** branch HEAD.
-- **Publish:** conditionally advance the shared repository's branch HEAD
-  after verified history transfer.
-- **Branch from here:** create a branch from this committed snapshot, without
-  creating another snapshot.
+- Personal source identity/role and exact target must be checked; no
+  fallback to the selected shared source if personal DVMDB is unreachable.
+- Captured entity transaction and membership updates must be validated as
+  one durable unit, with lease fencing and expected generation.
+- Failed/uncertain Save retains pending queue records; wrong-target and
+  stale-session errors block instead of discarding local work.
+- `NetworkHydraulic` **network-root metadata** still needs HC-03/04/05.
+  Generic 18/18 entity capture is not complete GUI coverage.
+- Whole-model import/replace/merge needs the HC-02.9/06 design decision.
+- Real end-to-end equality after DVMDB and GUI restart must be proven for
+  **both** external HTTP and embedded Standalone (HC-07).
+- Local Commit, full-project Clone, Publish and reconciliation remain
+  separate future work.
 
-## Native and REST parity
-
-Both backends must supply real UUIDv7 project, branch, revision and
-working-copy IDs; immutable SHA-256 metadata; nullable unborn HEADs;
-branch provenance; ordered revision ancestry; consistent paginated graphs;
-and explicit optimistic conflict semantics. Never invent UUIDs in the GUI,
-assume a revision exists when a branch is unborn, or quietly fall back to
-a mismatched identity format.
-
-All model/session operations must use a source-qualified project ID.
-Asynchronous responses must be tied to the request generation and selection;
-late results may not overwrite newer data. Source outages leave drafts
-recoverable and persisted catalogues visibly stale, not silently writable.
-
-## Acceptance
-
-- Empty newly created project displays `main` but no revision card.
-- User A and user B independently check out and edit `main` at R7.
-- A commits locally and publishes R8; B may commit locally from R7, but
-  B's stale Publish is rejected without losing local commits or drafts.
-- Creating a feature branch from R7 keeps that exact fork point and does
-  not create a new revision.
-- Committing independently to `main` and `feature` creates the actual fork
-  in the revision graph; no arbitrary dashed origin edge is drawn.
-- Graph selection, filter, refresh, inspector tabs and camera manipulation
-  never move a committed HEAD or change private drafts.
-
-This is the required workspace behavior; implementation and tests must be
-brought into conformity with it before checkout/commit is released.
+See [quickstart](dvmdb-quickstart.md),
+[working repository](working-repository-configuration.md),
+[hydraulic transactions](hydraulic-edit-transactions.md), and
+[roadmap](dvmdb-integration-roadmap.md).

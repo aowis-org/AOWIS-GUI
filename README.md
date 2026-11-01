@@ -8,43 +8,46 @@ This software is written in C++ with Qt and can be compiled for all major platfo
 
 ## Projects workspace and DVMDB
 
-**The Projects workspace now connects to real DVMDB catalogues.** It supports
-native embedded DVMDB in supported Standalone builds and remote HTTP DVMDB
-servers. Database profiles are persisted; remote sources are monitored and
-refreshed automatically. The compact **Databases** sidebar has visibility
-checkboxes: checked sources contribute projects, branches and revision
-history to the navigator and graph. Each project/revision is identified with
-its source, so the same ID on two servers is not conflated.
+The **Projects** workspace connects to actual DVMDB repositories, lists
+projects/branches/revisions and displays a multi-server Git-style revision
+graph. A new project starts with an unborn `main` branch and **no synthetic
+commit**. Database identity is UUIDv7; branch and committed HEAD identities
+remain repository-qualified.
 
-The **DVMDB product contract** separates immutable committed revisions from
-private editable working copies. Project creation yields an unborn `main`
-with no committed revisions. Each branch HEAD points to its latest committed
-revision (or null); independent users edit their own working copies and
-commit with an exact expected-HEAD concurrency check. The central history
-graph is branch-oriented but its ancestry edges connect **committed
-revisions only**. See [Projects workspace](docs/projects-workspace.md),
-[graph contract](docs/project-graph-layout.md) and
-[integration plan](docs/dvmdb-integration-roadmap.md). The corresponding
-native/REST/GUI implementation must satisfy those specifications end to end.
-Built-in examples and the explicitly named demo profiles are a separate
-**in-memory preview**, not stored in DVMDB.
+In the **Server Inspector**, **Use as my personal working database** marks
+one verified private repository. Its entry has a ♛ and its graph server
+card is gold, with the normal server icon and a crown beside its name.
+For a personal project with an unambiguous branch, **Project Inspector →
+Edit network** starts a private draft and opens Distribution Editor. Captured
+MODEL entity changes go through a durable local queue and DVMDB's fenced
+working-copy Save; **Save never creates a Commit**. The branch Inspector's
+**Personal working copies…** dialog provides advanced branch checkout and
+draft management, not a one-click whole-project Clone.
 
-**Current boundary:** MODEL transactions, typed-record conversion and the
-local durable queue are implemented and tested in isolation. The complete
-active hydraulic editor autosave and local Commit flow is **not** yet accepted.
-See the [documentation index](docs/README.md) and [roadmap status](docs/dvmdb-integration-roadmap.md).
+**Current persistence boundary (2026-11-01):** the generic transaction
+capture/adapter covers all 18 `NetworkHydraulic` entity collections, and
+library, rule and map-label editors now use captured model operations. A
+reported real external HTTP GUI edit/restart test successfully preserved a
+network; all entity editing paths, full root metadata Save and Standalone
+restart acceptance remain incomplete. HC-02.9 import/replacement semantics
+are **undecided**; a proposed blanket import-block patch was **not applied**.
+Local Commit, whole-project Clone, Publish and merge still require work.
 
-Start here:
+Standalone embeds the native DVMDB service **within the GUI process** and
+uses a dynamic localhost HTTP endpoint to access its routes; it does not
+start a separate database-server executable. Ordinary desktop GUI uses
+configured DVMDB HTTP endpoints. Built-in example models are separate from
+persisted DVMDB projects.
 
-- [DVMDB setup and troubleshooting](docs/dvmdb-quickstart.md) — run the server,
-  add databases, filter them, verify connectivity and avoid data-root mistakes.
-- [Projects workspace](docs/projects-workspace.md) — what each UI control does
-  and what is deliberately read-only.
-- [DVMDB integration requirements](docs/dvmdb-integration-roadmap.md) —
-  build and acceptance steps for the agreed lifecycle.
+Start with the [documentation index](docs/README.md),
+[DVMDB quickstart](docs/dvmdb-quickstart.md),
+[Projects workspace](docs/projects-workspace.md),
+[Save/recovery contract](docs/personal-working-copy-save.md),
+[open import/replacement decisions](docs/network-open-import-replacement.md),
+and [implementation roadmap](docs/dvmdb-integration-roadmap.md).
 
-The revision graph currently uses a renderer-neutral **QWidget/QPainter**
-implementation. It does not initialize another bgfx device alongside the map.
+The Projects revision graph is currently drawn with **QWidget/QPainter**;
+it does not initialize a second bgfx device alongside the map renderer.
 
 ## Git submodules
 
