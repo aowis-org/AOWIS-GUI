@@ -3245,8 +3245,16 @@ void ProjectsWidget::applyInspectorEdits()
                 resetSource(server->id);
                 startSource(*server);
             }
-            // Keep tooltips and selection synchronized after any persisted edit.
+            // A database rename also appears in the Projects tree, server graph
+            // cards and contextual project selectors. Refresh them immediately
+            // after the profile is saved, without restarting the DVMDB session.
             populateServerTree();
+            if (server->name != previous.name)
+            {
+                populateProjectTree();
+                rebuildGraph();
+                broadcastContext();
+            }
             selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
         }
     }
