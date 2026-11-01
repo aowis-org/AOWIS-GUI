@@ -225,7 +225,6 @@ private:
     QString select_after_write_branch;
     QLabel *no_projects_description = nullptr;
     QLabel *no_projects_title = nullptr;
-    QLabel *preview_banner = nullptr;
     enum class SourceState { Checking, Loading, Connected, Error };
     int personal_designation_request = 0;
     bool updating_ui = false;

@@ -200,22 +200,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     outer->setContentsMargins(0, 0, 0, 0);
     outer->setSpacing(0);
 
-    QFrame *header = new QFrame(this);
-    header->setFrameShape(QFrame::StyledPanel);
-    QHBoxLayout *header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(14, 8, 14, 8);
-    QLabel *page_title = new QLabel(tr("Projects  /  Version explorer"), header);
-    QFont title_font = page_title->font();
-    title_font.setBold(true);
-    title_font.setPointSizeF(title_font.pointSizeF() + 2.0);
-    page_title->setFont(title_font);
-    header_layout->addWidget(page_title);
-    header_layout->addStretch();
-    this->preview_banner = new QLabel(header);
-    this->preview_banner->setObjectName(QStringLiteral("projectsPreviewBanner"));
-    header_layout->addWidget(this->preview_banner);
-    outer->addWidget(header);
-
     // Give Projects its own dock host: closing/floating this inspector must
     // never hide or rearrange the independent map inspector docks.
     QMainWindow *dock_host = new QMainWindow(this);
@@ -1046,9 +1030,6 @@ void ProjectsWidget::updateConnectionStatus()
         this->no_projects_title->setText(tr("No databases selected"));
     if (this->no_projects_description != nullptr)
         this->no_projects_description->setText(tr("Check a database in the sidebar to show it on the canvas."));
-    if (this->preview_banner != nullptr)
-        this->preview_banner->setText(isPreviewSource() ? tr("IN-MEMORY PREVIEW")
-            : tr("DVMDB · CATALOGUE WRITABLE · REVISIONS READ-ONLY"));
     activeOverview()->setPreviewExplanation(isPreviewSource()
         ? tr("Only this demonstration uses in-memory project and revision edits.")
         : tr("DVMDB supports creating projects and branches. Rename, delete, revision editing and annotations are not available yet."));
