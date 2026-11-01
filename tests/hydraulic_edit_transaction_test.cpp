@@ -1713,6 +1713,159 @@ void testPipeRejoinCapturesControlCascades()
                             "HC02 pipe rejoin retains an active, error-free edit capture");
 }
 
+void testRuleAndMapLabelCrud()
+{
+    NetworkHydraulic baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("HC02 rule/map-label editing");
+    HydraulicNodeJunction node_from;
+    node_from.uuid = createUuidV7();
+    node_from.id = QStringLiteral("J1");
+    node_from.coordinate_wgs84 = coordinate(50.0, 8.0);
+    HydraulicNodeJunction node_to;
+    node_to.uuid = createUuidV7();
+    node_to.id = QStringLiteral("J2");
+    node_to.coordinate_wgs84 = coordinate(50.1, 8.1);
+    HydraulicLinkPipe pipe;
+    pipe.uuid = createUuidV7();
+    pipe.id = QStringLiteral("P1");
+    pipe.node_uuid_from = node_from.uuid;
+    pipe.node_uuid_to = node_to.uuid;
+    baseline.nodes_junctions = {node_from, node_to};
+    baseline.links_pipes = {pipe};
+
+    HydraulicData data;
+    data.replaceNetworkHydraulic(baseline, {});
+    NetworkHydraulic staged = baseline;
+    QList<QByteArray> events;
+    QString capture_error;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed,
+                     &data, [&capture_error](const QString &error) { capture_error = error; });
+    data.setLogicalEditCaptureEnabled(true);
+
+    HydraulicControlRulePremise premise;
+    premise.object = HydraulicControlRuleObject::Node;
+    premise.object_uuid = node_from.uuid;
+    premise.variable = HydraulicControlRuleVariable::Pressure;
+    premise.comparison = HydraulicControlRuleOperator::Below;
+    premise.pressure_head_m = 12.5;
+    HydraulicControlRuleAction action;
+    action.link_uuid = pipe.uuid;
+    action.status = HydraulicControlRuleStatus::Open;
+    HydraulicControlRule rule;
+    rule.id = QStringLiteral("R1");
+    rule.premises.append(premise);
+    rule.actions_then.append(action);
+    HydraulicMapLabel label;
+    label.id = QStringLiteral("L1");
+    label.text = QStringLiteral("Label one");
+    label.coordinate_wgs84 = coordinate(50.01, 8.02);
+    label.anchor_node_uuid = node_from.uuid;
+
+    HydraulicControlRule invalid_rule = rule;
+    invalid_rule.premises[0].object_uuid = pipe.uuid;
+    test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
+                            "HC02 rules reject a link UUID used as a node premise");
+    invalid_rule = rule;
+    invalid_rule.actions_then[0].link_uuid = node_from.uuid;
+    test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
+                            "HC02 rules reject node UUID used as link action");
+    invalid_rule = rule;
+    invalid_rule.actions_then[0].link_uuid = createUuidV7();
+    test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
+                            "HC02 rules reject missing action links");
+    invalid_rule = rule;
+    invalid_rule.premises.clear();
+    test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
+                            "HC02 rules reject missing premises");
+    invalid_rule = rule;
+    invalid_rule.actions_then.clear();
+    test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
+                            "HC02 rules reject missing THEN actions");
+    HydraulicMapLabel invalid_label = label;
+    invalid_label.anchor_node_uuid = pipe.uuid;
+    test_harness.expectTrue(data.addMapLabel(invalid_label).isNull() && events.isEmpty(),
+                            "HC02 labels reject a link UUID as a node anchor");
+    invalid_label = label;
+    invalid_label.coordinate_wgs84.latitude_deg = 1000.0;
+    test_harness.expectTrue(data.addMapLabel(invalid_label).isNull() && events.isEmpty(),
+                            "HC02 labels reject coordinates outside WGS84 bounds");
+
+    const QUuid rule_uuid = data.addRuleControl(rule);
+    const QUuid label_uuid = data.addMapLabel(label);
+    test_harness.expectTrue(!rule_uuid.isNull() && !label_uuid.isNull() &&
+                            (rule_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
+                            (label_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
+                            rule_uuid != label_uuid && events.size() == 2 &&
+                            data.networkHydraulic().controls_rules.size() == 1 &&
+                            data.networkHydraulic().map_labels.size() == 1,
+                            "HC02 creates rule and label with captured, distinct UUIDv7 identities");
+    if (rule_uuid.isNull() || label_uuid.isNull() || events.size() != 2)
+        return;
+    rule.uuid = rule_uuid;
+    label.uuid = label_uuid;
+    test_harness.expectTrue(data.updateRuleControl(rule) && data.updateMapLabel(label) &&
+                            events.size() == 2,
+                            "HC02 unchanged rule and label produce no events");
+    rule.priority = 2.5;
+    rule.actions_else.append(action);
+    label.text = QStringLiteral("Edited label");
+    label.anchor_node_uuid = QUuid();
+    label.coordinate_wgs84.longitude_deg = 8.25;
+    test_harness.expectTrue(data.updateRuleControl(rule) && data.updateMapLabel(label) &&
+                            events.size() == 4,
+                            "HC02 updates rule branches and label text, anchor, coordinates");
+    invalid_rule = rule;
+    invalid_rule.premises[0].object_uuid = createUuidV7();
+    invalid_label = label;
+    invalid_label.anchor_node_uuid = createUuidV7();
+    test_harness.expectTrue(!data.updateRuleControl(invalid_rule) &&
+                            !data.updateMapLabel(invalid_label) && events.size() == 4,
+                            "HC02 rejected updates do not produce events");
+    test_harness.expectTrue(!data.removeRuleControl(node_from.uuid) &&
+                            !data.removeMapLabel(pipe.uuid) && events.size() == 4,
+                            "HC02 refuse deleting entities of other collections");
+    test_harness.expectTrue(data.removeRuleControl(rule_uuid) &&
+                            data.removeMapLabel(label_uuid) && events.size() == 6 &&
+                            data.networkHydraulic().controls_rules.isEmpty() &&
+                            data.networkHydraulic().map_labels.isEmpty(),
+                            "HC02 deletes rule and label with two durable events");
+    if (events.size() != 6)
+        return;
+
+    const quint16 expected_kinds[] = {17, 18, 17, 18, 17, 18};
+    const bool expected_inserted[] = {true, true, false, false, false, false};
+    for (int index = 0; index < events.size(); ++index)
+    {
+        QString error;
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        const bool replayed = HydraulicDraftEventAdapter::prepareWithMembership(
+            events.at(index), staged, records, membership, &error);
+        const std::optional<aowis::model::ModelEditTransaction> tx = decoded(events.at(index));
+        const bool correct_images = tx.has_value() && tx->edits.size() == 1 &&
+            tx->edits.first().entityId == ((index % 2 == 0) ? rule_uuid : label_uuid) &&
+            tx->edits.first().before.has_value() == (index >= 2) &&
+            tx->edits.first().after.has_value() == (index < 4);
+        const bool membership_expected = (index < 2 || index >= 4);
+        const bool correct_membership = membership_expected ?
+            (membership.size() == 1 && membership.first().kind == expected_kinds[index] &&
+             membership.first().inserted == expected_inserted[index]) : membership.isEmpty();
+        const QByteArray message = QStringLiteral("HC02 rule/map replay event %1: %2")
+            .arg(index).arg(error).toUtf8();
+        test_harness.expectTrue(replayed && correct_images && correct_membership &&
+                                records.size() == 1, message.constData());
+        if (!replayed) return;
+    }
+    test_harness.expectTrue(
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+        capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
+        "HC02 rule/map-label create/update/delete replays to exact canonical network");
+}
+
 void testDraftStageRejectsOutOfOrderReplay()
 {
     QTemporaryDir root;
@@ -1761,6 +1914,7 @@ int main(int argc, char **argv)
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
+    test_harness.runCase("Rule and map-label CRUD", testRuleAndMapLabelCrud);
     test_harness.runCase("Hydraulic library reference guards", testHydraulicLibraryReferenceValidation);
     test_harness.runCase("Hydraulic library CRUD and draft replay", testHydraulicLibraryCrud);
     test_harness.runCase("Hydraulic library deletion dependency guards", testHydraulicLibraryDeleteReferences);

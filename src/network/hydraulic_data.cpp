@@ -59,6 +59,67 @@ Entity *editableLibraryItem(QList<Entity> &entities, const QUuid &uuid)
     return found;
 }
 
+// Rule references must resolve to the correct kind of hydraulic entity.
+// A cross-collection duplicate UUID must never be accepted as unambiguous.
+bool hydraulicNodeReferenceExists(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(network, uuid) != 1)
+        return false;
+    return hydraulicReferenceExists(network.nodes_junctions, uuid) ||
+           hydraulicReferenceExists(network.nodes_reservoirs, uuid) ||
+           hydraulicReferenceExists(network.nodes_tanks, uuid);
+}
+
+bool hydraulicLinkReferenceExists(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(network, uuid) != 1)
+        return false;
+    return hydraulicReferenceExists(network.links_pipes, uuid) ||
+           hydraulicReferenceExists(network.links_pumps, uuid) ||
+           hydraulicReferenceExists(network.links_valves, uuid);
+}
+
+bool hydraulicRuleReferencesValid(const NetworkHydraulic &network,
+                                  const HydraulicControlRule &rule)
+{
+    if (!std::isfinite(rule.priority) || rule.premises.isEmpty() || rule.actions_then.isEmpty())
+        return false;
+    for (const HydraulicControlRulePremise &premise : rule.premises)
+    {
+        if (premise.object == HydraulicControlRuleObject::System)
+        {
+            if (!premise.object_uuid.isNull()) return false;
+        }
+        else if (premise.object == HydraulicControlRuleObject::Node)
+        {
+            if (!hydraulicNodeReferenceExists(network, premise.object_uuid)) return false;
+        }
+        else if (premise.object == HydraulicControlRuleObject::Link)
+        {
+            if (!hydraulicLinkReferenceExists(network, premise.object_uuid)) return false;
+        }
+        else return false;
+    }
+    for (const HydraulicControlRuleAction &action : rule.actions_then)
+        if (!hydraulicLinkReferenceExists(network, action.link_uuid)) return false;
+    for (const HydraulicControlRuleAction &action : rule.actions_else)
+        if (!hydraulicLinkReferenceExists(network, action.link_uuid)) return false;
+    return true;
+}
+
+bool hydraulicLabelReferencesValid(const NetworkHydraulic &network,
+                                   const HydraulicMapLabel &label)
+{
+    if (!label.anchor_node_uuid.isNull() &&
+        !hydraulicNodeReferenceExists(network, label.anchor_node_uuid))
+        return false;
+    const CoordinateWGS84 &coordinate = label.coordinate_wgs84;
+    return std::isfinite(coordinate.latitude_deg) && coordinate.latitude_deg >= -90.0 &&
+           coordinate.latitude_deg <= 90.0 && std::isfinite(coordinate.longitude_deg) &&
+           coordinate.longitude_deg >= -180.0 && coordinate.longitude_deg <= 180.0 &&
+           (!coordinate.altitude_m.has_value() || std::isfinite(*coordinate.altitude_m));
+}
+
 bool pipeMaterialReferenced(const NetworkHydraulic &network, const QUuid &uuid)
 {
     for (const HydraulicLinkPipe &pipe : network.links_pipes)
@@ -2299,6 +2360,114 @@ void HydraulicData::requestEntityLocate(InfrastructureEntity entity_type, const 
     }
 
     emit signalEntityLocateRequested(entity_type, uuid);
+}
+
+// HC-02.7: Create/update/delete rule controls and map labels through the
+// same captured edit and collection-membership path as hydraulic libraries.
+QUuid HydraulicData::addRuleControl(HydraulicControlRule entity)
+{
+    if (!hydraulicRuleReferencesValid(this->network_hydraulic, entity))
+        return QUuid();
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicControlRule>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.controls.rules.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.controls_rules.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateRuleControl(const HydraulicControlRule &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        !hydraulicRuleReferencesValid(this->network_hydraulic, entity) ||
+        aowis::model::ModelCodec<HydraulicControlRule>::encode(entity).isEmpty())
+        return false;
+    HydraulicControlRule *existing = editableLibraryItem(this->network_hydraulic.controls_rules, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicControlRule>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicControlRule>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.controls.rules.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeRuleControl(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        editableLibraryItem(this->network_hydraulic.controls_rules, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.controls.rules.delete"), uuid);
+    for (int index = 0; index < this->network_hydraulic.controls_rules.size(); ++index)
+    {
+        if (this->network_hydraulic.controls_rules.at(index).uuid != uuid) continue;
+        this->network_hydraulic.controls_rules.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addMapLabel(HydraulicMapLabel entity)
+{
+    if (!hydraulicLabelReferencesValid(this->network_hydraulic, entity))
+        return QUuid();
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.map.labels.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.map_labels.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateMapLabel(const HydraulicMapLabel &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        !hydraulicLabelReferencesValid(this->network_hydraulic, entity) ||
+        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity).isEmpty())
+        return false;
+    HydraulicMapLabel *existing = editableLibraryItem(this->network_hydraulic.map_labels, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicMapLabel>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.map.labels.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeMapLabel(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        editableLibraryItem(this->network_hydraulic.map_labels, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.map.labels.delete"), uuid);
+    for (int index = 0; index < this->network_hydraulic.map_labels.size(); ++index)
+    {
+        if (this->network_hydraulic.map_labels.at(index).uuid != uuid) continue;
+        this->network_hydraulic.map_labels.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
 }
 
 // Complete HC-02 library CRUD: every operation has exactly one canonical

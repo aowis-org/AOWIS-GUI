@@ -280,6 +280,16 @@ public:
     // Transaction-safe hydraulic libraries. Add assigns UUIDv7 and returns the
     // new identity; updates retain that identity. Removing a referenced item
     // is refused rather than leaving dangling model references.
+    // HC-02.7: Rule controls and map labels use the same durable MODEL edit
+    // pipeline as the 18 hydraulic collections. Reference checks reject
+    // dangling node/link/anchor IDs before any mutation.
+    QUuid addRuleControl(HydraulicControlRule entity);
+    bool updateRuleControl(const HydraulicControlRule &entity);
+    bool removeRuleControl(const QUuid &uuid);
+    QUuid addMapLabel(HydraulicMapLabel entity);
+    bool updateMapLabel(const HydraulicMapLabel &entity);
+    bool removeMapLabel(const QUuid &uuid);
+
     QUuid addPipeMaterial(HydraulicPipeMaterial entity);
     bool updatePipeMaterial(const HydraulicPipeMaterial &entity);
     bool removePipeMaterial(const QUuid &uuid);
