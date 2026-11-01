@@ -91,6 +91,18 @@ before rejoining, alongside both pipes and the affected demand points. A
 regression proves one transaction with the proper membership removals,
 independent-rule retention, and canonical draft replay.
 
+**HC-02.5 — Transaction-safe hydraulic library operations:** `HydraulicData`
+now exposes create/update/delete for all eight library collections: pipe
+materials, time patterns, the five typed curves and generic curves. Creation
+always assigns a fresh UUIDv7, updates retain identity, and deletes refuse
+entries referenced by nodes, demands, pipes, pumps, valves, multi-species
+sources or network-root pattern options. The same per-entity MODEL event and
+DVMDB membership-intent path used by other edits is used for all eight types;
+failed or no-op operations do not produce autosave events. A regression tests
+all 24 operation paths against canonical staged replay and refusal of dangling
+references. **These are model editing APIs, not yet completed GUI library
+widgets.**
+
 **Still to audit in HC-02:** actual editing surfaces for rule controls, labels,
 patterns, curves and materials, remaining import/bulk-edit paths, and references
 from network-root settings. HC-02 is **not

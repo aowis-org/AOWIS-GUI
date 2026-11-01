@@ -277,6 +277,34 @@ public:
     void requestEntityLocate(InfrastructureEntity entity_type, const QUuid &uuid);
     void requestDemandPointAttachmentSelection(const QUuid &uuid);
 
+    // Transaction-safe hydraulic libraries. Add assigns UUIDv7 and returns the
+    // new identity; updates retain that identity. Removing a referenced item
+    // is refused rather than leaving dangling model references.
+    QUuid addPipeMaterial(HydraulicPipeMaterial entity);
+    bool updatePipeMaterial(const HydraulicPipeMaterial &entity);
+    bool removePipeMaterial(const QUuid &uuid);
+    QUuid addPatternTime(HydraulicPatternTime entity);
+    bool updatePatternTime(const HydraulicPatternTime &entity);
+    bool removePatternTime(const QUuid &uuid);
+    QUuid addCurveTankVolume(HydraulicCurveTankVolume entity);
+    bool updateCurveTankVolume(const HydraulicCurveTankVolume &entity);
+    bool removeCurveTankVolume(const QUuid &uuid);
+    QUuid addCurvePumpHead(HydraulicCurvePumpHead entity);
+    bool updateCurvePumpHead(const HydraulicCurvePumpHead &entity);
+    bool removeCurvePumpHead(const QUuid &uuid);
+    QUuid addCurvePumpEfficiency(HydraulicCurvePumpEfficiency entity);
+    bool updateCurvePumpEfficiency(const HydraulicCurvePumpEfficiency &entity);
+    bool removeCurvePumpEfficiency(const QUuid &uuid);
+    QUuid addCurveValveHeadloss(HydraulicCurveValveHeadloss entity);
+    bool updateCurveValveHeadloss(const HydraulicCurveValveHeadloss &entity);
+    bool removeCurveValveHeadloss(const QUuid &uuid);
+    QUuid addCurveValveCharacteristic(HydraulicCurveValveCharacteristic entity);
+    bool updateCurveValveCharacteristic(const HydraulicCurveValveCharacteristic &entity);
+    bool removeCurveValveCharacteristic(const QUuid &uuid);
+    QUuid addCurveGeneric(HydraulicCurveGeneric entity);
+    bool updateCurveGeneric(const HydraulicCurveGeneric &entity);
+    bool removeCurveGeneric(const QUuid &uuid);
+
     QUuid addJunction(const CoordinateWGS84 &coordinate);
     QUuid addReservoir(const CoordinateWGS84 &coordinate);
     QUuid addTank(const CoordinateWGS84 &coordinate);

@@ -791,6 +791,191 @@ void testHydraulicLibraryReferenceValidation()
                             "valid library reference edits replay to exactly the live canonical network");
 }
 
+// HC-02.5: exercise the real HydraulicData CRUD endpoints, rather than
+// constructing MODEL edits directly as the HC-01 registry tests do.
+template<typename Entity>
+void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
+                     QList<Entity> NetworkHydraulic::*collection,
+                     QUuid (HydraulicData::*create)(Entity),
+                     bool (HydraulicData::*update)(const Entity &),
+                     bool (HydraulicData::*remove)(const QUuid &))
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("HC025 library");
+    HydraulicData data;
+    data.replaceNetworkHydraulic(base, {});
+    QList<QByteArray> events;
+    QString capture_error;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
+                     [&events](const QByteArray &bytes) { events.append(bytes); });
+    QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed, &data,
+                     [&capture_error](const QString &message) { capture_error = message; });
+    data.setLogicalEditCaptureEnabled(true);
+    Entity original;
+    original.id = QStringLiteral("Library original");
+    original.uuid = createUuidV7(); // add must replace this with a fresh ID
+    const QUuid created = (data.*create)(original);
+    expectCollection(!created.isNull() && created != original.uuid &&
+                     (created.toRfc4122().at(6) & 0xf0) == 0x70 && events.size() == 1 &&
+                     capture_error.isEmpty(), name, "create assigns UUIDv7 and emits one event");
+    if (events.size() != 1 || created.isNull()) return;
+    NetworkHydraulic staged = base;
+    QString error;
+    QList<PersonalWorkingCopyChange> records;
+    QList<HydraulicDraftMembershipEdit> membership;
+    const bool inserted = HydraulicDraftEventAdapter::prepareWithMembership(
+        events.at(0), staged, records, membership, &error);
+    expectCollection(inserted && records.size() == 1 && !records.first().deleted &&
+                     records.first().kind == kind && membership.size() == 1 &&
+                     membership.first().inserted && membership.first().kind == kind &&
+                     membership.first().collection_index == ordinal &&
+                     membership.first().entity_id == created &&
+                     (staged.*collection).size() == 1,
+                     name, "create replays with correct membership insertion");
+    if (!inserted) return;
+    Entity changed = (data.networkHydraulic().*collection).first();
+    changed.id = QStringLiteral("Library updated");
+    const bool updated = (data.*update)(changed);
+    expectCollection(updated && events.size() == 2 && capture_error.isEmpty(),
+                     name, "update emits one canonical edit");
+    if (events.size() != 2) return;
+    const bool replayed_update = HydraulicDraftEventAdapter::prepareWithMembership(
+        events.at(1), staged, records, membership, &error);
+    expectCollection(replayed_update && records.size() == 1 && !records.first().deleted &&
+                     records.first().kind == kind && membership.isEmpty() &&
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+                     name, "update preserves membership and matches canonical live network");
+    const int count_before_noop = events.size();
+    const bool noop = (data.*update)(changed);
+    expectCollection(noop && events.size() == count_before_noop,
+                     name, "no-op update emits nothing");
+    Entity wrong_identity = changed;
+    wrong_identity.uuid = createUuidV7();
+    expectCollection(!(data.*update)(wrong_identity) && events.size() == count_before_noop,
+                     name, "update rejects an unknown UUID without an event");
+    const bool removed = (data.*remove)(created);
+    expectCollection(removed && events.size() == 3 && capture_error.isEmpty(),
+                     name, "delete emits one canonical event");
+    if (events.size() != 3) return;
+    const bool replayed_delete = HydraulicDraftEventAdapter::prepareWithMembership(
+        events.at(2), staged, records, membership, &error);
+    expectCollection(replayed_delete && records.size() == 1 && records.first().deleted &&
+                     records.first().kind == kind && membership.size() == 1 &&
+                     !membership.first().inserted && membership.first().collection_index == ordinal &&
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulic>::encode(base),
+                     name, "delete removes membership and reconstructs the original network");
+    expectCollection(!(data.*remove)(created) && events.size() == 3,
+                     name, "second delete is rejected without event");
+}
+
+void testHydraulicLibraryCrud()
+{
+    testLibraryCrud<HydraulicPipeMaterial>("HydraulicPipeMaterial", 8, 0,
+        &NetworkHydraulic::pipe_materials, &HydraulicData::addPipeMaterial,
+        &HydraulicData::updatePipeMaterial, &HydraulicData::removePipeMaterial);
+    testLibraryCrud<HydraulicPatternTime>("HydraulicPatternTime", 9, 1,
+        &NetworkHydraulic::patterns_time, &HydraulicData::addPatternTime,
+        &HydraulicData::updatePatternTime, &HydraulicData::removePatternTime);
+    testLibraryCrud<HydraulicCurveTankVolume>("HydraulicCurveTankVolume", 10, 2,
+        &NetworkHydraulic::curves_tank_volume, &HydraulicData::addCurveTankVolume,
+        &HydraulicData::updateCurveTankVolume, &HydraulicData::removeCurveTankVolume);
+    testLibraryCrud<HydraulicCurvePumpHead>("HydraulicCurvePumpHead", 11, 3,
+        &NetworkHydraulic::curves_pump_head, &HydraulicData::addCurvePumpHead,
+        &HydraulicData::updateCurvePumpHead, &HydraulicData::removeCurvePumpHead);
+    testLibraryCrud<HydraulicCurvePumpEfficiency>("HydraulicCurvePumpEfficiency", 12, 4,
+        &NetworkHydraulic::curves_pump_efficiency, &HydraulicData::addCurvePumpEfficiency,
+        &HydraulicData::updateCurvePumpEfficiency, &HydraulicData::removeCurvePumpEfficiency);
+    testLibraryCrud<HydraulicCurveValveHeadloss>("HydraulicCurveValveHeadloss", 13, 5,
+        &NetworkHydraulic::curves_valve_headloss, &HydraulicData::addCurveValveHeadloss,
+        &HydraulicData::updateCurveValveHeadloss, &HydraulicData::removeCurveValveHeadloss);
+    testLibraryCrud<HydraulicCurveValveCharacteristic>("HydraulicCurveValveCharacteristic", 14, 6,
+        &NetworkHydraulic::curves_valve_characteristic, &HydraulicData::addCurveValveCharacteristic,
+        &HydraulicData::updateCurveValveCharacteristic, &HydraulicData::removeCurveValveCharacteristic);
+    testLibraryCrud<HydraulicCurveGeneric>("HydraulicCurveGeneric", 15, 7,
+        &NetworkHydraulic::curves_generic, &HydraulicData::addCurveGeneric,
+        &HydraulicData::updateCurveGeneric, &HydraulicData::removeCurveGeneric);
+}
+
+// A deletion must be refused if the library UUID is still used anywhere in
+// the NetworkHydraulic model (including the network-root options).
+void testHydraulicLibraryDeleteReferences()
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("HC025 references");
+    HydraulicPipeMaterial material;
+    material.uuid = createUuidV7();
+    base.pipe_materials.append(material);
+    HydraulicPatternTime pattern;
+    pattern.uuid = createUuidV7();
+    base.patterns_time.append(pattern);
+    HydraulicCurveTankVolume tank_curve;
+    tank_curve.uuid = createUuidV7();
+    base.curves_tank_volume.append(tank_curve);
+    HydraulicCurvePumpHead head_curve;
+    head_curve.uuid = createUuidV7();
+    base.curves_pump_head.append(head_curve);
+    HydraulicCurvePumpEfficiency efficiency;
+    efficiency.uuid = createUuidV7();
+    base.curves_pump_efficiency.append(efficiency);
+    HydraulicCurveValveHeadloss head_loss;
+    head_loss.uuid = createUuidV7();
+    base.curves_valve_headloss.append(head_loss);
+    HydraulicCurveValveCharacteristic characteristic;
+    characteristic.uuid = createUuidV7();
+    base.curves_valve_characteristic.append(characteristic);
+    HydraulicLinkPipe pipe;
+    pipe.uuid = createUuidV7();
+    pipe.material_uuid = material.uuid;
+    base.links_pipes.append(pipe);
+    HydraulicNodeTank tank;
+    tank.uuid = createUuidV7();
+    tank.volume_curve_uuid = tank_curve.uuid;
+    base.nodes_tanks.append(tank);
+    HydraulicLinkPump pump;
+    pump.uuid = createUuidV7();
+    pump.head_curve_uuid = head_curve.uuid;
+    pump.efficiency_curve_uuid = efficiency.uuid;
+    pump.speed_pattern_uuid = pattern.uuid;
+    base.links_pumps.append(pump);
+    HydraulicLinkValve valve;
+    valve.uuid = createUuidV7();
+    valve.head_loss_curve_uuid = head_loss.uuid;
+    valve.characteristic_curve_uuid = characteristic.uuid;
+    base.links_valves.append(valve);
+    HydraulicData data;
+    data.replaceNetworkHydraulic(base, {});
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+    const QByteArray unchanged = aowis::model::ModelCodec<NetworkHydraulic>::encode(base);
+    const bool refused =
+        !data.removePipeMaterial(material.uuid) &&
+        !data.removePatternTime(pattern.uuid) &&
+        !data.removeCurveTankVolume(tank_curve.uuid) &&
+        !data.removeCurvePumpHead(head_curve.uuid) &&
+        !data.removeCurvePumpEfficiency(efficiency.uuid) &&
+        !data.removeCurveValveHeadloss(head_loss.uuid) &&
+        !data.removeCurveValveCharacteristic(characteristic.uuid);
+    test_harness.expectTrue(refused && events.isEmpty() &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) == unchanged,
+        "HC02.5 refuses all seven referenced library deletions without dirtying model");
+    // Network-root references cannot yet be saved by HC-02, but they must
+    // still prevent deletion of a pattern in HC-02.5.
+    base.links_pumps.clear();
+    base.options_hydraulic.default_demand_pattern_uuid = pattern.uuid;
+    data.replaceNetworkHydraulic(base, {});
+    data.setLogicalEditCaptureEnabled(true);
+    test_harness.expectTrue(!data.removePatternTime(pattern.uuid) && events.isEmpty(),
+                            "HC02.5 network-root default-demand pattern blocks deletion");
+}
+
 void testCapturedOperationsEnterDurableQueue()
 {
     QTemporaryDir root;
@@ -1577,6 +1762,8 @@ int main(int argc, char **argv)
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
     test_harness.runCase("Hydraulic library reference guards", testHydraulicLibraryReferenceValidation);
+    test_harness.runCase("Hydraulic library CRUD and draft replay", testHydraulicLibraryCrud);
+    test_harness.runCase("Hydraulic library deletion dependency guards", testHydraulicLibraryDeleteReferences);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);
     test_harness.runCase("Hydraulic event to canonical DVMDB records", testOrderedHydraulicDraftRecordMapping);
     test_harness.runCase("Hydraulic membership intent mapping", testHydraulicDraftMembershipIntents);

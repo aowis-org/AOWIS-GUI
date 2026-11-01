@@ -1,4 +1,8 @@
 #include "network/hydraulic_data.h"
+#include "projects/hydraulic_draft_entity_registry.h"
+
+#include <aowis/model/serialization/model_codec.h>
+#include <aowis/model/uuid.h>
 #include "network/hydraulic_rule_dependencies.h"
 #include "network/network_render_snapshot_builder.h"
 #include "network/network_symbology_values.h"
@@ -26,6 +30,107 @@ bool hydraulicReferenceExists(const QList<Entity> &entities, const QUuid &uuid)
             ++matches;
     }
     return matches == 1;
+}
+
+// Refuse ambiguous UUIDs across all persisted hydraulic collections.
+int hydraulicUuidOccurrences(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    int count = 0;
+#define COUNT_ENTITY_UUIDS(collection, model_type, storage_kind, ordinal) \
+    for (const model_type &entity : network.collection) \
+        if (entity.uuid == uuid) ++count;
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(COUNT_ENTITY_UUIDS)
+#undef COUNT_ENTITY_UUIDS
+    return count;
+}
+
+template<typename Entity>
+Entity *editableLibraryItem(QList<Entity> &entities, const QUuid &uuid)
+{
+    Entity *found = nullptr;
+    for (Entity &entity : entities)
+    {
+        if (entity.uuid != uuid)
+            continue;
+        if (found != nullptr)
+            return nullptr;
+        found = &entity;
+    }
+    return found;
+}
+
+bool pipeMaterialReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicLinkPipe &pipe : network.links_pipes)
+        if (pipe.material_uuid == uuid) return true;
+    return false;
+}
+
+bool timePatternReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    if (network.options_hydraulic.default_demand_pattern_uuid == uuid ||
+        network.options_energy.global_energy_price_pattern_uuid == uuid)
+        return true;
+    for (const HydraulicNodeJunction &node : network.nodes_junctions)
+    {
+        if (node.quality_source.pattern_uuid == uuid) return true;
+        for (const HydraulicDemand &demand : node.demands)
+            if (demand.pattern_uuid == uuid) return true;
+    }
+    for (const HydraulicNodeReservoir &node : network.nodes_reservoirs)
+        if (node.head_pattern_uuid == uuid || node.quality_source.pattern_uuid == uuid)
+            return true;
+    for (const HydraulicNodeTank &node : network.nodes_tanks)
+        if (node.quality_source.pattern_uuid == uuid) return true;
+    for (const HydraulicDemandPoint &point : network.demand_points)
+        for (const HydraulicDemand &demand : point.demands)
+            if (demand.pattern_uuid == uuid) return true;
+    for (const HydraulicLinkPump &pump : network.links_pumps)
+        if (pump.speed_pattern_uuid == uuid || pump.price_pattern_uuid == uuid)
+            return true;
+    for (const MultiSpeciesNodeSource &source : network.multi_species.sources)
+        if (source.pattern_uuid == uuid) return true;
+    return false;
+}
+
+bool tankVolumeCurveReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicNodeTank &tank : network.nodes_tanks)
+        if (tank.volume_curve_uuid == uuid) return true;
+    return false;
+}
+
+bool pumpHeadCurveReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicLinkPump &pump : network.links_pumps)
+        if (pump.head_curve_uuid == uuid) return true;
+    return false;
+}
+
+bool pumpEfficiencyCurveReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicLinkPump &pump : network.links_pumps)
+        if (pump.efficiency_curve_uuid == uuid) return true;
+    return false;
+}
+
+bool valveHeadlossCurveReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicLinkValve &valve : network.links_valves)
+        if (valve.head_loss_curve_uuid == uuid) return true;
+    return false;
+}
+
+bool valveCharacteristicCurveReferenced(const NetworkHydraulic &network, const QUuid &uuid)
+{
+    for (const HydraulicLinkValve &valve : network.links_valves)
+        if (valve.characteristic_curve_uuid == uuid) return true;
+    return false;
+}
+
+bool noLibraryReference(const NetworkHydraulic &, const QUuid &)
+{
+    return false;
 }
 
 bool coordinateWgs84Valid(const CoordinateWGS84 &coordinate)
@@ -2194,6 +2299,440 @@ void HydraulicData::requestEntityLocate(InfrastructureEntity entity_type, const 
     }
 
     emit signalEntityLocateRequested(entity_type, uuid);
+}
+
+// Complete HC-02 library CRUD: every operation has exactly one canonical
+// entity edit, with no mutation if UUID or reference validation fails.
+QUuid HydraulicData::addPipeMaterial(HydraulicPipeMaterial entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicPipeMaterial>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.pipe_materials.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.pipe_materials.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updatePipeMaterial(const HydraulicPipeMaterial &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicPipeMaterial>::encode(entity).isEmpty())
+        return false;
+    HydraulicPipeMaterial *existing = editableLibraryItem(this->network_hydraulic.pipe_materials, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicPipeMaterial>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicPipeMaterial>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.pipe_materials.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removePipeMaterial(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        pipeMaterialReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicPipeMaterial> &entities = this->network_hydraulic.pipe_materials;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.pipe_materials.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addPatternTime(HydraulicPatternTime entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicPatternTime>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.patterns_time.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.patterns_time.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updatePatternTime(const HydraulicPatternTime &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicPatternTime>::encode(entity).isEmpty())
+        return false;
+    HydraulicPatternTime *existing = editableLibraryItem(this->network_hydraulic.patterns_time, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicPatternTime>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicPatternTime>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.patterns_time.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removePatternTime(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        timePatternReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicPatternTime> &entities = this->network_hydraulic.patterns_time;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.patterns_time.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurveTankVolume(HydraulicCurveTankVolume entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurveTankVolume>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_tank_volume.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_tank_volume.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurveTankVolume(const HydraulicCurveTankVolume &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurveTankVolume>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurveTankVolume *existing = editableLibraryItem(this->network_hydraulic.curves_tank_volume, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurveTankVolume>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurveTankVolume>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_tank_volume.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurveTankVolume(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        tankVolumeCurveReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurveTankVolume> &entities = this->network_hydraulic.curves_tank_volume;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_tank_volume.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurvePumpHead(HydraulicCurvePumpHead entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurvePumpHead>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_pump_head.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_pump_head.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurvePumpHead(const HydraulicCurvePumpHead &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurvePumpHead>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurvePumpHead *existing = editableLibraryItem(this->network_hydraulic.curves_pump_head, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurvePumpHead>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurvePumpHead>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_pump_head.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurvePumpHead(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        pumpHeadCurveReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurvePumpHead> &entities = this->network_hydraulic.curves_pump_head;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_pump_head.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurvePumpEfficiency(HydraulicCurvePumpEfficiency entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurvePumpEfficiency>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_pump_efficiency.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_pump_efficiency.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurvePumpEfficiency(const HydraulicCurvePumpEfficiency &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurvePumpEfficiency>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurvePumpEfficiency *existing = editableLibraryItem(this->network_hydraulic.curves_pump_efficiency, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurvePumpEfficiency>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurvePumpEfficiency>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_pump_efficiency.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurvePumpEfficiency(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        pumpEfficiencyCurveReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurvePumpEfficiency> &entities = this->network_hydraulic.curves_pump_efficiency;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_pump_efficiency.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurveValveHeadloss(HydraulicCurveValveHeadloss entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurveValveHeadloss>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_valve_headloss.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_valve_headloss.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurveValveHeadloss(const HydraulicCurveValveHeadloss &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurveValveHeadloss>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurveValveHeadloss *existing = editableLibraryItem(this->network_hydraulic.curves_valve_headloss, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurveValveHeadloss>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurveValveHeadloss>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_valve_headloss.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurveValveHeadloss(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        valveHeadlossCurveReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurveValveHeadloss> &entities = this->network_hydraulic.curves_valve_headloss;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_valve_headloss.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurveValveCharacteristic(HydraulicCurveValveCharacteristic entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurveValveCharacteristic>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_valve_characteristic.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_valve_characteristic.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurveValveCharacteristic(const HydraulicCurveValveCharacteristic &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurveValveCharacteristic>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurveValveCharacteristic *existing = editableLibraryItem(this->network_hydraulic.curves_valve_characteristic, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurveValveCharacteristic>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurveValveCharacteristic>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_valve_characteristic.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurveValveCharacteristic(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        valveCharacteristicCurveReferenced(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurveValveCharacteristic> &entities = this->network_hydraulic.curves_valve_characteristic;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_valve_characteristic.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
+}
+
+QUuid HydraulicData::addCurveGeneric(HydraulicCurveGeneric entity)
+{
+    entity.uuid = createUuidV7();
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 0 ||
+        aowis::model::ModelCodec<HydraulicCurveGeneric>::encode(entity).isEmpty())
+        return QUuid();
+    const QUuid uuid = entity.uuid;
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.library.curves_generic.create"));
+    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
+        return QUuid();
+    this->network_hydraulic.curves_generic.append(std::move(entity));
+    markNetworkChanged(NetworkChange::Visual, uuid);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    return uuid;
+}
+
+bool HydraulicData::updateCurveGeneric(const HydraulicCurveGeneric &entity)
+{
+    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, entity.uuid) != 1 ||
+        aowis::model::ModelCodec<HydraulicCurveGeneric>::encode(entity).isEmpty())
+        return false;
+    HydraulicCurveGeneric *existing = editableLibraryItem(this->network_hydraulic.curves_generic, entity.uuid);
+    if (existing == nullptr)
+        return false;
+    if (aowis::model::ModelCodec<HydraulicCurveGeneric>::encode(*existing) ==
+        aowis::model::ModelCodec<HydraulicCurveGeneric>::encode(entity))
+        return true;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_generic.update"), entity.uuid);
+    *existing = entity;
+    markNetworkChanged(NetworkChange::Visual, entity.uuid);
+    return true;
+}
+
+bool HydraulicData::removeCurveGeneric(const QUuid &uuid)
+{
+    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic, uuid) != 1 ||
+        noLibraryReference(this->network_hydraulic, uuid))
+        return false;
+    QList<HydraulicCurveGeneric> &entities = this->network_hydraulic.curves_generic;
+    if (editableLibraryItem(entities, uuid) == nullptr)
+        return false;
+    EditScope edit_scope(*this, QStringLiteral("hydraulic.library.curves_generic.delete"), uuid);
+    for (int index = 0; index < entities.size(); ++index)
+    {
+        if (entities.at(index).uuid != uuid)
+            continue;
+        entities.removeAt(index);
+        markNetworkChanged(NetworkChange::Visual, uuid);
+        return true;
+    }
+    return false;
 }
 
 QUuid HydraulicData::addJunction(const CoordinateWGS84 &coordinate)
