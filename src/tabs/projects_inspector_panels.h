@@ -211,23 +211,19 @@ public:
         this->setObjectName(QStringLiteral("projectsDatabaseInspector"));
         this->create_project = addButton(tr("Create project"),
             QStringLiteral("projectsInspectorCreateProject"), tr("Create a project in this database"));
-        this->delete_database = addButton(tr("Delete database…"),
-            QStringLiteral("projectInspectorDeleteButton"), tr("Remove this database profile from the GUI configuration"));
         this->cancel_source = addButton(tr("Cancel"),
             QStringLiteral("projectSourceCancelButton"), tr("Discard this unsaved database"));
         this->save_source = addButton(tr("Create"),
             QStringLiteral("projectSourceCreateButton"), tr("Save the new database profile"));
     }
     QPushButton *create_project = nullptr;
-    QPushButton *delete_database = nullptr;
     QPushButton *save_source = nullptr;
     QPushButton *cancel_source = nullptr;
 
-    void update(bool new_source, bool creating, bool busy, bool ready, bool deletable, bool valid)
+    void update(bool new_source, bool creating, bool busy, bool ready, bool valid)
     {
         this->create_project->setVisible(!new_source && !creating);
         this->create_project->setEnabled(ready);
-        this->delete_database->setVisible(!new_source && !creating && deletable);
         this->save_source->setVisible(new_source);
         this->cancel_source->setVisible(new_source);
         setCreationState(creating, busy, valid);

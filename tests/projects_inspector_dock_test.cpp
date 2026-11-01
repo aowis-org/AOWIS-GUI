@@ -613,9 +613,12 @@ int main(int argc, char **argv)
                      && server_options->isVisible() && endpoint->text().startsWith(QStringLiteral("https://")),
                  "remote server selection did not show its preview inspector"))
         return 1;
-    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
-                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete database…"),
-                 "selecting a server did not offer deletion in the inspector"))
+    QPushButton *delete_connection = database_connection->findChild<QPushButton *>(
+        QStringLiteral("projectsDeleteConnectionButton"));
+    if (!require(delete_connection != nullptr && delete_connection->isVisible()
+                     && delete_connection->text() == QStringLiteral("Delete connection…")
+                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton")) == nullptr,
+                 "connection removal must be available only on the database Connection page"))
         return 1;
     if (!require(action_stack->currentWidget()->objectName()
                      == QStringLiteral("projectsDatabaseInspector")
@@ -1502,9 +1505,10 @@ int main(int argc, char **argv)
     // Deletion must remove the profile from disk, without deleting any DVMDB data.
     servers->setCurrentItem(servers->topLevelItem(2));
     app.processEvents();
-    if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
-                     && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete database…"),
-                 "newly created database profile was not selected for deletion"))
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(delete_connection->isVisible() && delete_connection->isEnabled(),
+                 "new database connection cannot be removed from its Connection tab"))
         return 1;
     bool confirmed_server_deletion = false;
     QTimer server_confirmation_timer;
@@ -1515,7 +1519,7 @@ int main(int argc, char **argv)
         {
             QMessageBox *confirmation = qobject_cast<QMessageBox *>(widget);
             if (confirmation == nullptr || !confirmation->isVisible()
-                || confirmation->windowTitle() != QStringLiteral("Delete database profile"))
+                || confirmation->windowTitle() != QStringLiteral("Remove connection"))
                 continue;
             if (QAbstractButton *yes = confirmation->button(QMessageBox::Yes))
             {
@@ -1527,7 +1531,7 @@ int main(int argc, char **argv)
         }
     });
     server_confirmation_timer.start();
-    activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->click();
+    delete_connection->click();
     server_confirmation_timer.stop();
     if (!require(confirmed_server_deletion,
                  "database profile deletion confirmation was not accepted"))
@@ -1656,6 +1660,33 @@ int main(int argc, char **argv)
         if (!require(isPrivate && rolePosts == 1 && designatedCount == 1 &&
                      pinnedIdentity && hasCrown,
                      "personal HTTP checkbox did not configure role and pin discovered UUID")) return 1;
+
+        // The personal database takes priority over the first configured
+        // connection on a fresh workspace, but users may select others later.
+        ProjectServerProfile other;
+        other.id = QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6372");
+        other.name = QStringLiteral("Other database");
+        other.endpoint = QStringLiteral("http://127.0.0.1:1");
+        other.connection_type = QStringLiteral("remote");
+        if (!require(saveProjectServerProfiles({other, configured.first()}),
+                     "could not prepare a personal database startup fixture")) return 1;
+        ProjectsWidget initialSelection;
+        QTreeWidget *initialTree = initialSelection.findChild<QTreeWidget *>(
+            QStringLiteral("serversTree"));
+        QStackedWidget *initialOverview = initialSelection.findChild<QStackedWidget *>(
+            QStringLiteral("projectsInspectorOverviewStack"));
+        if (!require(initialTree != nullptr && initialTree->currentItem() != nullptr
+                         && initialTree->currentItem()->data(0, Qt::UserRole).toString()
+                            == QStringLiteral("s:") + repositoryId
+                         && initialOverview != nullptr
+                         && initialOverview->currentWidget()->objectName()
+                            == QStringLiteral("projectsDatabaseOverviewForm"),
+                     "Projects did not initially select the crowned database")) return 1;
+        initialTree->setCurrentItem(initialTree->topLevelItem(0));
+        app.processEvents();
+        if (!require(initialTree->currentItem()->data(0, Qt::UserRole).toString()
+                         == QStringLiteral("s:") + other.id,
+                     "Projects prevented manual selection of another database")) return 1;
     }
 
     std::puts("Projects inspector dock tests passed");

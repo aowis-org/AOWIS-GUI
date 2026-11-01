@@ -151,7 +151,7 @@ private:
     void persistNewSource(ProjectServerProfile profile);
     void promoteVerifiedSource(const QString &old_id, const QString &repository_id);
     void cancelNewSource();
-    void deleteServer();
+    void deleteConnection();
     void createProject();
     void createBranch();
     void showWorkingCopies();

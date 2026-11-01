@@ -108,6 +108,11 @@ public:
         local_form->addRow(local_warning);
         source_layout->addWidget(this->local_options);
         connection_layout->addWidget(this->server_options);
+        this->delete_connection = new QPushButton(tr("Delete connection…"), this);
+        this->delete_connection->setObjectName(QStringLiteral("projectsDeleteConnectionButton"));
+        this->delete_connection->setToolTip(tr("Remove this connection from AOWIS without deleting the DVMDB repository"));
+        this->delete_connection->hide();
+        connection_layout->addWidget(this->delete_connection, 0, Qt::AlignRight);
         connection_layout->addStretch(1);
     }
 
@@ -144,6 +149,7 @@ public:
     QWidget *local_options = nullptr;
     QLineEdit *local_path_edit = nullptr;
     QPushButton *browse_path = nullptr;
+    QPushButton *delete_connection = nullptr;
 
 private:
     static void wrapLabel(QLabel *label)

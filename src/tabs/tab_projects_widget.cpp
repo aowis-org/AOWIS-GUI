@@ -186,6 +186,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     if (!this->servers.isEmpty())
     {
         this->server_id = this->servers.first().id;
+        for (const ProjectServerProfile &profile : this->servers)
+            if (profile.personal)
+            {
+                this->server_id = profile.id;
+                break;
+            }
         for (const ProjectPreviewData &project : this->projects)
             if (project.server_id == this->server_id)
             {
@@ -806,8 +812,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->database_connection->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
     connect(this->database_connection->server_auth_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { applyInspectorEdits(); });
-    connect(this->database_inspector->delete_database, &QPushButton::clicked,
-            this, &ProjectsWidget::deleteServer);
+    connect(this->database_connection->delete_connection, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteConnection);
     connect(this->project_inspector->delete_project, &QPushButton::clicked,
             this, &ProjectsWidget::deleteSelection);
     connect(this->branch_inspector->delete_branch, &QPushButton::clicked,
@@ -831,16 +837,27 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     populateProjectTree();
     populateRevisionTree();
     rebuildGraph();
-    if (!this->branch_id.isEmpty())
-        select(SelectionKind::Branch, this->branch_id);
-    else if (!this->server_id.isEmpty())
-        select(SelectionKind::Server, this->server_id);
-    else
+    bool personal_selected = false;
+    for (const ProjectServerProfile &profile : this->servers)
+        if (profile.id == this->server_id && profile.personal)
+        {
+            personal_selected = true;
+            break;
+        }
+    // A personal working database takes precedence at workspace startup.
+    // Subsequent user selection is never redirected to the personal database.
+    if (personal_selected || this->branch_id.isEmpty())
     {
-        updateInspector();
-        updateButtons();
-        broadcastContext();
+        if (!this->server_id.isEmpty()) select(SelectionKind::Server, this->server_id);
+        else
+        {
+            updateInspector();
+            updateButtons();
+            broadcastContext();
+        }
     }
+    else
+        select(SelectionKind::Branch, this->branch_id);
     // Sources are always active. The checkboxes affect visibility only.
     QTimer::singleShot(0, this, [this]
     {
@@ -2036,11 +2053,17 @@ void ProjectsWidget::updateButtons()
     const ProjectPreviewData *project = currentProject();
     const bool backed = project != nullptr && project->database_backed;
     const bool preview = isPreviewSource();
-    this->database_inspector->update(new_source, creating && this->selection_kind == SelectionKind::Server,
-        busy, ready, this->selection_kind == SelectionKind::Server
-            && currentServer() != nullptr && (currentServer()->connection_type != QStringLiteral("local")
-                || QDir::cleanPath(currentServer()->local_path)
-                    != QDir::cleanPath(defaultLocalDvmdbPath())), valid);
+    const ProjectServerProfile *database = currentServer();
+    const bool removable_connection = this->selection_kind == SelectionKind::Server
+        && !creating && database != nullptr
+        && (database->connection_type != QStringLiteral("local")
+            || QDir::cleanPath(database->local_path)
+                != QDir::cleanPath(defaultLocalDvmdbPath()));
+    this->database_inspector->update(new_source,
+        creating && this->selection_kind == SelectionKind::Server,
+        busy, ready, valid);
+    this->database_connection->delete_connection->setVisible(removable_connection);
+    this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
         busy, ready && project != nullptr, backed, preview && project != nullptr, valid);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
@@ -2381,15 +2404,16 @@ void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString 
     updateButtons();
 }
 
-void ProjectsWidget::deleteServer()
+void ProjectsWidget::deleteConnection()
 {
     if (this->source_writer->isBusy()) return;
     if (currentServer() == nullptr
         || (currentServer()->connection_type == QStringLiteral("local")
             && QDir::cleanPath(currentServer()->local_path)
                 == QDir::cleanPath(defaultLocalDvmdbPath()))) return;
-    if (QMessageBox::question(this, tr("Delete database profile"),
-        tr("Remove this database profile from the GUI configuration and discard its local preview projects? The database itself is not modified."))
+    if (QMessageBox::question(this, tr("Remove connection"),
+        tr("Remove this database connection from the GUI configuration? "
+           "The DVMDB repository and its stored projects and networks will not be deleted."))
         != QMessageBox::Yes) return;
     const QString removed = this->server_id;
     resetSource(removed);
@@ -2411,7 +2435,13 @@ void ProjectsWidget::deleteServer()
     this->selection_kind = SelectionKind::None;
     this->selected_id.clear();
     updateEmptyState();
-    if (!this->servers.isEmpty()) select(SelectionKind::Server, this->servers.first().id);
+    if (!this->servers.isEmpty())
+    {
+        QString preferred = this->servers.first().id;
+        for (const ProjectServerProfile &profile : this->servers)
+            if (profile.personal) { preferred = profile.id; break; }
+        select(SelectionKind::Server, preferred);
+    }
     else
     {
         populateProjectTree();
