@@ -11,6 +11,23 @@
 
 namespace
 {
+// Reference-bearing hydraulic edits must not persist dangling UUIDs.  A null
+// UUID represents an unset optional reference; a non-null UUID must identify
+// exactly one record in the expected library collection.
+template<typename Entity>
+bool hydraulicReferenceExists(const QList<Entity> &entities, const QUuid &uuid)
+{
+    if (uuid.isNull())
+        return true;
+    int matches = 0;
+    for (const Entity &entity : entities)
+    {
+        if (entity.uuid == uuid)
+            ++matches;
+    }
+    return matches == 1;
+}
+
 bool coordinateWgs84Valid(const CoordinateWGS84 &coordinate)
 {
     return std::isfinite(coordinate.latitude_deg) &&
@@ -2592,6 +2609,8 @@ bool HydraulicData::setDemandPointDemandPatternMode(
 bool HydraulicData::setDemandPointDemandPatternUuid(
     const QUuid &uuid, int demand_index, const QUuid &pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setDemandPointDemandPatternUuid"), uuid);
     if (!this->network_editor.setDemandPointDemandPatternUuid(uuid, demand_index, pattern_uuid))
         return false;
@@ -2800,6 +2819,8 @@ bool HydraulicData::setJunctionDemandPatternMode(
 bool HydraulicData::setJunctionDemandPatternUuid(const QUuid &uuid, int demand_index,
                                                  const QUuid &pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setJunctionDemandPatternUuid"), uuid);
     return emitNodeChangedIfSuccessful(
         uuid, this->network_editor.setJunctionDemandPatternUuid(
@@ -2869,6 +2890,8 @@ bool HydraulicData::setNodeQualitySourceMassFlowMgPerMin(const QUuid &uuid, doub
 
 bool HydraulicData::setNodeQualitySourcePatternUuid(const QUuid &uuid, const QUuid &pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setNodeQualitySourcePatternUuid"), uuid);
     return emitNodeChangedIfSuccessful(uuid, this->network_editor.setNodeQualitySourcePatternUuid(uuid, pattern_uuid));
 }
@@ -2917,6 +2940,8 @@ bool HydraulicData::setReservoirHeadPatternMode(const QUuid &uuid, HydraulicTime
 
 bool HydraulicData::setReservoirHeadPatternUuid(const QUuid &uuid, const QUuid &pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setReservoirHeadPatternUuid"), uuid);
     return emitNodeChangedIfSuccessful(
         uuid, this->network_editor.setReservoirHeadPatternUuid(uuid, pattern_uuid));
@@ -3016,6 +3041,8 @@ bool HydraulicData::setTankMinimumVolumeM3(const QUuid &uuid, double minimum_vol
 
 bool HydraulicData::setTankVolumeCurveUuid(const QUuid &uuid, const QUuid &volume_curve_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.curves_tank_volume, volume_curve_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setTankVolumeCurveUuid"), uuid);
     return emitNodeChangedIfSuccessful(
         uuid, this->network_editor.setTankVolumeCurveUuid(uuid, volume_curve_uuid));
@@ -3082,6 +3109,8 @@ bool HydraulicData::setPipeMeasuredLengthM(
 
 bool HydraulicData::setPipeMaterialUuid(const QUuid &uuid, const QUuid &material_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.pipe_materials, material_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setPipeMaterialUuid"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setPipeMaterialUuid(uuid, material_uuid));
@@ -3184,6 +3213,8 @@ bool HydraulicData::setPumpInitialStatus(
 bool HydraulicData::setPumpSpeedPatternUuid(
     const QUuid &uuid, const QUuid &speed_pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, speed_pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setPumpSpeedPatternUuid"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setPumpSpeedPatternUuid(uuid, speed_pattern_uuid));
@@ -3228,6 +3259,8 @@ bool HydraulicData::setPumpEfficiencyInput(
     const QUuid &uuid, HydraulicLinkPumpEfficiencyInputType input_type,
     const QUuid &efficiency_curve_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.curves_pump_efficiency, efficiency_curve_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setPumpEfficiencyInput"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setPumpEfficiencyInput(
@@ -3247,6 +3280,8 @@ bool HydraulicData::setPumpEnergyPriceInput(
     const QUuid &uuid, HydraulicLinkPumpEnergyPriceInputType input_type,
     const QUuid &price_pattern_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.patterns_time, price_pattern_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setPumpEnergyPriceInput"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setPumpEnergyPriceInput(
@@ -3295,6 +3330,8 @@ bool HydraulicData::setValveSettingPositionPercent(
 bool HydraulicData::setValveHeadLossCurveUuid(
     const QUuid &uuid, const QUuid &head_loss_curve_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.curves_valve_headloss, head_loss_curve_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setValveHeadLossCurveUuid"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setValveHeadLossCurveUuid(uuid, head_loss_curve_uuid));
@@ -3303,6 +3340,8 @@ bool HydraulicData::setValveHeadLossCurveUuid(
 bool HydraulicData::setValveCharacteristicCurveUuid(
     const QUuid &uuid, const QUuid &characteristic_curve_uuid)
 {
+    if (!hydraulicReferenceExists(this->network_hydraulic.curves_valve_characteristic, characteristic_curve_uuid))
+        return false;
     EditScope edit_scope(*this, QStringLiteral("hydraulic.setValveCharacteristicCurveUuid"), uuid);
     return emitLinkChangedIfSuccessful(
         uuid, this->network_editor.setValveCharacteristicCurveUuid(uuid, characteristic_curve_uuid));

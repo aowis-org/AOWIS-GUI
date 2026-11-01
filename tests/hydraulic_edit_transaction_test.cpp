@@ -657,6 +657,140 @@ void testHydraulicDraftMembershipIntents()
                             "cascading operation replays exactly against staged model");
 }
 
+// HC-02.4: library UUID references cannot name missing or wrong-type records.
+// Invalid attempts must leave canonical bytes unchanged and emit no edit.
+void testHydraulicLibraryReferenceValidation()
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("library-reference-guard");
+    const QUuid missing = createUuidV7();
+
+    HydraulicPipeMaterial material;
+    material.uuid = createUuidV7();
+    material.id = QStringLiteral("material");
+    base.pipe_materials.append(material);
+    HydraulicPatternTime pattern;
+    pattern.uuid = createUuidV7();
+    pattern.id = QStringLiteral("pattern");
+    base.patterns_time.append(pattern);
+    HydraulicCurveTankVolume tank_curve;
+    tank_curve.uuid = createUuidV7();
+    tank_curve.id = QStringLiteral("tank-curve");
+    base.curves_tank_volume.append(tank_curve);
+    HydraulicCurvePumpEfficiency efficiency_curve;
+    efficiency_curve.uuid = createUuidV7();
+    efficiency_curve.id = QStringLiteral("efficiency-curve");
+    base.curves_pump_efficiency.append(efficiency_curve);
+    HydraulicCurveValveHeadloss headloss_curve;
+    headloss_curve.uuid = createUuidV7();
+    headloss_curve.id = QStringLiteral("headloss-curve");
+    base.curves_valve_headloss.append(headloss_curve);
+    HydraulicCurveValveCharacteristic characteristic_curve;
+    characteristic_curve.uuid = createUuidV7();
+    characteristic_curve.id = QStringLiteral("characteristic-curve");
+    base.curves_valve_characteristic.append(characteristic_curve);
+
+    HydraulicNodeJunction junction;
+    junction.uuid = createUuidV7();
+    junction.id = QStringLiteral("J-1");
+    junction.demands.append(HydraulicDemand{});
+    base.nodes_junctions.append(junction);
+    HydraulicNodeReservoir reservoir;
+    reservoir.uuid = createUuidV7();
+    reservoir.id = QStringLiteral("R-1");
+    base.nodes_reservoirs.append(reservoir);
+    HydraulicNodeTank tank;
+    tank.uuid = createUuidV7();
+    tank.id = QStringLiteral("T-1");
+    base.nodes_tanks.append(tank);
+    HydraulicDemandPoint demand_point;
+    demand_point.uuid = createUuidV7();
+    demand_point.id = QStringLiteral("DP-1");
+    demand_point.demands.append(HydraulicDemand{});
+    base.demand_points.append(demand_point);
+    HydraulicLinkPipe pipe;
+    pipe.uuid = createUuidV7();
+    pipe.id = QStringLiteral("P-1");
+    pipe.node_uuid_from = junction.uuid;
+    pipe.node_uuid_to = reservoir.uuid;
+    base.links_pipes.append(pipe);
+    HydraulicLinkPump pump;
+    pump.uuid = createUuidV7();
+    pump.id = QStringLiteral("PU-1");
+    pump.node_uuid_from = reservoir.uuid;
+    pump.node_uuid_to = tank.uuid;
+    base.links_pumps.append(pump);
+    HydraulicLinkValve valve;
+    valve.uuid = createUuidV7();
+    valve.id = QStringLiteral("V-1");
+    valve.node_uuid_from = tank.uuid;
+    valve.node_uuid_to = junction.uuid;
+    base.links_valves.append(valve);
+
+    HydraulicData data;
+    data.replaceNetworkHydraulic(base, {});
+    QList<QByteArray> events;
+    QString capture_error;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
+                     [&events](const QByteArray &event) { events.append(event); });
+    QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed, &data,
+                     [&capture_error](const QString &message) { capture_error = message; });
+    data.setLogicalEditCaptureEnabled(true);
+    const QByteArray before = aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic());
+    const bool rejected =
+        !data.setDemandPointDemandPatternUuid(demand_point.uuid, 0, missing) &&
+        !data.setJunctionDemandPatternUuid(junction.uuid, 0, missing) &&
+        !data.setNodeQualitySourcePatternUuid(junction.uuid, missing) &&
+        !data.setReservoirHeadPatternUuid(reservoir.uuid, missing) &&
+        !data.setTankVolumeCurveUuid(tank.uuid, missing) &&
+        !data.setPipeMaterialUuid(pipe.uuid, missing) &&
+        !data.setPumpSpeedPatternUuid(pump.uuid, missing) &&
+        !data.setPumpEfficiencyInput(pump.uuid, HydraulicLinkPumpEfficiencyInputType{}, missing) &&
+        !data.setPumpEnergyPriceInput(pump.uuid, HydraulicLinkPumpEnergyPriceInputType{}, missing) &&
+        !data.setValveHeadLossCurveUuid(valve.uuid, missing) &&
+        !data.setValveCharacteristicCurveUuid(valve.uuid, missing);
+    test_harness.expectTrue(rejected && events.isEmpty() && capture_error.isEmpty() &&
+                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) == before,
+                            "all eleven missing library references are rejected without mutation or autosave");
+
+    // A known UUID from the wrong library must not accidentally pass.
+    test_harness.expectTrue(!data.setTankVolumeCurveUuid(tank.uuid, efficiency_curve.uuid) &&
+                            !data.setValveHeadLossCurveUuid(valve.uuid, characteristic_curve.uuid) &&
+                            events.isEmpty(),
+                            "references to the wrong hydraulic library type are rejected");
+
+    const bool accepted =
+        data.setPipeMaterialUuid(pipe.uuid, material.uuid) &&
+        data.setPumpSpeedPatternUuid(pump.uuid, pattern.uuid) &&
+        data.setTankVolumeCurveUuid(tank.uuid, tank_curve.uuid) &&
+        data.setValveHeadLossCurveUuid(valve.uuid, headloss_curve.uuid) &&
+        data.setValveCharacteristicCurveUuid(valve.uuid, characteristic_curve.uuid);
+    test_harness.expectTrue(accepted && events.size() == 5 && capture_error.isEmpty(),
+                            "five valid library references produce five canonical autosave transactions");
+    if (!accepted || events.size() != 5)
+        return;
+
+    NetworkHydraulic staged = base;
+    QString error;
+    bool replayed = true;
+    for (const QByteArray &event : events)
+    {
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        if (!HydraulicDraftEventAdapter::prepareWithMembership(
+                event, staged, records, membership, &error) || records.size() != 1 || !membership.isEmpty())
+        {
+            replayed = false;
+            break;
+        }
+    }
+    test_harness.expectTrue(replayed && error.isEmpty() &&
+                            aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+                            "valid library reference edits replay to exactly the live canonical network");
+}
+
 void testCapturedOperationsEnterDurableQueue()
 {
     QTemporaryDir root;
@@ -1442,6 +1576,7 @@ int main(int argc, char **argv)
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
+    test_harness.runCase("Hydraulic library reference guards", testHydraulicLibraryReferenceValidation);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);
     test_harness.runCase("Hydraulic event to canonical DVMDB records", testOrderedHydraulicDraftRecordMapping);
     test_harness.runCase("Hydraulic membership intent mapping", testHydraulicDraftMembershipIntents);
