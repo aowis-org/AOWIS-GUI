@@ -79,9 +79,12 @@ int main(int argc, char **argv)
                     .arg(project_identity).toUtf8()
                     && json.object().value(QStringLiteral("name")) != QStringLiteral("duplicate"))
                     payload = QJsonDocument(QJsonObject{
-                        {QStringLiteral("id"), branch_revision},
+                        {QStringLiteral("id"), json.object().value(QStringLiteral("unborn")).toBool()
+                            ? QJsonValue(QJsonValue::Null) : QJsonValue(branch_revision)},
                         {QStringLiteral("branch"), json.object().value(QStringLiteral("name"))},
-                        {QStringLiteral("branchId"), json.object().value(QStringLiteral("id"))}}).toJson(QJsonDocument::Compact);
+                        {QStringLiteral("branchId"), json.object().value(QStringLiteral("id"))},
+                        {QStringLiteral("description"), json.object().value(QStringLiteral("description"))},
+                        {QStringLiteral("tags"), json.object().value(QStringLiteral("tags"))}}).toJson(QJsonDocument::Compact);
                 else
                 {
                     status = 409;
@@ -211,6 +214,29 @@ int main(int argc, char **argv)
                  && requested_paths.size() == before_missing_source,
                  "branch without an explicit committed source reached DVMDB")) return 1;
 
+    done = false;
+    const QStringList branch_tags{QStringLiteral("hydraulic"), QStringLiteral("experiment")};
+    const QString branch_description = QString::fromUtf8("Independent Prüfzweig");
+    writer.createUnbornBranch(profile, project_identity, QStringLiteral("alternative"),
+                              branch_tags, branch_description,
+                              [&](const QString &id, const QString &error)
+    {
+        created = id;
+        failure = error;
+        done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }), "unborn branch POST did not finish")) return 1;
+    if (!require(failure.isEmpty() && DvmdbIdentity::isUuidV7(created)
+        && requested_paths.size() == 5
+        && requested_paths.last() == QStringLiteral("/dvmdb/v1/projects/%1/branches").arg(project_identity)
+        && request_bodies.last().value(QStringLiteral("id")).toString() == created
+        && request_bodies.last().value(QStringLiteral("unborn")).toBool()
+        && !request_bodies.last().contains(QStringLiteral("fromBranchId"))
+        && !request_bodies.last().contains(QStringLiteral("revision"))
+        && request_bodies.last().value(QStringLiteral("description")).toString() == branch_description
+        && request_bodies.last().value(QStringLiteral("tags")).toArray().size() == 2,
+        "unborn branch POST lost the origin-free HEAD or its metadata")) return 1;
+
     profile.auth_mode = QStringLiteral("API token");
     done = false;
     writer.createProject(profile, QStringLiteral("invalid"), [&](const QString &, const QString &error)
@@ -219,7 +245,7 @@ int main(int argc, char **argv)
         done = true;
     });
     if (!require(done && !writer.isBusy() && failure.contains(QStringLiteral("not implemented"))
-                 && requested_paths.size() == 4,
+                 && requested_paths.size() == 5,
         "unsupported authentication was not rejected before POST")) return 1;
     return 0;
 }

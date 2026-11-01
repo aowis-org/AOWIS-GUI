@@ -189,6 +189,19 @@ public:
                     error_text = tr("A branch with this name already exists.");
         if (this->project_origin)
         {
+            if (this->description->toPlainText().trimmed().toUtf8().size() > 512)
+                error_text = tr("Description must not exceed 512 UTF-8 bytes.");
+            QSet<QString> distinct_tags;
+            for (const QString &part : this->tags->text().split(QLatin1Char(','), Qt::SkipEmptyParts))
+            {
+                const QString tag = part.trimmed();
+                if (tag.isEmpty()) continue;
+                if (tag.toUtf8().size() > 32 || distinct_tags.contains(tag))
+                    error_text = tr("Tags must be unique and at most 32 UTF-8 bytes each.");
+                distinct_tags.insert(tag);
+            }
+            if (distinct_tags.size() > 12)
+                error_text = tr("A branch may have at most 12 tags.");
             showValidation(tr("Creates a new unborn HEAD in this project. No revision is created."), error_text);
             return;
         }

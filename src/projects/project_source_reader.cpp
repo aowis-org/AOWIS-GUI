@@ -358,6 +358,26 @@ bool ProjectSourceReader::processRestDocument(const QByteArray &json, QString &e
         branch.head = head_revision.toString();
         branch.id = head.value(QStringLiteral("branchId")).toString();
         branch.record_sha256 = head_digest.toString();
+        const QJsonValue metadata_description = head.value(QStringLiteral("description"));
+        const QJsonValue metadata_tags = head.value(QStringLiteral("tags"));
+        if ((!metadata_description.isUndefined() && !metadata_description.isString())
+            || (!metadata_tags.isUndefined() && !metadata_tags.isArray()))
+        { error = tr("Invalid DVMDB branch metadata."); return false; }
+        branch.description = metadata_description.toString();
+        if (branch.description.toUtf8().size() > 512)
+        { error = tr("Branch description exceeds the size limit."); return false; }
+        if (metadata_tags.isArray())
+        {
+            if (metadata_tags.toArray().size() > 12)
+            { error = tr("Too many DVMDB branch tags."); return false; }
+            for (const QJsonValue &tag : metadata_tags.toArray())
+            {
+                if (!tag.isString() || tag.toString().toUtf8().size() > 32
+                    || tag.toString().isEmpty() || branch.tags.contains(tag.toString()))
+                { error = tr("Invalid DVMDB branch tag."); return false; }
+                branch.tags.append(tag.toString());
+            }
+        }
         const QJsonValue origin = head.value(QStringLiteral("originBranchId"));
         if (!origin.isUndefined() && !origin.isNull())
         {
@@ -404,7 +424,9 @@ bool ProjectSourceReader::processRestDocument(const QByteArray &json, QString &e
                 || page_heads[index].head != project.branches[index].head
                 || page_heads[index].record_sha256 != project.branches[index].record_sha256
                 || page_heads[index].origin_branch_id != project.branches[index].origin_branch_id
-                || page_heads[index].fork_revision_id != project.branches[index].fork_revision_id)
+                || page_heads[index].fork_revision_id != project.branches[index].fork_revision_id
+                || page_heads[index].description != project.branches[index].description
+                || page_heads[index].tags != project.branches[index].tags)
             { error = tr("DVMDB graph HEADs changed during pagination."); return false; }
     }
     if (revisions.toArray().isEmpty() && !complete.toBool())

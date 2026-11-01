@@ -24,17 +24,21 @@ public:
     explicit ProjectSourceWriter(QObject *parent = nullptr);
     bool isBusy() const;
     void createProject(const ProjectServerProfile &profile, const QString &name, Completion completion);
-    // The source branch is addressed by UUIDv7 (DG-01), never by its
-    // renamable name; from_revision pins an exact revision reachable from it.
+    // Create an independent unborn HEAD belonging to the selected project.
+    void createUnbornBranch(const ProjectServerProfile &profile, const QString &project_id,
+                            const QString &name, const QStringList &tags,
+                            const QString &description, Completion completion);
+    // The source branch is addressed by UUIDv7, never by its renamable name.
     void createBranch(const ProjectServerProfile &profile, const QString &project_id,
                       const QString &name, const QString &from_branch_id,
                       const QString &from_revision, Completion completion);
 
 private:
-    enum class Operation { Project, Branch };
+    enum class Operation { Project, Branch, UnbornBranch };
     void start(const ProjectServerProfile &profile, Operation operation,
                const QString &project_id, const QString &name, const QString &from_branch_id,
-               const QString &from_revision, Completion completion);
+               const QString &from_revision, const QStringList &tags,
+               const QString &description, Completion completion);
     void finish(const QString &id, const QString &error);
 
     QNetworkAccessManager manager;

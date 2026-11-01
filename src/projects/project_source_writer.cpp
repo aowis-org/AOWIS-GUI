@@ -3,6 +3,8 @@
 
 #include <QDir>
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QSet>
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -65,7 +67,7 @@ bool ProjectSourceWriter::isBusy() const
 void ProjectSourceWriter::createProject(const ProjectServerProfile &profile, const QString &name,
                                        Completion completion)
 {
-    start(profile, Operation::Project, {}, name, {}, {}, std::move(completion));
+    start(profile, Operation::Project, {}, name, {}, {}, {}, {}, std::move(completion));
 }
 
 void ProjectSourceWriter::createBranch(const ProjectServerProfile &profile,
@@ -74,6 +76,15 @@ void ProjectSourceWriter::createBranch(const ProjectServerProfile &profile,
                                       Completion completion)
 {
     start(profile, Operation::Branch, project_id, name, from_branch_id, from_revision,
+          {}, {}, std::move(completion));
+}
+
+void ProjectSourceWriter::createUnbornBranch(const ProjectServerProfile &profile,
+                                              const QString &project_id, const QString &name,
+                                              const QStringList &tags, const QString &description,
+                                              Completion completion)
+{
+    start(profile, Operation::UnbornBranch, project_id, name, {}, {}, tags, description,
           std::move(completion));
 }
 
@@ -88,6 +99,7 @@ void ProjectSourceWriter::finish(const QString &id, const QString &error)
 void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation operation,
                                 const QString &project_id, const QString &name,
                                 const QString &from_branch_id, const QString &from_revision,
+                                const QStringList &tags, const QString &description,
                                 Completion completion)
 {
     if (this->busy)
@@ -102,7 +114,8 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
         return;
     }
     if (name.trimmed().isEmpty()
-        || (operation == Operation::Branch && (project_id.isEmpty() || from_branch_id.isEmpty())))
+        || (operation != Operation::Project && project_id.isEmpty())
+        || (operation == Operation::Branch && from_branch_id.isEmpty()))
     {
         if (completion) completion({}, tr("Missing project or branch name/source."));
         return;
@@ -114,6 +127,24 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
     {
         if (completion) completion({}, tr("Canonical DVMDB writes require UUIDv7 project, source branch and revision IDs."));
         return;
+    }
+    if (operation == Operation::UnbornBranch) {
+        if (!DvmdbIdentity::isUuidV7(project_id)) {
+            if (completion) completion({}, tr("Canonical DVMDB branch creation requires a UUIDv7 project ID."));
+            return;
+        }
+        QSet<QString> distinct;
+        if (description.toUtf8().size() > 512 || tags.size() > 12) {
+            if (completion) completion({}, tr("Branch description or tags exceed the DVMDB limits."));
+            return;
+        }
+        for (const QString &tag : tags) {
+            if (tag.isEmpty() || tag.toUtf8().size() > 32 || distinct.contains(tag)) {
+                if (completion) completion({}, tr("Invalid or duplicate branch tag."));
+                return;
+            }
+            distinct.insert(tag);
+        }
     }
     // Local Standalone sources must use the same long-lived catalogue owner
     // as private drafts. Opening another ProjectService would fail its lock.
@@ -150,11 +181,19 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
     QJsonObject body{{QStringLiteral("id"), created_id}, {QStringLiteral("name"), name}};
     if (operation == Operation::Project)
         body.insert(QStringLiteral("unborn"), true);
-    if (operation == Operation::Branch)
+    if (operation != Operation::Project)
     {
         path += QStringLiteral("/") + segment(project_id) + QStringLiteral("/branches");
-        body.insert(QStringLiteral("fromBranchId"), from_branch_id);
-        if (!from_revision.isEmpty()) body.insert(QStringLiteral("revision"), from_revision);
+        if (operation == Operation::UnbornBranch) {
+            body.insert(QStringLiteral("unborn"), true);
+            body.insert(QStringLiteral("description"), description);
+            QJsonArray tag_array;
+            for (const QString &tag : tags) tag_array.append(tag);
+            body.insert(QStringLiteral("tags"), tag_array);
+        } else {
+            body.insert(QStringLiteral("fromBranchId"), from_branch_id);
+            if (!from_revision.isEmpty()) body.insert(QStringLiteral("revision"), from_revision);
+        }
     }
     QNetworkRequest request(QUrl(root + path));
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
@@ -168,7 +207,7 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
     {
         if (deadline) deadline->abort();
     });
-    connect(pending, &QNetworkReply::finished, this, [this, pending, operation, name, created_id]
+    connect(pending, &QNetworkReply::finished, this, [this, pending, operation, name, created_id, tags, description]
     {
         if (this->reply == pending) this->reply.clear();
         pending->deleteLater();
@@ -210,12 +249,28 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
             finish(id, {});
             return;
         }
-        if (!DvmdbIdentity::isUuidV7(object.value(QStringLiteral("id")).toString())
+        if ((operation == Operation::UnbornBranch
+                ? !object.value(QStringLiteral("id")).isNull()
+                : !DvmdbIdentity::isUuidV7(object.value(QStringLiteral("id")).toString()))
             || object.value(QStringLiteral("branchId")).toString() != created_id
             || object.value(QStringLiteral("branch")).toString() != name)
         {
             finish({}, tr("Invalid branch creation response. Refresh before retrying."));
             return;
+        }
+        if (operation == Operation::UnbornBranch) {
+            if (object.value(QStringLiteral("description")).toString() != description
+                || !object.value(QStringLiteral("tags")).isArray()) {
+                finish({}, tr("Branch metadata was not confirmed by DVMDB. Refresh before retrying."));
+                return;
+            }
+            QStringList returned_tags;
+            for (const QJsonValue &tag : object.value(QStringLiteral("tags")).toArray())
+                returned_tags.append(tag.toString());
+            if (returned_tags != tags) {
+                finish({}, tr("Branch tags were not persisted as requested. Refresh before retrying."));
+                return;
+            }
         }
         finish(object.value(QStringLiteral("branchId")).toString(), {});
     });
