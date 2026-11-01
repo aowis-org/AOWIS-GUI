@@ -1015,6 +1015,7 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
             }
             const bool personal_server = server && node.personal_server;
             const QColor group_color = personal_server ? QColor(222, 169, 46)
+                : server && node.pending_server ? QColor(126, 130, 134)
                 : server ? QColor(50, 174, 173) : accent;
             painter.setPen(QPen(tint(group_color, selected ? 255 : (server ? 230 : 140)),
                                 selected ? 3.4 : server ? 2.2 : 1.6));

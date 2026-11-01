@@ -26,11 +26,11 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
 
     ProjectServerProfile a;
-    a.id = QStringLiteral("shared-a");
+    a.id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6372");
     a.name = QStringLiteral("Shared database");
     a.endpoint = QStringLiteral("https://source.example.invalid");
     ProjectServerProfile b;
-    b.id = QStringLiteral("personal-b");
+    b.id = known_id;
     b.name = QStringLiteral("My working server");
     b.endpoint = QStringLiteral("https://private.example.invalid");
     if (!check(saveProjectServerProfiles({a, b}), "unable to save initial server profiles")) return 1;
@@ -40,11 +40,10 @@ int main(int argc, char **argv)
     // The selected server's UUID is learned from /repository/tracking by the
     // inspector and pinned internally; there is no editable UUID field.
     b.personal = true;
-    b.personal_repository_id = known_id;
     if (!check(saveProjectServerProfiles({a, b}), "unable to designate personal server")) return 1;
     QList<ProjectServerProfile> loaded = loadProjectServerProfiles();
     if (!check(loaded.size() == 2 && !loaded.at(0).personal && loaded.at(1).personal
-               && loaded.at(1).personal_repository_id == known_id,
+               && loaded.at(1).id == known_id,
                "personal designation or pinned identity did not survive restart")) return 1;
     PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
     if (!check(target.kind == PersonalRepositoryTarget::Kind::Http
@@ -54,29 +53,29 @@ int main(int argc, char **argv)
 
     // Selecting another personal server atomically revokes the old choice.
     a.personal = true;
-    a.personal_repository_id = known_id;
     b.personal = false;
-    b.personal_repository_id.clear();
     if (!check(saveProjectServerProfiles({a, b}), "unable to switch personal server")) return 1;
     target = resolvePersonalRepositoryTarget();
     if (!check(target.kind == PersonalRepositoryTarget::Kind::Http
-               && target.endpoint == a.endpoint && target.repository_id == known_id,
+               && target.endpoint == a.endpoint && target.repository_id == a.id,
                "switching personal server retained the old target")) return 1;
     a.personal = false;
-    a.personal_repository_id.clear();
     b.personal = true;
 
-    // A stale, invalid identity fails closed; it must never fall back to the
-    // currently selected shared server.
-    b.personal_repository_id.clear();
+    // A pending connection may not be marked as personal.
+    b.pending = true;
+    if (!check(!saveProjectServerProfiles({a, b}),
+               "pending HTTP repository was allowed to become personal")) return 1;
+    b.personal = false;
     if (!check(saveProjectServerProfiles({a, b})
                && resolvePersonalRepositoryTarget().kind == PersonalRepositoryTarget::Kind::Unavailable,
-               "HTTP repository without verified identity was accepted")) return 1;
+               "unverified connection was treated as a personal repository")) return 1;
+    b.pending = false;
 
     // Native personal selection uses the selected local profile, rather than
     // a separate undocumented data directory.
     ProjectServerProfile embedded;
-    embedded.id = QStringLiteral("local-one");
+    embedded.id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6373");
     embedded.name = QStringLiteral("Embedded local database");
     embedded.connection_type = QStringLiteral("local");
     embedded.local_path = QDir(root.path()).filePath(QStringLiteral("local-db"));

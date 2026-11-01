@@ -37,6 +37,7 @@ struct ProjectGraphNode
     QStringList tags;
     QPointF position;
     Kind kind = Kind::Revision;
+    bool pending_server = false; // Unverified database endpoint: muted graph card.
     bool personal_server = false; // Render the designated personal database in gold.
     // Structural hierarchy, separate from immutable revision ancestry.
     QString container_id;

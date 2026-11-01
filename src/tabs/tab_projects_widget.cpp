@@ -922,7 +922,8 @@ void ProjectsWidget::populateServerTree()
     {
         const bool local = server.connection_type == QStringLiteral("local");
         QTreeWidgetItem *item = newTreeItem(this->server_tree,
-            server.personal ? tr("♛ %1").arg(server.name) : server.name,
+            server.personal ? tr("♛ %1").arg(server.name)
+                : server.pending ? tr("◷ %1").arg(server.name) : server.name,
             keyFor(QStringLiteral("s"), server.id));
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(0, server.visible ? Qt::Checked : Qt::Unchecked);
@@ -933,7 +934,8 @@ void ProjectsWidget::populateServerTree()
         else
         {
             QColor color = QColor(QStringLiteral("#c9a227")); // starting / loading
-            if (session != nullptr && session->state == SourceState::Connected
+            if (server.pending) color = QColor(QStringLiteral("#777777"));
+            else if (session != nullptr && session->state == SourceState::Connected
                 && (session->health == nullptr
                     || session->health->currentState() == HttpHealthMonitor::State::Healthy))
                 color = QColor(QStringLiteral("#339950"));
@@ -948,7 +950,8 @@ void ProjectsWidget::populateServerTree()
             painter.drawEllipse(QRectF(3, 3, 10, 10));
             item->setIcon(0, QIcon(indicator));
         }
-        QString status = local ? tr("Embedded · no network check") : tr("Checking…");
+        QString status = server.pending ? tr("Pending repository verification")
+            : local ? tr("Embedded · no network check") : tr("Checking…");
         if (session != nullptr)
             status = session->health != nullptr
                      && session->health->currentState() == HttpHealthMonitor::State::Degraded
@@ -959,7 +962,8 @@ void ProjectsWidget::populateServerTree()
                 : tr("Checking…");
         item->setToolTip(0, tr("%1%2\n%3\n%4\nCheckbox: show in explorer and graph")
             .arg(server.name, server.personal ? tr(" (personal working database)") : QString(),
-                 local ? server.local_path : server.endpoint, status));
+                 local ? server.local_path : server.endpoint,
+                 server.pending ? tr("Unverified · %1").arg(status) : status));
         if (session != nullptr && session->state == SourceState::Error)
             item->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
     }
@@ -1019,7 +1023,10 @@ void ProjectsWidget::updateConnectionStatus()
         : session->state == SourceState::Loading ? tr("Available · loading catalogue…")
         : session->state == SourceState::Error ? tr("Unavailable: %1").arg(session->error)
         : tr("Checking connection…");
-    this->database_connection->source_status->setText(status);
+    this->database_connection->source_status->setText(has_server && server->pending
+        ? tr("Unverified repository · %1").arg(status) : status);
+    if (has_server && server->pending)
+        this->database_connection->personal_server_checkbox->setEnabled(false);
     this->database_connection->source_status->setVisible(has_server);
     this->database_connection->source_refresh_button->setVisible(has_server && !isPreviewSource());
     this->database_connection->source_refresh_button->setEnabled(has_server && !this->source_writer->isBusy()
@@ -1170,7 +1177,7 @@ void ProjectsWidget::loadSource(const QString &id)
     session->error.clear();
     populateServerTree();
     updateConnectionStatus();
-    session->reader->load(profile, [this, id](const SourceSnapshot &snapshot, const QString &error)
+    session->reader->load(profile, [this, id, profile](const SourceSnapshot &snapshot, const QString &error)
     {
         SourceSession *current = this->source_sessions.value(id, nullptr);
         if (current == nullptr) return;
@@ -1180,14 +1187,22 @@ void ProjectsWidget::loadSource(const QString &id)
             current->state = SourceState::Error;
             current->error = error;
         }
-        else if (!current->repository_id.isEmpty()
-                 && current->repository_id != snapshot.repository_id)
+        else if ((!current->repository_id.isEmpty()
+                   && current->repository_id != snapshot.repository_id)
+                 || (!profile.pending && profile.id != snapshot.repository_id))
         {
             current->state = SourceState::Error;
             current->error = tr("The database repository UUID changed; refusing to mix unrelated histories.");
         }
         else
         {
+            if (profile.pending)
+            {
+                const QString verified_id = snapshot.repository_id;
+                QTimer::singleShot(0, this, [this, id, verified_id]
+                { promoteVerifiedSource(id, verified_id); });
+                return;
+            }
             current->repository_id = snapshot.repository_id;
             for (int index = this->projects.size() - 1; index >= 0; --index)
                 if (this->projects.at(index).database_backed
@@ -1569,10 +1584,11 @@ void ProjectsWidget::rebuildGraph()
         ProjectGraphNode server_node;
         server_node.kind = ProjectGraphNode::Kind::Server;
         server_node.personal_server = source.personal;
+        server_node.pending_server = source.pending;
         server_node.id = server_node_id;
         server_node.title = source.name;
         server_node.branch = source.connection_type == QStringLiteral("local")
-            ? tr("LOCAL DATABASE") : tr("REST SERVER");
+            ? tr("LOCAL DATABASE") : source.pending ? tr("PENDING VERIFICATION") : tr("REST SERVER");
         nodes.append(server_node);
     }
     const double aspect = double(qMax(1, this->graph->width()))
@@ -2022,7 +2038,9 @@ void ProjectsWidget::updateButtons()
     const bool preview = isPreviewSource();
     this->database_inspector->update(new_source, creating && this->selection_kind == SelectionKind::Server,
         busy, ready, this->selection_kind == SelectionKind::Server
-            && currentServer() != nullptr && this->server_id != QStringLiteral("local-default"), valid);
+            && currentServer() != nullptr && (currentServer()->connection_type != QStringLiteral("local")
+                || QDir::cleanPath(currentServer()->local_path)
+                    != QDir::cleanPath(defaultLocalDvmdbPath())), valid);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
         busy, ready && project != nullptr, backed, preview && project != nullptr, valid);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
@@ -2094,6 +2112,7 @@ void ProjectsWidget::showRevisionHistory()
 void ProjectsWidget::createServer()
 {
     if (this->source_writer->isBusy()) return;
+    ++this->source_creation_request; // Retire responses from any previous add form.
     this->selection_kind = SelectionKind::NewSource;
     this->selected_id.clear();
     updateConnectionStatus();
@@ -2115,6 +2134,7 @@ void ProjectsWidget::createServer()
 void ProjectsWidget::cancelNewSource()
 {
     if (this->selection_kind != SelectionKind::NewSource) return;
+    ++this->source_creation_request;
     this->selection_kind = SelectionKind::None;
     this->selected_id.clear();
     this->inspector_dock->hide();
@@ -2139,7 +2159,8 @@ void ProjectsWidget::saveNewSource()
             return;
         }
     ProjectServerProfile server;
-    server.id = makeId(QStringLiteral("s-"));
+    server.id = DvmdbIdentity::newUuidV7();
+    server.pending = true;
     server.name = name;
     server.connection_type = this->database_connection->source_kind_combo->currentData().toString();
     server.description = this->database_overview->description->toPlainText();
@@ -2185,6 +2206,119 @@ void ProjectsWidget::saveNewSource()
             return;
         }
     }
+    if (server.connection_type == QStringLiteral("local"))
+    {
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+        QString repository_id;
+        QString error;
+        const QString endpoint = embeddedDvmdbEndpoint(server.local_path, false,
+                                                         &repository_id, &error);
+        if (!endpoint.isEmpty() && DvmdbIdentity::isUuidV7(repository_id))
+        {
+            server.id = repository_id;
+            server.pending = false;
+        }
+        else if (QMessageBox::question(this, tr("Embedded database unavailable"),
+            tr("The local database could not be opened: %1\n\nSave this connection as pending?")
+                .arg(error)) != QMessageBox::Yes) return;
+#endif
+        persistNewSource(server);
+        return;
+    }
+    // The new profile is not persisted until the DVMDB repository identity is
+    // checked. A network failure offers an explicit pending choice instead.
+    const int request_id = ++this->source_creation_request;
+    this->database_inspector->save_source->setEnabled(false);
+    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+    QString endpoint = server.endpoint;
+    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
+    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
+        endpoint += QStringLiteral("/dvmdb/v1");
+    QNetworkRequest request(QUrl(endpoint + QStringLiteral("/repository")));
+    request.setTransferTimeout(4000);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);
+    QNetworkReply *reply = manager->get(request);
+    connect(reply, &QNetworkReply::finished, this, [this, server, request_id, manager, reply]() mutable
+    {
+        const QByteArray body = reply->readAll();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QString error = reply->errorString();
+        const bool transport_ok = reply->error() == QNetworkReply::NoError;
+        reply->deleteLater();
+        manager->deleteLater();
+        if (request_id != this->source_creation_request
+            || this->selection_kind != SelectionKind::NewSource) return;
+        this->database_inspector->save_source->setEnabled(true);
+        if (transport_ok && status == 200)
+        {
+            const QJsonDocument document = QJsonDocument::fromJson(body);
+            const QString id = document.isObject()
+                ? document.object().value(QStringLiteral("repositoryId")).toString()
+                : QString();
+            if (!DvmdbIdentity::isUuidV7(id))
+            {
+                QMessageBox::warning(this, tr("Invalid DVMDB identity"),
+                    tr("The endpoint did not return a valid repository UUIDv7."));
+                return;
+            }
+            server.id = id;
+            server.pending = false;
+        }
+        else if (status == 0)
+        {
+            if (QMessageBox::question(this, tr("Database unreachable"),
+                tr("Could not reach the database at %1 (%2).\n\n"
+                   "Save it as an unverified pending connection anyway?")
+                    .arg(server.endpoint, error)) != QMessageBox::Yes) return;
+        }
+        else
+        {
+            QMessageBox::warning(this, tr("DVMDB verification failed"),
+                tr("The endpoint responded with HTTP %1 (%2), but its repository identity "
+                   "could not be verified. Check the URL or server configuration.")
+                    .arg(status).arg(error));
+            return;
+        }
+        persistNewSource(server);
+    });
+}
+
+void ProjectsWidget::persistNewSource(ProjectServerProfile server)
+{
+    for (ProjectServerProfile &existing : this->servers)
+    {
+        if (existing.id == server.id && !server.pending)
+        {
+            if (existing.endpoint != server.endpoint && server.connection_type == QStringLiteral("remote"))
+            {
+                if (QMessageBox::question(this, tr("Database already configured"),
+                    tr("This repository UUIDv7 is already configured as '%1'. "
+                       "Update its endpoint to %2?").arg(existing.name, server.endpoint))
+                    != QMessageBox::Yes) return;
+                const QString previous_endpoint = existing.endpoint;
+                existing.endpoint = server.endpoint;
+                if (!saveProjectServerProfiles(this->servers))
+                {
+                    existing.endpoint = previous_endpoint;
+                    reportServerSaveFailure();
+                    return;
+                }
+                resetSource(existing.id);
+                startSource(existing);
+            }
+            select(SelectionKind::Server, existing.id);
+            return;
+        }
+        if (server.pending && existing.connection_type == server.connection_type
+            && existing.endpoint == server.endpoint && existing.local_path == server.local_path)
+        {
+            QMessageBox::information(this, tr("Database already configured"),
+                tr("This database endpoint is already configured."));
+            select(SelectionKind::Server, existing.id);
+            return;
+        }
+    }
     this->servers.append(server);
     if (!saveProjectServerProfiles(this->servers))
     {
@@ -2198,10 +2332,62 @@ void ProjectsWidget::saveNewSource()
     startSource(server);
 }
 
+void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString &repository_id)
+{
+    if (!DvmdbIdentity::isUuidV7(repository_id)) return;
+    int index = -1;
+    int duplicate = -1;
+    for (int i = 0; i < this->servers.size(); ++i)
+    {
+        if (this->servers.at(i).id == old_id) index = i;
+        if (this->servers.at(i).id == repository_id && repository_id != old_id) duplicate = i;
+    }
+    if (index < 0 || !this->servers.at(index).pending) return;
+    const QList<ProjectServerProfile> previous = this->servers;
+    const bool selected = this->server_id == old_id;
+    if (duplicate >= 0)
+        this->servers.removeAt(index);
+    else
+    {
+        this->servers[index].id = repository_id;
+        this->servers[index].pending = false;
+    }
+    if (!saveProjectServerProfiles(this->servers))
+    {
+        this->servers = previous;
+        reportServerSaveFailure();
+        return;
+    }
+    // Stop the old session (whose timer and reply callbacks capture old_id),
+    // remove its transient catalogue, then start a clean session keyed by the
+    // authoritative repository UUIDv7. This avoids stale hash keys and UI IDs.
+    resetSource(old_id);
+    if (selected)
+    {
+        this->server_id = repository_id;
+        this->selection_kind = SelectionKind::Server;
+        this->selected_id = repository_id;
+    }
+    if (duplicate < 0)
+    {
+        for (const ProjectServerProfile &profile : this->servers)
+            if (profile.id == repository_id) { startSource(profile); break; }
+    }
+    populateServerTree();
+    populateProjectTree();
+    populateRevisionTree();
+    rebuildGraph();
+    updateInspector();
+    updateButtons();
+}
+
 void ProjectsWidget::deleteServer()
 {
     if (this->source_writer->isBusy()) return;
-    if (currentServer() == nullptr || this->server_id == QStringLiteral("local-default")) return;
+    if (currentServer() == nullptr
+        || (currentServer()->connection_type == QStringLiteral("local")
+            && QDir::cleanPath(currentServer()->local_path)
+                == QDir::cleanPath(defaultLocalDvmdbPath()))) return;
     if (QMessageBox::question(this, tr("Delete database profile"),
         tr("Remove this database profile from the GUI configuration and discard its local preview projects? The database itself is not modified."))
         != QMessageBox::Yes) return;
@@ -2771,18 +2957,24 @@ void ProjectsWidget::setPersonalServer(bool enabled)
     if (this->updating_ui || this->selection_kind != SelectionKind::Server) return;
     ProjectServerProfile *server = currentServer();
     if (server == nullptr) return;
+    if (enabled && server->pending)
+    {
+        const QSignalBlocker blocker(this->database_connection->personal_server_checkbox);
+        this->database_connection->personal_server_checkbox->setChecked(false);
+        return;
+    }
     const QString selected_id = server->id;
     const QString selected_endpoint = server->endpoint;
     const int request_id = ++this->personal_designation_request;
     const std::function<void(const QString &, bool)> persistSelection = [this, selected_id](const QString &repository_id, bool select)
     {
+        if (select && repository_id != selected_id) return;
         const QList<ProjectServerProfile> previous = this->servers;
         for (ProjectServerProfile &candidate : this->servers)
         {
             if (select || candidate.id == selected_id)
             {
                 candidate.personal = select && candidate.id == selected_id;
-                candidate.personal_repository_id = candidate.personal ? repository_id : QString();
             }
         }
         if (!saveProjectServerProfiles(this->servers))
@@ -2812,6 +3004,12 @@ void ProjectsWidget::setPersonalServer(bool enabled)
                 error.isEmpty() ? tr("Unable to verify local DVMDB identity.") : error);
             const QSignalBlocker blocker(this->database_connection->personal_server_checkbox);
             this->database_connection->personal_server_checkbox->setChecked(false);
+            return;
+        }
+        if (repository_id != selected_id)
+        {
+            QMessageBox::warning(this, tr("Repository identity mismatch"),
+                tr("The embedded database identity does not match the configured repository UUID."));
             return;
         }
         persistSelection(repository_id, true);
@@ -2845,10 +3043,11 @@ void ProjectsWidget::setPersonalServer(bool enabled)
         if (this->selection_kind == SelectionKind::Server) updateInspector();
     };
     const std::function<void(const QString &, const QString &)> acceptRole =
-        [this, persistSelection, stillSelected, rejectSelection](const QString &id, const QString &role)
+        [this, selected_id, persistSelection, stillSelected, rejectSelection](const QString &id, const QString &role)
     {
         if (!stillSelected()) return;
-        if (!DvmdbIdentity::isUuidV7(id) || role != QStringLiteral("private"))
+        if (!DvmdbIdentity::isUuidV7(id) || id != selected_id
+            || role != QStringLiteral("private"))
         {
             rejectSelection(tr("The server did not confirm its private role and UUIDv7 identity."));
             return;

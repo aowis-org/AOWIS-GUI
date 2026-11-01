@@ -1,6 +1,8 @@
 #include "config/project_server_profile_storage.h"
 
 #include "config/gui_configuration.h"
+#include "projects/dvmdb_identity.h"
+#include "projects/embedded_dvmdb_host.h"
 
 #include <QDebug>
 #include <QJsonArray>
@@ -51,6 +53,15 @@ namespace
 {
 const QString servers_key = QStringLiteral("projects/servers");
 
+// These two IDs belong exclusively to the in-memory demonstration explorer.
+// All actual configured DVMDB connections use full UUIDv7 identifiers.
+bool validProfileId(const QString &id)
+{
+    return DvmdbIdentity::isUuidV7(id)
+        || id == QStringLiteral("preview-local")
+        || id == QStringLiteral("preview-remote");
+}
+
 QJsonObject serializeProfile(const ProjectServerProfile &profile)
 {
     QJsonArray tags;
@@ -59,6 +70,7 @@ QJsonObject serializeProfile(const ProjectServerProfile &profile)
 
     return QJsonObject{
         {QStringLiteral("id"), profile.id},
+        {QStringLiteral("pending"), profile.pending},
         {QStringLiteral("name"), profile.name},
         {QStringLiteral("endpoint"), profile.endpoint},
         {QStringLiteral("description"), profile.description},
@@ -67,8 +79,7 @@ QJsonObject serializeProfile(const ProjectServerProfile &profile)
         {QStringLiteral("connection_type"), profile.connection_type},
         {QStringLiteral("local_path"), profile.local_path},
         {QStringLiteral("visible"), profile.visible},
-        {QStringLiteral("personal"), profile.personal},
-        {QStringLiteral("personalRepositoryId"), profile.personal_repository_id}
+        {QStringLiteral("personal"), profile.personal}
     };
 }
 }
@@ -113,8 +124,9 @@ QList<ProjectServerProfile> loadProjectServerProfiles()
         const QJsonObject record = value.toObject();
         ProjectServerProfile profile;
         profile.id = record.value(QStringLiteral("id")).toString().trimmed();
+        profile.pending = record.value(QStringLiteral("pending")).toBool(false);
         profile.name = record.value(QStringLiteral("name")).toString().trimmed();
-        if (profile.id.isEmpty() || profile.name.isEmpty()
+        if (!validProfileId(profile.id) || profile.name.isEmpty()
             || seen_ids.contains(profile.id)
             || seen_names.contains(profile.name.toCaseFolded()))
             continue;
@@ -124,11 +136,11 @@ QList<ProjectServerProfile> loadProjectServerProfiles()
             profile.connection_type = QStringLiteral("remote");
         profile.local_path = record.value(QStringLiteral("local_path")).toString().trimmed();
         profile.visible = record.value(QStringLiteral("visible")).toBool(true);
-        profile.personal = record.value(QStringLiteral("personal")).toBool(false) && !personal_found;
+        profile.personal = record.value(QStringLiteral("personal")).toBool(false)
+            && !profile.pending && !personal_found;
         if (profile.personal)
         {
             personal_found = true;
-            profile.personal_repository_id = record.value(QStringLiteral("personalRepositoryId")).toString();
         }
         profile.description = record.value(QStringLiteral("description")).toString();
         for (const QJsonValue &tag : record.value(QStringLiteral("tags")).toArray())
@@ -148,10 +160,13 @@ bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles)
 {
     // A single personal database is an invariant of the server list.
     bool seen_personal = false;
+    QSet<QString> identities;
     for (const ProjectServerProfile &profile : profiles)
     {
+        if (!validProfileId(profile.id) || identities.contains(profile.id)) return false;
+        identities.insert(profile.id);
         if (!profile.personal) continue;
-        if (seen_personal) return false;
+        if (seen_personal || profile.pending) return false;
         seen_personal = true;
     }
     QJsonArray records;
@@ -188,14 +203,18 @@ bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles)
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
     const QString data_root = QDir::cleanPath(defaultLocalDvmdbPath());
     for (const ProjectServerProfile &profile : profiles)
-        if ((profile.id == QStringLiteral("local-default")
-             && profile.connection_type == QStringLiteral("local"))
-            || (profile.connection_type == QStringLiteral("local")
-                && QDir::cleanPath(profile.local_path) == data_root))
+        if (profile.connection_type == QStringLiteral("local")
+            && QDir::cleanPath(profile.local_path) == data_root)
             return true;
 
     ProjectServerProfile local;
-    local.id = QStringLiteral("local-default");
+    // Embedded repositories are verified in-process, without a separate daemon.
+    QString repository_id;
+    QString error;
+    const QString endpoint = embeddedDvmdbEndpoint(data_root, false, &repository_id, &error);
+    local.id = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id)
+        ? DvmdbIdentity::newUuidV7() : repository_id;
+    local.pending = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id);
     local.name = QStringLiteral("Local database");
     int suffix = 2;
     bool name_used = true;

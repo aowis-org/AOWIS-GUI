@@ -45,10 +45,24 @@ and Publish/Push to shared HEAD. See
 
 ### Database/source profile
 
-Creating a profile chooses embedded/REST and connection information. This
-manages the GUI profile, **not** database project history. Selecting a source
-opens Overview/Connection/Projects inspector tabs. A profile can be removed
-without deleting its remote/native database.
+Creating a database chooses embedded/REST and connection information. For
+reachable DVMDB endpoints, the GUI verifies `GET /dvmdb/v1/repository` before
+saving, and uses its persistent repository UUIDv7 as the database identity in
+the configuration, navigator and graph (not a separate generated profile ID).
+If the endpoint is unreachable, the user may explicitly save it as **pending**.
+This temporary entry has a local UUIDv7 plus `pending: true` and cannot be a
+personal working database. The existing health monitor retries discovery;
+a successful complete catalogue read atomically promotes the pending entry to
+the actual repository UUIDv7 and rekeys selection, graph and source sessions.
+A verified offline database keeps its UUID; a different repository at its
+endpoint is rejected. If another configured entry already has the discovered
+UUID, no duplicate database is created. The server name and endpoint remain
+GUI settings, not database identity. Removing the entry does not delete data.
+Standalone discovers embedded DVMDB identity from the native service.
+
+The configuration schema is pre-release and intentionally does not migrate
+obsolete truncated `s-...` profile IDs or `local-default` IDs. Re-add those
+connections once using the repository-based identity model.
 
 ### Project
 

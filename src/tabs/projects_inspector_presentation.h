@@ -51,9 +51,13 @@ public:
         view.tags = server->tags;
         view.subtitle = server->connection_type == QStringLiteral("local")
             ? translate("Embedded DVMDB") : translate("REST DVMDB");
-        view.metadata = translate("Profile: %1").arg(server->id);
-        if (!repository_id.isEmpty())
-            view.metadata += translate("\nDVMDB repository UUIDv7: %1").arg(repository_id);
+        view.metadata = server->pending
+            ? translate("Identity: pending verification (temporary ID: %1)").arg(server->id)
+            : DvmdbIdentity::isUuidV7(server->id)
+                ? translate("DVMDB repository UUIDv7: %1").arg(server->id)
+                : translate("In-memory demonstration source (no DVMDB repository)");
+        if (!repository_id.isEmpty() && !server->pending && repository_id != server->id)
+            view.metadata += translate("\nIdentity mismatch: %1").arg(repository_id);
         if (server->personal)
             view.metadata += translate("\n♛ Personal working database");
         return view;

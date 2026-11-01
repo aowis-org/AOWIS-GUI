@@ -9,7 +9,8 @@
 // are not part of the stored profile.
 struct ProjectServerProfile
 {
-    QString id;
+    QString id; // Actual DVMDB repository UUIDv7, or temporary UUIDv7 while pending
+    bool pending = false; // Unverified connection; never treated as a repository identity
     QString name;
     QString endpoint;
     QString description;
@@ -19,7 +20,6 @@ struct ProjectServerProfile
     QString local_path;
     bool visible = true; // include this source in the navigator and graph
     bool personal = false; // one personal working database, selected in Projects Inspector
-    QString personal_repository_id; // HTTP UUIDv7 discovered automatically, never user-entered
 };
 
 QList<ProjectServerProfile> loadProjectServerProfiles();

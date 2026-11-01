@@ -5,6 +5,7 @@
 #include "widgets/group_box_collapsible.h"
 #include "config/gui_configuration.h"
 #include "config/project_server_profile_storage.h"
+#include "projects/dvmdb_identity.h"
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -107,7 +108,7 @@ int main(int argc, char **argv)
     // immutable revision metadata without borrowing fields from other forms.
     {
         ProjectServerProfile database;
-        database.id = QStringLiteral("database-profile");
+        database.id = QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371");
         database.name = QStringLiteral("Working DB");
         database.connection_type = QStringLiteral("remote");
         database.personal = true;
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
     // The storage format supports embedded sources, while existing endpoint-only
     // records remain REST sources. Merely displaying a local source opens no DB.
     ProjectServerProfile embedded_fixture;
-    embedded_fixture.id = QStringLiteral("test-embedded");
+    embedded_fixture.id = QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371");
     embedded_fixture.name = QStringLiteral("Embedded fixture");
     embedded_fixture.connection_type = QStringLiteral("local");
     embedded_fixture.local_path = configuration_dir.path() + QStringLiteral("/embedded");
@@ -338,14 +339,19 @@ int main(int argc, char **argv)
     std::fprintf(stderr, "projects_inspector_dock: embedded profile checks complete\n");
     // Explicit demo fixtures retain the existing version-explorer regression
     // coverage without forcing fake servers on users of a new installation.
-    const QList<ProjectServerProfile> sample_profiles{
-        {QStringLiteral("preview-local"), QStringLiteral("Local preview"),
-         QStringLiteral("http://localhost:8080"), QStringLiteral("Local test profile"),
-         {}, QStringLiteral("None")},
-        {QStringLiteral("preview-remote"), QStringLiteral("Remote preview"),
-         QStringLiteral("https://database.example.invalid"), QStringLiteral("Remote test profile"),
-         {}, QStringLiteral("API token")}
-    };
+    ProjectServerProfile preview_local;
+    preview_local.id = QStringLiteral("preview-local");
+    preview_local.name = QStringLiteral("Local preview");
+    preview_local.endpoint = QStringLiteral("http://localhost:8080");
+    preview_local.description = QStringLiteral("Local test profile");
+    preview_local.auth_mode = QStringLiteral("None");
+    ProjectServerProfile preview_remote;
+    preview_remote.id = QStringLiteral("preview-remote");
+    preview_remote.name = QStringLiteral("Remote preview");
+    preview_remote.endpoint = QStringLiteral("https://database.example.invalid");
+    preview_remote.description = QStringLiteral("Remote test profile");
+    preview_remote.auth_mode = QStringLiteral("API token");
+    const QList<ProjectServerProfile> sample_profiles{preview_local, preview_remote};
     if (!require(saveProjectServerProfiles(sample_profiles), "could not seed profile fixtures"))
         return 1;
     if (!require(loadProjectServerProfiles().at(0).connection_type == QStringLiteral("remote"),
@@ -1438,19 +1444,43 @@ int main(int argc, char **argv)
     if (!require(source_name != nullptr && source_name->isVisible(),
                  "new database name is not editable on the Connection tab")) return 1;
     source_name->setText(QStringLiteral("Added server"));
-    endpoint->setText(QStringLiteral("https://added.example.invalid"));
+    endpoint->setText(QStringLiteral("http://127.0.0.1:1"));
+    bool accepted_pending = false;
+    QTimer pending_confirmation_timer;
+    pending_confirmation_timer.setInterval(1);
+    QObject::connect(&pending_confirmation_timer, &QTimer::timeout, [&]
+    {
+        for (QWidget *widget : QApplication::topLevelWidgets())
+        {
+            QMessageBox *confirmation = qobject_cast<QMessageBox *>(widget);
+            if (confirmation != nullptr && confirmation->isVisible()
+                && confirmation->windowTitle() == QStringLiteral("Database unreachable"))
+            {
+                accepted_pending = true;
+                confirmation->done(QMessageBox::Yes);
+                pending_confirmation_timer.stop();
+                break;
+            }
+        }
+    });
+    pending_confirmation_timer.start();
     create_source->click();
-    app.processEvents();
-    if (!require(servers->topLevelItemCount() == 3
+    for (int attempt = 0; attempt < 650 && loadProjectServerProfiles().size() != 3; ++attempt)
+        waitFor(10);
+    pending_confirmation_timer.stop();
+    if (!require(accepted_pending, "unreachable database did not ask before saving pending")
+        || !require(servers->topLevelItemCount() == 3
                      && loadProjectServerProfiles().size() == 3
-                     && loadProjectServerProfiles().at(2).connection_type == QStringLiteral("remote"),
+                     && loadProjectServerProfiles().at(2).connection_type == QStringLiteral("remote")
+                     && loadProjectServerProfiles().at(2).pending
+                     && DvmdbIdentity::isUuidV7(loadProjectServerProfiles().at(2).id),
                  "inspector Create did not persist a configured remote database"))
         return 1;
     ProjectsWidget reloaded;
     QTreeWidget *reloaded_servers = reloaded.findChild<QTreeWidget *>(
         QStringLiteral("serversTree"));
     if (!require(reloaded_servers != nullptr && reloaded_servers->topLevelItemCount() == 3
-                     && reloaded_servers->topLevelItem(2)->text(0) == QStringLiteral("Added server"),
+                     && reloaded_servers->topLevelItem(2)->text(0).endsWith(QStringLiteral("Added server")),
                  "created server profile was not restored at startup"))
         return 1;
 
@@ -1566,7 +1596,7 @@ int main(int argc, char **argv)
             }
         });
         ProjectServerProfile profile;
-        profile.id = QStringLiteral("role-configured-test");
+        profile.id = repositoryId;
         profile.name = QStringLiteral("Personal HTTP DVMDB");
         profile.endpoint = QStringLiteral("http://127.0.0.1:%1").arg(roleServer.serverPort());
         profile.connection_type = QStringLiteral("remote");
@@ -1582,7 +1612,7 @@ int main(int argc, char **argv)
         QTreeWidgetItem *roleItem = nullptr;
         for (int i = 0; i < tree->topLevelItemCount(); ++i)
             if (tree->topLevelItem(i)->data(0, Qt::UserRole).toString() ==
-                QStringLiteral("s:role-configured-test")) roleItem = tree->topLevelItem(i);
+                QStringLiteral("s:") + repositoryId) roleItem = tree->topLevelItem(i);
         if (!require(roleItem != nullptr, "role test server not visible")) return 1;
         tree->setCurrentItem(roleItem);
         app.processEvents();
@@ -1601,12 +1631,12 @@ int main(int argc, char **argv)
         {
             if (candidate.personal) ++designatedCount;
             if (candidate.id == profile.id && candidate.personal &&
-                candidate.personal_repository_id == repositoryId) pinnedIdentity = true;
+                !candidate.pending && candidate.id == repositoryId) pinnedIdentity = true;
         }
         bool hasCrown = false;
         for (int i = 0; i < tree->topLevelItemCount(); ++i)
             if (tree->topLevelItem(i)->data(0, Qt::UserRole).toString() ==
-                QStringLiteral("s:role-configured-test") &&
+                QStringLiteral("s:") + repositoryId &&
                 tree->topLevelItem(i)->text(0).contains(QStringLiteral("♛"))) hasCrown = true;
         if (!require(isPrivate && rolePosts == 1 && designatedCount == 1 &&
                      pinnedIdentity && hasCrown,

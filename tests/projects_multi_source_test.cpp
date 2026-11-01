@@ -1,5 +1,6 @@
 #include "tabs/tab_projects_widget.h"
 #include "config/project_server_profile_storage.h"
+#include "projects/dvmdb_identity.h"
 #include "services/http_health_monitor.h"
 
 #include <QApplication>
@@ -125,13 +126,13 @@ int main(int argc, char **argv)
     if (!require(first.start() && second.start(), "loopback servers failed")) return 1;
 
     ProjectServerProfile a;
-    a.id = QStringLiteral("source-a");
+    a.id = first.repository_id;
     a.name = QStringLiteral("Source A");
     a.connection_type = QStringLiteral("remote");
     a.auth_mode = QStringLiteral("None");
     a.endpoint = first.endpoint();
     ProjectServerProfile b = a;
-    b.id = QStringLiteral("source-b");
+    b.id = second.repository_id;
     b.name = QStringLiteral("Source B");
     b.endpoint = second.endpoint();
     if (!require(saveProjectServerProfiles({a, b}), "could not store multiple sources")) return 1;
@@ -196,8 +197,8 @@ int main(int argc, char **argv)
     if (!require(metadata != nullptr
                  && metadata->text().contains(QStringLiteral("Repository UUIDv7: ") + second.repository_id),
                  "project inspector lost the repository-qualified project identity")) return 1;
-    const QString first_graph_id = QStringLiteral("source-a|") + first.project_id + QStringLiteral("|") + first.hash;
-    const QString second_graph_id = QStringLiteral("source-b|") + second.project_id + QStringLiteral("|") + second.hash;
+    const QString first_graph_id = first.repository_id + QStringLiteral("|") + first.project_id + QStringLiteral("|") + first.hash;
+    const QString second_graph_id = second.repository_id + QStringLiteral("|") + second.project_id + QStringLiteral("|") + second.hash;
     graph->fitGraph();
     if (!require(!graph->revisionViewportPosition(first_graph_id).isNull()
                  && !graph->revisionViewportPosition(second_graph_id).isNull(),
@@ -205,9 +206,9 @@ int main(int argc, char **argv)
     // Branch UUIDs are independently selectable reference cards, not revision
     // duplicates. Even when two databases have identical revision content,
     // each source's HEAD must point to its own revision card.
-    const QString first_branch = QStringLiteral("group:branch:source-a|") + first.project_id
+    const QString first_branch = QStringLiteral("group:branch:") + first.repository_id + QStringLiteral("|") + first.project_id
         + QStringLiteral(":") + first.branch_id;
-    const QString second_branch = QStringLiteral("group:branch:source-b|") + second.project_id
+    const QString second_branch = QStringLiteral("group:branch:") + second.repository_id + QStringLiteral("|") + second.project_id
         + QStringLiteral(":") + second.branch_id;
     if (!require(!graph->nodeViewportPosition(first_branch).isNull()
                  && !graph->nodeViewportPosition(second_branch).isNull()
@@ -216,10 +217,10 @@ int main(int argc, char **argv)
                  && graph->nodeViewportPosition(second_branch).y()
                      > graph->revisionViewportPosition(second_graph_id).y(),
                  "distinct branch reference cards are missing below their HEAD revisions")) return 1;
-    const QPointF first_server = graph->nodeViewportPosition(QStringLiteral("group:server:source-a"));
-    const QPointF second_server = graph->nodeViewportPosition(QStringLiteral("group:server:source-b"));
+    const QPointF first_server = graph->nodeViewportPosition(QStringLiteral("group:server:") + first.repository_id);
+    const QPointF second_server = graph->nodeViewportPosition(QStringLiteral("group:server:") + second.repository_id);
     const QPointF first_project = graph->nodeViewportPosition(
-        QStringLiteral("group:project:source-a|") + first.project_id);
+        QStringLiteral("group:project:") + first.repository_id + QStringLiteral("|") + first.project_id);
     if (!require(!first_server.isNull() && !second_server.isNull() && !first_project.isNull(),
                  "graph must expose a separate node for each database and project")) return 1;
     if (!require(first_server.y() < first_project.y()
@@ -237,7 +238,7 @@ int main(int argc, char **argv)
                  && loadProjectServerProfiles().at(1).visible == false
                  && graph->revisionViewportPosition(second_graph_id).isNull(),
                  "unchecking a source did not persistently filter navigator and graph")) return 1;
-    if (!require(graph->nodeViewportPosition(QStringLiteral("group:server:source-b")).isNull(),
+    if (!require(graph->nodeViewportPosition(QStringLiteral("group:server:") + second.repository_id).isNull(),
                  "hidden database still has a graph header")) return 1;
     sources->topLevelItem(1)->setCheckState(0, Qt::Checked);
     app.processEvents();
@@ -268,6 +269,31 @@ int main(int argc, char **argv)
     if (!require(waitUntil(app, [&] { return status == HttpHealthMonitor::State::Healthy; }),
                  "health probe did not recover after service restoration")) return 1;
     monitor.stop();
+
+    // A saved offline endpoint begins with a temporary UUIDv7 and becomes the
+    // authoritative repository UUID after its first successful catalogue read.
+    ProjectServerProfile pending;
+    pending.id = DvmdbIdentity::newUuidV7();
+    pending.pending = true;
+    pending.name = QStringLiteral("Pending verification");
+    pending.endpoint = first.endpoint();
+    if (!require(saveProjectServerProfiles({pending}),
+                 "failed to save an unverified pending database")) return 1;
+    ProjectsWidget pendingProjects;
+    pendingProjects.show();
+    if (!require(waitUntil(app, [&]
+        {
+            const QList<ProjectServerProfile> profiles = loadProjectServerProfiles();
+            return profiles.size() == 1 && !profiles.first().pending
+                && profiles.first().id == first.repository_id;
+        }), "pending connection did not promote to the real repository UUID")) return 1;
+    QTreeWidget *promotedTree = pendingProjects.findChild<QTreeWidget *>(
+        QStringLiteral("projectsTree"));
+    if (!require(waitUntil(app, [&]
+        {
+            return promotedTree != nullptr && promotedTree->topLevelItemCount() == 1
+                && promotedTree->topLevelItem(0)->childCount() == 1;
+        }), "promoted repository did not recover its project catalogue")) return 1;
 
     std::puts("Multi-source explorer and health monitor tests passed");
     return 0;

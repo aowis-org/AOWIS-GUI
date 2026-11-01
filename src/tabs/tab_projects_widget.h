@@ -148,6 +148,8 @@ private:
     void selectTreeItem(QTreeWidget *tree, const QString &key);
     void createServer();
     void saveNewSource();
+    void persistNewSource(ProjectServerProfile profile);
+    void promoteVerifiedSource(const QString &old_id, const QString &repository_id);
     void cancelNewSource();
     void deleteServer();
     void createProject();
@@ -227,5 +229,6 @@ private:
     QLabel *no_projects_title = nullptr;
     enum class SourceState { Checking, Loading, Connected, Error };
     int personal_designation_request = 0;
+    int source_creation_request = 0;
     bool updating_ui = false;
 };

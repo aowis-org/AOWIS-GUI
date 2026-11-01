@@ -36,7 +36,7 @@ PersonalRepositoryTarget resolvePersonalRepositoryTarget()
     const QList<ProjectServerProfile> servers = loadProjectServerProfiles();
     for (const ProjectServerProfile &server : servers)
     {
-        if (!server.personal) continue;
+        if (!server.personal || server.pending || !DvmdbIdentity::isUuidV7(server.id)) continue;
         if (server.connection_type == QStringLiteral("local"))
         {
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
@@ -57,7 +57,7 @@ PersonalRepositoryTarget resolvePersonalRepositoryTarget()
 #endif
             return target;
         }
-        const PersonalRepositoryProfile profile{server.endpoint, server.personal_repository_id};
+        const PersonalRepositoryProfile profile{server.endpoint, server.id};
         if (!validatePersonalRepositoryProfile(profile)) return target;
         target.kind = PersonalRepositoryTarget::Kind::Http;
         target.endpoint = profile.endpoint;
