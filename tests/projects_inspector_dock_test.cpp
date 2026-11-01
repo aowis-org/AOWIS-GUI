@@ -711,14 +711,23 @@ int main(int argc, char **argv)
                  "metadata edits did not target the same active database form")) return 1;
     servers->setCurrentItem(servers->topLevelItem(0));
     app.processEvents();
-    if (!require(project_tree->topLevelItemCount() >= 2
-                     && server_options->isVisible(),
-                 "switching to the local preview server failed"))
+    if (!require(servers->currentItem() != nullptr
+                     && servers->currentItem()->data(0, Qt::UserRole).toString()
+                         == QStringLiteral("s:preview-local")
+                     && project_tree->topLevelItemCount() >= 2,
+                 "switching to the local preview server did not load its projects"))
         return 1;
     if (!require(inspector_tabs->count() == 3
                      && inspector_tabs->widget(2)->objectName()
                          == QStringLiteral("projectsDatabaseRelations"),
                  "database related Projects tab is not owned by its domain")) return 1;
+    // Switching databases preserves the Overview tab. Connection controls
+    // belong to a separate tab and must only be tested once it is open.
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(inspector_tabs->currentWidget() == database_connection
+                     && server_options->isVisible(),
+                 "local preview database Connection tab did not show its controls")) return 1;
     servers->setCurrentItem(servers->topLevelItem(1));
     app.processEvents();
     if (!require(endpoint->text() == QStringLiteral("https://new-preview.example.invalid")
