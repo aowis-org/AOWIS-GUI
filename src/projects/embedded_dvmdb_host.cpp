@@ -50,11 +50,11 @@ public:
 
     void requirePrivate()
     {
-        const aowis::dvmdb::RepositoryRoleV1 role = this->service_.repositoryRoleV1();
-        if (role == aowis::dvmdb::RepositoryRoleV1::Shared)
+        const aowis::dvmdb::RepositoryRole role = this->service_.repositoryRole();
+        if (role == aowis::dvmdb::RepositoryRole::Shared)
             throw std::runtime_error("This local DVMDB is configured as shared, not private");
-        if (role == aowis::dvmdb::RepositoryRoleV1::Unconfigured)
-            this->service_.configureRepositoryRoleV1(aowis::dvmdb::RepositoryRoleV1::Private);
+        if (role == aowis::dvmdb::RepositoryRole::Unconfigured)
+            this->service_.configureRepositoryRole(aowis::dvmdb::RepositoryRole::Private);
     }
 
 private:
