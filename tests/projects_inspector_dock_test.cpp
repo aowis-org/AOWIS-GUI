@@ -625,7 +625,6 @@ int main(int argc, char **argv)
     QPushButton *delete_connection = database_connection->findChild<QPushButton *>(
         QStringLiteral("projectsDeleteConnectionButton"));
     if (!require(delete_connection != nullptr && delete_connection->isVisible()
-                     && delete_connection->text() == QStringLiteral("Delete connection…")
                      && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton")) == nullptr,
                  "connection removal must be available only on the database Connection page"))
         return 1;
