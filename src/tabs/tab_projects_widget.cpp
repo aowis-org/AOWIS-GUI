@@ -1634,8 +1634,8 @@ void ProjectsWidget::rebuildGraph()
                 ProjectGraphNode node;
                 node.id = preview ? revision.id : project.id + QStringLiteral("|") + revision.id;
                 node.title = revision.title;
-                node.branch = preview ? revision.branch
-                    : tr("%1 / %2").arg(source.name, project.name);
+                node.branch = tr("Branch: %1").arg(
+                    revision.branch.isEmpty() ? tr("Unknown") : revision.branch);
                 node.display_id = revision.id;
                 for (const QString &parent : revision.parents)
                     node.parents.append(preview ? parent : project.id + QStringLiteral("|") + parent);
@@ -1649,43 +1649,25 @@ void ProjectsWidget::rebuildGraph()
                     { return lhs.id < rhs.id; });
                 this->graph_revision_lookup.insert(node.id, qMakePair(project.id, revision.id));
                 nodes.append(node);
-                // One independent UI reference for each branch UUIDv7. Multiple
-                // branches can legitimately reference this same revision UUID;
-                // they must not be stacked as pills inside its revision card.
-                for (const ProjectGraphBranchHead &head : node.heads)
-                {
-                    ProjectGraphNode reference;
-                    reference.kind = ProjectGraphNode::Kind::Branch;
-                    reference.id = QStringLiteral("group:branch:") + head.id;
-                    reference.title = head.name;
-                    const QString branch_uuid = head.id.right(36);
-                    reference.display_id = DvmdbIdentity::isUuidV7(branch_uuid)
-                        ? branch_uuid : QString();
-                    reference.branch = reference.display_id.isEmpty()
-                        ? tr("BRANCH · HEAD")
-                        : tr("HEAD · %1").arg(DvmdbIdentity::shortLabel(reference.display_id));
-                    reference.project_group_id = project_node_id;
-                    reference.head_revision_id = node.id;
-                    for (const ProjectPreviewBranch &candidate : project.branches)
-                        if (candidate.id == head.id && !candidate.origin_branch_id.isEmpty())
-                        {
-                            const QString origin_id = candidate.origin_branch_id;
-                            if (DvmdbIdentity::isUuidV7(origin_id))
-                                reference.origin_branch_node_id = QStringLiteral("group:branch:")
-                                    + project.id + QStringLiteral(":") + origin_id;
-                            else // In-memory preview identity, scoped to this project.
-                                reference.origin_branch_node_id = QStringLiteral("group:branch:") + origin_id;
-                            for (const ProjectPreviewBranch &source_branch : project.branches)
-                                if (source_branch.id == (DvmdbIdentity::isUuidV7(origin_id)
-                                    ? project.id + QStringLiteral(":") + origin_id : origin_id))
-                                {
-                                    reference.branch = tr("FROM %1 · HEAD").arg(source_branch.name);
-                                    break;
-                                }
-                            break;
-                        }
-                    nodes.append(reference);
-                }
+            }
+            // A branch has one writable HEAD even before its first commit.
+            // HEAD is a working state, not an immutable revision node.
+            for (const ProjectPreviewBranch &branch : project.branches)
+            {
+                ProjectGraphNode head;
+                head.kind = ProjectGraphNode::Kind::Branch; // Graph HEAD node.
+                head.id = QStringLiteral("group:branch:") + branch.id;
+                head.title = tr("HEAD");
+                head.branch = tr("Branch: %1").arg(branch.name);
+                head.project_group_id = project_node_id;
+                if (!branch.head.isEmpty() && loaded_revisions.contains(branch.head))
+                    head.head_revision_id = preview ? branch.head
+                        : project.id + QStringLiteral("|") + branch.head;
+                else if (!branch.fork_revision_id.isEmpty()
+                         && loaded_revisions.contains(branch.fork_revision_id))
+                    head.head_revision_id = preview ? branch.fork_revision_id
+                        : project.id + QStringLiteral("|") + branch.fork_revision_id;
+                nodes.append(head);
             }
         }
         // Also show checked databases with an empty catalogue when the graph

@@ -145,11 +145,19 @@ int main(int argc, char **argv)
     if (!require(revision_clicked == node.id, "revision click did not emit selected hash"))
         return 1;
 
-    // The badge is at x=-98..20, y=16..35 around the node center.
-    // Fit-to-view for a single node clamps at zoom=1.5 at 800x500.
-    click(graph, QPointF(400 - 50 * 1.5, 250 + 25 * 1.5));
-    if (!require(branch_clicked == node.branch, "branch badge click did not emit branch name"))
-        return 1;
+    // An unborn branch has a standalone selectable HEAD card without
+    // needing a committed revision or a badge in another card.
+    ProjectGraphNode unborn;
+    unborn.kind = ProjectGraphNode::Kind::Branch;
+    unborn.id = QStringLiteral("group:branch:unborn-main");
+    unborn.title = QStringLiteral("HEAD");
+    unborn.branch = QStringLiteral("Branch: main");
+    unborn.position = QPointF(0, 0);
+    graph.setNodes(QVector<ProjectGraphNode>{unborn});
+    graph.setSelection(unborn.id);
+    click(graph, graph.nodeViewportPosition(unborn.id));
+    if (!require(branch_clicked == QStringLiteral("unborn-main"),
+                 "unborn HEAD card did not activate its branch")) return 1;
 
     // Top-down is the default: older revisions sit ABOVE their newer
     // descendants (HEAD). Bottom-up mirrors the coordinates without

@@ -58,9 +58,6 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
     std::vector<AowisGraphLayout::LayeredVertex> vertices;
     const int revision_count = block.revision_indices.size();
     vertices.reserve(std::size_t(revision_count + block.branch_indices.size()));
-    QSet<QString> independently_drawn_heads;
-    for (int index : block.branch_indices)
-        independently_drawn_heads.insert(nodes.at(index).head_revision_id);
     for (int index : block.revision_indices)
     {
         const ProjectGraphNode &revision = nodes.at(index);
@@ -69,19 +66,15 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
         for (const QString &parent : revision.parents)
             vertex.parents.push_back(parent.toStdString());
         vertex.width = card_width;
-        vertex.height = ProjectRevisionCardGeometry::height(
-            independently_drawn_heads.contains(revision.id) ? 0 : revision.heads.size());
+        vertex.height = ProjectRevisionCardGeometry::height(0);
         vertices.push_back(vertex);
     }
-    QHash<QString, QString> branch_projects;
-    for (int index : block.branch_indices)
-        branch_projects.insert(nodes.at(index).id, nodes.at(index).project_group_id);
     for (int index : block.branch_indices)
     {
         const ProjectGraphNode &branch = nodes.at(index);
         AowisGraphLayout::LayeredVertex vertex;
         vertex.id = branch.id.toStdString();
-        const QString parent_id = ProjectBranchVisualLink::parentId(branch, branch_projects);
+        const QString parent_id = branch.head_revision_id;
         if (!parent_id.isEmpty())
             vertex.parents.push_back(parent_id.toStdString());
         vertex.width = 196.0;

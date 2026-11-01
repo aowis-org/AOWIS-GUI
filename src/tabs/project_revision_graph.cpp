@@ -584,7 +584,7 @@ QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
 {
     if (node.kind == ProjectGraphNode::Kind::Revision)
         return ProjectRevisionCardGeometry::bounds(node.position,
-            hasBranchReferenceCards(node.id) ? 0 : node.heads.size());
+            0);
     const double width = node.kind == ProjectGraphNode::Kind::Server
         ? server_node_width : node.kind == ProjectGraphNode::Kind::Branch
             ? 196.0 : ProjectRevisionCardGeometry::width;
@@ -939,42 +939,28 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         }
     }
 
-    // Exactly one visible connection enters each branch card. A persisted
-    // creation source takes precedence over a HEAD pointer for presentation:
-    // two simultaneous links made an ordinary fork look like a merge. When
-    // its source branch is unavailable, the immutable HEAD remains the
-    // fallback attachment. The actual HEAD is always retained in the model.
-    QHash<QString, QString> visible_branch_projects;
-    for (const ProjectGraphNode &node : this->nodes)
-        if (node.kind == ProjectGraphNode::Kind::Branch)
-            visible_branch_projects.insert(node.id, node.project_group_id);
-    for (const ProjectGraphNode &branch : this->nodes)
+    // HEAD is connected to its last loaded immutable revision, when present.
+    // An unborn HEAD has no parent revision and remains a root of its lane.
+    for (const ProjectGraphNode &head : this->nodes)
     {
-        if (branch.kind != ProjectGraphNode::Kind::Branch) continue;
-        const QString parent_id = ProjectBranchVisualLink::parentId(branch, visible_branch_projects);
-        const ProjectGraphNode *target = visible_by_id.value(parent_id, nullptr);
-        if (target == nullptr) continue;
-        const bool is_origin = target->kind == ProjectGraphNode::Kind::Branch;
-        if (!is_origin && target->kind != ProjectGraphNode::Kind::Revision) continue;
+        if (head.kind != ProjectGraphNode::Kind::Branch) continue;
+        const ProjectGraphNode *parent = visible_by_id.value(head.head_revision_id, nullptr);
+        if (parent == nullptr || parent->kind != ProjectGraphNode::Kind::Revision) continue;
         const double sign = this->top_down ? 1.0 : -1.0;
-        const QPointF begin = target->position + QPointF(0, sign * nodeRect(*target).height() / 2.0);
-        const QPointF end = branch.position - QPointF(0, sign * nodeRect(branch).height() / 2.0);
+        const QPointF begin = parent->position + QPointF(0, sign * nodeRect(*parent).height() / 2.0);
+        const QPointF end = head.position - QPointF(0, sign * nodeRect(head).height() / 2.0);
         QPainterPath path(begin);
-        const QVector<QPointF> route = branch.parent_routes.value(parent_id);
+        const QVector<QPointF> route = head.parent_routes.value(head.head_revision_id);
         if (route.size() >= 4 && (route.size() - 1) % 3 == 0)
         {
             path = QPainterPath(route.first());
-            for (int point = 1; point + 2 < route.size(); point += 3)
-                path.cubicTo(route.at(point), route.at(point + 1), route.at(point + 2));
+            for (int i = 1; i + 2 < route.size(); i += 3)
+                path.cubicTo(route.at(i), route.at(i + 1), route.at(i + 2));
         }
         else if (std::abs(begin.x() - end.x()) < 0.01) path.lineTo(end);
         else path.cubicTo(begin + QPointF(0, sign * 42.0),
                           end - QPointF(0, sign * 42.0), end);
-        // Blue: branch-creation provenance. Green: fallback HEAD attachment.
-        painter.setPen(QPen(tint(is_origin ? QColor(74, 154, 235)
-                                       : QColor(57, 184, 145),
-                             is_origin ? 225 : 190), 2.2,
-                            Qt::DashLine, Qt::RoundCap));
+        painter.setPen(QPen(tint(QColor(57, 184, 145), 190), 2.5));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(path);
     }
@@ -1107,29 +1093,10 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         painter.setFont(small_font);
         painter.setPen(muted);
         painter.drawText(id_box, Qt::AlignLeft | Qt::AlignVCenter,
-                         painter.fontMetrics().elidedText(short_id, Qt::ElideRight,
+                         painter.fontMetrics().elidedText(node.branch, Qt::ElideRight,
                                                           int(id_box.width())));
 
-        // Branch refs belong to immutable revisions. Render each HEAD ref
-        // inside the revision card, independently clickable and selectable.
-        if (hasBranchReferenceCards(node.id)) continue;
-        for (int i = 0; i < node.heads.size(); ++i)
-        {
-            const ProjectGraphBranchHead &head = node.heads.at(i);
-            const QRectF pill = branchLabelRect(node, i);
-            const bool branch_selected = this->selected_revision
-                == QStringLiteral("group:branch:") + head.id;
-            painter.setPen(QPen(branch_selected ? QColor(57, 184, 145)
-                : tint(QColor(57, 184, 145), 120), branch_selected ? 2.0 : 1.0));
-            painter.setBrush(tint(QColor(57, 184, 145), branch_selected ? 110 : 45));
-            painter.drawRoundedRect(pill, 8, 8);
-            painter.setPen(ink);
-            const QString badge = QStringLiteral("%1  ·  HEAD").arg(head.name);
-            painter.drawText(pill.adjusted(9, 1, -9, -1),
-                             Qt::AlignVCenter | Qt::AlignLeft,
-                             painter.fontMetrics().elidedText(badge, Qt::ElideRight,
-                                                             int(pill.width()) - 18));
-        }
+
     }
     // Fold markers are explicitly interactive graph elements, not tooltips.
     painter.setFont(small_font);
