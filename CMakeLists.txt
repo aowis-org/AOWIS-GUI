@@ -1605,6 +1605,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             aowis-unit-table-presentation-tests
             aowis-map-render-neutral-tests
             aowis-hydraulic-network-editor-tests
+            aowis-hydraulic-libraries-widget-tests
+            aowis-hydraulic-controls-widget-tests
             aowis-hydraulic-edit-transaction-tests
             aowis-demand-point-tests
             aowis-pipe-material-tests

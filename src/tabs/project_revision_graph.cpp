@@ -319,6 +319,14 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         if (node.kind == ProjectGraphNode::Kind::Revision)
             node.container_id = anchored_revisions.contains(node.id)
                 ? QString() : node.project_group_id;
+        else if (node.kind == ProjectGraphNode::Kind::Branch)
+        {
+            // A HEAD with a visible immutable parent uses the HEAD -> revision
+            // edge below. An unborn HEAD instead belongs directly to the
+            // project, so its card must not be left floating in the graph.
+            node.container_id = visible.contains(node.head_revision_id)
+                ? QString() : node.project_group_id;
+        }
     }
 
     // Reflect positions, not the painter transform: labels and click targets
@@ -757,11 +765,21 @@ void ProjectRevisionGraph::showEvent(QShowEvent *event)
 void ProjectRevisionGraph::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    if (this->pending_fit || (!this->preserve_camera && this->has_fitted_content))
+    if (this->pending_fit)
     {
-        // The first geometry may still be the placeholder size. Wait until
-        // the last startup resize before applying the initial camera fit.
+        // The first visible geometry may still be a placeholder. Defer the
+        // initial fit until the containing layout has settled.
         scheduleInitialFit();
+        return;
+    }
+    if (!this->preserve_camera && this->has_fitted_content)
+    {
+        // The first automatic fit has already run. Refit against the actual
+        // new viewport immediately, rather than leaving the camera computed
+        // from the old dock/splitter dimensions until a timer fires.
+        this->automatic_fit = true;
+        fitGraph();
+        this->automatic_fit = false;
         return;
     }
     if (!event->oldSize().isValid())
