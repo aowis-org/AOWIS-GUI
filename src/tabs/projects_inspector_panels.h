@@ -139,6 +139,10 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
     {
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        this->create_branch = new QPushButton(tr("Create branch"), this);
+        this->create_branch->setObjectName(QStringLiteral("projectsInspectorOverviewCreateBranch"));
+        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        column->insertWidget(0, this->create_branch, 0, Qt::AlignLeft);
         this->import_network = new QPushButton(tr("Import network…"), this);
         this->import_network->setObjectName(QStringLiteral("projectsInspectorImport"));
         this->import_network->setToolTip(tr("Import a network into the selected project"));
@@ -148,6 +152,7 @@ public:
         this->edit_network->setToolTip(tr("Open the hydraulic network in Distribution Editor with durable autosave"));
         column->insertWidget(column->count() - 1, this->edit_network);
     }
+    QPushButton *create_branch = nullptr;
     QPushButton *import_network = nullptr;
     QPushButton *edit_network = nullptr;
 };

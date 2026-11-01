@@ -677,7 +677,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (QPushButton *button : {this->database_overview->create_project,
                                 this->database_relations->create_project})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
-    for (QPushButton *button : {this->project_relations->create_branch,
+    for (QPushButton *button : {this->project_overview->create_branch,
+                                this->project_relations->create_branch,
                                 this->branch_inspector->create_branch,
                                 this->revision_inspector->create_branch})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
@@ -2166,6 +2167,9 @@ void ProjectsWidget::updateButtons()
     this->project_overview->edit_network->setVisible(
         this->selection_kind == SelectionKind::Project && !creating && backed);
     this->project_overview->edit_network->setEnabled(ready && project != nullptr);
+    this->project_overview->create_branch->setVisible(
+        this->selection_kind == SelectionKind::Project && !creating);
+    this->project_overview->create_branch->setEnabled(ready && project != nullptr);
     this->project_relations->create_branch->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
     this->project_relations->create_branch->setEnabled(ready && project != nullptr);

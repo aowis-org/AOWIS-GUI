@@ -1163,8 +1163,8 @@ int main(int argc, char **argv)
     if (!require(graph->selectionId() == QStringLiteral("group:project:")
                      + selected_project_key.mid(2),
                  "sidebar project selection did not highlight its graph card")) return 1;
-    // Project actions are tab-local: network actions belong to Overview,
-    // while Create branch sits below the list on Branches (even if empty).
+    // The same branch-creation workflow is available at the top of Overview
+    // and below the branch list on Branches (even if empty).
     QWidget *project_overview_page = activeInspectorOverview(projects);
     QWidget *project_branches_page = inspector_tabs->count() > 1
         ? inspector_tabs->widget(1) : nullptr;
@@ -1174,6 +1174,9 @@ int main(int argc, char **argv)
     QPushButton *project_edit = project_overview_page == nullptr
         ? nullptr : project_overview_page->findChild<QPushButton *>(
               QStringLiteral("projectsInspectorEditNetwork"));
+    QPushButton *project_overview_create_branch = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QPushButton *>(
+              QStringLiteral("projectsInspectorOverviewCreateBranch"));
     QPushButton *project_create_branch = project_branches_page == nullptr
         ? nullptr : project_branches_page->findChild<QPushButton *>(
               QStringLiteral("projectsInspectorCreateBranch"));
@@ -1185,12 +1188,16 @@ int main(int argc, char **argv)
                      && inspector_tabs->tabText(0) == QStringLiteral("Overview")
                      && inspector_tabs->tabText(1) == QStringLiteral("Branches")
                      && project_import != nullptr && project_edit != nullptr
+                     && project_overview_create_branch != nullptr
                      && project_create_branch != nullptr && project_branch_list != nullptr
                      && branch_column != nullptr
+                     && project_overview_create_branch->parentWidget() == project_overview_page
+                     && qobject_cast<QVBoxLayout *>(project_overview_page->layout()) != nullptr
+                     && project_overview_page->layout()->indexOf(project_overview_create_branch) == 0
                      && branch_column->indexOf(project_create_branch)
                          > branch_column->indexOf(project_branch_list)
-                     && project_overview_page->findChild<QPushButton *>(
-                         QStringLiteral("projectsInspectorCreateBranch")) == nullptr
+                     && project_branches_page->findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorOverviewCreateBranch")) == nullptr
                      && project_branches_page->findChild<QPushButton *>(
                          QStringLiteral("projectsInspectorImport")) == nullptr
                      && project_branches_page->findChild<QPushButton *>(
@@ -1205,8 +1212,10 @@ int main(int argc, char **argv)
                  "Branches tab exposes network actions or hides Create branch")) return 1;
     inspector_tabs->setCurrentIndex(0);
     app.processEvents();
-    if (!require(project_import->isVisible() && !project_create_branch->isVisible(),
-                 "Overview tab does not own project network actions")) return 1;
+    if (!require(project_import->isVisible() && project_overview_create_branch->isVisible()
+                     && project_overview_create_branch->isEnabled()
+                     && !project_create_branch->isVisible(),
+                 "Overview tab does not expose its Create branch and network actions")) return 1;
     ProjectInspectorRelations empty_branches;
     ProjectPreviewData project_without_branches;
     empty_branches.populate(&project_without_branches);
