@@ -2114,7 +2114,26 @@ void ProjectsWidget::updateInspector()
             || this->selection_kind == SelectionKind::Revision);
     overview->present(view.name, view.tags, view.description, view.metadata,
                       view.editable && !real_data,
-                      !real_data && this->selection_kind != SelectionKind::None);
+                      this->selection_kind != SelectionKind::None
+                          && (!real_data || this->selection_kind == SelectionKind::Project));
+    // DVMDB-backed project metadata can be inspected but is not yet editable
+    // through this GUI. Keep the values readable/selectable instead of hiding
+    // the entire Name / Tags / Description form.
+    if (real_data && this->selection_kind == SelectionKind::Project)
+    {
+        overview->name->setEnabled(true);
+        overview->tags->setEnabled(true);
+        overview->description->setEnabled(true);
+        overview->name->setReadOnly(true);
+        overview->tags->setReadOnly(true);
+        overview->description->setReadOnly(true);
+    }
+    else
+    {
+        overview->name->setReadOnly(false);
+        overview->tags->setReadOnly(false);
+        overview->description->setReadOnly(false);
+    }
     const ProjectServerProfile *overview_database = currentServer();
     this->database_overview->personal_banner->setVisible(
         this->selection_kind == SelectionKind::Server && overview_database != nullptr

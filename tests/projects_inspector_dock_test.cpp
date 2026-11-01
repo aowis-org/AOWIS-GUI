@@ -1184,6 +1184,20 @@ int main(int argc, char **argv)
         ? nullptr : project_branches_page->findChild<QListWidget *>();
     QVBoxLayout *branch_column = project_branches_page == nullptr
         ? nullptr : qobject_cast<QVBoxLayout *>(project_branches_page->layout());
+    QVBoxLayout *project_column = project_overview_page == nullptr
+        ? nullptr : qobject_cast<QVBoxLayout *>(project_overview_page->layout());
+    QLabel *project_identity = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QLabel *>(
+              QStringLiteral("projectInspectorMetadata"));
+    QLineEdit *project_name = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QLineEdit *>(
+              QStringLiteral("projectInspectorName"));
+    QLineEdit *project_tags = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QLineEdit *>(
+              QStringLiteral("projectInspectorTags"));
+    QTextEdit *project_description = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QTextEdit *>(
+              QStringLiteral("projectInspectorDescription"));
     if (!require(inspector_tabs->count() == 2
                      && inspector_tabs->tabText(0) == QStringLiteral("Overview")
                      && inspector_tabs->tabText(1) == QStringLiteral("Branches")
@@ -1192,8 +1206,17 @@ int main(int argc, char **argv)
                      && project_create_branch != nullptr && project_branch_list != nullptr
                      && branch_column != nullptr
                      && project_overview_create_branch->parentWidget() == project_overview_page
-                     && qobject_cast<QVBoxLayout *>(project_overview_page->layout()) != nullptr
-                     && project_overview_page->layout()->indexOf(project_overview_create_branch) == 0
+                     && project_column != nullptr && project_identity != nullptr
+                     && project_name != nullptr && project_tags != nullptr
+                     && project_description != nullptr
+                     && project_name->parentWidget() == project_tags->parentWidget()
+                     && project_tags->parentWidget() == project_description->parentWidget()
+                     && project_column->indexOf(project_name->parentWidget()) == 0
+                     && project_column->indexOf(project_overview_create_branch) == 1
+                     && project_column->indexOf(project_identity) == project_column->count() - 1
+                     && project_column->itemAt(project_column->count() - 2)->layout() != nullptr
+                     && project_column->itemAt(project_column->count() - 2)->layout()->indexOf(project_import) >= 0
+                     && project_column->itemAt(project_column->count() - 2)->layout()->indexOf(project_edit) >= 0
                      && branch_column->indexOf(project_create_branch)
                          > branch_column->indexOf(project_branch_list)
                      && project_branches_page->findChild<QPushButton *>(

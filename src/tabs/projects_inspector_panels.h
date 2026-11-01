@@ -139,18 +139,33 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
     {
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        // Project Overview: editable-looking metadata first, branch creation
+        // immediately below it, network actions above the identity footer.
+        // Keep preview explanations near the fields rather than under the IDs.
+        column->removeWidget(this->metadata);
+        column->removeWidget(this->preview_note);
+        QLayoutItem *old_stretch = column->takeAt(column->count() - 1);
+        delete old_stretch;
+
         this->create_branch = new QPushButton(tr("Create branch"), this);
         this->create_branch->setObjectName(QStringLiteral("projectsInspectorOverviewCreateBranch"));
         this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
-        column->insertWidget(0, this->create_branch, 0, Qt::AlignLeft);
+        column->addWidget(this->create_branch, 0, Qt::AlignLeft);
+        column->addWidget(this->preview_note);
+        column->addStretch(1);
+
         this->import_network = new QPushButton(tr("Import network…"), this);
         this->import_network->setObjectName(QStringLiteral("projectsInspectorImport"));
         this->import_network->setToolTip(tr("Import a network into the selected project"));
-        column->insertWidget(column->count() - 1, this->import_network);
         this->edit_network = new QPushButton(tr("Edit network"), this);
         this->edit_network->setObjectName(QStringLiteral("projectsInspectorEditNetwork"));
         this->edit_network->setToolTip(tr("Open the hydraulic network in Distribution Editor with durable autosave"));
-        column->insertWidget(column->count() - 1, this->edit_network);
+        QHBoxLayout *network_actions = new QHBoxLayout();
+        network_actions->addWidget(this->import_network);
+        network_actions->addWidget(this->edit_network);
+        network_actions->addStretch(1);
+        column->addLayout(network_actions);
+        column->addWidget(this->metadata);
     }
     QPushButton *create_branch = nullptr;
     QPushButton *import_network = nullptr;
