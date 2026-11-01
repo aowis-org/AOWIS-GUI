@@ -252,6 +252,8 @@ qt_add_executable(aowis-server-gui
     src/tabs/map_mode_tool_panel.h
     src/tabs/tab_hydraulic_libraries_widget.cpp
     src/tabs/tab_hydraulic_libraries_widget.h
+    src/tabs/tab_hydraulic_controls_widget.cpp
+    src/tabs/tab_hydraulic_controls_widget.h
     src/tabs/tab_map_editor_container.cpp
     src/tabs/tab_map_editor_container.h
     src/tabs/tab_map_monitor_container.cpp
@@ -1432,6 +1434,27 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-hydraulic-libraries-widget
         COMMAND aowis-hydraulic-libraries-widget-tests)
     set_tests_properties(aowis-hydraulic-libraries-widget PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+
+    add_executable(aowis-hydraulic-controls-widget-tests
+        tests/hydraulic_controls_widget_test.cpp
+        src/tabs/tab_hydraulic_controls_widget.cpp
+        src/tabs/tab_hydraulic_controls_widget.h
+        src/network/hydraulic_data.cpp
+        src/network/hydraulic_data.h
+        # Widget replay regression calls prepareWithMembership directly.
+        src/projects/hydraulic_draft_event_adapter.cpp
+        src/projects/hydraulic_draft_event_adapter.h
+        src/projects/hydraulic_draft_entity_registry.h
+    )
+    target_include_directories(aowis-hydraulic-controls-widget-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-hydraulic-controls-widget-tests PRIVATE
+        aowis-hydraulic-test-support AOWIS::ServerEpanet
+        Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network)
+    add_test(NAME aowis-hydraulic-controls-widget
+        COMMAND aowis-hydraulic-controls-widget-tests)
+    set_tests_properties(aowis-hydraulic-controls-widget PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
 
     aowis_add_hydraulic_test(

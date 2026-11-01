@@ -43,6 +43,7 @@
 
 #include "tabs/tab_energy_widget.h"
 #include "tabs/tab_hydraulic_libraries_widget.h"
+#include "tabs/tab_hydraulic_controls_widget.h"
 #include "tabs/tab_reservoirs_widget.h"
 #include "tabs/tab_tanks_widget.h"
 #include "tabs/tab_pumps_widget.h"
@@ -162,6 +163,7 @@ private:
     MapEditorContainer *map_editor;
     EnergyWidget *energy;
     HydraulicLibrariesWidget *hydraulic_libraries;
+    HydraulicControlsWidget *hydraulic_controls;
     ReservoirsWidget *reservoirs;
     TanksWidget *tanks;
     PumpsWidget *pumps;
