@@ -1,4 +1,5 @@
 #include "network/hydraulic_network_editor.h"
+#include "network/hydraulic_rule_dependencies.h"
 #include "geo/geo_metric_projection.h"
 #include <aowis/model/uuid.h>
 
@@ -55,6 +56,18 @@ void removeSimpleControlsReferencing(NetworkHydraulic &network, const QUuid &ent
         const HydraulicControlSimple &control = network.controls_simple.at(index);
         if (control.link_uuid == entity_uuid || control.trigger_node_uuid == entity_uuid)
             network.controls_simple.removeAt(index);
+    }
+}
+
+// A rule may reference a deleted node/link through its premises or actions.
+// Removing the rule atomically avoids dangling hydraulic dependencies.
+void removeRuleControlsReferencing(NetworkHydraulic &network, const QUuid &entity_uuid)
+{
+    for (int index = network.controls_rules.size() - 1; index >= 0; --index)
+    {
+        if (hydraulic_rule_dependencies::referencesEntity(
+                network.controls_rules.at(index), entity_uuid))
+            network.controls_rules.removeAt(index);
     }
 }
 
@@ -2127,6 +2140,8 @@ bool HydraulicNetworkEditor::deleteJunction(const QUuid &uuid)
         return false;
 
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
+    clearMapLabelAnchorsToNode(uuid);
     clearDemandPointAttachmentsToJunction(uuid);
     deleteConnectedLinks(uuid);
     return true;
@@ -2138,6 +2153,8 @@ bool HydraulicNetworkEditor::deleteReservoir(const QUuid &uuid)
         return false;
 
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
+    clearMapLabelAnchorsToNode(uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2148,6 +2165,8 @@ bool HydraulicNetworkEditor::deleteTank(const QUuid &uuid)
         return false;
 
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
+    clearMapLabelAnchorsToNode(uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2163,6 +2182,7 @@ bool HydraulicNetworkEditor::deletePipe(const QUuid &uuid)
         return false;
 
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
     clearDemandPointAttachmentsToPipe(uuid);
     return true;
 }
@@ -2172,6 +2192,7 @@ bool HydraulicNetworkEditor::deletePump(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.links_pumps, uuid))
         return false;
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
     return true;
 }
 
@@ -2180,6 +2201,7 @@ bool HydraulicNetworkEditor::deleteValve(const QUuid &uuid)
     if (!removeEntityByUuid(this->network.links_valves, uuid))
         return false;
     removeSimpleControlsReferencing(this->network, uuid);
+    removeRuleControlsReferencing(this->network, uuid);
     return true;
 }
 
@@ -2255,6 +2277,16 @@ void HydraulicNetworkEditor::clearDemandPointAttachmentsToJunction(const QUuid &
     }
 }
 
+void HydraulicNetworkEditor::clearMapLabelAnchorsToNode(const QUuid &node_uuid)
+{
+    // Labels retain their text and map position when their anchor is deleted.
+    for (HydraulicMapLabel &label : this->network.map_labels)
+    {
+        if (label.anchor_node_uuid == node_uuid)
+            label.anchor_node_uuid = QUuid();
+    }
+}
+
 void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
 {
     for (int i = this->network.links_pipes.size() - 1; i >= 0; i--)
@@ -2266,6 +2298,7 @@ void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
         const QUuid pipe_uuid = pipe.uuid;
         this->network.links_pipes.removeAt(i);
         removeSimpleControlsReferencing(this->network, pipe_uuid);
+        removeRuleControlsReferencing(this->network, pipe_uuid);
         clearDemandPointAttachmentsToPipe(pipe_uuid);
     }
 
@@ -2277,6 +2310,7 @@ void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
             const QUuid link_uuid = pump.uuid;
             this->network.links_pumps.removeAt(i);
             removeSimpleControlsReferencing(this->network, link_uuid);
+            removeRuleControlsReferencing(this->network, link_uuid);
         }
     }
 
@@ -2288,6 +2322,7 @@ void HydraulicNetworkEditor::deleteConnectedLinks(const QUuid &node_uuid)
             const QUuid link_uuid = valve.uuid;
             this->network.links_valves.removeAt(i);
             removeSimpleControlsReferencing(this->network, link_uuid);
+            removeRuleControlsReferencing(this->network, link_uuid);
         }
     }
 }

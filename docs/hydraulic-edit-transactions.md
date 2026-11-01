@@ -70,10 +70,22 @@ so one logical MODEL event contains the entire change. A dedicated test checks
 create/update/no-op/delete, pump and node cascades, membership replay and the
 reconstructed network's canonical bytes.
 
-**Still to audit in HC-02:** other reference-bearing collections (rules,
-labels, patterns, curves and materials), their editing surfaces, and the
-remaining import and bulk-edit paths. HC-02 is **not yet complete**; network-root
-settings require HC-03/04 and are outside this patch.
+**HC-02.2 — rule and map-label reference cascades:** Deleting pipes, pumps or
+valves removes any rule controls referencing the link in either premises or
+THEN/ELSE actions. Deleting junctions, reservoirs or tanks applies the same
+rule to the node and every link removed with it. The GUI watches each rule UUID
+before deletion, so the dependent rule and owner are one reversible MODEL
+transaction with server-side membership intents. Map labels anchored to a
+deleted node are **detached**, not deleted: their text and coordinates remain
+unchanged, and their before/after images are saved in that transaction.
+A shared rule-reference predicate keeps the edit and capture paths consistent.
+The HC-02.2 test checks all six deletion entry points, unrelated-rule retention,
+anchored-label detachment and exact canonical draft replay.
+
+**Still to audit in HC-02:** actual editing surfaces for rule controls, labels,
+patterns, curves and materials, link split/rejoin dependencies, remaining import
+and bulk-edit paths, and references from network-root settings. HC-02 is **not
+yet complete**; network-root settings require HC-03/04 and are outside this patch.
 
 ## Required editor synchronization
 

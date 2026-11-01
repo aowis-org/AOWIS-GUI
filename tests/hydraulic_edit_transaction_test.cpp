@@ -1060,6 +1060,193 @@ void testPumpSimpleControlCaptureAndCascades()
                             "HC02 controls never silently disable capture");
 }
 
+// A rule's premises and THEN/ELSE actions can reference different hydraulic
+// entities. Deleting a referenced link or a node with connected links must
+// remove the *entire* dependent rule in the same persisted MODEL event.
+void testRuleControlDeletionCascades()
+{
+    for (int scenario = 0; scenario < 6; ++scenario)
+    {
+        NetworkHydraulic baseline;
+        baseline.uuid = createUuidV7();
+        baseline.id = QStringLiteral("HC02-rule-cascade");
+        HydraulicNetworkEditor seed(baseline);
+        const QUuid first = scenario == 4 ? seed.addReservoir(coordinate(50.0, 8.0))
+            : scenario == 5 ? seed.addTank(coordinate(50.0, 8.0))
+            : seed.addJunction(coordinate(50.0, 8.0));
+        const QUuid second = seed.addJunction(coordinate(50.1, 8.1));
+        const QUuid stable_a = seed.addJunction(coordinate(50.2, 8.2));
+        const QUuid stable_b = seed.addJunction(coordinate(50.3, 8.3));
+        const QUuid stable_link = seed.addPipe(stable_a, stable_b, {});
+        const QUuid target_link = scenario == 1
+            ? seed.addPump(first, second, coordinate(50.05, 8.05))
+            : scenario == 2
+                ? seed.addValve(first, second, coordinate(50.05, 8.05))
+                : seed.addPipe(first, second, {});
+        test_harness.expectTrue(!first.isNull() && !target_link.isNull() &&
+                                !stable_link.isNull(),
+                                "HC02 rule cascade fixture has valid nodes and links");
+        if (target_link.isNull() || stable_link.isNull()) continue;
+
+        HydraulicControlRulePremise time_premise;
+        time_premise.object = HydraulicControlRuleObject::System;
+        time_premise.variable = HydraulicControlRuleVariable::Time;
+        time_premise.elapsed_time_s = 3600;
+        HydraulicControlRulePremise link_premise;
+        link_premise.object = HydraulicControlRuleObject::Link;
+        link_premise.object_uuid = target_link;
+        link_premise.variable = HydraulicControlRuleVariable::Flow;
+        link_premise.flow_m3_per_h = 1.0;
+        HydraulicControlRulePremise node_premise;
+        node_premise.object = HydraulicControlRuleObject::Node;
+        node_premise.object_uuid = first;
+        node_premise.variable = HydraulicControlRuleVariable::Pressure;
+        node_premise.pressure_head_m = 1.0;
+        HydraulicControlRulePremise stable_premise = node_premise;
+        stable_premise.object_uuid = stable_a;
+
+        HydraulicControlRuleAction target_action;
+        target_action.link_uuid = target_link;
+        target_action.status = HydraulicControlRuleStatus::Open;
+        HydraulicControlRuleAction stable_action;
+        stable_action.link_uuid = stable_link;
+        stable_action.status = HydraulicControlRuleStatus::Open;
+
+        HydraulicControlRule then_rule;
+        then_rule.id = QStringLiteral("then");
+        then_rule.uuid = createUuidV7();
+        then_rule.premises.append(time_premise);
+        then_rule.actions_then.append(target_action);
+        HydraulicControlRule else_rule;
+        else_rule.id = QStringLiteral("else");
+        else_rule.uuid = createUuidV7();
+        else_rule.premises.append(time_premise);
+        else_rule.actions_then.append(stable_action);
+        else_rule.actions_else.append(target_action);
+        HydraulicControlRule link_rule;
+        link_rule.id = QStringLiteral("link-premise");
+        link_rule.uuid = createUuidV7();
+        link_rule.premises.append(link_premise);
+        link_rule.actions_then.append(stable_action);
+        HydraulicControlRule node_rule;
+        node_rule.id = QStringLiteral("node-premise");
+        node_rule.uuid = createUuidV7();
+        node_rule.premises.append(node_premise);
+        node_rule.actions_then.append(stable_action);
+        HydraulicControlRule unrelated_rule;
+        unrelated_rule.id = QStringLiteral("unrelated");
+        unrelated_rule.uuid = createUuidV7();
+        unrelated_rule.premises.append(stable_premise);
+        unrelated_rule.actions_then.append(stable_action);
+        baseline.controls_rules = {then_rule, else_rule, link_rule, node_rule, unrelated_rule};
+        HydraulicMapLabel target_label;
+        target_label.id = QStringLiteral("label-of-target-node");
+        target_label.uuid = createUuidV7();
+        target_label.text = QStringLiteral("Anchor survives detachment");
+        target_label.coordinate_wgs84 = coordinate(50.0, 8.0);
+        target_label.anchor_node_uuid = first;
+        HydraulicMapLabel stable_label;
+        stable_label.id = QStringLiteral("independent-label");
+        stable_label.uuid = createUuidV7();
+        stable_label.text = QStringLiteral("Unchanged");
+        stable_label.coordinate_wgs84 = coordinate(50.2, 8.2);
+        stable_label.anchor_node_uuid = stable_a;
+        baseline.map_labels = {target_label, stable_label};
+
+        HydraulicData data;
+        data.replaceNetworkHydraulic(baseline, {});
+        NetworkHydraulic staged = baseline;
+        QList<QByteArray> events;
+        QString capture_error;
+        QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                         &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+        QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed,
+                         &data, [&capture_error](const QString &message) { capture_error = message; });
+        data.setLogicalEditCaptureEnabled(true);
+        const bool is_node = scenario >= 3;
+        const bool deleted = scenario == 0 ? data.deletePipe(target_link)
+            : scenario == 1 ? data.deletePump(target_link)
+            : scenario == 2 ? data.deleteValve(target_link)
+            : scenario == 3 ? data.deleteJunction(first)
+            : scenario == 4 ? data.deleteReservoir(first)
+            : data.deleteTank(first);
+        const int expected_rule_count = is_node ? 1 : 2;
+        test_harness.expectTrue(deleted && events.size() == 1 &&
+                                data.networkHydraulic().controls_rules.size() == expected_rule_count,
+                                "HC02 rule cascade deletion emits exactly one transaction");
+        if (!deleted || events.size() != 1) continue;
+        bool unrelated_kept = false;
+        bool node_rule_kept = false;
+        for (const HydraulicControlRule &rule : data.networkHydraulic().controls_rules)
+        {
+            unrelated_kept = unrelated_kept || rule.uuid == unrelated_rule.uuid;
+            node_rule_kept = node_rule_kept || rule.uuid == node_rule.uuid;
+        }
+        test_harness.expectTrue(unrelated_kept && node_rule_kept == !is_node,
+                                "HC02 rule cascade retains only independent rules");
+        bool target_label_preserved = false;
+        bool stable_label_preserved = false;
+        for (const HydraulicMapLabel &label : data.networkHydraulic().map_labels)
+        {
+            if (label.uuid == target_label.uuid)
+                target_label_preserved = label.text == target_label.text &&
+                    label.coordinate_wgs84.latitude_deg == target_label.coordinate_wgs84.latitude_deg &&
+                    label.anchor_node_uuid == (is_node ? QUuid() : first);
+            if (label.uuid == stable_label.uuid)
+                stable_label_preserved = label.anchor_node_uuid == stable_a &&
+                    label.text == stable_label.text;
+        }
+        test_harness.expectTrue(target_label_preserved && stable_label_preserved &&
+                                data.networkHydraulic().map_labels.size() == 2,
+                                "HC02 node deletion detaches only dependent map label anchors");
+
+        const std::optional<aowis::model::ModelEditTransaction> transaction = decoded(events.first());
+        bool removed_then = false;
+        bool removed_else = false;
+        bool removed_premise = false;
+        bool removed_node_premise = false;
+        bool updated_label = false;
+        if (transaction.has_value())
+        {
+            for (const aowis::model::ModelEntityEdit &edit : transaction->edits)
+            {
+                if (edit.entityId == then_rule.uuid)
+                    removed_then = edit.before.has_value() && !edit.after.has_value();
+                if (edit.entityId == else_rule.uuid)
+                    removed_else = edit.before.has_value() && !edit.after.has_value();
+                if (edit.entityId == link_rule.uuid)
+                    removed_premise = edit.before.has_value() && !edit.after.has_value();
+                if (edit.entityId == node_rule.uuid)
+                    removed_node_premise = edit.before.has_value() && !edit.after.has_value();
+                if (edit.entityId == target_label.uuid)
+                    updated_label = edit.before.has_value() && edit.after.has_value() &&
+                        edit.before != edit.after;
+            }
+        }
+        test_harness.expectTrue(transaction.has_value() &&
+                                transaction->edits.size() == (is_node ? 7 : 4) &&
+                                removed_then && removed_else && removed_premise &&
+                                removed_node_premise == is_node && updated_label == is_node,
+                                "HC02 rule dependencies and their owner are removed atomically");
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        QString error;
+        const bool replayed = HydraulicDraftEventAdapter::prepareWithMembership(
+            events.first(), staged, records, membership, &error);
+        const QByteArray message = (QStringLiteral("HC02 rule cascade replays: ") + error).toUtf8();
+        test_harness.expectTrue(replayed, message.constData());
+        if (replayed)
+            test_harness.expectTrue(
+                aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+                membership.size() == (is_node ? 6 : 4) &&
+                records.size() == (is_node ? 7 : 4),
+                "HC02 rule and map-label cascade replays with exact membership and canonical images");
+        test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
+                                "HC02 dependent rule removal does not disable edit capture");
+    }
+}
+
 void testDraftStageRejectsOutOfOrderReplay()
 {
     QTemporaryDir root;
@@ -1106,6 +1293,7 @@ int main(int argc, char **argv)
     test_harness.runCase("HydraulicData logical operations", testHydraulicDataLogicalOperations);
     test_harness.runCase("Hydraulic property capture and no-op", testPropertyCaptureAndNoop);
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
+    test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Cascading node deletion", testCascadingNodeDeletionIsOneTransaction);
     test_harness.runCase("Hydraulic event to canonical DVMDB records", testOrderedHydraulicDraftRecordMapping);
     test_harness.runCase("Hydraulic membership intent mapping", testHydraulicDraftMembershipIntents);

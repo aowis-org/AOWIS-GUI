@@ -238,6 +238,7 @@ private:
         HydraulicDemandPoint &demand_point, const HydraulicLinkPipe &pipe);
     void clearDemandPointAttachmentsToPipe(const QUuid &pipe_uuid);
     void clearDemandPointAttachmentsToJunction(const QUuid &junction_uuid);
+    void clearMapLabelAnchorsToNode(const QUuid &node_uuid);
     void deleteConnectedLinks(const QUuid &node_uuid);
     QString nextNodeId(const QString &prefix) const;
     QString nextLinkId(const QString &prefix) const;

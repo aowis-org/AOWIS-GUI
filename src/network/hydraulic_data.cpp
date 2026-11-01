@@ -1,4 +1,5 @@
 #include "network/hydraulic_data.h"
+#include "network/hydraulic_rule_dependencies.h"
 #include "network/network_render_snapshot_builder.h"
 #include "network/network_symbology_values.h"
 
@@ -131,6 +132,28 @@ public:
             if (control.trigger_node_uuid == node_uuid || deleted_links.contains(control.link_uuid))
                 this->capture_.watch(this->owner_.network_hydraulic, control.uuid);
         }
+        for (const HydraulicControlRule &rule : this->owner_.network_hydraulic.controls_rules)
+        {
+            bool affected = hydraulic_rule_dependencies::referencesEntity(rule, node_uuid);
+            if (!affected)
+            {
+                for (const QUuid &link_uuid : deleted_links)
+                {
+                    if (hydraulic_rule_dependencies::referencesEntity(rule, link_uuid))
+                    {
+                        affected = true;
+                        break;
+                    }
+                }
+            }
+            if (affected)
+                this->capture_.watch(this->owner_.network_hydraulic, rule.uuid);
+        }
+        for (const HydraulicMapLabel &label : this->owner_.network_hydraulic.map_labels)
+        {
+            if (label.anchor_node_uuid == node_uuid)
+                this->capture_.watch(this->owner_.network_hydraulic, label.uuid);
+        }
         for (const HydraulicDemandPoint &point : this->owner_.network_hydraulic.demand_points)
         {
             const bool linked_to_deleted_pipe =
@@ -154,6 +177,11 @@ public:
         {
             if (control.link_uuid == link_uuid)
                 this->capture_.watch(this->owner_.network_hydraulic, control.uuid);
+        }
+        for (const HydraulicControlRule &rule : this->owner_.network_hydraulic.controls_rules)
+        {
+            if (hydraulic_rule_dependencies::referencesEntity(rule, link_uuid))
+                this->capture_.watch(this->owner_.network_hydraulic, rule.uuid);
         }
     }
 
@@ -3719,6 +3747,11 @@ bool HydraulicData::deletePipe(const QUuid &uuid)
             if (point.attachment.type == HydraulicDemandPointAttachmentType::Pipe &&
                 point.attachment.pipe_uuid == uuid)
                 capture.watch(this->network_hydraulic, point.uuid);
+        }
+        for (const HydraulicControlRule &rule : this->network_hydraulic.controls_rules)
+        {
+            if (hydraulic_rule_dependencies::referencesEntity(rule, uuid))
+                capture.watch(this->network_hydraulic, rule.uuid);
         }
     }
     const bool successful = this->network_editor.deletePipe(uuid);
