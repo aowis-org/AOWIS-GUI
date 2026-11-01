@@ -3390,10 +3390,10 @@ void ProjectsWidget::applyInspectorEdits()
             populateServerTree();
             if (server->name != previous.name)
             {
-                // The name is shown below the bold "Database" heading.
-                // Refresh it as soon as the profile rename is saved.
-                this->inspector_subtitle->setText(
-                    ProjectsInspectorPresentations::database(server, QString()).subtitle);
+                // Database type and name share the bold heading; update it
+                // immediately after a successful profile rename.
+                this->inspector_heading->setText(
+                    ProjectsInspectorPresentations::database(server, QString()).heading);
                 populateProjectTree();
                 rebuildGraph();
                 broadcastContext();
