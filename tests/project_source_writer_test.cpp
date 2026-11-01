@@ -65,6 +65,7 @@ int main(int argc, char **argv)
                 if (length <= 0 || buffer->size() < marker + 4 + length) return;
                 const QByteArray request_line = header.split('\n').first().trimmed();
                 const QByteArray path = request_line.split(' ').value(1);
+                const QByteArray method = request_line.split(' ').value(0);
                 requested_paths.append(QString::fromUtf8(path));
                 const QJsonDocument json = QJsonDocument::fromJson(buffer->mid(marker + 4, length));
                 request_bodies.append(json.object());
@@ -75,6 +76,15 @@ int main(int argc, char **argv)
                     payload = QJsonDocument(QJsonObject{
                         {QStringLiteral("id"), json.object().value(QStringLiteral("id"))},
                         {QStringLiteral("name"), QStringLiteral("Water Project")}}).toJson(QJsonDocument::Compact);
+                else if (method == "PATCH" && path == QStringLiteral("/dvmdb/v1/projects/%1")
+                    .arg(project_identity).toUtf8())
+                {
+                    status = 200;
+                    payload = QJsonDocument(QJsonObject{
+                        {QStringLiteral("id"), project_identity},
+                        {QStringLiteral("name"), json.object().value(QStringLiteral("name"))}})
+                        .toJson(QJsonDocument::Compact);
+                }
                 else if (path == QStringLiteral("/dvmdb/v1/projects/%1/branches")
                     .arg(project_identity).toUtf8()
                     && json.object().value(QStringLiteral("name")) != QStringLiteral("duplicate"))
@@ -91,7 +101,7 @@ int main(int argc, char **argv)
                     payload = R"({"error":{"code":"conflict","message":"duplicate branch"}})";
                 }
                 socket->write(QByteArray("HTTP/1.1 ") + QByteArray::number(status)
-                    + (status == 201 ? " Created\r\n" : " Conflict\r\n")
+                    + (status == 201 ? " Created\r\n" : status == 200 ? " OK\r\n" : " Conflict\r\n")
                     + "Content-Type: application/json\r\nConnection: close\r\nContent-Length: "
                     + QByteArray::number(payload.size()) + "\r\n\r\n" + payload);
                 socket->disconnectFromHost();
@@ -237,6 +247,26 @@ int main(int argc, char **argv)
         && request_bodies.last().value(QStringLiteral("tags")).toArray().size() == 2,
         "unborn branch POST lost the origin-free HEAD or its metadata")) return 1;
 
+    done = false;
+    writer.renameProject(profile, project_identity, QStringLiteral("Water Project"),
+                         QStringLiteral("Renamed Water Project"),
+                         [&](const QString &id, const QString &error)
+    {
+        created = id;
+        failure = error;
+        done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }), "project PATCH did not finish")) return 1;
+    if (!require(failure.isEmpty() && created == project_identity &&
+                 requested_paths.last() == QStringLiteral("/dvmdb/v1/projects/%1")
+                     .arg(project_identity) &&
+                 request_bodies.last().value(QStringLiteral("expectedName"))
+                     == QStringLiteral("Water Project") &&
+                 request_bodies.last().value(QStringLiteral("name"))
+                     == QStringLiteral("Renamed Water Project"),
+                 "project name PATCH did not preserve its UUID or optimistic name check")) return 1;
+
+    const int requests_before_auth_rejection = requested_paths.size();
     profile.auth_mode = QStringLiteral("API token");
     done = false;
     writer.createProject(profile, QStringLiteral("invalid"), [&](const QString &, const QString &error)
@@ -245,7 +275,7 @@ int main(int argc, char **argv)
         done = true;
     });
     if (!require(done && !writer.isBusy() && failure.contains(QStringLiteral("not implemented"))
-                 && requested_paths.size() == 5,
+                 && requested_paths.size() == requests_before_auth_rejection,
         "unsupported authentication was not rejected before POST")) return 1;
     return 0;
 }

@@ -88,6 +88,96 @@ void ProjectSourceWriter::createUnbornBranch(const ProjectServerProfile &profile
           std::move(completion));
 }
 
+void ProjectSourceWriter::renameProject(const ProjectServerProfile &profile,
+                                        const QString &project_id, const QString &expected_name,
+                                        const QString &name, Completion completion)
+{
+    if (this->busy)
+    {
+        if (completion) completion({}, tr("Another database write is in progress."));
+        return;
+    }
+    const QString validation = validateProfile(profile);
+    if (!validation.isEmpty() || !DvmdbIdentity::isUuidV7(project_id)
+        || expected_name.isEmpty() || name.trimmed().isEmpty()
+        || name.toUtf8().size() > 200)
+    {
+        if (completion) completion({}, validation.isEmpty()
+            ? tr("Invalid project ID or name.") : validation);
+        return;
+    }
+    ProjectServerProfile request_profile = profile;
+    if (profile.connection_type == QStringLiteral("local"))
+    {
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+        QString error;
+        const QString endpoint = embeddedDvmdbEndpoint(profile.local_path, profile.personal,
+                                                       nullptr, &error);
+        if (endpoint.isEmpty())
+        {
+            if (completion) completion({}, error.isEmpty()
+                ? tr("Embedded DVMDB could not start.") : error);
+            return;
+        }
+        request_profile.connection_type = QStringLiteral("remote");
+        request_profile.endpoint = endpoint;
+#else
+        if (completion) completion({}, tr("Embedded DVMDB is unavailable."));
+        return;
+#endif
+    }
+    QString root = request_profile.endpoint.trimmed();
+    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
+    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
+    QNetworkRequest request(QUrl(root + QStringLiteral("/projects/") + segment(project_id)));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setRawHeader("Accept", "application/json");
+    request.setTransferTimeout(12000);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);
+    const QJsonObject body{{QStringLiteral("expectedName"), expected_name},
+                           {QStringLiteral("name"), name}};
+    this->busy = true;
+    this->completion = std::move(completion);
+    this->reply = this->manager.sendCustomRequest(request, "PATCH",
+        QJsonDocument(body).toJson(QJsonDocument::Compact));
+    QNetworkReply *pending = this->reply;
+    const QPointer<QNetworkReply> deadline(pending);
+    QTimer::singleShot(15000, this, [deadline] { if (deadline) deadline->abort(); });
+    connect(pending, &QNetworkReply::finished, this,
+            [this, pending, project_id, name]
+    {
+        if (this->reply == pending) this->reply.clear();
+        pending->deleteLater();
+        const int status = pending->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (pending->bytesAvailable() > 1024 * 1024)
+        {
+            finish({}, tr("DVMDB rename response is too large. Refresh before retrying."));
+            return;
+        }
+        const QJsonDocument document = QJsonDocument::fromJson(pending->readAll());
+        const QJsonObject object = document.isObject() ? document.object() : QJsonObject();
+        if (status != 200 || pending->error() != QNetworkReply::NoError)
+        {
+            const QString error = object.value(QStringLiteral("error")).toObject()
+                .value(QStringLiteral("message")).toString();
+            finish({}, status == 0
+                ? tr("The rename response was lost. Refresh before retrying: %1")
+                    .arg(pending->errorString())
+                : error.isEmpty() ? tr("DVMDB rename failed (HTTP %1).").arg(status)
+                                  : tr("DVMDB rename failed (HTTP %1): %2").arg(status).arg(error));
+            return;
+        }
+        if (object.value(QStringLiteral("id")).toString() != project_id
+            || object.value(QStringLiteral("name")).toString() != name)
+        {
+            finish({}, tr("Rename response did not match the project. Refresh before retrying."));
+            return;
+        }
+        finish(project_id, {});
+    });
+}
+
 void ProjectSourceWriter::finish(const QString &id, const QString &error)
 {
     this->busy = false;

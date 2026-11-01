@@ -46,7 +46,7 @@ public:
         this->description->setObjectName(QStringLiteral("projectInspectorDescription"));
         this->description->setMinimumHeight(90);
         this->description->setMaximumHeight(170);
-        form->addRow(tr("Name / title"), this->name);
+        form->addRow(kind == QStringLiteral("Project") ? tr("Name") : tr("Name / title"), this->name);
         form->addRow(tr("Tags"), this->tags);
         form->addRow(tr("Description"), this->description);
         column->addWidget(this->fields);

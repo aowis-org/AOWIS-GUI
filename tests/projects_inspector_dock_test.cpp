@@ -144,6 +144,7 @@ int main(int argc, char **argv)
             QList<ProjectPreviewData>{project}, feature_branch.id);
         if (!require(project_view.name == project.name
                          && project_view.metadata.contains(project.repository_id)
+                         && !project_view.metadata.contains(QStringLiteral("(read-only)"))
                          && branch_view.name == feature_branch.name
                          && branch_view.metadata.contains(QStringLiteral("Created from branch: main"))
                          && branch_view.metadata.contains(feature_branch.fork_revision_id),

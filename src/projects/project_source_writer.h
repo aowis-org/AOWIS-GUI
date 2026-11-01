@@ -24,6 +24,10 @@ public:
     explicit ProjectSourceWriter(QObject *parent = nullptr);
     bool isBusy() const;
     void createProject(const ProjectServerProfile &profile, const QString &name, Completion completion);
+    // Rename a project persistently. The expected name prevents overwriting a
+    // concurrent rename from another client.
+    void renameProject(const ProjectServerProfile &profile, const QString &project_id,
+                       const QString &expected_name, const QString &name, Completion completion);
     // Create an independent unborn HEAD belonging to the selected project.
     void createUnbornBranch(const ProjectServerProfile &profile, const QString &project_id,
                             const QString &name, const QStringList &tags,

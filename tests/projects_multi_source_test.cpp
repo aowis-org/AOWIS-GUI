@@ -176,21 +176,25 @@ int main(int argc, char **argv)
                  "second database UUID was not shown separately")) return 1;
     tree->setCurrentItem(tree->topLevelItem(1)->child(0));
     app.processEvents();
-    // Project and Branch inspectors each own an Edit network action. Query the
-    // selected inspector, not the first identically named action in the tree.
+    // Project network actions now belong to Project Overview, not the bottom
+    // action panel. Resolve them from the selected overview so this also
+    // verifies the correct inspector is active for the selected database.
     QStackedWidget *action_stack = projects.findChild<QStackedWidget *>(
         QStringLiteral("projectsInspectorActionsStack"));
     QWidget *active_actions = action_stack != nullptr ? action_stack->currentWidget() : nullptr;
-    QPushButton *edit_network = active_actions != nullptr
-        ? active_actions->findChild<QPushButton *>(QStringLiteral("projectsInspectorEditNetwork"))
+    QStackedWidget *overview_stack = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorOverviewStack"));
+    QWidget *active_overview = overview_stack != nullptr ? overview_stack->currentWidget() : nullptr;
+    QPushButton *edit_network = active_overview != nullptr
+        ? active_overview->findChild<QPushButton *>(QStringLiteral("projectsInspectorEditNetwork"))
         : nullptr;
     if (!require(active_actions != nullptr
                      && active_actions->objectName() == QStringLiteral("projectsProjectInspector")
+                     && active_overview != nullptr
+                     && active_overview->objectName() == QStringLiteral("projectsProjectOverviewForm")
                      && edit_network != nullptr && edit_network->isVisible()
                      && edit_network->isEnabled(),
-                 "database project does not expose its hydraulic editor action")) return 1;
-    QStackedWidget *overview_stack = projects.findChild<QStackedWidget *>(
-        QStringLiteral("projectsInspectorOverviewStack"));
+                 "database project does not expose its hydraulic editor action on Overview")) return 1;
     QLabel *metadata = overview_stack != nullptr && overview_stack->currentWidget() != nullptr
         ? overview_stack->currentWidget()->findChild<QLabel *>(
             QStringLiteral("projectInspectorMetadata")) : nullptr;

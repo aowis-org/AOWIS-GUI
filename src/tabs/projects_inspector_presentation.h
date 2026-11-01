@@ -69,7 +69,7 @@ public:
         view.description = project->description;
         view.tags = project->tags;
         view.metadata = project->database_backed
-            ? translate("DVMDB project ID: %1 (read-only)").arg(project->backend_id)
+            ? translate("DVMDB project UUIDv7: %1").arg(project->backend_id)
             : translate("Preview project ID: %1").arg(project->id);
         if (project->database_backed && !project->repository_id.isEmpty())
             view.metadata += translate("\nRepository UUIDv7: %1").arg(project->repository_id);

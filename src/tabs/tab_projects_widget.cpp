@@ -2116,15 +2116,14 @@ void ProjectsWidget::updateInspector()
                       view.editable && !real_data,
                       this->selection_kind != SelectionKind::None
                           && (!real_data || this->selection_kind == SelectionKind::Project));
-    // DVMDB-backed project metadata can be inspected but is not yet editable
-    // through this GUI. Keep the values readable/selectable instead of hiding
-    // the entire Name / Tags / Description form.
+    // Project UUIDs are immutable, but the display name is stored by DVMDB.
+    // Keep Tags/Description selectable until their persistent edit API exists.
     if (real_data && this->selection_kind == SelectionKind::Project)
     {
-        overview->name->setEnabled(true);
+        overview->name->setEnabled(!this->source_writer->isBusy());
         overview->tags->setEnabled(true);
         overview->description->setEnabled(true);
-        overview->name->setReadOnly(true);
+        overview->name->setReadOnly(false);
         overview->tags->setReadOnly(true);
         overview->description->setReadOnly(true);
     }
@@ -3452,8 +3451,49 @@ void ProjectsWidget::applyInspectorEdits()
     else if (this->selection_kind == SelectionKind::Project)
     {
         ProjectPreviewData *project = currentProject();
-        if (project != nullptr && project->database_backed) return;
         if (project == nullptr) return;
+        if (project->database_backed)
+        {
+            // The project UUID stays fixed; only its persisted display name changes.
+            if (sender() != overview->name || name == project->name) return;
+            if (name.isEmpty() || name.toUtf8().size() > 200)
+            {
+                QMessageBox::warning(this, tr("Invalid project name"),
+                    tr("A project name must contain between 1 and 200 UTF-8 bytes."));
+                overview->name->setText(project->name);
+                return;
+            }
+            for (const ProjectPreviewData &other : this->projects)
+                if (other.id != project->id && other.server_id == project->server_id
+                    && other.name.compare(name, Qt::CaseInsensitive) == 0)
+                {
+                    QMessageBox::warning(this, tr("Already exists"),
+                        tr("Choose a different project name."));
+                    overview->name->setText(project->name);
+                    return;
+                }
+            const ProjectServerProfile *server = currentServer();
+            if (server == nullptr || !isSourceReady(this->server_id))
+            {
+                overview->name->setText(project->name);
+                return;
+            }
+            const QString selected_project = project->id;
+            const QString selected_server = this->server_id;
+            this->source_writer->renameProject(*server, project->backend_id, project->name, name,
+                [this, selected_project, selected_server](const QString &, const QString &error)
+                {
+                    if (!error.isEmpty())
+                        QMessageBox::warning(this, tr("Project rename failed"), error);
+                    // Even a timed-out request may have committed. Always reload.
+                    this->select_after_write_project = selected_project;
+                    this->select_after_write_branch.clear();
+                    if (this->server_id == selected_server) connectSource();
+                    else updateInspector();
+                });
+            updateButtons();
+            return;
+        }
         if (!name.isEmpty() && name != project->name)
         {
             bool exists = false;
