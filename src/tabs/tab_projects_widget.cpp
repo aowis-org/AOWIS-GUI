@@ -677,16 +677,16 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (QPushButton *button : {this->database_overview->create_project,
                                 this->database_relations->create_project})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
-    for (QPushButton *button : {this->project_overview->create_branch,
+    for (QPushButton *button : {this->project_relations->create_branch,
                                 this->branch_inspector->create_branch,
                                 this->revision_inspector->create_branch})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
     connect(this->branch_inspector->working_copies, &QPushButton::clicked,
             this, &ProjectsWidget::showWorkingCopies);
-    for (QPushButton *button : {this->project_inspector->edit_network,
+    for (QPushButton *button : {this->project_overview->edit_network,
                                 this->branch_inspector->edit_network})
         connect(button, &QPushButton::clicked, this, &ProjectsWidget::editProjectNetwork);
-    connect(this->project_inspector->import_network, &QPushButton::clicked,
+    connect(this->project_overview->import_network, &QPushButton::clicked,
             this, &ProjectsWidget::importProjectRequested);
     for (ProjectsInspectorPanel *panel : {static_cast<ProjectsInspectorPanel *>(this->database_inspector),
                                           static_cast<ProjectsInspectorPanel *>(this->project_inspector),
@@ -1956,6 +1956,7 @@ void ProjectsWidget::updateInspectorTabs()
     }
     // An empty database still needs its Projects tab to offer Create project.
     if (related != nullptr && (this->selection_kind == SelectionKind::Server
+                               || this->selection_kind == SelectionKind::Project
                                || related->list->count() > 0))
         this->inspector_tabs->addTab(related, title);
     this->inspector_tabs->setCurrentIndex(this->selection_kind == SelectionKind::NewSource
@@ -2159,13 +2160,19 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Server && !creating);
     this->database_overview->create_project->setEnabled(ready);
     this->database_relations->create_project->setEnabled(ready);
-    this->project_overview->create_branch->setVisible(
+    this->project_overview->import_network->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
-    this->project_overview->create_branch->setEnabled(ready && project != nullptr);
+    this->project_overview->import_network->setEnabled(ready && project != nullptr);
+    this->project_overview->edit_network->setVisible(
+        this->selection_kind == SelectionKind::Project && !creating && backed);
+    this->project_overview->edit_network->setEnabled(ready && project != nullptr);
+    this->project_relations->create_branch->setVisible(
+        this->selection_kind == SelectionKind::Project && !creating);
+    this->project_relations->create_branch->setEnabled(ready && project != nullptr);
     this->database_connection->delete_connection->setVisible(removable_connection);
     this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
-        busy, ready && project != nullptr, backed, preview && project != nullptr, valid);
+        busy, preview && project != nullptr, valid);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
         busy, ready && project != nullptr, backed, preview && currentBranch() != nullptr, valid);
     this->revision_inspector->update(creating && this->selection_kind == SelectionKind::Revision,

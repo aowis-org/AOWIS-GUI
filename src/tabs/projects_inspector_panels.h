@@ -139,12 +139,17 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
     {
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
-        this->create_branch = new QPushButton(tr("Create branch"), this);
-        this->create_branch->setObjectName(QStringLiteral("projectsInspectorCreateBranch"));
-        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
-        column->insertWidget(0, this->create_branch, 0, Qt::AlignLeft);
+        this->import_network = new QPushButton(tr("Import network…"), this);
+        this->import_network->setObjectName(QStringLiteral("projectsInspectorImport"));
+        this->import_network->setToolTip(tr("Import a network into the selected project"));
+        column->insertWidget(column->count() - 1, this->import_network);
+        this->edit_network = new QPushButton(tr("Edit network"), this);
+        this->edit_network->setObjectName(QStringLiteral("projectsInspectorEditNetwork"));
+        this->edit_network->setToolTip(tr("Open the hydraulic network in Distribution Editor with durable autosave"));
+        column->insertWidget(column->count() - 1, this->edit_network);
     }
-    QPushButton *create_branch = nullptr;
+    QPushButton *import_network = nullptr;
+    QPushButton *edit_network = nullptr;
 };
 class BranchInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -264,27 +269,15 @@ public:
     explicit ProjectInspector(QWidget *parent = nullptr) : ProjectsInspectorPanel(parent)
     {
         this->setObjectName(QStringLiteral("projectsProjectInspector"));
-        this->import_network = addButton(tr("Import network…"),
-            QStringLiteral("projectsInspectorImport"), tr("Import a network into the selected project"));
-        this->edit_network = addButton(tr("Edit network"),
-            QStringLiteral("projectsInspectorEditNetwork"),
-            tr("Open the hydraulic network in Distribution Editor with durable autosave"));
         this->delete_project = addButton(tr("Delete project…"),
             QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview project"));
-        moveToFullWidth(this->edit_network);
-        moveToFullWidth(this->import_network);
     }
-    QPushButton *import_network = nullptr;
-    QPushButton *edit_network = nullptr;
     QPushButton *delete_project = nullptr;
 
-    void update(bool creating, bool busy, bool ready, bool backed, bool preview, bool valid)
+    void update(bool creating, bool busy, bool preview, bool valid)
     {
-        this->import_network->setVisible(!creating);
-        this->import_network->setEnabled(!busy);
-        this->edit_network->setVisible(!creating && backed);
-        this->edit_network->setEnabled(ready);
         this->delete_project->setVisible(!creating && preview);
+        this->delete_project->setEnabled(!busy);
         setCreationState(creating, busy, valid);
     }
 };

@@ -1,5 +1,6 @@
 #include "tabs/tab_projects_widget.h"
 #include "tabs/projects_inspector_panels.h"
+#include "tabs/projects_inspector_details.h"
 #include "tabs/projects_inspector_presentation.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "widgets/group_box_collapsible.h"
@@ -41,6 +42,7 @@
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
+#include <QVBoxLayout>
 
 #include <cstdio>
 #include <cmath>
@@ -1161,6 +1163,56 @@ int main(int argc, char **argv)
     if (!require(graph->selectionId() == QStringLiteral("group:project:")
                      + selected_project_key.mid(2),
                  "sidebar project selection did not highlight its graph card")) return 1;
+    // Project actions are tab-local: network actions belong to Overview,
+    // while Create branch sits below the list on Branches (even if empty).
+    QWidget *project_overview_page = activeInspectorOverview(projects);
+    QWidget *project_branches_page = inspector_tabs->count() > 1
+        ? inspector_tabs->widget(1) : nullptr;
+    QPushButton *project_import = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QPushButton *>(
+              QStringLiteral("projectsInspectorImport"));
+    QPushButton *project_edit = project_overview_page == nullptr
+        ? nullptr : project_overview_page->findChild<QPushButton *>(
+              QStringLiteral("projectsInspectorEditNetwork"));
+    QPushButton *project_create_branch = project_branches_page == nullptr
+        ? nullptr : project_branches_page->findChild<QPushButton *>(
+              QStringLiteral("projectsInspectorCreateBranch"));
+    QListWidget *project_branch_list = project_branches_page == nullptr
+        ? nullptr : project_branches_page->findChild<QListWidget *>();
+    QVBoxLayout *branch_column = project_branches_page == nullptr
+        ? nullptr : qobject_cast<QVBoxLayout *>(project_branches_page->layout());
+    if (!require(inspector_tabs->count() == 2
+                     && inspector_tabs->tabText(0) == QStringLiteral("Overview")
+                     && inspector_tabs->tabText(1) == QStringLiteral("Branches")
+                     && project_import != nullptr && project_edit != nullptr
+                     && project_create_branch != nullptr && project_branch_list != nullptr
+                     && branch_column != nullptr
+                     && branch_column->indexOf(project_create_branch)
+                         > branch_column->indexOf(project_branch_list)
+                     && project_overview_page->findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorCreateBranch")) == nullptr
+                     && project_branches_page->findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorImport")) == nullptr
+                     && project_branches_page->findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorEditNetwork")) == nullptr
+                     && activeInspectorAction(projects, QStringLiteral("projectsInspectorImport")) == nullptr
+                     && activeInspectorAction(projects, QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
+                 "Project Inspector actions do not belong to the requested tabs")) return 1;
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(project_create_branch->isVisible() && project_create_branch->isEnabled()
+                     && !project_import->isVisible() && !project_edit->isVisible(),
+                 "Branches tab exposes network actions or hides Create branch")) return 1;
+    inspector_tabs->setCurrentIndex(0);
+    app.processEvents();
+    if (!require(project_import->isVisible() && !project_create_branch->isVisible(),
+                 "Overview tab does not own project network actions")) return 1;
+    ProjectInspectorRelations empty_branches;
+    ProjectPreviewData project_without_branches;
+    empty_branches.populate(&project_without_branches);
+    if (!require(empty_branches.list->count() == 0
+                     && empty_branches.create_branch != nullptr,
+                 "an empty branch list removed its Create branch action")) return 1;
     if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->isVisible()
                      && activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton"))->text() == QStringLiteral("Delete project…"),
                  "selecting a project did not offer deletion in the inspector"))

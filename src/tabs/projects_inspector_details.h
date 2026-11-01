@@ -215,7 +215,16 @@ class ProjectInspectorRelations final : public ProjectsInspectorRelations
 {
 public:
     explicit ProjectInspectorRelations(QWidget *parent = nullptr)
-        : ProjectsInspectorRelations(QStringLiteral("projectsProjectRelations"), parent) {}
+        : ProjectsInspectorRelations(QStringLiteral("projectsProjectRelations"), parent)
+    {
+        this->create_branch = new QPushButton(tr("Create branch"), this);
+        this->create_branch->setObjectName(QStringLiteral("projectsInspectorCreateBranch"));
+        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        column->addWidget(this->create_branch, 0, Qt::AlignLeft);
+    }
+    QPushButton *create_branch = nullptr;
+
     void populate(const ProjectPreviewData *project)
     {
         this->list->clear();
