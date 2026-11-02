@@ -3408,10 +3408,17 @@ void ProjectsWidget::openInspectedNetwork()
     QDialog *dialog = new QDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setWindowTitle(tr("Open immutable revision"));
+    dialog->setObjectName(QStringLiteral("projectsRevisionOpenDialog"));
+    dialog->setMinimumWidth(420);
     QVBoxLayout *column = new QVBoxLayout(dialog);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(12);
+    column->setSizeConstraint(QLayout::SetMinimumSize);
     QLabel *context = new QLabel(tr("Revision %1\nBranch: %2")
         .arg(this->selected_id, this->network_summary_branch), dialog);
+    context->setObjectName(QStringLiteral("projectsRevisionOpenContext"));
     context->setWordWrap(true);
+    context->setTextInteractionFlags(Qt::TextSelectableByMouse);
     column->addWidget(context);
     QRadioButton *read_only = new QRadioButton(tr("Open read-only in Distribution Monitor"), dialog);
     QRadioButton *new_branch = new QRadioButton(tr("Create branch and open for full editing"), dialog);
@@ -3427,6 +3434,8 @@ void ProjectsWidget::openInspectedNetwork()
     column->addWidget(branch_name);
     QDialogButtonBox *buttons = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    buttons->setObjectName(QStringLiteral("projectsRevisionOpenButtons"));
+    column->addWidget(buttons);
     QPushButton *confirm = buttons->button(QDialogButtonBox::Ok);
     confirm->setText(tr("Open"));
     connect(new_branch, &QRadioButton::toggled, branch_name, &QLineEdit::setEnabled);

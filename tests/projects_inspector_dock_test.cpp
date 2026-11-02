@@ -14,6 +14,7 @@
 #include <QComboBox>
 #include <QCheckBox>
 #include <QDialog>
+#include <QDialogButtonBox>
 #include <QListWidget>
 #include <QLabel>
 #include <QFrame>
@@ -1331,6 +1332,49 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects,
                          QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
                  "immutable revision inspector exposes editing actions")) return 1;
+    // The revision-opening dialog must lay out its buttons below the form,
+    // not as unpositioned children obscuring the revision ID at the top.
+    inspector_tabs->setCurrentIndex(0);
+    app.processEvents();
+    QWidget *revision_network_page = activeInspectorOverview(projects);
+    QPushButton *revision_open_network = revision_network_page == nullptr
+        ? nullptr : revision_network_page->findChild<QPushButton *>(
+            QStringLiteral("projectsNetworkOverviewOpen"));
+    if (!require(revision_open_network != nullptr,
+                 "revision Overview lacks its Open network action")) return 1;
+    // Preview fixtures have no committed hydraulic snapshot; enable the UI
+    // action for this layout-only check without touching a repository.
+    revision_open_network->setEnabled(true);
+    revision_open_network->click();
+    app.processEvents();
+    QDialog *open_revision_dialog = projects.findChild<QDialog *>(
+        QStringLiteral("projectsRevisionOpenDialog"));
+    QLabel *open_revision_context = open_revision_dialog == nullptr
+        ? nullptr : open_revision_dialog->findChild<QLabel *>(
+            QStringLiteral("projectsRevisionOpenContext"));
+    QLineEdit *open_revision_branch = open_revision_dialog == nullptr
+        ? nullptr : open_revision_dialog->findChild<QLineEdit *>(
+            QStringLiteral("projectsRevisionOpenBranchName"));
+    QDialogButtonBox *open_revision_buttons = open_revision_dialog == nullptr
+        ? nullptr : open_revision_dialog->findChild<QDialogButtonBox *>(
+            QStringLiteral("projectsRevisionOpenButtons"));
+    QVBoxLayout *open_revision_layout = open_revision_dialog == nullptr
+        ? nullptr : qobject_cast<QVBoxLayout *>(open_revision_dialog->layout());
+    if (!require(open_revision_dialog != nullptr && open_revision_dialog->isVisible()
+                     && open_revision_context != nullptr && open_revision_branch != nullptr
+                     && open_revision_buttons != nullptr && open_revision_layout != nullptr
+                     && open_revision_layout->indexOf(open_revision_buttons)
+                         > open_revision_layout->indexOf(open_revision_branch)
+                     && open_revision_buttons->geometry().top()
+                         > open_revision_branch->geometry().bottom()
+                     && open_revision_branch->geometry().top()
+                         > open_revision_context->geometry().bottom()
+                     && open_revision_buttons->geometry().bottom()
+                         <= open_revision_dialog->contentsRect().bottom(),
+                 "Open immutable revision dialog overlaps its content or loses action buttons"))
+        return 1;
+    open_revision_dialog->reject();
+    app.processEvents();
     QPushButton *revision_branch = activeInspectorAction(projects,
         QStringLiteral("projectsInspectorCreateBranch"));
     QPushButton *revision_commit = activeInspectorAction(projects,
