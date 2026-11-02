@@ -539,8 +539,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (ProjectsInspectorOverview *overview : {
              static_cast<ProjectsInspectorOverview *>(this->database_overview),
              static_cast<ProjectsInspectorOverview *>(this->project_overview),
-             static_cast<ProjectsInspectorOverview *>(this->branch_overview),
-             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
+             static_cast<ProjectsInspectorOverview *>(this->branch_overview)})
         this->inspector_overview_stack->addWidget(overview);
     overview_layout->addWidget(this->inspector_overview_stack);
     this->database_connection = new DatabaseInspectorConnection(
@@ -842,8 +841,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (ProjectsInspectorOverview *overview : {
              static_cast<ProjectsInspectorOverview *>(this->database_overview),
              static_cast<ProjectsInspectorOverview *>(this->project_overview),
-             static_cast<ProjectsInspectorOverview *>(this->branch_overview),
-             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
+             static_cast<ProjectsInspectorOverview *>(this->branch_overview)})
     {
         connect(overview->name, &QLineEdit::editingFinished,
                 this, &ProjectsWidget::applyInspectorEdits);
@@ -853,6 +851,18 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                 this, &ProjectsWidget::applyInspectorEdits);
     }
 
+    connect(this->revision_inspector->save_changes, &QPushButton::clicked,
+            this, &ProjectsWidget::saveRevisionInspectorChanges);
+    connect(this->revision_inspector->commit_head, &QPushButton::clicked,
+            this, &ProjectsWidget::commitSelectedHead);
+    connect(this->revision_overview->commit_message, &QTextEdit::textChanged,
+            this, [this] {
+        if (this->updating_ui || this->selection_kind != SelectionKind::Head) return;
+        if (const ProjectPreviewBranch *branch = currentBranch())
+            this->head_commit_drafts.insert(branch->id,
+                this->revision_overview->commit_message->toPlainText());
+        updateButtons();
+    });
     populateServerTree();
     updateEmptyState();
     populateProjectTree();
@@ -1398,6 +1408,7 @@ void ProjectsWidget::applySourceSnapshot(const QString &source_id, const SourceS
             revision.id = source_revision.id;
             revision.parents = source_revision.parents;
             revision.record_sha256 = source_revision.record_sha256;
+            revision.message = source_revision.message;
             revision.title = tr("Revision %1").arg(DvmdbIdentity::shortLabel(revision.id));
             project.revisions.append(revision);
         }
@@ -1526,8 +1537,9 @@ void ProjectsWidget::populateRevisionTree()
 
     const auto displayTitle = [this](const ProjectPreviewRevision &revision)
     {
-        const QString title = revision.title.trimmed();
-        return title.isEmpty() ? tr("Untitled revision") : title;
+        const QString title = revision.message.trimmed().isEmpty()
+            ? revision.title.trimmed() : revision.message.simplified();
+        return title.isEmpty() ? tr("Revision without commit message") : title;
     };
     const auto labelRevision = [project](QTreeWidgetItem *item,
                                          const ProjectPreviewRevision &revision)
@@ -1639,7 +1651,8 @@ void ProjectsWidget::rebuildGraph()
             {
                 ProjectGraphNode node;
                 node.id = preview ? revision.id : project.id + QStringLiteral("|") + revision.id;
-                node.title = revision.title;
+                node.title = revision.message.trimmed().isEmpty()
+                    ? revision.title : revision.message.simplified();
                 node.branch = tr("Branch: %1").arg(
                     revision.branch.isEmpty() ? tr("Unknown") : revision.branch);
                 node.display_id = revision.id;
@@ -2077,7 +2090,8 @@ void ProjectsWidget::updateInspector()
     else if (this->selection_kind == SelectionKind::Head)
         view = ProjectsInspectorPresentations::head(currentBranch(), project);
     else if (this->selection_kind == SelectionKind::Revision)
-        view = ProjectsInspectorPresentations::revision(selectedRevision(), project);
+        view = ProjectsInspectorPresentations::revision(selectedRevision(), project,
+            inspectedRevisionBranch());
     else
         view = ProjectsInspectorPresentations::empty();
     const bool new_source = this->selection_kind == SelectionKind::NewSource;
@@ -2124,7 +2138,8 @@ void ProjectsWidget::updateInspector()
                       view.editable && !real_data,
                       this->selection_kind != SelectionKind::None
                           && (!real_data || this->selection_kind == SelectionKind::Project
-                              || this->selection_kind == SelectionKind::Head));
+                              || this->selection_kind == SelectionKind::Head
+                              || this->selection_kind == SelectionKind::Revision));
     // Project UUIDs are immutable, but the display name is stored by DVMDB.
     // Keep Tags/Description selectable until their persistent edit API exists.
     if (real_data && this->selection_kind == SelectionKind::Project)
@@ -2136,16 +2151,29 @@ void ProjectsWidget::updateInspector()
         overview->tags->setReadOnly(true);
         overview->description->setReadOnly(true);
     }
-    else if (this->selection_kind == SelectionKind::Head)
+    else if (this->selection_kind == SelectionKind::Head
+             || this->selection_kind == SelectionKind::Revision)
     {
-        // HEAD displays its owning branch metadata here, but editing it is
-        // the responsibility of the branch-management inspector.
-        overview->name->setEnabled(true);
-        overview->tags->setEnabled(true);
-        overview->description->setEnabled(true);
-        overview->name->setReadOnly(true);
-        overview->tags->setReadOnly(true);
-        overview->description->setReadOnly(true);
+        const bool has_branch = inspectedRevisionBranch() != nullptr;
+        overview->name->setEnabled(has_branch && !this->source_writer->isBusy());
+        overview->tags->setEnabled(has_branch && !this->source_writer->isBusy());
+        overview->description->setEnabled(has_branch && !this->source_writer->isBusy());
+        overview->name->setReadOnly(false);
+        overview->tags->setReadOnly(false);
+        overview->description->setReadOnly(false);
+        this->revision_inspector->identity_footer->setText(view.metadata);
+        const QSignalBlocker message_blocker(this->revision_overview->commit_message);
+        this->revision_overview->commit_message->setPlainText(
+            this->selection_kind == SelectionKind::Head
+                ? this->head_commit_drafts.value(this->branch_id)
+                : view.commit_message);
+        this->revision_overview->commit_message->setEnabled(
+            !this->source_writer->isBusy());
+        this->revision_overview->status->setText(this->selection_kind == SelectionKind::Head
+            ? (currentBranch() != nullptr && currentBranch()->head.isEmpty()
+                ? tr("Status: Writable HEAD · No commits yet")
+                : tr("Status: Writable HEAD"))
+            : tr("Status: Immutable revision"));
     }
     else
     {
@@ -2221,7 +2249,9 @@ void ProjectsWidget::updateButtons()
     this->revision_inspector->update(creating && (this->selection_kind == SelectionKind::Revision
                                                   || this->selection_kind == SelectionKind::Head),
         busy, ready && project != nullptr, valid,
-        this->selection_kind == SelectionKind::Head, backed);
+        this->selection_kind == SelectionKind::Head, backed,
+        inspectedRevisionBranch() != nullptr,
+        !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty());
     if (this->inspector_actions_stack != nullptr)
         this->inspector_actions_stack->setVisible(
             this->selection_kind != SelectionKind::None);
@@ -3349,6 +3379,258 @@ void ProjectsWidget::setPersonalServer(bool enabled)
                 return;
             }
             acceptRole(id, result.value(QStringLiteral("role")).toString());
+        });
+    });
+}
+
+const ProjectPreviewBranch *ProjectsWidget::inspectedRevisionBranch() const
+{
+    const ProjectPreviewData *project = currentProject();
+    if (project == nullptr) return nullptr;
+    if (this->selection_kind == SelectionKind::Head || this->selection_kind == SelectionKind::Branch)
+        for (const ProjectPreviewBranch &branch : project->branches)
+            if (branch.id == this->branch_id) return &branch;
+    if (this->selection_kind != SelectionKind::Revision) return nullptr;
+    const QString revision_id = this->selected_id;
+    QHash<QString, QStringList> parents;
+    for (const ProjectPreviewRevision &revision : project->revisions)
+        parents.insert(revision.id, revision.parents);
+    const std::function<bool(const ProjectPreviewBranch &)> contains =
+        [&parents, revision_id](const ProjectPreviewBranch &branch) -> bool {
+        QStringList pending{branch.head};
+        QSet<QString> visited;
+        while (!pending.isEmpty()) {
+            const QString current = pending.takeLast();
+            if (current == revision_id) return true;
+            if (current.isEmpty() || visited.contains(current)) continue;
+            visited.insert(current);
+            pending.append(parents.value(current));
+        }
+        return false;
+    };
+    for (const ProjectPreviewBranch &branch : project->branches)
+        if (branch.id == this->branch_id && contains(branch)) return &branch;
+    const ProjectPreviewBranch *unique = nullptr;
+    for (const ProjectPreviewBranch &branch : project->branches) {
+        if (!contains(branch)) continue;
+        if (unique != nullptr) return nullptr; // No invented ownership for shared history.
+        unique = &branch;
+    }
+    return unique;
+}
+
+void ProjectsWidget::saveRevisionInspectorChanges()
+{
+    if (this->source_writer->isBusy()) return;
+    const SelectionKind mode = this->selection_kind;
+    if (mode != SelectionKind::Head && mode != SelectionKind::Revision) return;
+    ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    if (project == nullptr || branch == nullptr) {
+        QMessageBox::warning(this, tr("Branch context required"),
+            tr("This revision belongs to more than one branch. Select a branch in the left tree first."));
+        return;
+    }
+    const QString new_name = this->revision_overview->name->text().trimmed();
+    const QString new_description = this->revision_overview->description->toPlainText().trimmed();
+    const QString new_message = this->revision_overview->commit_message->toPlainText();
+    QStringList new_tags = parseTags(this->revision_overview->tags->text());
+    if (new_name.isEmpty() || new_name.toUtf8().size() > 96
+        || new_description.toUtf8().size() > 512 || new_tags.size() > 12) {
+        QMessageBox::warning(this, tr("Invalid branch metadata"),
+            tr("The name must be 1–96 bytes, description at most 512 bytes, and tags at most 12."));
+        return;
+    }
+    for (const QString &tag : new_tags)
+        if (tag.toUtf8().size() > 32) {
+            QMessageBox::warning(this, tr("Invalid branch tag"),
+                tr("Each tag may contain at most 32 UTF-8 bytes."));
+            return;
+        }
+    for (const ProjectPreviewBranch &candidate : project->branches)
+        if (candidate.id != branch->id && candidate.name.compare(new_name, Qt::CaseInsensitive) == 0) {
+            QMessageBox::warning(this, tr("Duplicate branch"),
+                tr("Another branch in this project already has that name."));
+            return;
+        }
+    if (mode == SelectionKind::Revision && (new_message.trimmed().isEmpty()
+        || new_message.toUtf8().size() > 65536)) {
+        QMessageBox::warning(this, tr("Invalid commit message"),
+            tr("A revision commit message must be nonempty and at most 65536 UTF-8 bytes."));
+        return;
+    }
+    const QString old_name = branch->name;
+    const QString old_description = branch->description;
+    const QStringList old_tags = branch->tags;
+    const QString branch_id = branch->id;
+    const QString project_id = project->id;
+    const QString selected_id = this->selected_id;
+    const QString server_id = this->server_id;
+    const QString backend_project_id = project->backend_id;
+    const QString backend_branch_id = branch_id.mid(project_id.size() + 1);
+    const QString old_message = mode == SelectionKind::Revision && selectedRevision() != nullptr
+        ? (selectedRevision()->message.isEmpty() ? selectedRevision()->title : selectedRevision()->message)
+        : QString();
+    const bool branch_changed = old_name != new_name || old_description != new_description
+        || old_tags != new_tags;
+    const bool message_changed = mode == SelectionKind::Revision && old_message != new_message;
+    const ProjectServerProfile *server = currentServer();
+    if (project->database_backed && server == nullptr) return;
+    const ProjectServerProfile profile = server != nullptr ? *server : ProjectServerProfile{};
+    const std::function<void()> finish_success = [this, mode, project_id, selected_id, server_id]() {
+        if (server_id != this->server_id) return;
+        if (!isPreviewSource()) {
+            loadSource(server_id);
+        } else {
+            populateProjectTree(); populateRevisionTree(); rebuildGraph();
+            select(mode, selected_id);
+        }
+    };
+    const std::function<void()> perform = [this, mode, project_id, branch_id,
+            selected_id, profile, backend_project_id, backend_branch_id, old_name,
+            new_name, old_description, new_description, old_tags, new_tags,
+            old_message, new_message, branch_changed, message_changed, finish_success]() {
+        if (this->project_id != project_id || this->selected_id != selected_id
+            || this->selection_kind != mode) return;
+        if (isPreviewSource()) {
+            ProjectPreviewData *mutable_project = currentProject();
+            if (mutable_project == nullptr) return;
+            for (ProjectPreviewBranch &mutable_branch : mutable_project->branches)
+                if (mutable_branch.id == branch_id) {
+                    mutable_branch.name = new_name;
+                    mutable_branch.description = new_description;
+                    mutable_branch.tags = new_tags;
+                }
+            if (mode == SelectionKind::Revision) {
+                if (ProjectPreviewRevision *revision = selectedRevision())
+                    revision->message = new_message;
+            } else {
+                this->head_commit_drafts.insert(branch_id, new_message);
+            }
+            finish_success();
+            return;
+        }
+        const std::function<void()> update_message = [this, profile, backend_project_id,
+                selected_id, old_message, new_message, message_changed, finish_success]() {
+            if (!message_changed) { finish_success(); return; }
+            this->source_writer->updateRevisionMessage(profile, backend_project_id,
+                selected_id, old_message, new_message,
+                [this, finish_success](const QString &, const QString &error) {
+                    if (!error.isEmpty())
+                        QMessageBox::warning(this, tr("Commit message update failed"), error);
+                    finish_success();
+                });
+        };
+        if (branch_changed) {
+            this->source_writer->updateBranchProperties(profile, backend_project_id,
+                backend_branch_id, old_name, new_name, new_tags, new_description,
+                [this, update_message, finish_success](const QString &, const QString &error) {
+                    if (!error.isEmpty()) {
+                        QMessageBox::warning(this, tr("Branch update failed"), error);
+                        finish_success();
+                    } else update_message();
+                });
+        } else update_message();
+    };
+    if (old_name == new_name) { perform(); return; }
+    QMessageBox *confirmation = new QMessageBox(QMessageBox::Question, tr("Rename branch?"),
+        tr("Rename branch '%1' to '%2' everywhere in this project?\n\n"
+           "Revision UUIDs, contents and record hashes remain unchanged.")
+            .arg(old_name, new_name), QMessageBox::Yes | QMessageBox::Cancel, this);
+    confirmation->setAttribute(Qt::WA_DeleteOnClose);
+    connect(confirmation, &QMessageBox::finished, this,
+            [perform](int button) { if (button == QMessageBox::Yes) perform(); });
+    confirmation->open(); // Non-blocking: required for Qt WebAssembly.
+}
+
+void ProjectsWidget::commitSelectedHead()
+{
+    if (this->selection_kind != SelectionKind::Head || this->source_writer->isBusy()) return;
+    const ProjectPreviewBranch *branch = currentBranch();
+    const ProjectPreviewData *project = currentProject();
+    if (branch == nullptr || project == nullptr || !project->database_backed) {
+        QMessageBox::information(this, tr("Commit HEAD"),
+            tr("A real, database-backed private HEAD and saved working copy are required."));
+        return;
+    }
+    const QString message = this->revision_overview->commit_message->toPlainText();
+    if (message.trimmed().isEmpty() || message.toUtf8().size() > 65536) {
+        QMessageBox::warning(this, tr("Commit message required"),
+            tr("Enter a nonempty commit message (up to 65536 UTF-8 bytes)."));
+        return;
+    }
+    if (this->revision_overview->name->text().trimmed() != branch->name
+        || parseTags(this->revision_overview->tags->text()) != branch->tags
+        || this->revision_overview->description->toPlainText().trimmed() != branch->description) {
+        QMessageBox::information(this, tr("Save branch metadata first"),
+            tr("Save the branch name, tags and description before committing HEAD."));
+        return;
+    }
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable
+        || target.repository_id != project->repository_id) {
+        QMessageBox::warning(this, tr("Private working copy required"),
+            tr("Checkout the branch into your personal database and select its HEAD before committing."));
+        return;
+    }
+    const QString branch_id = branch->id.mid(project->id.size() + 1);
+    const QString project_id = project->backend_id;
+    const QString source_id = this->server_id;
+    const QString selected_branch = branch->id;
+    PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    client->list(target, [this, client, target, project_id, branch_id, source_id,
+                          selected_branch, message](const QList<PersonalWorkingCopyInfo> &drafts,
+                                                     const QString &error) {
+        if (!error.isEmpty()) {
+            QMessageBox::warning(this, tr("Cannot find saved draft"), error);
+            client->deleteLater(); return;
+        }
+        QString draft_id;
+        int matches = 0;
+        for (const PersonalWorkingCopyInfo &draft : drafts)
+            if (draft.project_id == project_id && draft.branch_id == branch_id && draft.dirty) {
+                ++matches;
+                draft_id = draft.id;
+            }
+        if (matches != 1) {
+            QMessageBox::warning(this, tr("Select a saved working copy"), matches == 0
+                ? tr("There is no saved modified working copy for this HEAD.")
+                : tr("Multiple modified drafts exist. Resolve the competing drafts before committing."));
+            client->deleteLater(); return;
+        }
+        client->reopen(target, draft_id,
+            [this, client, target, project_id, branch_id, source_id, selected_branch, message]
+            (const PersonalWorkingCopyInfo &draft, const QString &reopen_error) {
+            if (!reopen_error.isEmpty() || draft.project_id != project_id
+                || draft.branch_id != branch_id || !draft.dirty || draft.changes.isEmpty()) {
+                QMessageBox::warning(this, tr("Cannot commit draft"), reopen_error.isEmpty()
+                    ? tr("The saved working copy is no longer valid or has no changes.") : reopen_error);
+                client->deleteLater(); return;
+            }
+            // A fresh writer session must acquire the lease, fencing out edits
+            // from another GUI session. Never commit a stale editor session.
+            const QString session_id = DvmdbIdentity::newUuidV7();
+            client->acquireLease(target, draft.id, session_id, 120,
+                [this, client, target, draft, session_id, source_id, selected_branch, message]
+                (const PersonalWorkingCopyLease &lease, const QString &lease_error) {
+                if (!lease_error.isEmpty()) {
+                    QMessageBox::warning(this, tr("Draft is being edited"), lease_error);
+                    client->deleteLater(); return;
+                }
+                client->commitSavedDraft(target, draft, session_id, lease, message,
+                    [this, client, source_id, selected_branch](const QString &revision,
+                                                                const QString &commit_error) {
+                    client->deleteLater();
+                    if (!commit_error.isEmpty()) {
+                        QMessageBox::warning(this, tr("Commit not confirmed"), commit_error);
+                        return;
+                    }
+                    this->head_commit_drafts.remove(selected_branch);
+                    if (this->server_id == source_id) loadSource(source_id);
+                    QMessageBox::information(this, tr("Committed"),
+                        tr("Created immutable revision %1.").arg(revision));
+                });
+            });
         });
     });
 }

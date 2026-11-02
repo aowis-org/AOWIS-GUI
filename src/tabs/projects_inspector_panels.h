@@ -181,7 +181,28 @@ class RevisionInspectorOverview final : public ProjectsInspectorOverview
 {
 public:
     explicit RevisionInspectorOverview(QWidget *parent = nullptr)
-        : ProjectsInspectorOverview(QStringLiteral("Revision"), parent) {}
+        : ProjectsInspectorOverview(QStringLiteral("Revision"), parent)
+    {
+        QFormLayout *form = qobject_cast<QFormLayout *>(this->fields->layout());
+        QLabel *name_label = qobject_cast<QLabel *>(form->labelForField(this->name));
+        if (name_label != nullptr) name_label->setText(tr("Branch name"));
+        this->commit_message = new QTextEdit(this->fields);
+        this->commit_message->setObjectName(QStringLiteral("projectsRevisionCommitMessage"));
+        this->commit_message->setMinimumHeight(88);
+        this->commit_message->setMaximumHeight(160);
+        this->commit_message->setTabChangesFocus(true);
+        form->insertRow(2, tr("Commit message"), this->commit_message);
+        this->status = new QLabel(this);
+        this->status->setObjectName(QStringLiteral("projectsRevisionStatus"));
+        this->status->setWordWrap(true);
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        column->insertWidget(column->indexOf(this->preview_note), this->status);
+        // UUID labels belong after the actions in RevisionInspector, never
+        // between form fields and the Commit/Create branch buttons.
+        this->metadata->hide();
+    }
+    QTextEdit *commit_message = nullptr;
+    QLabel *status = nullptr;
 };
 
 class ProjectsInspectorActionStack final : public QStackedWidget
@@ -355,17 +376,40 @@ public:
         this->head_working_copies = addButton(tr("Personal working copies…"),
             QStringLiteral("projectsHeadInspectorWorkingCopies"),
             tr("Create or reopen a private working copy of this branch HEAD"));
+        this->save_changes = addButton(tr("Save changes"),
+            QStringLiteral("projectsRevisionSaveMetadata"),
+            tr("Save branch metadata and commit message changes"));
+        this->commit_head = addButton(tr("Commit"),
+            QStringLiteral("projectsHeadInspectorCommit"),
+            tr("Commit the saved private working copy with the entered message"));
+        this->identity_footer = new QLabel(this);
+        this->identity_footer->setObjectName(QStringLiteral("projectsRevisionIdentityFooter"));
+        this->identity_footer->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        this->identity_footer->setWordWrap(true);
+        this->identity_footer->setMinimumWidth(0);
+        this->identity_footer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        this->column->addWidget(this->identity_footer);
         moveToFullWidth(this->edit_head_network);
         moveToFullWidth(this->head_working_copies);
     }
     QPushButton *create_branch = nullptr;
     QPushButton *edit_head_network = nullptr;
     QPushButton *head_working_copies = nullptr;
+    QPushButton *save_changes = nullptr;
+    QPushButton *commit_head = nullptr;
+    QLabel *identity_footer = nullptr;
     void update(bool creating, bool busy, bool ready, bool valid,
-                bool head, bool database_backed)
+                bool head, bool database_backed, bool has_branch, bool has_commit_message)
     {
         this->create_branch->setVisible(!creating);
-        this->create_branch->setEnabled(ready);
+        this->create_branch->setEnabled(ready && !head);
+        this->create_branch->setToolTip(head
+            ? tr("Commit HEAD first, then select the finalized revision to create a branch.")
+            : tr("Create a new branch from this immutable revision"));
+        this->save_changes->setVisible(!creating);
+        this->save_changes->setEnabled(ready && has_branch);
+        this->commit_head->setVisible(!creating && head);
+        this->commit_head->setEnabled(ready && database_backed && has_branch && has_commit_message);
         this->edit_head_network->setVisible(!creating && head && database_backed);
         this->edit_head_network->setEnabled(ready);
         this->head_working_copies->setVisible(!creating && head && database_backed);

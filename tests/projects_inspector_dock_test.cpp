@@ -165,10 +165,12 @@ int main(int argc, char **argv)
         revision.title = QStringLiteral("Initial revision");
         revision.parents.clear();
         revision.record_sha256 = QStringLiteral("canonical-sha256");
+        revision.message = QStringLiteral("Implemented initial network");
         const ProjectsInspectorPresentation revision_view = ProjectsInspectorPresentations::revision(
-            &revision, &project);
-        if (!require(revision_view.name == revision.title
-                         && revision_view.subtitle.contains(QStringLiteral("read-only"))
+            &revision, &project, &main_branch);
+        if (!require(revision_view.name == main_branch.name
+                         && revision_view.commit_message == revision.message
+                         && revision_view.subtitle.contains(QStringLiteral("Immutable"))
                          && revision_view.metadata.contains(QStringLiteral("HEAD of: main"))
                          && revision_view.metadata.contains(revision.record_sha256),
                      "revision Inspector presentation lost immutable ancestry metadata"))
@@ -887,7 +889,7 @@ int main(int argc, char **argv)
         return 1;
     revisions->setCurrentItem(find_revision(scenario_head_id));
     app.processEvents();
-    if (!require(activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning")
+    if (!require(activeInspectorName(projects)->text() == QStringLiteral("pressure-study")
                      && find_revision(scenario_head_id)->isSelected(),
                  "Selecting a head did not synchronize the inspector and tree"))
         return 1;
@@ -1288,7 +1290,7 @@ int main(int argc, char **argv)
     dock->close();
     graph->revisionActivated(QStringLiteral("ec9045df"));
     app.processEvents();
-    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("pressure-study"),
                  "selecting a revision on the graph did not reopen its inspector"))
         return 1;
     if (!require(activeInspectorAction(projects, QStringLiteral("projectInspectorDeleteButton")) == nullptr,
@@ -1299,6 +1301,23 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects,
                          QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
                  "immutable revision inspector exposes editing actions")) return 1;
+    QPushButton *revision_branch = activeInspectorAction(projects,
+        QStringLiteral("projectsInspectorCreateBranch"));
+    QPushButton *revision_commit = activeInspectorAction(projects,
+        QStringLiteral("projectsHeadInspectorCommit"));
+    QPushButton *revision_save = activeInspectorAction(projects,
+        QStringLiteral("projectsRevisionSaveMetadata"));
+    QWidget *revision_form = activeInspectorOverview(projects);
+    QTextEdit *revision_message = revision_form != nullptr
+        ? revision_form->findChild<QTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
+    QLabel *revision_identity = action_stack->currentWidget()->findChild<QLabel *>(
+        QStringLiteral("projectsRevisionIdentityFooter"));
+    if (!require(revision_branch != nullptr && revision_branch->isEnabled()
+                     && revision_commit != nullptr && !revision_commit->isVisible()
+                     && revision_save != nullptr && revision_save->isEnabled()
+                     && revision_message != nullptr && revision_message->isEnabled()
+                     && revision_identity != nullptr,
+                 "Revision Inspector did not offer editable message and branch creation")) return 1;
 
     dock->close();
     const double zoom_before_graph_selection = graph->zoomFactor();
@@ -1316,6 +1335,23 @@ int main(int argc, char **argv)
                      && head_edit != nullptr && !head_edit->isVisible(),
                  "selecting a HEAD card did not open its HEAD/Revision Inspector"))
         return 1;
+    QPushButton *head_branch = activeInspectorAction(projects,
+        QStringLiteral("projectsInspectorCreateBranch"));
+    QPushButton *head_commit = activeInspectorAction(projects,
+        QStringLiteral("projectsHeadInspectorCommit"));
+    QWidget *head_form = activeInspectorOverview(projects);
+    QTextEdit *head_message = head_form != nullptr
+        ? head_form->findChild<QTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
+    if (!require(head_branch != nullptr && !head_branch->isEnabled()
+                     && head_branch->toolTip().contains(QStringLiteral("Commit HEAD first"))
+                     && head_commit != nullptr && head_commit->isVisible()
+                     && !head_commit->isEnabled() && head_message != nullptr
+                     && head_message->isEnabled(),
+                 "HEAD Inspector must require a commit message and disable branching")) return 1;
+    head_message->setPlainText(QStringLiteral("Commit the hydraulic changes"));
+    app.processEvents();
+    if (!require(!head_commit->isEnabled(),
+                 "preview HEAD offered a commit without a persistent private working copy")) return 1;
     if (!require(graph->selectionId() == QStringLiteral("group:branch:north-main"),
                  "graph HEAD activation did not synchronize the selected HEAD")) return 1;
     // The highlighted branch row must remain clickable after HEAD selection,
@@ -1339,7 +1375,7 @@ int main(int argc, char **argv)
     dock->close();
     projects.showRevisionHistory();
     app.processEvents();
-    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Pressure tuning"),
+    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("pressure-study"),
                  "History did not reopen the already selected revision"))
         return 1;
 

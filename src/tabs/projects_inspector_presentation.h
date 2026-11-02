@@ -14,6 +14,7 @@ struct ProjectsInspectorPresentation
     QString heading = QCoreApplication::translate("ProjectsWidget", "Inspector");
     QString name;
     QString description;
+    QString commit_message;
     QStringList tags;
     QString subtitle;
     QString metadata;
@@ -132,7 +133,7 @@ public:
         view.description = branch->description;
         view.tags = branch->tags;
         view.editable = false;
-        view.subtitle = translate("Writable working state · Branch: %1").arg(branch->name);
+        view.subtitle = translate("Writable HEAD · Branch: %1").arg(branch->name);
         view.metadata = branch->head.isEmpty()
             ? translate("No commits yet")
             : translate("Base revision: %1").arg(branch->head);
@@ -150,26 +151,29 @@ public:
     }
 
     static ProjectsInspectorPresentation revision(const ProjectPreviewRevision *revision,
-                                                   const ProjectPreviewData *project)
+                                                   const ProjectPreviewData *project,
+                                                   const ProjectPreviewBranch *branch)
     {
         ProjectsInspectorPresentation view;
         if (revision == nullptr) return view;
         view.heading = translate("Revision");
-        view.name = revision->title;
-        view.description = revision->description;
-        view.tags = revision->tags;
-        view.subtitle = project != nullptr && project->database_backed
-            ? translate("Immutable DVMDB revision (read-only; metadata editing unavailable).")
-            : translate("Historical model state is immutable; these are preview annotations only.");
+        view.name = branch != nullptr ? branch->name : revision->branch;
+        view.description = branch != nullptr ? branch->description : QString();
+        view.tags = branch != nullptr ? branch->tags : QStringList();
+        view.commit_message = revision->message.isEmpty() ? revision->title : revision->message;
+        view.subtitle = translate("Immutable revision · commit message is a mutable display annotation");
         if (project != nullptr && project->database_backed)
         {
             QStringList heads;
             for (const ProjectPreviewBranch &branch : project->branches)
                 if (branch.head == revision->id) heads.append(branch.name);
-            view.metadata = translate("Revision: %1\nIdentity: %2\nHEAD of: %3\nParents: %4")
-                .arg(revision->id, DvmdbIdentity::revisionFormatName(revision->id),
+            view.metadata = translate("Revision UUIDv7: %1\nHEAD of: %2\nParents: %3")
+                .arg(revision->id,
                      heads.isEmpty() ? translate("(none)") : heads.join(QStringLiteral(", ")),
                      revision->parents.isEmpty() ? translate("(root)") : revision->parents.join(QStringLiteral(", ")));
+            if (branch != nullptr)
+                view.metadata.prepend(translate("Branch UUIDv7: %1\n")
+                    .arg(branch->id.mid(project->id.size() + 1)));
             if (!revision->record_sha256.isEmpty())
                 view.metadata += translate("\nCanonical record SHA-256: %1").arg(revision->record_sha256);
         }

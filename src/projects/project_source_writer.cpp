@@ -178,6 +178,109 @@ void ProjectSourceWriter::renameProject(const ProjectServerProfile &profile,
     });
 }
 
+void ProjectSourceWriter::updateBranchProperties(
+        const ProjectServerProfile &profile, const QString &project_id,
+        const QString &branch_id, const QString &expected_name, const QString &name,
+        const QStringList &tags, const QString &description, Completion completion)
+{
+    QJsonArray tag_array;
+    for (const QString &tag : tags) tag_array.append(tag);
+    patchProperties(profile, QStringLiteral("/projects/") + segment(project_id)
+        + QStringLiteral("/branch-ids/") + segment(branch_id),
+        QJsonObject{{QStringLiteral("expectedName"), expected_name},
+                    {QStringLiteral("name"), name},
+                    {QStringLiteral("description"), description},
+                    {QStringLiteral("tags"), tag_array}}, QStringLiteral("branchId"), branch_id,
+        std::move(completion));
+}
+
+void ProjectSourceWriter::updateRevisionMessage(
+        const ProjectServerProfile &profile, const QString &project_id,
+        const QString &revision_id, const QString &expected_message,
+        const QString &message, Completion completion)
+{
+    patchProperties(profile, QStringLiteral("/projects/") + segment(project_id)
+        + QStringLiteral("/revisions/") + segment(revision_id) + QStringLiteral("/message"),
+        QJsonObject{{QStringLiteral("expectedMessage"), expected_message},
+                    {QStringLiteral("message"), message}},
+        QStringLiteral("revision"), revision_id, std::move(completion));
+}
+
+void ProjectSourceWriter::patchProperties(const ProjectServerProfile &profile,
+        const QString &path, const QJsonObject &body, const QString &expected_response_key,
+        const QString &expected_value, Completion completion)
+{
+    if (this->busy) {
+        if (completion) completion({}, tr("Another database write is in progress."));
+        return;
+    }
+    const QString validation = validateProfile(profile);
+    if (!validation.isEmpty()) {
+        if (completion) completion({}, validation);
+        return;
+    }
+    ProjectServerProfile request_profile = profile;
+    if (profile.connection_type == QStringLiteral("local")) {
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+        QString error;
+        const QString endpoint = embeddedDvmdbEndpoint(profile.local_path, profile.personal,
+                                                       nullptr, &error);
+        if (endpoint.isEmpty()) {
+            if (completion) completion({}, error);
+            return;
+        }
+        request_profile.connection_type = QStringLiteral("remote");
+        request_profile.endpoint = endpoint;
+#else
+        if (completion) completion({}, tr("Embedded DVMDB is unavailable."));
+        return;
+#endif
+    }
+    QString root = request_profile.endpoint.trimmed();
+    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
+    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
+    QNetworkRequest request(QUrl(root + path));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setRawHeader("Accept", "application/json");
+    request.setTransferTimeout(12000);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);
+    this->busy = true;
+    this->completion = std::move(completion);
+    this->reply = this->manager.sendCustomRequest(request, "PATCH",
+        QJsonDocument(body).toJson(QJsonDocument::Compact));
+    QNetworkReply *pending = this->reply;
+    const QPointer<QNetworkReply> deadline(pending);
+    QTimer::singleShot(15000, this, [deadline] { if (deadline) deadline->abort(); });
+    connect(pending, &QNetworkReply::finished, this,
+            [this, pending, expected_response_key, expected_value]
+    {
+        if (this->reply == pending) this->reply.clear();
+        const QByteArray bytes = pending->readAll();
+        const int status = pending->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const bool ok = pending->error() == QNetworkReply::NoError && status == 200;
+        const QString network_error = pending->errorString();
+        pending->deleteLater();
+        if (bytes.size() > 1024 * 1024) {
+            finish({}, tr("DVMDB metadata reply exceeded the size limit. Refresh before retrying."));
+            return;
+        }
+        const QJsonObject object = QJsonDocument::fromJson(bytes).object();
+        if (!ok) {
+            const QString error = object.value(QStringLiteral("error")).toObject()
+                .value(QStringLiteral("message")).toString();
+            finish({}, error.isEmpty() ? tr("Metadata update failed (HTTP %1: %2). Refresh before retrying.")
+                .arg(status).arg(network_error) : error);
+            return;
+        }
+        if (object.value(expected_response_key).toString() != expected_value) {
+            finish({}, tr("DVMDB metadata reply has the wrong identity. Refresh before retrying."));
+            return;
+        }
+        finish(expected_value, {});
+    });
+}
+
 void ProjectSourceWriter::finish(const QString &id, const QString &error)
 {
     this->busy = false;

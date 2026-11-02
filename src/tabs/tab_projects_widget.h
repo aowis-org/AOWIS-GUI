@@ -60,6 +60,7 @@ struct ProjectPreviewRevision
     QString author;
     QString created_at;
     QString record_sha256;
+    QString message; // Editable display message; hashed canonical commit message is immutable.
 };
 
 struct ProjectPreviewBranch
@@ -171,6 +172,9 @@ private:
     void browseExamples();
     void createProjectFromExample(const BuiltinExampleRevision &example);
     void applyInspectorEdits();
+    const ProjectPreviewBranch *inspectedRevisionBranch() const;
+    void saveRevisionInspectorChanges();
+    void commitSelectedHead();
     void reportServerSaveFailure();
     void setPersonalServer(bool enabled);
     ProjectServerProfile *currentServer();
@@ -236,5 +240,6 @@ private:
     enum class SourceState { Checking, Loading, Connected, Error };
     int personal_designation_request = 0;
     int source_creation_request = 0;
+    QHash<QString, QString> head_commit_drafts; // Per-branch edits retained when switching Inspector.
     bool updating_ui = false;
 };

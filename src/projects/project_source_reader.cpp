@@ -44,6 +44,13 @@ bool parseRevision(const QJsonValue &value, SourceRevision &revision)
     const QJsonObject object = value.toObject();
     revision.id = object.value(QStringLiteral("id")).toString();
     revision.record_sha256 = object.value(QStringLiteral("recordHash")).toString();
+    revision.message = object.value(QStringLiteral("message")).toString();
+    revision.original_message = object.value(QStringLiteral("originalMessage")).toString();
+    if ((!object.value(QStringLiteral("message")).isUndefined()
+         && !object.value(QStringLiteral("message")).isString())
+        || (!object.value(QStringLiteral("originalMessage")).isUndefined()
+            && !object.value(QStringLiteral("originalMessage")).isString())
+        || revision.message.toUtf8().size() > 65536) return false;
     const QJsonValue parents = object.value(QStringLiteral("parents"));
     const QJsonValue hashes = object.value(QStringLiteral("parentRecordHashes"));
     if (!DvmdbIdentity::isUuidV7(revision.id)

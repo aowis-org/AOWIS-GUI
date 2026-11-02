@@ -22,6 +22,8 @@ struct SourceRevision
     QStringList parents;
     QString record_sha256; // SHA-256 of canonical immutable revision record.
     QStringList parent_record_sha256; // Ordered integrity bindings for parent UUIDs.
+    QString message; // Mutable display message supplied by DVMDB.
+    QString original_message; // Canonical hashed commit message.
 };
 
 struct SourceBranch

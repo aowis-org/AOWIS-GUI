@@ -98,6 +98,13 @@ public:
     // Every write is explicitly scoped to the personal repository. A save
     // acknowledges only the exact next generation; uncertain network failures
     // must be resolved by reopen(), never by blindly replaying a batch.
+    // Commit an exact saved draft using a private DVMDB's durable, UUID-keyed
+    // local-commit coordinator; an uncertain reply is reconciled by operation ID.
+    using CommitCompletion = std::function<void(const QString &revision, const QString &error)>;
+    void commitSavedDraft(const PersonalRepositoryTarget &target,
+                          const PersonalWorkingCopyInfo &draft, const QString &session_id,
+                          const PersonalWorkingCopyLease &lease, const QString &message,
+                          CommitCompletion completion);
     void acquireLease(const PersonalRepositoryTarget &target, const QString &draft_id,
                       const QString &session_id, int seconds, LeaseCompletion completion);
     // Create the first hydraulic network in an unborn private draft. The

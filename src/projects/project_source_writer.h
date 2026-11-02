@@ -9,6 +9,7 @@
 #include <functional>
 
 class QNetworkReply;
+class QJsonObject;
 
 // Project and branch creation. Exactly one write may be in flight. The writer
 // chooses the UUIDv7 of what it creates, so a request resent by the transport
@@ -32,6 +33,15 @@ public:
     void createUnbornBranch(const ProjectServerProfile &profile, const QString &project_id,
                             const QString &name, const QStringList &tags,
                             const QString &description, Completion completion);
+    // Both operations use compare-and-swap preconditions and refresh after
+    // uncertain replies; the UUIDv7 addresses never change on rename.
+    void updateBranchProperties(const ProjectServerProfile &profile, const QString &project_id,
+                                const QString &branch_id, const QString &expected_name,
+                                const QString &name, const QStringList &tags,
+                                const QString &description, Completion completion);
+    void updateRevisionMessage(const ProjectServerProfile &profile, const QString &project_id,
+                               const QString &revision_id, const QString &expected_message,
+                               const QString &message, Completion completion);
     // The source branch is addressed by UUIDv7, never by its renamable name.
     void createBranch(const ProjectServerProfile &profile, const QString &project_id,
                       const QString &name, const QString &from_branch_id,
@@ -44,6 +54,9 @@ private:
                const QString &from_revision, const QStringList &tags,
                const QString &description, Completion completion);
     void finish(const QString &id, const QString &error);
+    void patchProperties(const ProjectServerProfile &profile, const QString &path,
+                         const QJsonObject &body, const QString &expected_response_key,
+                         const QString &expected_value, Completion completion);
 
     QNetworkAccessManager manager;
     QPointer<QNetworkReply> reply;

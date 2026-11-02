@@ -520,6 +520,63 @@ void PersonalWorkingCopyClient::acquireLease(
     });
 }
 
+void PersonalWorkingCopyClient::commitSavedDraft(
+    const PersonalRepositoryTarget &target, const PersonalWorkingCopyInfo &draft,
+    const QString &session_id, const PersonalWorkingCopyLease &lease,
+    const QString &message, CommitCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft.id) || !DvmdbIdentity::isUuidV7(session_id)
+        || !DvmdbIdentity::isUuidV7(lease.token) || !decimal(lease.generation)
+        || !draft.dirty || draft.changes.isEmpty() || message.trimmed().isEmpty()
+        || message.toUtf8().size() > 65536 || !decimal(draft.generation)
+        || draft.generation != lease.generation) {
+        completion({}, QStringLiteral("Commit requires an unchanged, dirty saved draft and a nonempty message."));
+        return;
+    }
+    const QString operation_id = DvmdbIdentity::newUuidV7();
+    const QString author_id = DvmdbIdentity::newUuidV7();
+    const QJsonObject body{
+        {QStringLiteral("operationId"), operation_id},
+        {QStringLiteral("draftId"), draft.id},
+        {QStringLiteral("sessionId"), session_id},
+        {QStringLiteral("fencingToken"), lease.token},
+        {QStringLiteral("expectedGeneration"), draft.generation},
+        {QStringLiteral("expectedHead"), draft.base_revision.isEmpty()
+            ? QJsonValue(QJsonValue::Null) : QJsonValue(draft.base_revision)},
+        {QStringLiteral("author"), QJsonObject{{QStringLiteral("id"), author_id},
+                                               {QStringLiteral("name"), QStringLiteral("AOWIS user")}}},
+        {QStringLiteral("message"), message}};
+    request(target, "POST", QStringLiteral("/local-commits"), body,
+            [this, target, operation_id, completion = std::move(completion)](
+                const QJsonObject &response, const QString &error) mutable
+    {
+        if (error.isEmpty() && response.value(QStringLiteral("state")).toString()
+            == QStringLiteral("succeeded")) {
+            const QString revision = response.value(QStringLiteral("revision")).toString();
+            if (DvmdbIdentity::isUuidV7(revision)) { completion(revision, {}); return; }
+        }
+        // A dropped acknowledgement may follow a successful durable Commit.
+        // Never create another operation ID or blindly retry the POST.
+        request(target, "GET", QStringLiteral("/local-commits/") + operation_id, {},
+                [completion = std::move(completion), error](const QJsonObject &status,
+                                                             const QString &lookup_error) mutable
+        {
+            const QString state = status.value(QStringLiteral("state")).toString();
+            const QString revision = status.value(QStringLiteral("revision")).toString();
+            if (lookup_error.isEmpty() && state == QStringLiteral("succeeded")
+                && DvmdbIdentity::isUuidV7(revision)) {
+                completion(revision, {});
+                return;
+            }
+            completion({}, lookup_error.isEmpty()
+                ? (state == QStringLiteral("pending")
+                    ? QStringLiteral("Commit is pending; check its operation UUID before retrying.")
+                    : status.value(QStringLiteral("reason")).toString())
+                : (error.isEmpty() ? lookup_error : error + QStringLiteral("; status: ") + lookup_error));
+        });
+    });
+}
+
 void PersonalWorkingCopyClient::loadDraftNetwork(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &network_id, NetworkCompletion completion)
