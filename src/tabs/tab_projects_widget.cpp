@@ -1033,11 +1033,40 @@ void ProjectsWidget::seedPreview()
         {QStringLiteral("north-main"), QStringLiteral("main"), tr("Stable hydraulic model"), {QStringLiteral("stable")}, QStringLiteral("c8d102ab")},
         {QStringLiteral("north-study"), QStringLiteral("pressure-study"), tr("Pressure optimization experiment"), {QStringLiteral("scenario")}, QStringLiteral("ec9045df")}
     };
+    // Preview revisions have commit messages, not separate names. Initialize
+    // fields explicitly: positional aggregate initialization previously put
+    // the intended description into the wrong field and left message empty.
     north.revisions = {
-        {QStringLiteral("c8d102ab"), tr("Validated network"), tr("Update base network parameters."), QStringLiteral("main"), {QStringLiteral("93f0de41")}, {QStringLiteral("validated")}, tr("Preview author"), QStringLiteral("2026-10-25")},
-        {QStringLiteral("ec9045df"), tr("Pressure tuning"), tr("Adjusted pressure scenario inputs."), QStringLiteral("pressure-study"), {QStringLiteral("a24f918d")}, {QStringLiteral("experiment")}, tr("Preview author"), QStringLiteral("2026-10-24")},
-        {QStringLiteral("a24f918d"), tr("Scenario start"), tr("Branch off the network baseline."), QStringLiteral("pressure-study"), {QStringLiteral("93f0de41")}, {}, tr("Preview author"), QStringLiteral("2026-10-23")},
-        {QStringLiteral("93f0de41"), tr("Network baseline"), tr("Initial imported hydraulic model."), QStringLiteral("main"), {}, {QStringLiteral("baseline")}, tr("Preview author"), QStringLiteral("2026-10-22")}
+        {.id = QStringLiteral("c8d102ab"),
+         .description = tr("Update base network parameters."),
+         .branch = QStringLiteral("main"),
+         .parents = {QStringLiteral("93f0de41")},
+         .tags = {QStringLiteral("validated")},
+         .author = tr("Preview author"),
+         .created_at = QStringLiteral("2026-10-25"),
+         .message = tr("Validated network")},
+        {.id = QStringLiteral("ec9045df"),
+         .description = tr("Adjusted pressure scenario inputs."),
+         .branch = QStringLiteral("pressure-study"),
+         .parents = {QStringLiteral("a24f918d")},
+         .tags = {QStringLiteral("experiment")},
+         .author = tr("Preview author"),
+         .created_at = QStringLiteral("2026-10-24"),
+         .message = tr("Pressure tuning")},
+        {.id = QStringLiteral("a24f918d"),
+         .description = tr("Branch off the network baseline."),
+         .branch = QStringLiteral("pressure-study"),
+         .parents = {QStringLiteral("93f0de41")},
+         .author = tr("Preview author"),
+         .created_at = QStringLiteral("2026-10-23"),
+         .message = tr("Scenario start")},
+        {.id = QStringLiteral("93f0de41"),
+         .description = tr("Initial imported hydraulic model."),
+         .branch = QStringLiteral("main"),
+         .tags = {QStringLiteral("baseline")},
+         .author = tr("Preview author"),
+         .created_at = QStringLiteral("2026-10-22"),
+         .message = tr("Network baseline")}
     };
     // Historical example data is retained for the version-explorer prototype,
     // but is only shown by explicitly configured profiles with this demo ID.
@@ -1050,7 +1079,12 @@ void ProjectsWidget::seedPreview()
     south.description = tr("Another fictional project in this GUI preview.");
     south.tags = {QStringLiteral("preview")};
     south.branches = {{QStringLiteral("south-main"), QStringLiteral("main"), QString(), {}, QStringLiteral("742b0a90")}};
-    south.revisions = {{QStringLiteral("742b0a90"), tr("Initial layout"), tr("Demo revision."), QStringLiteral("main"), {}, {}, tr("Preview author"), QStringLiteral("2026-10-23")}};
+    south.revisions = {{.id = QStringLiteral("742b0a90"),
+                        .description = tr("Demo revision."),
+                        .branch = QStringLiteral("main"),
+                        .author = tr("Preview author"),
+                        .created_at = QStringLiteral("2026-10-23"),
+                        .message = tr("Initial layout")}};
     south.server_id = QStringLiteral("preview-local");
     this->projects.append(south);
 }

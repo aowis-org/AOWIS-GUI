@@ -93,14 +93,34 @@ QWidget *activeInspectorOverview(ProjectsWidget &projects)
 
 QLineEdit *activeInspectorName(ProjectsWidget &projects)
 {
+    // HEAD/Revision Overview contains a hidden inherited QLineEdit. Its
+    // visible name is the branch label, and the actual name editor lives in
+    // the Branch tab. Never read the hidden placeholder for an assertion.
+    QStackedWidget *actions = projects.findChild<QStackedWidget *>(
+        QStringLiteral("projectsInspectorActionsStack"));
+    if (actions != nullptr && actions->currentWidget() != nullptr
+        && actions->currentWidget()->objectName()
+            == QStringLiteral("projectsRevisionInspector"))
+    {
+        QWidget *branch_tab = projects.findChild<QWidget *>(
+            QStringLiteral("projectsRevisionBranchTab"));
+        return branch_tab != nullptr
+            ? branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"))
+            : nullptr;
+    }
     QWidget *overview = activeInspectorOverview(projects);
-    if (overview == nullptr) return nullptr;
-    QLineEdit *name = overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
-    if (name != nullptr) return name;
-    // HEAD and revision edit branch metadata in their dedicated Branch tab.
-    QWidget *branch_tab = projects.findChild<QWidget *>(QStringLiteral("projectsRevisionBranchTab"));
-    return branch_tab != nullptr
-        ? branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+    return overview != nullptr
+        ? overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"))
+        : nullptr;
+}
+
+QPlainTextEdit *activeRevisionCommitMessage(ProjectsWidget &projects)
+{
+    QWidget *details = projects.findChild<QWidget *>(
+        QStringLiteral("projectsRevisionOverviewForm"));
+    return details != nullptr
+        ? details->findChild<QPlainTextEdit *>(
+              QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
 }
 
 QLabel *activeInspectorMetadata(ProjectsWidget &projects)
@@ -941,12 +961,43 @@ int main(int argc, char **argv)
     app.processEvents();
     heads_view->click();
     app.processEvents();
+    // Filtering historical revisions navigates to the exact branch-tip
+    // revision. Its immutable commit message is independent of the preview
+    // revision description; verify the selected ID, branch and message.
     if (!require(heads_view->isChecked() && find_revision(baseline_id) == nullptr
                      && find_revision(main_head_id) != nullptr
-                     && find_revision(main_head_id)->isSelected()
-                     && activeInspectorName(projects)->text() == QStringLiteral("Validated network"),
-                 "Filtering a historical selection must select its branch head"))
+                     && find_revision(main_head_id)->isSelected(),
+                 "Filtering a historical selection did not select main's latest revision"))
         return 1;
+    QLineEdit *selected_branch_name = activeInspectorName(projects);
+    QPlainTextEdit *selected_commit_message = activeRevisionCommitMessage(projects);
+    QLabel *visible_branch_name = projects.findChild<QLabel *>(
+        QStringLiteral("projectsNetworkOverviewBranch"));
+    if (!require(selected_branch_name != nullptr
+                     && selected_branch_name->text() == QStringLiteral("main")
+                     && visible_branch_name != nullptr
+                     && visible_branch_name->text() == QStringLiteral("Branch: main"),
+                 "HEAD filter did not present main's branch identity"))
+    {
+        std::fprintf(stderr, "  Branch editor: '%s', visible Overview: '%s'\n",
+            selected_branch_name != nullptr
+                ? selected_branch_name->text().toUtf8().constData() : "<missing>",
+            visible_branch_name != nullptr
+                ? visible_branch_name->text().toUtf8().constData() : "<missing>");
+        return 1;
+    }
+    if (!require(selected_commit_message != nullptr
+                     && selected_commit_message->toPlainText()
+                         == QStringLiteral("Validated network")
+                     && selected_commit_message->toPlainText()
+                         == find_revision(main_head_id)->text(0),
+                 "HEAD filter did not show the selected revision's commit message"))
+    {
+        std::fprintf(stderr, "  Actual commit message: '%s'\n",
+            selected_commit_message != nullptr
+                ? selected_commit_message->toPlainText().toUtf8().constData() : "<missing>");
+        return 1;
+    }
     // A historical revision picked in the central DAG should be made visible
     // in the sidebar rather than silently losing tree synchronization.
     graph->revisionActivated(baseline_id);
@@ -954,8 +1005,12 @@ int main(int argc, char **argv)
     if (!require(full_tree_view->isChecked()
                      && find_revision(baseline_id) != nullptr
                      && find_revision(baseline_id)->isSelected()
-                     && activeInspectorName(projects)->text() == QStringLiteral("Network baseline"),
-                 "Graph selection of history should reveal the Full tree"))
+                     && activeInspectorName(projects)->text() == QStringLiteral("main")
+                     && selected_commit_message->toPlainText()
+                         == QStringLiteral("Network baseline")
+                     && selected_commit_message->toPlainText()
+                         == find_revision(baseline_id)->text(0),
+                 "Graph selection of history should reveal the Full tree and selected commit message"))
         return 1;
     // A historical revision initiates an inline branch draft at the exact
     // selected revision, without creating an extra revision or opening a dialog.
@@ -973,11 +1028,27 @@ int main(int argc, char **argv)
         QStringLiteral("projectsCreationConfirm"));
     QPushButton *creation_cancel = activeInspectorAction(projects,
         QStringLiteral("projectsCreationCancel"));
-    if (!require(revision_branch_action != nullptr && revision_branch_action->isVisible()
+    QWidget *revision_creation_details = projects.findChild<QWidget *>(
+        QStringLiteral("projectsRevisionDetailsTab"));
+    // A graph selection opens the network Overview. The Create branch action
+    // deliberately belongs to the Revision tab with the commit metadata, not
+    // to Overview or a floating footer. Check both tab ownership and visibility.
+    if (!require(revision_branch_action != nullptr
+                     && revision_creation_details != nullptr
+                     && inspector_tabs->currentIndex() == 0
+                     && inspector_tabs->tabText(1) == QStringLiteral("Revision")
+                     && revision_branch_action->parentWidget()
+                         == revision_creation_details->findChild<QWidget *>(
+                             QStringLiteral("projectsRevisionOverviewForm"))
+                     && !revision_branch_action->isVisible()
                      && creation_source != nullptr && creation_name != nullptr
                      && creation_summary != nullptr && creation_confirm != nullptr
                      && creation_cancel != nullptr && inspector_content != nullptr,
                  "revision branch workflow is missing from inspector")) return 1;
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(revision_branch_action->isVisible() && revision_branch_action->isEnabled(),
+                 "Revision tab does not expose its Create branch action")) return 1;
     std::fprintf(stderr, "projects_inspector_dock: opening revision branch creation\n");
     revision_branch_action->click();
     app.processEvents();
@@ -1193,7 +1264,10 @@ int main(int argc, char **argv)
         return 1;
     revisions->setCurrentItem(find_revision(main_head_id));
     app.processEvents();
-    if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("Validated network"),
+    if (!require(dock->isVisible()
+                     && activeInspectorName(projects)->text() == QStringLiteral("main")
+                     && selected_commit_message->toPlainText()
+                         == QStringLiteral("Validated network"),
                  "selecting a revision in the tree did not reopen its inspector"))
         return 1;
 
@@ -1270,7 +1344,13 @@ int main(int argc, char **argv)
                          QStringLiteral("projectsInspectorImport")) == nullptr
                      && project_branches_page->findChild<QPushButton *>(
                          QStringLiteral("projectsInspectorEditNetwork")) == nullptr
-                     && activeInspectorAction(projects, QStringLiteral("projectsInspectorImport")) == nullptr
+                     // The action resolver searches the active Overview as well
+                     // as the footer. Import therefore resolves to the Overview
+                     // button, but must not be duplicated in the footer panel.
+                     && activeInspectorAction(projects, QStringLiteral("projectsInspectorImport"))
+                         == project_import
+                     && action_stack->currentWidget()->findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorImport")) == nullptr
                      && activeInspectorAction(projects, QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
                  "Project Inspector actions do not belong to the requested tabs")) return 1;
     inspector_tabs->setCurrentIndex(1);
@@ -1509,7 +1589,7 @@ int main(int argc, char **argv)
         ? head_form->findChild<QPlainTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
     if (!require(head_branch != nullptr && !head_branch->isEnabled()
                      && head_branch->toolTip().contains(QStringLiteral("Commit HEAD first"))
-                     && head_commit != nullptr && head_commit->isVisible()
+                     && head_commit != nullptr && !head_commit->isVisible()
                      && !head_commit->isEnabled() && head_message != nullptr
                      && head_message->isEnabled(),
                  "HEAD Inspector must require a commit message and disable branching")) return 1;
@@ -1517,6 +1597,8 @@ int main(int argc, char **argv)
         QStringLiteral("projectsRevisionIdentityFooter"));
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();
+    if (!require(head_branch->isVisible() && head_commit->isVisible(),
+                 "HEAD tab does not show its disabled Create branch and Commit actions")) return 1;
     if (!require(head_form != nullptr
                      && head_identity != nullptr && head_identity->isHidden()
                      && commit_explanation_title != nullptr
