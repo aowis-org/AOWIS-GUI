@@ -9,8 +9,9 @@
 > that these are “not integrated”, “not present”, or “not started” are
 > superseded by the [current workspace guide](projects-workspace.md) and
 > [quickstart](dvmdb-quickstart.md). Outstanding acceptance is still broad:
-> root metadata capture, import replacement/merge, full hydraulic validation,
-> cross-platform restart/recovery, Fetch and Publish. Do not infer test success
+> root metadata capture, import replacement/merge, **non-blocking** hydraulic
+> diagnostics and lossless invalid-model handling, cross-platform restart/recovery,
+> Fetch and Publish. Do not infer test success
 > from feature implementation alone.
 
 
@@ -68,7 +69,7 @@ security effort**, not a hidden prerequisite for these VC milestones.
 | Entity capture | All **18** persisted collections supported by the generic MODEL transaction encoder and draft event adapter | 18/18 is **not** proof that every widget/mutation path autosaves |
 | Editing surfaces | Transaction-safe libraries (8 collections), rule controls and map labels, with navigation pages and widget tests | Final mutation-path audit and runtime persisted equality |
 | Standalone | Native DVMDB engine and cpp-httplib routes hosted **inside the GUI process** over ephemeral `127.0.0.1` HTTP | Full Standalone edit/restart acceptance; listener isolation is not authentication |
-| Local Commit | Native + HTTP Commit/status, GUI HEAD Commit button, expected local HEAD and idempotent operation ID | Whole-model hydraulic validation and cross-platform failure/restart acceptance |
+| Local Commit | Native + HTTP Commit/status, GUI HEAD Commit button, expected local HEAD and idempotent operation ID | Lossless invalid-model support and cross-platform failure/restart acceptance |
 | Fetch, Publish, merge | Backend transport/graph and merge primitives exist | Complete GUI workflows, conflict handling and acceptance |
 
 **Verified by reports in this conversation:** focused HC-01 transaction test;
@@ -85,6 +86,109 @@ has been reported working for a tested hydraulic network. This is valuable
 acceptance evidence for those operations, not a claim that all 18 entity kinds,
 all root fields, and all failure modes have been exercised. The corresponding
 Standalone end-to-end scenario is not yet confirmed.
+
+## 2A. Ordered cross-repository implementation queue
+
+These **INT-00 through INT-12** IDs match the authoritative execution queue
+in `AOWIS-SERVER-DVMDB/docs/roadmap.md` (section C1). Take one ID per
+implementation thread, attach fresh GUI + DVMDB snapshots, and update both
+status tables on completion. The table distinguishes code already present
+from missing integration/acceptance. **Commit/Publish/Merge never require a
+hydraulically valid model.** Validation reports are non-mutating diagnostics;
+lossless storage and repository invariants remain strict.
+
+| ID | Priority | GUI deliverable and current starting point | Acceptance / handoff |
+|---|---|---|---|
+| **INT-00** | P0 | Align GUI, MODEL and DVMDB semantics: hydraulically invalid but representable work is savable, committable and mergeable; audit existing strict validation | Invalid model can be reopened unchanged; invalid record bytes still fail |
+| **INT-01** | P0 | Pin `ProjectSourceWriter` metadata mutations to expected repository UUID/fingerprint (private draft client already checks identity) | Wrong/replaced endpoint and uncertain PATCH cannot silently edit wrong repo |
+| **INT-02** | P0 | Persist Commit operation UUIDv7 + immutable body/target **before** POST; on restart reconcile `/local-commits/{id}` (or exact same-ID replay when provably not recorded) before another Commit | Lost POST/status responses, GUI exit and retry yield one revision |
+| **INT-03** | P0 | Follow `GET /working-copies` `nextCursor` (currently only first page); filter by `projectId`, bound loops; scale catalogue/graph reads | 101/250+ drafts, 100+ projects and many branches not silently hidden |
+| **INT-04** | P1 | GUI can open/display/edit/export a representable model with dangling hydraulic refs; diagnostics separate from version-control buttons | Broken hydraulic model round-trips without auto-repair or disabled Commit |
+| **INT-05** | P1 | Finish 18/18 **mutation-path** audit, persistent root metadata (HC-03..05), queued autosave, undo/redo | Canonical full-model equality after GUI and DVMDB restart over HTTP and Standalone |
+| **INT-06** | P1 | Preserve first import; design and implement explicit new, replace and selected-entity import paths, with dirty-queue protection | Stale/ambiguous/error imports never discard an existing network or queue |
+| **INT-07** | P1 | Complete HEAD/branch/Revision inspector workflow, Commit status, unborn UX, selected network open/export and local history | One real create→edit→save→Commit→branch→reopen session; Inspector tests green |
+| **INT-08** | P2 | Whole-project Clone, Fetch, pinned source and visible remote tracking; retain current branch-scoped checkout | All branches/UUIDs/2-parent history/unborn heads replicated; drafts untouched |
+| **INT-09** | P2 | Explicit Publish action with expected remote HEAD, persisted operation ID, progress and authoritative result recovery | Concurrent remote CAS, timeouts and stale Publish preserve local work |
+| **INT-10** | P2 | Compare, conflict preview, manual field/object choices, explicit fast-forward/merge and two-parent history | Can choose invalid but representable outcome; no silent draft overwrite |
+| **INT-11** | P3 | Drive desktop HTTP, embedded Standalone and supported WASM flows with repeatable tests | Recorded exact round-trip canonical model, HEAD and UUID assertions |
+| **INT-12** | P3 | Warn on journal (4,096 events) / model quotas; address large history UI, blocked queue recovery, UI hangs | No false autosave success; measurable soak and recovery results |
+
+### Immediate P0 slice (INT-01 → INT-03)
+
+1. `src/projects/project_source_writer.cpp`: bind every project/branch
+   mutating request to the selected repository identity; DVMDB must check
+   the expected identity atomically, not just trust a preliminary GET.
+   Test remote replacement with matching project UUID, missing endpoint,
+   wrong role and lost metadata response.
+2. `src/projects/personal_working_copy_client.cpp`: `commitSavedDraft()`
+   currently generates an operation ID locally, then loses it if both POST
+   and status GET are inconclusive. Save a durable intent including exact
+   target/body/digest before dispatch; resume by *same* ID on next startup.
+   Show `Pending / Confirmed / Rejected / Unreachable` in the HEAD Inspector;
+   block a competing new operation while unresolved.
+3. The same client `list()` currently reads one draft page, although DVMDB
+   exposes `nextCursor`, `after`, `projectId`. Traverse all pages and detect
+   missing/inconsistent cursors. Extend large-project and history tests
+   without papering over incomplete reads with empty results.
+
+### Finish local persistence and usable editing (INT-04 → INT-07)
+
+* **Validity policy:** keep canonical codec/record validation and DB graph
+  invariants, but do not make hydraulic connectivity, missing model references
+  or solver feasibility a Save/Commit/Publish/Merge precondition. Audit
+  serializer/GUI load paths that currently refuse such a model. Offer an
+  independent validation command and report errors/warnings by draft
+  generation or immutable revision UUID. Never silently fix or omit an entity.
+* **Mutation capture:** inventory every edit surface for all 18 collections
+  and persistent `NetworkHydraulic` root fields (time, quality, report,
+  options, network identity, MSX, map backdrop). Distinguish UI-only state
+  from persisted state. Ensure direct setters and undo/redo issue canonical
+  before/after transactions. Keep lease/fencing/generation checks.
+* **Import:** keep narrow first-import into untouched unborn draft. Decide
+  separately how `Replace working network` safeguards current queued events,
+  draft snapshot and UUIDs; selected-entity import must resolve collisions
+  explicitly. No silent implicit replacement via `replaceNetworkHydraulic()`.
+* **UX:** HEAD card is editable workflow state, Revision is immutable,
+  branch metadata and revision display annotation are different. A Commit
+  moves only personal HEAD. Show local/remote HEAD, draft dirty/pending and
+  operation identity. The previously failing `aowis-projects-inspector-dock`
+  suite must pass against actual tab ownership; avoid weakening real checks.
+
+### Collaboration and synchronization (INT-08 → INT-10)
+
+* **Clone/Fetch:** full project graph, branches and unborn states. Pin shared
+  repository UUID, snapshot and MODEL fingerprint; preserve local HEAD and
+  working copies, and show tracking details. Never confuse absent branch
+  with existing null HEAD or reconstruct relationships by branch names.
+* **Publish:** transfer immutable objects first, advance remote HEAD only
+  by server-side expected-HEAD CAS, handle first-branch provisioning using
+  the existing UUID. Persist/reconcile operation IDs exactly as for Commit.
+* **Merge:** fetch and preview against pinned base/local/remote revisions;
+  show field/object conflict choices, allow deliberate invalid networks,
+  commit two ordered parents locally. Manual conflicts block only until
+  the user's explicit choice, not until a hydraulic solver succeeds.
+* A GUI must never silently rebase, force push, discard a dirty draft, or
+  make a shared database the fallback editing target.
+
+### Acceptance and scale (INT-11 → INT-12)
+
+Test a **real** create→edit→save→close→reopen→Commit→branch→Fetch→Publish→
+conflict→Merge→Publish sequence; also a deliberately invalid model; run it
+against external HTTP DVMDB and persistent embedded Standalone. Browser/WASM
+features get separately marked supported, unsupported or not yet accepted.
+Assert complete canonical `NetworkHydraulic` bytes (18 collections + root),
+UUIDs, both merge parents, local and shared HEADs and absence of discarded
+queued edits. Inject server/GUI process death, lost replies, stale lease,
+wrong identity, disk full and crossing the journal cap. For every test,
+record exact commands/platform, result and known gaps. First-release security
+and migration compatibility are out of scope.
+
+**Status discipline:** `Implemented` is not `accepted`. Do not mark an INT
+item done until both repositories' gates and the user-visible workflow have
+passing evidence; never claim a GUI Qt/Standalone test was run if only native
+DVMDB tests were executed. Deliver repository-specific, changed-files-only
+patch ZIPs with fresh timestamps, and one copy/paste apply command and Git
+commit message per repository.
 
 ## 3. Normal user workflows (as currently exposed)
 
@@ -238,13 +342,14 @@ advances a committed branch HEAD.
 | **VC-05** | Explicit local Commit: immutable revision, expected-local-HEAD CAS, idempotency/status | **Integrated in source; acceptance incomplete** |
 | VC-06 | Complete Fetch/Clone and remote-tracking UI, including all branches | Branch-level checkout exists; full-project workflow pending |
 | VC-07 | Verified Publish with expected shared HEAD, idempotency and recovery | GUI workflow pending |
-| VC-08 | Explicit fast-forward / three-way merge with hydraulic validation | GUI workflow pending |
+| VC-08 | Explicit fast-forward / three-way merge with non-blocking hydraulic diagnostics | GUI workflow pending |
 | VC-09 | Complete graph/inspector presentation for local and shared history | Partially implemented |
 | VC-10 | Coherent editing lifecycle on desktop, Standalone and web | Incomplete acceptance |
 | VC-11 | First-release integrity, recovery and workload qualification | Incomplete |
 
-**Sequence:** finish VC-04/HC coverage and complete VC-05 validation and
-acceptance (the Commit API/button already exist); then improve whole-project Clone,
+**Sequence:** first finish INT-00..03 correctness/recovery; complete VC-04/HC
+coverage and VC-05 lossless-model/recovery acceptance (Commit API/button already
+exist); then improve whole-project Clone,
 Fetch/Publish/merge and cross-platform acceptance. Separate source-level
 primitives from user-visible workflow completion in every status update.
 
@@ -264,7 +369,7 @@ These predate the HC import discussion and remain binding:
 - **DG-04, pre-release policy:** no obsolete format/migration requirement.
   Reject incompatible data explicitly; do not silently corrupt it.
 - **DG-05, initial reconciliation:** explicit Fetch, fast-forward and
-  three-way merge; persisted manual conflicts, full hydraulic validation.
+  three-way merge; persisted manual conflicts, non-blocking hydraulic diagnostics.
   No automatic rebase or force Publish.
 - **DG-06, first remote branch:** explicit remote target and same logical
   UUIDv7; distinguish missing branch from existing unborn branch; first

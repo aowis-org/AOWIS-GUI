@@ -98,8 +98,9 @@ HTTP DVMDB GUI restart test preserved a network created in the editor.
 includes all 18 entity editing paths, root metadata, multi-event interrupted
 runs, wrong-repository failures, GUI+DVMDB process restarts, and equivalent
 Standalone embedded operation. Local Commit (immutable revision, expected local HEAD and durable operation
-status) is now exposed through the HEAD Inspector; full validation and
-cross-platform recovery acceptance are still separate milestones.
+status) is now exposed through the HEAD Inspector; non-blocking hydraulic
+diagnostics, lossless invalid-model round trips and cross-platform recovery
+acceptance are still separate milestones.
 
 First import into an untouched empty unborn HEAD is implemented through a
 fenced server-side operation. General replacement/merge remains unresolved;
