@@ -293,6 +293,34 @@ int main(int argc, char **argv)
     if (!require(projects.findChild<QPushButton *>(QStringLiteral("projectsSourceConnectButton")) == nullptr,
                  "legacy manual connect/disconnect control still exists")) return 1;
 
+    // The toolbar chooses a real project/branch, not a revision preview.
+    // With a single branch its context is unambiguous; without a personal
+    // database it must fail safely rather than opening anything implicitly.
+    QString toolbar_project;
+    QString toolbar_branch;
+    QString open_error;
+    QObject::connect(&projects, &ProjectsWidget::projectContextChanged, &projects,
+        [&](const QStringList &, const QString &project_name,
+            const QStringList &, const QString &branch_name)
+    {
+        toolbar_project = project_name;
+        toolbar_branch = branch_name;
+    });
+    QObject::connect(&projects, &ProjectsWidget::networkOpenProgress, &projects,
+        [&](const QString &message, bool failed)
+    {
+        if (failed) open_error = message;
+    });
+    projects.selectToolbarProject(QStringLiteral("Source A / Shared name"));
+    if (!require(toolbar_project == QStringLiteral("Source A / Shared name")
+            && toolbar_branch == QStringLiteral("main")
+            && !open_error.isEmpty(),
+            "single-branch project did not select the branch or fail safely without personal DVMDB"))
+        return 1;
+    open_error.clear();
+    projects.selectToolbarBranch(QStringLiteral("[none]"));
+    if (!require(open_error.isEmpty(), "[none] unexpectedly requested a network open")) return 1;
+
     sources->topLevelItem(1)->setCheckState(0, Qt::Unchecked);
     app.processEvents();
     if (!require(tree->topLevelItemCount() == 1

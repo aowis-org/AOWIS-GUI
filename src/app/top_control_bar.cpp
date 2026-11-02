@@ -764,13 +764,13 @@ void TopControlBar::addProjectControls()
     this->combo_project->setAccessibleName(tr("Project"));
     this->combo_project->setFixedWidth(160);
     this->combo_project->setMinimumHeight(28);
-    this->combo_project->setToolTip(tr("Preview project context; manage projects in the Projects tab"));
+    this->combo_project->setToolTip(tr("Choose a project to open its hydraulic network"));
     this->combo_branch = new QComboBox(workspace_context);
     this->combo_branch->setObjectName(QStringLiteral("toolbarBranchSelector"));
     this->combo_branch->setAccessibleName(tr("Branch"));
     this->combo_branch->setFixedWidth(134);
     this->combo_branch->setMinimumHeight(28);
-    this->combo_branch->setToolTip(tr("Preview branch context; manage revisions in the Projects tab"));
+    this->combo_branch->setToolTip(tr("Select a branch to open; [none] leaves the current network unchanged"));
     selectors->addWidget(this->combo_project);
     selectors->addWidget(this->combo_branch);
 
@@ -792,7 +792,7 @@ void TopControlBar::addProjectControls()
     QHBoxLayout *actions = new QHBoxLayout();
     actions->setContentsMargins(0, 0, 0, 0);
     actions->setSpacing(6);
-    this->label_modified = createCaption(tr("PREVIEW  ·  No database session"), workspace_context);
+    this->label_modified = createCaption(tr("No network"), workspace_context);
     this->label_modified->setObjectName(QStringLiteral("toolbarWorkingCopyStatus"));
     actions->addWidget(this->label_modified, 1);
 
@@ -800,7 +800,7 @@ void TopControlBar::addProjectControls()
     this->button_project_save->setIcon(QIcon(QStringLiteral(":/icon/save.png")));
     this->button_project_save->setIconSize(QSize(20, 20));
     this->button_project_save->setFixedSize(27, 25);
-    this->button_project_save->setToolTip(tr("Save as new revision (available when database integration is implemented)"));
+    this->button_project_save->setToolTip(tr("Commit from the HEAD Inspector; toolbar Commit is not connected yet"));
     this->button_project_save->setEnabled(false);
     actions->addWidget(this->button_project_save);
 
@@ -816,8 +816,12 @@ void TopControlBar::addProjectControls()
 
     connect(this->combo_project, &QComboBox::currentTextChanged,
             this, &TopControlBar::signalProjectSelected);
-    connect(this->combo_branch, &QComboBox::currentTextChanged,
-            this, &TopControlBar::signalBranchSelected);
+    connect(this->combo_branch, &QComboBox::currentIndexChanged,
+            this, [this](int index)
+    {
+        if (index > 0)
+            emit signalBranchSelected(this->combo_branch->itemData(index).toString());
+    });
     connect(this->button_project_save, &QToolButton::clicked,
             this, &TopControlBar::signalProjectSaveRequested);
     bar_content->leftLayout()->addWidget(workspace_context);
@@ -833,23 +837,53 @@ void TopControlBar::setProjectContext(const QStringList &projects,
         return;
     const QSignalBlocker project_blocker(this->combo_project);
     const QSignalBlocker branch_blocker(this->combo_branch);
+    this->available_projects = projects;
+    this->available_branches = branches;
     this->combo_project->clear();
     this->combo_project->addItems(projects);
     this->combo_project->setCurrentIndex(projects.indexOf(project));
     this->combo_branch->clear();
-    this->combo_branch->addItems(branches);
-    this->combo_branch->setCurrentIndex(branches.indexOf(branch));
-    this->combo_branch->setEnabled(!branch.isEmpty());
+    this->combo_branch->addItem(tr("[none]"), QString());
+    for (const QString &entry : branches)
+        this->combo_branch->addItem(entry, entry);
+    this->combo_branch->setCurrentIndex(qMax(0, branches.indexOf(branch) + 1));
+    this->combo_branch->setEnabled(!branches.isEmpty());
 }
 
 void TopControlBar::setWorkingCopyModified(bool modified)
 {
-    if (this->label_modified == nullptr) return;
-    this->label_modified->setText(modified ? tr("PREVIEW  ·  Modified")
-                                          : tr("PREVIEW  ·  No database session"));
-    // UI design phase: no persistent save operation exists yet.
-    if (this->button_project_save != nullptr)
-        this->button_project_save->setEnabled(false);
+    if (modified) setNetworkStatus(tr("Modified"));
+}
+
+void TopControlBar::setNetworkStatus(const QString &status)
+{
+    if (this->label_modified != nullptr)
+    {
+        this->label_modified->setText(status);
+        this->label_modified->setToolTip(status);
+    }
+}
+
+void TopControlBar::setOpenedContext(const QString &project, const QString &branch)
+{
+    this->opened_project = project;
+    this->opened_branch = branch;
+}
+
+void TopControlBar::restoreOpenedContext()
+{
+    if (this->combo_project == nullptr || this->combo_branch == nullptr) return;
+    const QSignalBlocker project_blocker(this->combo_project);
+    const QSignalBlocker branch_blocker(this->combo_branch);
+    if (this->opened_project.isEmpty())
+    {
+        this->combo_project->setCurrentIndex(-1);
+        this->combo_branch->setCurrentIndex(0);
+        return;
+    }
+    this->combo_project->setCurrentIndex(this->combo_project->findText(this->opened_project));
+    const int branch_index = this->combo_branch->findData(this->opened_branch);
+    this->combo_branch->setCurrentIndex(qMax(0, branch_index));
 }
 
 void TopControlBar::addFlowUnitCombo()

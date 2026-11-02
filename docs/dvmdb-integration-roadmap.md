@@ -122,6 +122,20 @@ or unborn branch to the personal repository, then open a private draft. The
 **View in Distribution Monitor** action loads a verified read-only preview;
 **Edit in Distribution Editor** starts a separate writable session.
 
+### Shared Open Network workflow (November 2026)
+
+The main toolbar project/branch selectors and writable HEAD / Project Inspector
+use one confirmation **before** any checkout or draft creation. Single-branch
+projects propose that branch; multi-branch projects default to **[none]** and
+wait for an explicit dropdown choice. The old intermediate working-copy dialog
+is now an invisible asynchronous preparation controller, while the advanced
+**Personal working copies…** inspector operation remains visible and separate.
+The toolbar status reflects the editing session (opening, autosaved, pending,
+read-only, failed). Personal database names always put **♛ before the name**.
+Switching safely stops the previous fenced editor, retains its durable queue,
+then verifies the new working network. A conflicting modified draft may require
+an additional explicit safety decision; no silent rebase is permitted.
+
 ### Network import is not the same as load
 
 The current selected-HEAD first-import path can persist converted EPANET/EPANET-JS data into an untouched empty unborn private draft. General import paths can still replace the in-memory model.

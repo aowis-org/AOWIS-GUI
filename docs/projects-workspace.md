@@ -134,6 +134,35 @@ A failing summary or a reported unavailable database is not evidence of data
 loss. Check `/health`, `/repository`, `/ready`, `/projects`, the selected
 repository UUID, and the saved draft/committed revision separately.
 
+## Opening networks from the main toolbar
+
+The toolbar's project and branch dropdowns are **network selectors**, not
+revision previews. The branch dropdown always has a **[none]** placeholder:
+
+- A project with exactly one branch preselects that branch and offers the one
+  **Open hydraulic network** confirmation.
+- A project with multiple branches selects **[none]**; selecting a real branch
+  offers the same confirmation. No separate branch-selection dialog appears.
+- **[none]** is a GUI choice, never an unborn DVMDB branch. Choosing it has no
+  database side effects. Choosing the already-open branch does not reload it.
+- The same confirmation is used by the writable HEAD / Project Inspector.
+  For a remote branch it states that checkout into the ♛ personal database
+  will happen first. Cancel changes neither the network nor DVMDB.
+- After confirmation, checkout, draft discovery, initialization and verified
+  load run asynchronously with status shown in the toolbar/footer, not in a
+  flashing secondary dialog. A stale modified draft can still require an
+  extra explicit safety decision; this is not an ordinary branch prompt.
+- When switching away from a private editor, the previous fenced session is
+  closed and its locally queued events remain durable. The new network is
+  installed only after its own verified session is ready. A failed switch
+  must not replace the in-memory model.
+
+The toolbar status area now indicates **No network**, **Opening…**,
+**Saving · N pending**, **Autosaved**, **Read-only**, or **Open failed**.
+It is not a manual Save control. The future Commit action remains separate
+from draft autosave. In the graph, a personal server keeps its left-side
+server cylinder and displays **♛ before its name** on a golden card.
+
 ## Known acceptance gaps
 
 The complete `NetworkHydraulic` model contains 18 persisted entity

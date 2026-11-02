@@ -42,12 +42,15 @@ public:
     void clearSimulationResultTimeline();
     void setCurrentSimulationResultIndex(int result_index);
     void setEpanetLogAvailable(bool available);
-    // Preview-only context provided by ProjectsWidget (not a database checkout).
+    // Projects workspace supplies choices; network status comes from the active editor.
     void setProjectContext(const QStringList &projects,
                            const QString &project,
                            const QStringList &branches,
                            const QString &branch);
     void setWorkingCopyModified(bool modified);
+    void setNetworkStatus(const QString &status);
+    void restoreOpenedContext();
+    void setOpenedContext(const QString &project, const QString &branch);
 
 signals:
     void signalHeadlossFormulaChanged(HeadlossFormulas formulas);
@@ -70,6 +73,10 @@ private:
     QComboBox *combo_project = nullptr;
     QComboBox *combo_branch = nullptr;
     QLabel *label_modified = nullptr;
+    QString opened_project;
+    QString opened_branch;
+    QStringList available_projects;
+    QStringList available_branches;
     QToolButton *button_project_save = nullptr;
     QComboBox *combo_headloss_formula = nullptr;
     QToolButton *button_fullscreen = nullptr;

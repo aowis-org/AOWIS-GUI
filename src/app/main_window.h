@@ -120,6 +120,7 @@ private:
     bool browser_fullscreen_active = false;
 #endif
     
+    void restoreOpenedNetworkSelection();
     void stopPersonalDraftEditing();
     void blockPersonalDraftEditing(const QString &reason);
     void checkPersonalDraftModel();
@@ -130,6 +131,16 @@ private:
     QTimer *personal_edit_guard = nullptr;
     bool personal_edit_active = false;
     bool personal_edit_blocked = false;
+    bool network_open_pending = false;
+    bool network_confirmation_visible = false;
+    QString opened_project_name;
+    QString opened_branch_name;
+    QString pending_open_project_id;
+    QString pending_open_branch_id;
+    QString pending_open_project_name;
+    QString pending_open_branch_name;
+    QString opened_project_id;
+    QString opened_branch_id;
     bool immutable_network_read_only = false;
     quint64 personal_edit_last_checked_revision = 0;
     

@@ -1033,28 +1033,13 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
                                        icon_box.width(), 8), 180 * 16, 180 * 16);
                 painter.setFont(title_font);
                 painter.setPen(ink);
-                // Keep the existing database icon at the left of every server.
-                // Personal servers additionally show a crown directly after
-                // their name, with enough space reserved when it is elided.
-                const QString crown = QStringLiteral("♛");
-                const QFontMetrics title_metrics = painter.fontMetrics();
-                const qreal crown_width = personal_server
-                    ? title_metrics.horizontalAdvance(crown) + 6.0 : 0.0;
+                // Keep the database icon on the left; the crown precedes
+                // the personal server name consistently throughout the GUI.
+                const QString title_prefix = personal_server ? QStringLiteral("♛ ") : QString();
                 const QRectF title_box = box.adjusted(53, 10, -12, -29);
-                const int title_width = qMax(0, int(title_box.width() - crown_width));
-                const QString title = title_metrics.elidedText(
-                    node.title, Qt::ElideRight, title_width);
-                painter.drawText(title_box.adjusted(0, 0, -crown_width, 0),
-                    Qt::AlignVCenter | Qt::AlignLeft, title);
-                if (personal_server)
-                {
-                    const qreal crown_x = title_box.left()
-                        + title_metrics.horizontalAdvance(title) + 6.0;
-                    painter.drawText(QRectF(crown_x, title_box.top(),
-                                            title_metrics.horizontalAdvance(crown),
-                                            title_box.height()),
-                        Qt::AlignVCenter | Qt::AlignLeft, crown);
-                }
+                const QString title = painter.fontMetrics().elidedText(
+                    title_prefix + node.title, Qt::ElideRight, int(title_box.width()));
+                painter.drawText(title_box, Qt::AlignVCenter | Qt::AlignLeft, title);
                 painter.setFont(small_font);
                 painter.setPen(muted);
                 painter.drawText(box.adjusted(53, 40, -12, -9),

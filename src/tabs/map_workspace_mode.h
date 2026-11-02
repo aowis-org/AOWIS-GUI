@@ -72,12 +72,10 @@ constexpr bool isImplemented(int index)
     return mode != nullptr && mode->tools_implemented;
 }
 
-// Editor uses its own full-colour pixmaps in the globe HUD overlay (not
-// monitor 3D models). Monitor follows its configurable "3D icons" option.
-// The underlying MapBgfxSurface is shared across both modes.
-constexpr bool useGlobe3dIconModels(int mode, bool monitor_preference = false)
+// Both distribution workspaces use flat entity icons, never 3D models.
+constexpr bool useGlobe3dIconModels(int, bool = false)
 {
-    return mode == DistributionMonitor && monitor_preference;
+    return false;
 }
 
 static_assert(Modes.size() == 5);

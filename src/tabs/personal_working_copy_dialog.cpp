@@ -4,6 +4,7 @@
 
 #include <QDialogButtonBox>
 #include <QLabel>
+#include <QMessageBox>
 #include <QInputDialog>
 #include <QSignalBlocker>
 #include <QListWidget>
@@ -12,17 +13,19 @@
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <utility>
 
 PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         const QString &project_id, const QString &branch_id,
         const QString &branch_name, const QString &head,
         const QString &source_repository_id, const QString &source_endpoint,
-        const QString &project_name, QWidget *parent, bool open_editor_directly)
+        const QString &project_name, QWidget *parent, bool open_editor_directly,
+        std::function<void(const QString &, bool)> on_status)
     : QDialog(parent), target(resolvePersonalRepositoryTarget()), client(this),
       project_id(project_id), branch_id(branch_id), branch_name(branch_name),
       head(head), source_repository_id(source_repository_id),
       source_endpoint(source_endpoint), project_name(project_name),
-      direct_edit(open_editor_directly)
+      direct_edit(open_editor_directly), on_status(std::move(on_status))
 {
     setObjectName(QStringLiteral("projectsWorkingCopiesDialog"));
     setWindowTitle(this->direct_edit ? tr("Open hydraulic network in editor")
@@ -133,7 +136,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     setBusy(false);
     if (this->target.kind == PersonalRepositoryTarget::Kind::Unavailable)
     {
-        this->status->setText(tr("Select a personal database in Projects → Server Inspector first."));
+        reportFailure(tr("Select a personal database in Projects → Server Inspector first."));
         this->create_button->setEnabled(false);
         this->refresh_button->setEnabled(false);
         this->checkout_button->setEnabled(false);
@@ -141,6 +144,23 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     else
     {
         refresh();
+    }
+}
+
+void PersonalWorkingCopyDialog::setOperationStatus(const QString &message)
+{
+    this->status->setText(message);
+    if (this->direct_edit && this->on_status)
+        this->on_status(message, false);
+}
+
+void PersonalWorkingCopyDialog::reportFailure(const QString &message)
+{
+    this->status->setText(message);
+    if (this->direct_edit)
+    {
+        if (this->on_status) this->on_status(message, true);
+        reject();
     }
 }
 
@@ -172,12 +192,12 @@ void PersonalWorkingCopyDialog::refresh()
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    this->status->setText(tr("Reading personal DVMDB drafts…"));
+    setOperationStatus(tr("Reading personal DVMDB drafts…"));
     this->client.list(this->target, [this](const QList<PersonalWorkingCopyInfo> &items,
                                            const QString &error)
     {
         setBusy(false);
-        if (!error.isEmpty()) { this->status->setText(error); return; }
+        if (!error.isEmpty()) { reportFailure(error); return; }
         this->active_draft.reset();
         this->preview_network.reset();
         this->preview_draft_id.clear();
@@ -192,7 +212,7 @@ void PersonalWorkingCopyDialog::refresh()
                     draft.dirty ? tr(" · modified") : QString()), this->drafts);
             item->setData(Qt::UserRole, draft.id);
         }
-        this->status->setText(tr("%1 saved draft(s) for this branch in your personal DVMDB.")
+        setOperationStatus(tr("%1 saved draft(s) for this branch in your personal DVMDB.")
                               .arg(this->drafts->count()));
         if (!this->drafts->count())
             this->details->setText(tr("No private draft for this branch. "
@@ -204,7 +224,7 @@ void PersonalWorkingCopyDialog::refresh()
         {
             // Never guess which competing private draft contains the user's
             // edits. The advanced working-copy action permits selecting one.
-            this->status->setText(tr("Multiple working drafts exist for this branch. "
+            reportFailure(tr("Multiple working drafts exist for this branch. "
                 "Open Personal working copies and select the draft to edit."));
             return;
         }
@@ -223,7 +243,7 @@ void PersonalWorkingCopyDialog::refresh()
         }
         if (this->source_endpoint.isEmpty())
         {
-            this->status->setText(tr("This project is not accessible through an HTTP "
+            reportFailure(tr("This project is not accessible through an HTTP "
                 "source for checkout into the selected personal database."));
             return;
         }
@@ -236,14 +256,14 @@ void PersonalWorkingCopyDialog::createDraft(const QString &base)
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    this->status->setText(tr("Creating durable private draft…"));
+    setOperationStatus(tr("Creating durable private draft…"));
     this->client.create(this->target, this->project_id, this->branch_id, base,
                         [this, base](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
         setBusy(false);
         if (!error.isEmpty())
         {
-            this->status->setText(tr("Draft creation failed: %1. "
+            reportFailure(tr("Draft creation failed: %1. "
                 "The project/branch must already exist in your personal DVMDB "
                 "with exactly the selected HEAD. If the request timed out, refresh "
                 "the draft list before retrying: the server may have completed it.").arg(error));
@@ -252,7 +272,7 @@ void PersonalWorkingCopyDialog::createDraft(const QString &base)
         if (draft.project_id != this->project_id || draft.branch_id != this->branch_id
             || draft.base_revision != base)
         {
-            this->status->setText(tr("Personal DVMDB created a draft for a different project, "
+            reportFailure(tr("Personal DVMDB created a draft for a different project, "
                                      "branch or base. Do not edit it; refresh the repository."));
             return;
         }
@@ -268,15 +288,15 @@ void PersonalWorkingCopyDialog::inspectDraft()
     const QString id = this->drafts->currentItem()->data(Qt::UserRole).toString();
     if (!DvmdbIdentity::isUuidV7(id)) return;
     setBusy(true);
-    this->status->setText(tr("Reopening private draft…"));
+    setOperationStatus(tr("Reopening private draft…"));
     this->client.reopen(this->target, id,
                         [this](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
         setBusy(false);
-        if (!error.isEmpty()) { this->status->setText(error); return; }
+        if (!error.isEmpty()) { reportFailure(error); return; }
         if (draft.project_id != this->project_id || draft.branch_id != this->branch_id)
         {
-            this->status->setText(tr("Reopened draft belongs to a different project or branch."));
+            reportFailure(tr("Reopened draft belongs to a different project or branch."));
             return;
         }
         showDraft(draft);
@@ -309,7 +329,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         this->drafts->setCurrentItem(found);
     }
     setBusy(false);
-    this->status->setText(tr("Personal draft record loaded successfully."));
+    setOperationStatus(tr("Personal draft record loaded successfully."));
     this->details->setText(tr("Draft UUIDv7: %1\nSession: %2\nBase revision: %3\n"
                               "Generation: %4\nSaved changes: %5\n"
                               "Loaded candidate records: %6")
@@ -322,7 +342,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
     // not just changes, or opening the HEAD after Commit loses its network.
     // This same endpoint handles an unborn draft and a fork from a revision.
     setBusy(true);
-    this->status->setText(tr("Discovering the saved hydraulic network…"));
+    setOperationStatus(tr("Discovering the saved hydraulic network…"));
     this->client.summarizeDraftNetworks(this->target, draft.id,
         [this, draft](const QJsonObject &summary, const QString &summary_error)
     {
@@ -332,7 +352,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         if (!summary_error.isEmpty())
         {
             setBusy(false);
-            this->status->setText(tr("Saved draft network discovery failed: %1").arg(summary_error));
+            reportFailure(tr("Saved draft network discovery failed: %1").arg(summary_error));
             return;
         }
         const QJsonArray networks = summary.value(QStringLiteral("networks")).toArray();
@@ -341,7 +361,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             || summary.value(QStringLiteral("networkCount")).toInt(-1) != networks.size())
         {
             setBusy(false);
-            this->status->setText(tr("Draft changed during network discovery. Reopen it before editing."));
+            reportFailure(tr("Draft changed during network discovery. Reopen it before editing."));
             return;
         }
         if (networks.isEmpty())
@@ -350,13 +370,13 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             if (this->direct_edit && this->initialize_button->isEnabled())
                 initializeNetwork();
             else
-                this->status->setText(tr("This saved draft contains no hydraulic network."));
+                reportFailure(tr("This saved draft contains no hydraulic network."));
             return;
         }
         if (networks.size() != 1)
         {
             setBusy(false);
-            this->status->setText(tr("Multiple hydraulic networks exist in this draft. "
+            reportFailure(tr("Multiple hydraulic networks exist in this draft. "
                 "Choose a network explicitly before editing."));
             return;
         }
@@ -365,7 +385,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         if (!DvmdbIdentity::isUuidV7(network_id))
         {
             setBusy(false);
-            this->status->setText(tr("Saved draft returned an invalid network UUIDv7."));
+            reportFailure(tr("Saved draft returned an invalid network UUIDv7."));
             return;
         }
         this->client.loadDraftNetwork(this->target, draft.id, network_id,
@@ -378,13 +398,13 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             if (!error.isEmpty())
             {
                 setBusy(false);
-                this->status->setText(tr("Draft loaded, but hydraulic network hydration failed: %1").arg(error));
+                reportFailure(tr("Draft loaded, but hydraulic network hydration failed: %1").arg(error));
                 return;
             }
             if (generation != draft.generation)
             {
                 setBusy(false);
-                this->status->setText(tr("Draft changed while loading the hydraulic model. Reopen it to get a consistent view."));
+                reportFailure(tr("Draft changed while loading the hydraulic model. Reopen it to get a consistent view."));
                 return;
             }
             this->preview_network = network;
@@ -399,13 +419,23 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
                      QString::number(network.links_pipes.size()),
                      QString::number(network.nodes_reservoirs.size()),
                      QString::number(network.nodes_tanks.size())));
-            this->status->setText(tr("Hydraulic model verified and ready for private editing."));
+            setOperationStatus(tr("Hydraulic model verified and ready for private editing."));
             if (this->direct_edit && this->confirm_before_editing)
             {
-                // Leave the decision to the user (see verifyDirectDraft()).
-                this->edit_button->show();
-                this->edit_button->setText(tr("Edit draft anyway"));
-                this->status->setText(this->stale_notice);
+                QMessageBox *warning = new QMessageBox(QMessageBox::Warning,
+                    tr("Working draft based on older HEAD"), this->stale_notice,
+                    QMessageBox::NoButton, parentWidget());
+                warning->setAttribute(Qt::WA_DeleteOnClose);
+                QPushButton *proceed = warning->addButton(tr("Open older draft"), QMessageBox::AcceptRole);
+                QPushButton *cancel = warning->addButton(tr("Cancel"), QMessageBox::RejectRole);
+                warning->setDefaultButton(cancel);
+                connect(warning, &QMessageBox::finished, this,
+                    [this, warning, proceed](int)
+                {
+                    if (warning->clickedButton() == proceed) editDraftNetwork();
+                    else reportFailure(tr("Opening the older draft was cancelled."));
+                });
+                warning->open();
             }
             else if (this->direct_edit)
                 editDraftNetwork();
@@ -436,6 +466,11 @@ QString PersonalWorkingCopyDialog::selectedEditNetworkId() const
 bool PersonalWorkingCopyDialog::selectedEditRequested() const
 {
     return this->accepted_edit;
+}
+
+QString PersonalWorkingCopyDialog::targetRepositoryId() const
+{
+    return this->target.repository_id;
 }
 
 void PersonalWorkingCopyDialog::editDraftNetwork()
@@ -474,14 +509,14 @@ void PersonalWorkingCopyDialog::initializeNetwork()
     if (!accepted || name.isEmpty()) return;
     const QString network_id = DvmdbIdentity::newUuidV7();
     setBusy(true);
-    this->status->setText(tr("Acquiring private draft writer lease…"));
+    setOperationStatus(tr("Acquiring private draft writer lease…"));
     this->client.acquireLease(this->target, draft.id, draft.session_id, 90,
         [this, draft, network_id, name](const PersonalWorkingCopyLease &lease, const QString &error)
     {
         if (!error.isEmpty())
         {
             setBusy(false);
-            this->status->setText(tr("Unable to acquire private draft lease: %1").arg(error));
+            reportFailure(tr("Unable to acquire private draft lease: %1").arg(error));
             return;
         }
         if (lease.generation != draft.generation)
@@ -490,11 +525,11 @@ void PersonalWorkingCopyDialog::initializeNetwork()
                 [this](const QString &)
             {
                 setBusy(false);
-                this->status->setText(tr("Draft generation changed. Reopen it before initializing a network."));
+                reportFailure(tr("Draft generation changed. Reopen it before initializing a network."));
             });
             return;
         }
-        this->status->setText(tr("Initializing first hydraulic network in private draft…"));
+        setOperationStatus(tr("Initializing first hydraulic network in private draft…"));
         this->client.initializeEmptyNetwork(this->target, draft.id, draft.session_id,
             lease.token, lease.generation, network_id, name,
             [this, draft, lease](const PersonalWorkingCopyInfo &updated, const QString &init_error)
@@ -507,7 +542,7 @@ void PersonalWorkingCopyDialog::initializeNetwork()
                 setBusy(false);
                 if (!init_error.isEmpty())
                 {
-                    this->status->setText(tr("Network initialization was not confirmed: %1 "
+                    reportFailure(tr("Network initialization was not confirmed: %1 "
                         "Reopen the draft to check whether it succeeded. %2")
                         .arg(init_error, release_error));
                     return;
@@ -515,12 +550,12 @@ void PersonalWorkingCopyDialog::initializeNetwork()
                 if (updated.project_id != draft.project_id || updated.branch_id != draft.branch_id
                     || !updated.base_revision.isEmpty())
                 {
-                    this->status->setText(tr("Unexpected initialized draft identity. Reopen before proceeding."));
+                    reportFailure(tr("Unexpected initialized draft identity. Reopen before proceeding."));
                     return;
                 }
                 showDraft(updated);
                 if (!release_error.isEmpty())
-                    this->status->setText(tr("Network initialized, but lease release is unconfirmed: %1")
+                    reportFailure(tr("Network initialized, but lease release is unconfirmed: %1")
                         .arg(release_error));
             });
         });
@@ -550,7 +585,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
     this->preview_network.reset();
     this->confirm_before_editing = false;
     setBusy(true);
-    this->status->setText(tr("Checking the private draft against the branch HEAD…"));
+    setOperationStatus(tr("Checking the private draft against the branch HEAD…"));
     this->client.reopen(this->target, draft_id,
         [this](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
@@ -558,7 +593,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
             draft.branch_id != this->branch_id)
         {
             setBusy(false);
-            this->status->setText(error.isEmpty()
+            reportFailure(error.isEmpty()
                 ? tr("Reopened draft belongs to a different project or branch.") : error);
             return;
         }
@@ -568,7 +603,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
             if (!head_error.isEmpty())
             {
                 setBusy(false);
-                this->status->setText(tr("Cannot read the branch HEAD in your personal DVMDB: %1")
+                reportFailure(tr("Cannot read the branch HEAD in your personal DVMDB: %1")
                                       .arg(head_error));
                 return;
             }
@@ -579,7 +614,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
                 this->head != personal_head && !this->source_pull_attempted)
             {
                 this->source_pull_attempted = true;
-                this->status->setText(tr("Updating the branch from its source repository…"));
+                setOperationStatus(tr("Updating the branch from its source repository…"));
                 this->client.checkoutBranchPrivately(this->target, this->source_endpoint,
                     this->source_repository_id, this->project_id, this->project_name,
                     this->branch_id, this->head, [this, draft](const QString &pull_error)
@@ -619,7 +654,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
 void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo &draft,
                                                   const QString &personal_head)
 {
-    this->status->setText(tr("Replacing the unmodified draft with one at the current HEAD…"));
+    setOperationStatus(tr("Replacing the unmodified draft with one at the current HEAD…"));
     // A fresh session: an editor still holding the draft makes this fail
     // instead of deleting a draft that is in use.
     const QString session_id = DvmdbIdentity::newUuidV7();
@@ -630,7 +665,7 @@ void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo 
         if (!lease_error.isEmpty())
         {
             setBusy(false);
-            this->status->setText(tr("The outdated draft is in use and was not replaced: %1")
+            reportFailure(tr("The outdated draft is in use and was not replaced: %1")
                                   .arg(lease_error));
             return;
         }
@@ -640,7 +675,7 @@ void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo 
                 [this](const QString &)
             {
                 setBusy(false);
-                this->status->setText(tr("The draft changed while it was being replaced. Open it again."));
+                reportFailure(tr("The draft changed while it was being replaced. Open it again."));
             });
             return;
         }
@@ -650,7 +685,7 @@ void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo 
             if (!error.isEmpty())
             {
                 setBusy(false);
-                this->status->setText(tr("The outdated draft could not be removed: %1").arg(error));
+                reportFailure(tr("The outdated draft could not be removed: %1").arg(error));
                 return;
             }
             createDraft(personal_head);
@@ -663,7 +698,7 @@ void PersonalWorkingCopyDialog::checkoutBranch()
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    this->status->setText(this->head.isEmpty()
+    setOperationStatus(this->head.isEmpty()
         ? tr("Checking out unborn branch into personal DVMDB…")
         : tr("Transferring committed branch into personal DVMDB…"));
     this->client.checkoutBranchPrivately(this->target, this->source_endpoint,
@@ -673,10 +708,10 @@ void PersonalWorkingCopyDialog::checkoutBranch()
         setBusy(false);
         if (!error.isEmpty())
         {
-            this->status->setText(tr("Checkout failed: %1").arg(error));
+            reportFailure(tr("Checkout failed: %1").arg(error));
             return;
         }
-        this->status->setText(tr("Branch checked out to personal DVMDB."));
+        setOperationStatus(tr("Branch checked out to personal DVMDB."));
         if (this->direct_edit)
             createDraft(this->head);
     });

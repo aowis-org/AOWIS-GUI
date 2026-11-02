@@ -182,7 +182,7 @@ private:
     QUuid monitor_selected_uuid;
 
     bool monitor_node_decluttering = true;
-    bool monitor_globe_3d_icons = true;
+    bool monitor_globe_3d_icons = false;
     // The surface presents frames: picking and hover only run against a
     // live surface.
     bool bgfx_render_surface_active = false;

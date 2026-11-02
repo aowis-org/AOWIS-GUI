@@ -2515,7 +2515,12 @@ void ProjectsWidget::broadcastContext()
         for (const ProjectPreviewBranch &branch : project->branches)
         {
             branch_names.append(branch.name);
-            if (branch.id == this->branch_id) branch_name = branch.name;
+            if (branch.id == this->branch_id
+                && (this->selection_kind == SelectionKind::Branch
+                    || this->selection_kind == SelectionKind::Head
+                    || this->selection_kind == SelectionKind::Revision
+                    || project->branches.size() == 1))
+                branch_name = branch.name;
         }
     }
     emit projectContextChanged(project_names, current_name, branch_names, branch_name);
@@ -2537,6 +2542,50 @@ void ProjectsWidget::selectBranchByName(const QString &name)
     if (const ProjectPreviewData *project = currentProject())
         for (const ProjectPreviewBranch &branch : project->branches)
             if (branch.name == name) { select(SelectionKind::Branch, branch.id); return; }
+}
+
+void ProjectsWidget::selectToolbarProject(const QString &name)
+{
+    selectProjectByName(name);
+    const ProjectPreviewData *project = currentProject();
+    if (project == nullptr || projectContextLabel(*project, this->servers) != name)
+        return;
+    if (project->database_backed && project->branches.size() == 1)
+        requestNetworkOpen(*project, project->branches.first());
+    // For multiple branches the toolbar displays [none] until the user
+    // selects a branch; do not silently choose main or raise a dialog.
+}
+
+void ProjectsWidget::selectToolbarBranch(const QString &name)
+{
+    if (name.isEmpty()) return;
+    selectBranchByName(name);
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = currentBranch();
+    if (project != nullptr && branch != nullptr && project->database_backed
+        && branch->name == name)
+        requestNetworkOpen(*project, *branch);
+}
+
+void ProjectsWidget::requestNetworkOpen(const ProjectPreviewData &project,
+                                        const ProjectPreviewBranch &branch)
+{
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable)
+    {
+        emit networkOpenProgress(tr("Select a personal DVMDB in the Server Inspector."), true);
+        return;
+    }
+    QString working_name = tr("♛ Personal database");
+    for (const ProjectServerProfile &server : this->servers)
+        if (server.personal)
+        {
+            working_name = tr("♛ %1").arg(server.name);
+            break;
+        }
+    emit networkOpenRequested(project.id, branch.id,
+        projectContextLabel(project, this->servers), branch.name,
+        working_name, project.repository_id != target.repository_id);
 }
 
 void ProjectsWidget::showRevisionHistory()
@@ -3560,44 +3609,75 @@ void ProjectsWidget::openWorkingCopy(bool direct_edit)
     const ProjectPreviewData *project = currentProject();
     if (project == nullptr || !project->database_backed) return;
     const ProjectPreviewBranch *branch = currentBranch();
-    if (!direct_edit && ((this->selection_kind != SelectionKind::Branch
-                          && this->selection_kind != SelectionKind::Head) || branch == nullptr))
-        return;
-    if (direct_edit && this->selection_kind == SelectionKind::Project)
+    if (direct_edit)
     {
-        // A project selection does not imply a branch selection, even if the
-        // tree retained a previously highlighted branch internally.
-        branch = nullptr;
-    }
-    if (branch == nullptr && direct_edit)
-    {
-        // A newly created project has a single unborn main branch. For a
-        // multi-branch project, require an explicit choice rather than writing
-        // to an arbitrary branch.
-        if (project->branches.size() == 1)
-            branch = &project->branches.first();
+        // Inspector and toolbar share exactly the same confirmed open path.
+        // A project with several branches never implicitly selects main.
+        if (this->selection_kind == SelectionKind::Project)
+            branch = project->branches.size() == 1 ? &project->branches.first() : nullptr;
+        if (branch != nullptr)
+            requestNetworkOpen(*project, *branch);
         else
-        {
-            QMessageBox::information(this, tr("Select a branch"),
-                tr("Select the branch to edit under this project in the Projects tree."));
-            return;
-        }
-    }
-    if (branch == nullptr) return;
-    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
-    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable)
-    {
-        QMessageBox::information(this, tr("Personal database not selected"),
-            tr("Mark your DVMDB server as personal in Projects → Server Inspector first."));
+            emit networkOpenProgress(tr("Select a branch in the toolbar to open its network."), false);
         return;
     }
+    if ((this->selection_kind != SelectionKind::Branch
+        && this->selection_kind != SelectionKind::Head) || branch == nullptr)
+        return;
+    const ProjectServerProfile *source = nullptr;
+    for (const ProjectServerProfile &candidate : this->servers)
+        if (candidate.id == project->server_id) { source = &candidate; break; }
+    QString source_endpoint = source != nullptr &&
+        source->connection_type == QStringLiteral("remote") ? source->endpoint : QString();
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    if (source != nullptr && source->connection_type == QStringLiteral("local"))
+        source_endpoint = embeddedDvmdbEndpoint(source->local_path, source->personal,
+                                                nullptr, nullptr);
+#endif
+    PersonalWorkingCopyDialog dialog(project->backend_id,
+        branch->id.mid(project->id.size() + 1), branch->name, branch->head,
+        project->repository_id, source_endpoint, project->name, this, false);
+    if (dialog.exec() == QDialog::Accepted && dialog.selectedPreviewNetwork().has_value())
+    {
+        if (dialog.selectedEditRequested())
+            emit draftNetworkEditRequested(dialog.selectedPreviewDraftId(),
+                                           dialog.selectedEditNetworkId());
+        else
+            emit draftNetworkPreviewRequested(*dialog.selectedPreviewNetwork(),
+                dialog.selectedPreviewDraftId(), dialog.selectedPreviewGeneration());
+    }
+}
+
+void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
+                                        const QString &branch_id)
+{
+    const ProjectPreviewData *project = nullptr;
+    const ProjectPreviewBranch *branch = nullptr;
+    for (const ProjectPreviewData &candidate : this->projects)
+        if (candidate.id == project_id && candidate.database_backed)
+        {
+            project = &candidate;
+            for (const ProjectPreviewBranch &candidate_branch : candidate.branches)
+                if (candidate_branch.id == branch_id)
+                {
+                    branch = &candidate_branch;
+                    break;
+                }
+            break;
+        }
+    if (project == nullptr || branch == nullptr)
+    {
+        emit networkOpenProgress(tr("Project or branch changed. Select it again."), true);
+        return;
+    }
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
     const QString branch_uuid = branch->id.mid(project->id.size() + 1);
-    if (!DvmdbIdentity::isUuidV7(project->backend_id)
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable
+        || !DvmdbIdentity::isUuidV7(project->backend_id)
         || !DvmdbIdentity::isUuidV7(branch_uuid)
         || (!branch->head.isEmpty() && !DvmdbIdentity::isUuidV7(branch->head)))
     {
-        QMessageBox::warning(this, tr("Cannot open personal draft"),
-            tr("The selected project, branch or HEAD has no canonical UUIDv7 identity."));
+        emit networkOpenProgress(tr("Cannot open: personal DVMDB or canonical UUIDv7 identity is unavailable."), true);
         return;
     }
     const ProjectServerProfile *source = nullptr;
@@ -3610,18 +3690,34 @@ void ProjectsWidget::openWorkingCopy(bool direct_edit)
         source_endpoint = embeddedDvmdbEndpoint(source->local_path, source->personal,
                                                 nullptr, nullptr);
 #endif
-    PersonalWorkingCopyDialog dialog(project->backend_id,
-        branch_uuid, branch->name, branch->head,
-        project->repository_id, source_endpoint, project->name, this, direct_edit);
-    if (dialog.exec() == QDialog::Accepted && dialog.selectedPreviewNetwork().has_value())
+    // The previous intermediary dialog performed real work. Keep its verified
+    // checkout, draft, and network-loading logic, but run it invisibly and
+    // asynchronously AFTER the visible Open Network confirmation.
+    PersonalWorkingCopyDialog *operation = new PersonalWorkingCopyDialog(
+        project->backend_id, branch_uuid, branch->name, branch->head,
+        project->repository_id, source_endpoint, project->name, this, true,
+        [this](const QString &status, bool failed)
+        {
+            emit networkOpenProgress(status, failed);
+        });
+    connect(operation, &QDialog::finished, this, [this, operation](int result)
     {
-        if (dialog.selectedEditRequested())
-            emit draftNetworkEditRequested(dialog.selectedPreviewDraftId(),
-                                           dialog.selectedEditNetworkId());
-        else
-            emit draftNetworkPreviewRequested(*dialog.selectedPreviewNetwork(),
-                dialog.selectedPreviewDraftId(), dialog.selectedPreviewGeneration());
-    }
+        if (result == QDialog::Accepted && operation->selectedEditRequested()
+            && operation->selectedPreviewNetwork().has_value())
+        {
+            // A personal-server designation may have changed during the
+            // asynchronous checkout. Never open a draft against another DB.
+            if (operation->targetRepositoryId()
+                != resolvePersonalRepositoryTarget().repository_id)
+                emit networkOpenProgress(tr("Personal database changed during opening. Try again."), true);
+            else
+                emit draftNetworkEditRequested(operation->selectedPreviewDraftId(),
+                                               operation->selectedEditNetworkId());
+        }
+        else if (result == QDialog::Accepted)
+            emit networkOpenProgress(tr("Prepared network was not approved for editing."), true);
+        operation->deleteLater();
+    });
 }
 
 void ProjectsWidget::createBranch()

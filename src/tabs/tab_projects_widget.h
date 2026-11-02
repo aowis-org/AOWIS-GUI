@@ -105,11 +105,18 @@ public:
 
 public slots:
     void selectProjectByName(const QString &name);
+    void selectToolbarProject(const QString &name);
+    void selectToolbarBranch(const QString &name);
+    void prepareNetworkOpen(const QString &project_id, const QString &branch_id);
     void selectBranchByName(const QString &name);
     void showRevisionHistory();
     void importNetworkIntoSelectedHead(NetworkHydraulic network);
 
 signals:
+    void networkOpenRequested(const QString &project_id, const QString &branch_id,
+                              const QString &project_name, const QString &branch_name,
+                              const QString &working_name, bool remote_checkout);
+    void networkOpenProgress(const QString &status, bool failed);
     void projectContextChanged(const QStringList &projects,
                                const QString &project,
                                const QStringList &branches,
@@ -170,6 +177,7 @@ private:
     void showWorkingCopies();
     void editProjectNetwork();
     void openWorkingCopy(bool direct_edit);
+    void requestNetworkOpen(const ProjectPreviewData &project, const ProjectPreviewBranch &branch);
     void beginCreation(bool branch);
     ProjectsInspectorCreationForm *currentCreationForm() const;
     void cancelCreation();

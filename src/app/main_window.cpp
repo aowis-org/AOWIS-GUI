@@ -270,19 +270,42 @@ MainWindow::MainWindow(QWidget *parent)
         this->personal_edit_guard->start();
         this->personal_edit_stop_button->setEnabled(true);
         checkPersonalDraftModel();
+        if (this->network_open_pending)
+        {
+            this->opened_project_id = this->pending_open_project_id;
+            this->opened_branch_id = this->pending_open_branch_id;
+            this->opened_project_name = this->pending_open_project_name;
+            this->opened_branch_name = this->pending_open_branch_name;
+            this->top_control_bar->setOpenedContext(this->pending_open_project_name,
+                                                    this->pending_open_branch_name);
+            restoreOpenedNetworkSelection();
+        }
+        this->network_open_pending = false;
+        this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
+            ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
+            : tr("Autosaved"));
         statusBar()->showMessage(tr("Private draft editing active; changes are queued and saved to your DVMDB."), 10000);
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::pendingCountChanged,
             this, [this](int count)
     {
         if (this->personal_edit_active && !this->personal_edit_blocked)
+        {
             this->personal_edit_stop_button->setText(tr("Stop private editing (%1 pending)").arg(count));
+            this->top_control_bar->setNetworkStatus(count > 0
+                ? tr("Saving · %1 pending").arg(count) : tr("Autosaved"));
+        }
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::saveConfirmed,
             this, [this](const QString &, bool)
     {
         if (this->personal_edit_active && !this->personal_edit_blocked)
+        {
+            this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
+                ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
+                : tr("Autosaved"));
             statusBar()->showMessage(tr("Private draft saved to DVMDB."), 5000);
+        }
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::blocked,
             this, &MainWindow::blockPersonalDraftEditing);
@@ -293,8 +316,26 @@ MainWindow::MainWindow(QWidget *parent)
         this->personal_edit_blocked = false;
         this->personal_edit_stop_button->hide();
         this->personal_edit_stop_button->setText(tr("Stop private editing"));
-        if (!error.isEmpty())
-            QMessageBox::warning(this, tr("Private writer lease release"), error);
+        if (this->network_open_pending)
+        {
+            if (!error.isEmpty())
+            {
+                this->network_open_pending = false;
+                this->top_control_bar->setNetworkStatus(tr("Open failed · Read-only"));
+                statusBar()->showMessage(tr("Cannot switch: %1").arg(error), 15000);
+                restoreOpenedNetworkSelection();
+            }
+            else
+                this->projects_workspace->prepareNetworkOpen(this->pending_open_project_id,
+                                                               this->pending_open_branch_id);
+        }
+        else
+        {
+            this->top_control_bar->setNetworkStatus(error.isEmpty()
+                ? tr("Read-only · Not editing") : tr("Save failed"));
+            if (!error.isEmpty())
+                QMessageBox::warning(this, tr("Private writer lease release"), error);
+        }
     });
 
     // don't make it smaller, because that could lead to positioning issues on the canvas
@@ -417,6 +458,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (decision != QMessageBox::Yes) return;
         this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
         this->immutable_network_read_only = true;
+        this->top_control_bar->setNetworkStatus(tr("Read-only"));
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
     });
@@ -437,10 +479,11 @@ MainWindow::MainWindow(QWidget *parent)
         question->setAttribute(Qt::WA_DeleteOnClose);
         question->setDefaultButton(QMessageBox::Cancel);
         connect(question, &QMessageBox::finished, this,
-                [this, question, network](int result) mutable {
+                [this, question, network, revision](int result) mutable {
             if (result != QMessageBox::Yes || this->personal_edit_active) return;
             this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
             this->immutable_network_read_only = true;
+            this->top_control_bar->setNetworkStatus(tr("Read-only · Revision %1").arg(revision));
             this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
             this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
         });
@@ -457,8 +500,9 @@ MainWindow::MainWindow(QWidget *parent)
     {
         if (this->personal_edit_active)
         {
-            QMessageBox::warning(this, tr("Private edit session already open"),
-                tr("Stop the current private draft editing session before opening another."));
+            this->top_control_bar->setNetworkStatus(tr("Save failed · Previous editing session still active"));
+            this->network_open_pending = false;
+            restoreOpenedNetworkSelection();
             return;
         }
         const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
@@ -466,50 +510,102 @@ MainWindow::MainWindow(QWidget *parent)
              target.kind != PersonalRepositoryTarget::Kind::Embedded) ||
             !DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(network_id))
         {
-            QMessageBox::warning(this, tr("Cannot edit private draft"),
-                tr("A personal DVMDB and verified draft/network UUIDv7 identities are required."));
+            this->top_control_bar->setNetworkStatus(tr("Cannot open · Personal database or UUIDv7 missing"));
+            this->network_open_pending = false;
+            restoreOpenedNetworkSelection();
             return;
         }
         const QString directory = PersonalEditQueue::defaultRoot();
         if (directory.isEmpty())
         {
-            QMessageBox::warning(this, tr("Cannot edit private draft"),
-                tr("No durable local application-data directory is available for the edit queue."));
+            this->top_control_bar->setNetworkStatus(tr("Cannot open · Durable edit queue unavailable"));
+            this->network_open_pending = false;
+            restoreOpenedNetworkSelection();
             return;
         }
-        // Non-blocking confirmation: Qt/WASM must not enter a nested event loop.
-        QMessageBox *question = new QMessageBox(QMessageBox::Question,
-            tr("Open hydraulic network"),
-            tr("Opening this network will replace the currently loaded network in the editor.\n\n"
-               "Your changes will be automatically saved to your private DVMDB working copy.\n\n"
-               "You can preserve important milestones by committing immutable revisions "
-               "from the HEAD Inspector."),
-            QMessageBox::NoButton, this);
-        question->setAttribute(Qt::WA_DeleteOnClose);
-        QPushButton *open_button = question->addButton(tr("Open network"), QMessageBox::AcceptRole);
-        QPushButton *cancel_button = question->addButton(tr("Cancel"), QMessageBox::RejectRole);
-        question->setDefaultButton(cancel_button);
-        question->setEscapeButton(cancel_button);
-        connect(question, &QMessageBox::finished, this,
-                [this, question, open_button, target, draft_id, network_id, directory](int)
+        this->top_control_bar->setNetworkStatus(tr("Opening network…"));
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+        this->personal_edit_active = true;
+        this->personal_edit_blocked = false;
+        this->personal_edit_stop_button->setEnabled(false);
+        this->personal_edit_stop_button->setText(tr("Opening private draft…"));
+        this->personal_edit_stop_button->show();
+        this->personal_edit_session->start(target, draft_id, network_id, directory);
+    });
+    connect(this->projects_workspace, &ProjectsWidget::networkOpenProgress,
+            this, [this](const QString &message, bool failed)
+    {
+        this->top_control_bar->setNetworkStatus(failed ? tr("Open failed") : tr("Opening…"));
+        statusBar()->showMessage(message, failed ? 15000 : 5000);
+        if (failed)
         {
-            if (question->clickedButton() != open_button || this->personal_edit_active) return;
-            this->hydraulic_data->setLogicalEditCaptureEnabled(false);
-            this->personal_edit_active = true;
-            this->personal_edit_blocked = false;
-            this->personal_edit_stop_button->setEnabled(false);
-            this->personal_edit_stop_button->setText(tr("Opening private draft…"));
-            this->personal_edit_stop_button->show();
-            this->personal_edit_session->start(target, draft_id, network_id, directory);
+            this->network_open_pending = false;
+            restoreOpenedNetworkSelection();
+        }
+    });
+    connect(this->projects_workspace, &ProjectsWidget::networkOpenRequested,
+            this, [this](const QString &project_id, const QString &branch_id,
+                         const QString &project_name, const QString &branch_name,
+                         const QString &working_name, bool remote_checkout)
+    {
+        if (this->network_open_pending || this->network_confirmation_visible) return;
+        if (this->personal_edit_active && !this->personal_edit_blocked
+            && project_id == this->opened_project_id
+            && branch_id == this->opened_branch_id)
+            return; // Already editing this branch; never reload it.
+        this->network_confirmation_visible = true;
+        const int queued_edits = this->personal_edit_active
+            ? this->personal_edit_session->pendingCount() : 0;
+        const QString pending_warning = queued_edits > 0
+            ? tr("\n\nThe current draft has %1 locally queued edit(s). They remain "
+                 "durable on disk, but may not yet be saved to DVMDB. Reopening that "
+                 "draft recovers its queue.").arg(queued_edits)
+            : QString();
+        QMessageBox *confirmation = new QMessageBox(QMessageBox::Question,
+            tr("Open hydraulic network"),
+            tr("Project: %1\nBranch: %2\nWorking database: %3\n\n"
+               "Opening this network replaces the network currently displayed in the editor. "
+               "Changes will be automatically saved to your personal working database.%4%5")
+                .arg(project_name, branch_name, working_name,
+                     remote_checkout
+                         ? tr("\n\nThe remote branch will first be checked out into %1.")
+                               .arg(working_name)
+                         : QString(), pending_warning),
+            QMessageBox::NoButton, this);
+        confirmation->setAttribute(Qt::WA_DeleteOnClose);
+        QPushButton *open_button = confirmation->addButton(tr("Open network"), QMessageBox::AcceptRole);
+        QPushButton *cancel_button = confirmation->addButton(tr("Cancel"), QMessageBox::RejectRole);
+        confirmation->setDefaultButton(cancel_button);
+        confirmation->setEscapeButton(cancel_button);
+        connect(confirmation, &QMessageBox::finished, this,
+            [this, confirmation, open_button, project_id, branch_id,
+             project_name, branch_name](int)
+        {
+            this->network_confirmation_visible = false;
+            if (confirmation->clickedButton() != open_button)
+            {
+                restoreOpenedNetworkSelection();
+                return;
+            }
+            this->pending_open_project_id = project_id;
+            this->pending_open_branch_id = branch_id;
+            this->pending_open_project_name = project_name;
+            this->pending_open_branch_name = branch_name;
+            this->network_open_pending = true;
+            this->top_control_bar->setNetworkStatus(tr("Opening…"));
+            if (this->personal_edit_active)
+                stopPersonalDraftEditing(); // Wait for stopped() before the next checkout.
+            else
+                this->projects_workspace->prepareNetworkOpen(project_id, branch_id);
         });
-        question->open();
+        confirmation->open();
     });
     connect(this->projects_workspace, &ProjectsWidget::projectContextChanged,
             this->top_control_bar, &TopControlBar::setProjectContext);
     connect(this->top_control_bar, &TopControlBar::signalProjectSelected,
-            this->projects_workspace, &ProjectsWidget::selectProjectByName);
+            this->projects_workspace, &ProjectsWidget::selectToolbarProject);
     connect(this->top_control_bar, &TopControlBar::signalBranchSelected,
-            this->projects_workspace, &ProjectsWidget::selectBranchByName);
+            this->projects_workspace, &ProjectsWidget::selectToolbarBranch);
     connect(this->top_control_bar, &TopControlBar::signalProjectHistoryRequested,
             this, [this]
     {
@@ -1175,6 +1271,17 @@ void MainWindow::updateMapEdgePanning()
     this->map_mon->setEdgePanningEnabled(fullscreen && map_visible);
 }
 
+void MainWindow::restoreOpenedNetworkSelection()
+{
+    if (!this->opened_project_name.isEmpty())
+    {
+        this->projects_workspace->selectProjectByName(this->opened_project_name);
+        if (!this->opened_branch_name.isEmpty())
+            this->projects_workspace->selectBranchByName(this->opened_branch_name);
+    }
+    this->top_control_bar->restoreOpenedContext();
+}
+
 void MainWindow::stopPersonalDraftEditing()
 {
     if (!this->personal_edit_active) return;
@@ -1200,6 +1307,9 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
     if (this->map_workspace->isDistributionEditorActive())
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
     this->personal_edit_session->blockEditing(reason);
+    this->top_control_bar->setNetworkStatus(tr("Save failed"));
+    if (this->network_open_pending) restoreOpenedNetworkSelection();
+    this->network_open_pending = false;
     statusBar()->showMessage(tr("Private draft editing blocked: %1").arg(reason));
     // Defer the modal warning until the hydraulic edit call has unwound.
     QTimer::singleShot(0, this, [this, reason]

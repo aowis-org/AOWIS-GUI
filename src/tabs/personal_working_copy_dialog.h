@@ -6,6 +6,7 @@
 #include <QDialog>
 
 #include <optional>
+#include <functional>
 
 class QLabel;
 class QListWidget;
@@ -20,7 +21,8 @@ public:
                               const QString &branch_name, const QString &head,
                               const QString &source_repository_id,
                               const QString &source_endpoint, const QString &project_name,
-                              QWidget *parent = nullptr, bool open_editor_directly = false);
+                              QWidget *parent = nullptr, bool open_editor_directly = false,
+                              std::function<void(const QString &, bool)> on_status = {});
 
     // Available only after a generation-checked canonical network load.
     // The caller may display it, but editing is NOT bound to autosave yet.
@@ -29,8 +31,11 @@ public:
     QString selectedPreviewGeneration() const;
     QString selectedEditNetworkId() const;
     bool selectedEditRequested() const;
+    QString targetRepositoryId() const;
 
 private:
+    void setOperationStatus(const QString &message);
+    void reportFailure(const QString &message);
     void refresh();
     void createDraft(const QString &base);
     void inspectDraft();
@@ -74,6 +79,7 @@ private:
     QString accepted_network_id;
     bool accepted_edit = false;
     bool direct_edit = false;
+    std::function<void(const QString &, bool)> on_status;
     bool busy = false;
     // Direct edit pulls newer source commits at most once per dialog.
     bool source_pull_attempted = false;

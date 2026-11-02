@@ -66,19 +66,6 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         syncIconSizeSliderForViewMode(view_mode);
     });
 
-    if (this->mode == CanvasMode::Monitor)
-    {
-        this->check_3d_icons = new QCheckBox(QStringLiteral("3D Icons"), this);
-        this->check_3d_icons->setChecked(false);
-        this->check_3d_icons->setToolTip(QStringLiteral(
-            "Use the 3D tank and reservoir models instead of their billboard icons."));
-        connect(this->check_3d_icons, &QCheckBox::toggled, this, [this](bool enabled)
-        {
-            emit signal3dIconsChanged(enabled);
-        });
-        sync3dIconsForViewMode(initial_view_mode);
-    }
-
     QLabel *label_slider_map_visibility = new QLabel("Opacity");
     QSlider *slider_map_visibility = new QSlider(Qt::Horizontal);
     this->slider_map_opacity = slider_map_visibility;
