@@ -16,11 +16,9 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-// Each domain owns its action surface. ProjectsWidget routes selection and
-// performs operations; no action button is shared or reparented between kinds.
-// The four kinds have independent form widgets (and hence independent edit
-// state). Only their visual layout is shared; selecting a different kind never
-// reparents or repurposes another kind's input widgets.
+// Each domain owns its form and action surface. The HEAD/Revision primary
+// buttons are displayed in that domain's Overview directly after Description.
+// No controls are shared across different inspector domains.
 class ProjectsInspectorOverview : public QWidget
 {
 public:
@@ -46,7 +44,9 @@ public:
         this->description->setObjectName(QStringLiteral("projectInspectorDescription"));
         this->description->setMinimumHeight(90);
         this->description->setMaximumHeight(170);
-        form->addRow(kind == QStringLiteral("Project") ? tr("Name") : tr("Name / title"), this->name);
+        form->addRow(kind == QStringLiteral("Project") ? tr("Name")
+                     : kind == QStringLiteral("Revision") ? tr("Branch name")
+                     : tr("Name / title"), this->name);
         form->addRow(tr("Tags"), this->tags);
         form->addRow(tr("Description"), this->description);
         column->addWidget(this->fields);
@@ -184,8 +184,6 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Revision"), parent)
     {
         QFormLayout *form = qobject_cast<QFormLayout *>(this->fields->layout());
-        QLabel *name_label = qobject_cast<QLabel *>(form->labelForField(this->name));
-        if (name_label != nullptr) name_label->setText(tr("Branch name"));
         this->commit_message = new QTextEdit(this->fields);
         this->commit_message->setObjectName(QStringLiteral("projectsRevisionCommitMessage"));
         this->commit_message->setMinimumHeight(88);
@@ -197,12 +195,22 @@ public:
         this->status->setWordWrap(true);
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
         column->insertWidget(column->indexOf(this->preview_note), this->status);
-        // UUID labels belong after the actions in RevisionInspector, never
-        // between form fields and the Commit/Create branch buttons.
+        // HEAD and Revision share their controls immediately below Description.
+        this->primary_actions = new QHBoxLayout();
+        this->primary_actions->setSpacing(5);
+        this->primary_actions->addStretch(1);
+        column->insertLayout(column->indexOf(this->status), this->primary_actions);
+        // UUID labels are displayed only in the identity footer at the bottom.
         this->metadata->hide();
+    }
+    void placePrimaryActions(QPushButton *create_branch, QPushButton *commit_head)
+    {
+        this->primary_actions->insertWidget(0, create_branch);
+        this->primary_actions->insertWidget(1, commit_head);
     }
     QTextEdit *commit_message = nullptr;
     QLabel *status = nullptr;
+    QHBoxLayout *primary_actions = nullptr;
 };
 
 class ProjectsInspectorActionStack final : public QStackedWidget
@@ -370,15 +378,13 @@ public:
         this->create_branch = addButton(tr("Create branch"),
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from this selected revision or HEAD"));
+        this->create_branch->setAttribute(Qt::WA_AlwaysShowToolTips);
         this->edit_head_network = addButton(tr("Edit network"),
             QStringLiteral("projectsHeadInspectorEditNetwork"),
             tr("Edit this HEAD through a durable private working copy"));
         this->head_working_copies = addButton(tr("Personal working copies…"),
             QStringLiteral("projectsHeadInspectorWorkingCopies"),
             tr("Create or reopen a private working copy of this branch HEAD"));
-        this->save_changes = addButton(tr("Save changes"),
-            QStringLiteral("projectsRevisionSaveMetadata"),
-            tr("Save branch metadata and commit message changes"));
         this->commit_head = addButton(tr("Commit"),
             QStringLiteral("projectsHeadInspectorCommit"),
             tr("Commit the saved private working copy with the entered message"));
@@ -395,9 +401,16 @@ public:
     QPushButton *create_branch = nullptr;
     QPushButton *edit_head_network = nullptr;
     QPushButton *head_working_copies = nullptr;
-    QPushButton *save_changes = nullptr;
     QPushButton *commit_head = nullptr;
     QLabel *identity_footer = nullptr;
+    void placePrimaryActions(RevisionInspectorOverview *overview)
+    {
+        this->buttons->removeWidget(this->create_branch);
+        this->buttons->removeWidget(this->commit_head);
+        this->create_branch->setParent(overview);
+        this->commit_head->setParent(overview);
+        overview->placePrimaryActions(this->create_branch, this->commit_head);
+    }
     void update(bool creating, bool busy, bool ready, bool valid,
                 bool head, bool database_backed, bool has_branch, bool has_commit_message)
     {
@@ -406,8 +419,6 @@ public:
         this->create_branch->setToolTip(head
             ? tr("Commit HEAD first, then select the finalized revision to create a branch.")
             : tr("Create a new branch from this immutable revision"));
-        this->save_changes->setVisible(!creating);
-        this->save_changes->setEnabled(ready && has_branch);
         this->commit_head->setVisible(!creating && head);
         this->commit_head->setEnabled(ready && database_backed && has_branch && has_commit_message);
         this->edit_head_network->setVisible(!creating && head && database_backed);

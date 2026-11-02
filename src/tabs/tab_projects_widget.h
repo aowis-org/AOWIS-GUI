@@ -27,6 +27,7 @@ class QStackedWidget;
 class QTabWidget;
 class QListWidget;
 class QTextEdit;
+class QTimer;
 class ProjectsInspectorActionStack;
 class ProjectsInspectorCreationForm;
 class ProjectInspectorCreationForm;
@@ -241,5 +242,7 @@ private:
     int personal_designation_request = 0;
     int source_creation_request = 0;
     QHash<QString, QString> head_commit_drafts; // Per-branch edits retained when switching Inspector.
+    QTimer *revision_autosave_timer = nullptr;
+    bool revision_rename_confirmation_pending = false;
     bool updating_ui = false;
 };

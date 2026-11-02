@@ -134,19 +134,26 @@ public:
         view.tags = branch->tags;
         view.editable = false;
         view.subtitle = translate("Writable HEAD · Branch: %1").arg(branch->name);
-        view.metadata = branch->head.isEmpty()
-            ? translate("No commits yet")
-            : translate("Base revision: %1").arg(branch->head);
-        if (project != nullptr && project->database_backed)
+        // Identity first, unborn status last, rather than leading with
+        // "No commits yet" above the UUID fields.
+        if (project != nullptr)
         {
+            view.metadata = project->database_backed
+                ? translate("Project UUIDv7: %1").arg(project->backend_id)
+                : translate("Preview project ID: %1").arg(project->id);
             const QString prefix = project->id + QStringLiteral(":");
-            if (branch->id.startsWith(prefix))
+            if (project->database_backed && branch->id.startsWith(prefix))
                 view.metadata += translate("\nBranch UUIDv7: %1")
                     .arg(branch->id.mid(prefix.size()));
+            else
+                view.metadata += translate("\nBranch ID: %1").arg(branch->id);
         }
         if (!branch->fork_revision_id.isEmpty())
             view.metadata += translate("\nOriginal fork revision: %1")
                 .arg(branch->fork_revision_id);
+        view.metadata += branch->head.isEmpty()
+            ? translate("\nNo commits yet")
+            : translate("\nBase revision: %1").arg(branch->head);
         return view;
     }
 
@@ -167,13 +174,14 @@ public:
             QStringList heads;
             for (const ProjectPreviewBranch &branch : project->branches)
                 if (branch.head == revision->id) heads.append(branch.name);
-            view.metadata = translate("Revision UUIDv7: %1\nHEAD of: %2\nParents: %3")
+            view.metadata = translate("Project UUIDv7: %1").arg(project->backend_id);
+            if (branch != nullptr)
+                view.metadata += translate("\nBranch UUIDv7: %1")
+                    .arg(branch->id.mid(project->id.size() + 1));
+            view.metadata += translate("\nRevision UUIDv7: %1\nHEAD of: %2\nParents: %3")
                 .arg(revision->id,
                      heads.isEmpty() ? translate("(none)") : heads.join(QStringLiteral(", ")),
                      revision->parents.isEmpty() ? translate("(root)") : revision->parents.join(QStringLiteral(", ")));
-            if (branch != nullptr)
-                view.metadata.prepend(translate("Branch UUIDv7: %1\n")
-                    .arg(branch->id.mid(project->id.size() + 1)));
             if (!revision->record_sha256.isEmpty())
                 view.metadata += translate("\nCanonical record SHA-256: %1").arg(revision->record_sha256);
         }

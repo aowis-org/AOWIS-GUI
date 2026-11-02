@@ -539,7 +539,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (ProjectsInspectorOverview *overview : {
              static_cast<ProjectsInspectorOverview *>(this->database_overview),
              static_cast<ProjectsInspectorOverview *>(this->project_overview),
-             static_cast<ProjectsInspectorOverview *>(this->branch_overview)})
+             static_cast<ProjectsInspectorOverview *>(this->branch_overview),
+             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
         this->inspector_overview_stack->addWidget(overview);
     overview_layout->addWidget(this->inspector_overview_stack);
     this->database_connection = new DatabaseInspectorConnection(
@@ -578,6 +579,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->project_inspector = new ProjectInspector(this->inspector_actions_stack);
     this->branch_inspector = new BranchInspector(this->inspector_actions_stack);
     this->revision_inspector = new RevisionInspector(this->inspector_actions_stack);
+    this->revision_inspector->placePrimaryActions(this->revision_overview);
     this->inspector_actions_stack->addWidget(this->database_inspector);
     this->inspector_actions_stack->addWidget(this->project_inspector);
     this->inspector_actions_stack->addWidget(this->branch_inspector);
@@ -851,16 +853,52 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                 this, &ProjectsWidget::applyInspectorEdits);
     }
 
-    connect(this->revision_inspector->save_changes, &QPushButton::clicked,
-            this, &ProjectsWidget::saveRevisionInspectorChanges);
+    // AOWIS persists edits automatically; no explicit Save changes button.
+    // Branch renames are committed on editingFinished so confirmation never
+    // interrupts typing; multiline metadata is saved after a quiet interval.
+    this->revision_autosave_timer = new QTimer(this);
+    this->revision_autosave_timer->setSingleShot(true);
+    this->revision_autosave_timer->setInterval(800);
+    connect(this->revision_autosave_timer, &QTimer::timeout, this, [this]() {
+        if (this->selection_kind != SelectionKind::Head
+            && this->selection_kind != SelectionKind::Revision) return;
+        if (this->revision_rename_confirmation_pending) return;
+        if (this->updating_ui || this->source_writer->isBusy()
+            || this->revision_overview->name->hasFocus()) {
+            this->revision_autosave_timer->start();
+            return;
+        }
+        saveRevisionInspectorChanges();
+    });
+    connect(this->revision_overview->name, &QLineEdit::editingFinished,
+            this, [this]() {
+        if (this->updating_ui) return;
+        this->revision_autosave_timer->stop();
+        if (this->source_writer->isBusy()) this->revision_autosave_timer->start();
+        else saveRevisionInspectorChanges();
+    });
+    connect(this->revision_overview->tags, &QLineEdit::editingFinished,
+            this, [this]() {
+        if (this->updating_ui) return;
+        this->revision_autosave_timer->start();
+    });
+    connect(this->revision_overview->description, &QTextEdit::textChanged,
+            this, [this]() {
+        if (!this->updating_ui) this->revision_autosave_timer->start();
+    });
     connect(this->revision_inspector->commit_head, &QPushButton::clicked,
             this, &ProjectsWidget::commitSelectedHead);
     connect(this->revision_overview->commit_message, &QTextEdit::textChanged,
             this, [this] {
-        if (this->updating_ui || this->selection_kind != SelectionKind::Head) return;
-        if (const ProjectPreviewBranch *branch = currentBranch())
-            this->head_commit_drafts.insert(branch->id,
-                this->revision_overview->commit_message->toPlainText());
+        if (this->updating_ui || (this->selection_kind != SelectionKind::Head
+                                  && this->selection_kind != SelectionKind::Revision)) return;
+        if (this->selection_kind == SelectionKind::Head) {
+            if (const ProjectPreviewBranch *branch = currentBranch())
+                this->head_commit_drafts.insert(branch->id,
+                    this->revision_overview->commit_message->toPlainText());
+        } else {
+            this->revision_autosave_timer->start();
+        }
         updateButtons();
     });
     populateServerTree();
@@ -2170,9 +2208,7 @@ void ProjectsWidget::updateInspector()
         this->revision_overview->commit_message->setEnabled(
             !this->source_writer->isBusy());
         this->revision_overview->status->setText(this->selection_kind == SelectionKind::Head
-            ? (currentBranch() != nullptr && currentBranch()->head.isEmpty()
-                ? tr("Status: Writable HEAD · No commits yet")
-                : tr("Status: Writable HEAD"))
+            ? tr("Status: Writable HEAD")
             : tr("Status: Immutable revision"));
     }
     else
@@ -3421,7 +3457,7 @@ const ProjectPreviewBranch *ProjectsWidget::inspectedRevisionBranch() const
 
 void ProjectsWidget::saveRevisionInspectorChanges()
 {
-    if (this->source_writer->isBusy()) return;
+    if (this->source_writer->isBusy() || this->revision_rename_confirmation_pending) return;
     const SelectionKind mode = this->selection_kind;
     if (mode != SelectionKind::Head && mode != SelectionKind::Revision) return;
     ProjectPreviewData *project = currentProject();
@@ -3474,6 +3510,7 @@ void ProjectsWidget::saveRevisionInspectorChanges()
     const bool branch_changed = old_name != new_name || old_description != new_description
         || old_tags != new_tags;
     const bool message_changed = mode == SelectionKind::Revision && old_message != new_message;
+    if (!branch_changed && !message_changed) return;
     const ProjectServerProfile *server = currentServer();
     if (project->database_backed && server == nullptr) return;
     const ProjectServerProfile profile = server != nullptr ? *server : ProjectServerProfile{};
@@ -3533,13 +3570,24 @@ void ProjectsWidget::saveRevisionInspectorChanges()
         } else update_message();
     };
     if (old_name == new_name) { perform(); return; }
+    this->revision_rename_confirmation_pending = true;
+    this->revision_autosave_timer->stop();
     QMessageBox *confirmation = new QMessageBox(QMessageBox::Question, tr("Rename branch?"),
         tr("Rename branch '%1' to '%2' everywhere in this project?\n\n"
            "Revision UUIDs, contents and record hashes remain unchanged.")
             .arg(old_name, new_name), QMessageBox::Yes | QMessageBox::Cancel, this);
     confirmation->setAttribute(Qt::WA_DeleteOnClose);
     connect(confirmation, &QMessageBox::finished, this,
-            [perform](int button) { if (button == QMessageBox::Yes) perform(); });
+            [this, perform, old_name, mode, selected_id](int button) {
+        this->revision_rename_confirmation_pending = false;
+        if (button == QMessageBox::Yes) {
+            perform();
+        } else if (this->selection_kind == mode && this->selected_id == selected_id) {
+            const QSignalBlocker blocked(this->revision_overview->name);
+            this->revision_overview->name->setText(old_name);
+            this->revision_autosave_timer->start();
+        }
+    });
     confirmation->open(); // Non-blocking: required for Qt WebAssembly.
 }
 
@@ -3562,8 +3610,8 @@ void ProjectsWidget::commitSelectedHead()
     if (this->revision_overview->name->text().trimmed() != branch->name
         || parseTags(this->revision_overview->tags->text()) != branch->tags
         || this->revision_overview->description->toPlainText().trimmed() != branch->description) {
-        QMessageBox::information(this, tr("Save branch metadata first"),
-            tr("Save the branch name, tags and description before committing HEAD."));
+        QMessageBox::information(this, tr("Branch metadata still pending"),
+            tr("Finish editing the branch metadata and allow the automatic save to complete before committing HEAD."));
         return;
     }
     const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
