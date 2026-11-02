@@ -618,6 +618,11 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(inspector_tabs->tabText(1) == QStringLiteral("Connection"),
                  "server inspector is missing the Connection tab")) return 1;
+    QWidget *head_branch_page = projects.findChild<QWidget *>(
+        QStringLiteral("projectsRevisionBranchTab"));
+    if (!require(head_branch_page != nullptr && !head_branch_page->isVisible()
+                     && inspector_tabs->indexOf(head_branch_page) < 0,
+                 "unregistered HEAD Branch widget overlaps the Database Inspector")) return 1;
     QWidget *database_projects_tab = inspector_tabs->count() > 2
         ? inspector_tabs->widget(2) : nullptr;
     QPushButton *database_projects_create = database_projects_tab == nullptr
@@ -1350,6 +1355,18 @@ int main(int argc, char **argv)
     if (revision_branch_tab != nullptr)
         for (QFormLayout *form : revision_branch_tab->findChildren<QFormLayout *>())
             branch_name_label = qobject_cast<QLabel *>(form->labelForField(revision_branch_edit));
+    if (!require(head_branch_page == revision_branch_tab
+                     && inspector_tabs->indexOf(head_branch_page) == 1
+                     && !head_branch_page->isVisible(),
+                 "HEAD/Revision Branch page is visible outside its selected tab")) return 1;
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(head_branch_page->isVisible() && revision_branch_edit->isVisible(),
+                 "HEAD/Revision Branch editor is not visible on its own tab")) return 1;
+    inspector_tabs->setCurrentIndex(0);
+    app.processEvents();
+    if (!require(!head_branch_page->isVisible(),
+                 "HEAD/Revision Branch editor escaped its tab on return to Overview")) return 1;
     if (!require(revision_form != nullptr && revision_form->isVisible()
                      && revision_message != nullptr && overview_branch != nullptr
                      && overview_branch->text() == QStringLiteral("pressure-study")
@@ -1743,6 +1760,9 @@ int main(int argc, char **argv)
     // Deletion must remove the profile from disk, without deleting any DVMDB data.
     servers->setCurrentItem(servers->topLevelItem(2));
     app.processEvents();
+    if (!require(!head_branch_page->isVisible()
+                     && inspector_tabs->indexOf(head_branch_page) < 0,
+                 "HEAD/Revision Branch form leaked into a different Database Inspector")) return 1;
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();
     if (!require(delete_connection->isVisible() && delete_connection->isEnabled(),

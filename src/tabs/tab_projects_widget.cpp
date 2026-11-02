@@ -545,6 +545,10 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     overview_layout->addWidget(this->inspector_overview_stack);
     this->revision_branch_page = new RevisionInspectorBranch(
         this->revision_overview->name, this->inspector_tabs);
+    // A page parented to QTabWidget but not yet registered through addTab()
+    // would otherwise paint as a free-floating child over unrelated inspectors.
+    // Keep it hidden until the HEAD/Revision Branch tab owns its visibility.
+    this->revision_branch_page->hide();
     this->database_connection = new DatabaseInspectorConnection(
         defaultLocalDvmdbPath(), this->inspector_tabs);
     this->database_connection->hide();
@@ -1973,6 +1977,9 @@ void ProjectsWidget::updateInspectorTabs()
     const bool same_kind = this->inspector_tab_kind == this->selection_kind;
     this->inspector_tab_kind = this->selection_kind;
     this->inspector_tabs->clear();
+    // clear() removes pages from the tab bar. Detached pages must not be
+    // visible as direct QTabWidget children on Database/Project/Branch views.
+    this->revision_branch_page->hide();
     this->database_connection->hide();
     for (ProjectsInspectorRelations *panel : {
              static_cast<ProjectsInspectorRelations *>(this->database_relations),
