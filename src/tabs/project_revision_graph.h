@@ -86,6 +86,7 @@ public:
     QPointF nodeViewportPosition(const QString &id) const;
     double zoomFactor() const;
     QString selectionId() const;
+    QString nodeBranchCaption(const QString &node_id) const;
     QRectF graphBounds() const;
 
 signals:

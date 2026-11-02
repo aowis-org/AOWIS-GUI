@@ -638,6 +638,13 @@ QString ProjectRevisionGraph::selectionId() const
     return this->selected_revision;
 }
 
+QString ProjectRevisionGraph::nodeBranchCaption(const QString &node_id) const
+{
+    for (const ProjectGraphNode &node : this->source_nodes)
+        if (node.id == node_id) return node.branch;
+    return {};
+}
+
 QRectF ProjectRevisionGraph::graphBounds() const
 {
     QRectF bounds;

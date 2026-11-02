@@ -9,6 +9,8 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QJsonArray>
+#include <QJsonObject>
 
 PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         const QString &project_id, const QString &branch_id,
@@ -314,63 +316,92 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
              draft.base_revision.isEmpty() ? tr("Unborn") : draft.base_revision,
              draft.generation, draft.dirty ? tr("Yes") : tr("None"),
              QString::number(draft.changes.size())));
-    // Until full network discovery and editor Save are integrated, only
-    // candidate roots can be previewed here. No edit capture is enabled.
-    QString network_id;
-    for (const PersonalWorkingCopyChange &change : draft.changes)
+    // A committed draft is rebased onto its new immutable base revision and
+    // its candidateChanges become empty. Discover the entire saved candidate,
+    // not just changes, or opening the HEAD after Commit loses its network.
+    // This same endpoint handles an unborn draft and a fork from a revision.
+    setBusy(true);
+    this->status->setText(tr("Discovering the saved hydraulic network…"));
+    this->client.summarizeDraftNetworks(this->target, draft.id,
+        [this, draft](const QJsonObject &summary, const QString &summary_error)
     {
-        if (change.kind != 100 || change.deleted) continue;
-        if (!network_id.isEmpty())
+        if (!this->active_draft.has_value() || this->active_draft->id != draft.id
+            || this->active_draft->generation != draft.generation)
+            return; // A newer draft selection superseded this response.
+        if (!summary_error.isEmpty())
         {
-            this->details->setText(this->details->text() +
-                tr("\nMultiple networks are present. Choose a network in the future editor workflow."));
+            setBusy(false);
+            this->status->setText(tr("Saved draft network discovery failed: %1").arg(summary_error));
             return;
         }
-        network_id = change.uuid;
-    }
-    if (network_id.isEmpty())
-    {
-        if (this->direct_edit)
+        const QJsonArray networks = summary.value(QStringLiteral("networks")).toArray();
+        const QString generation = summary.value(QStringLiteral("generation")).toString();
+        if (generation != draft.generation || !summary.value(QStringLiteral("networkCount")).isDouble()
+            || summary.value(QStringLiteral("networkCount")).toInt(-1) != networks.size())
         {
-            if (this->initialize_button->isEnabled())
+            setBusy(false);
+            this->status->setText(tr("Draft changed during network discovery. Reopen it before editing."));
+            return;
+        }
+        if (networks.isEmpty())
+        {
+            setBusy(false);
+            if (this->direct_edit && this->initialize_button->isEnabled())
                 initializeNetwork();
             else
-                this->status->setText(tr("This draft has no discoverable hydraulic network. "
-                    "Open Personal working copies to inspect or repair it."));
-        }
-        return;
-    }
-    this->client.loadDraftNetwork(this->target, draft.id, network_id,
-        [this, draft](const NetworkHydraulic &network,
-                      const QString &generation, const QString &error)
-    {
-        if (!error.isEmpty())
-        {
-            this->status->setText(tr("Draft loaded, but hydraulic network hydration failed: %1").arg(error));
+                this->status->setText(tr("This saved draft contains no hydraulic network."));
             return;
         }
-        if (generation != draft.generation || !this->active_draft.has_value()
-            || this->active_draft->id != draft.id
-            || this->active_draft->generation != generation)
+        if (networks.size() != 1)
         {
-            this->status->setText(tr("Draft changed while loading the hydraulic model. Reopen it to get a consistent view."));
+            setBusy(false);
+            this->status->setText(tr("Multiple hydraulic networks exist in this draft. "
+                "Choose a network explicitly before editing."));
             return;
         }
-        this->preview_network = network;
-        this->preview_draft_id = draft.id;
-        this->preview_generation = generation;
-        setBusy(false);
-        this->details->setText(this->details->text() +
-            tr("\n\nVerified hydraulic network: %1\nNetwork UUIDv7: %2\n"
-               "Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6")
-            .arg(network.id, network.uuid.toString(QUuid::WithoutBraces),
-                 QString::number(network.nodes_junctions.size()),
-                 QString::number(network.links_pipes.size()),
-                 QString::number(network.nodes_reservoirs.size()),
-                 QString::number(network.nodes_tanks.size())));
-        this->status->setText(tr("Hydraulic model verified and ready for private editing."));
-        if (this->direct_edit)
-            editDraftNetwork();
+        const QJsonObject network_summary = networks.first().toObject();
+        const QString network_id = network_summary.value(QStringLiteral("id")).toString();
+        if (!DvmdbIdentity::isUuidV7(network_id))
+        {
+            setBusy(false);
+            this->status->setText(tr("Saved draft returned an invalid network UUIDv7."));
+            return;
+        }
+        this->client.loadDraftNetwork(this->target, draft.id, network_id,
+            [this, draft](const NetworkHydraulic &network,
+                          const QString &generation, const QString &error)
+        {
+            if (!this->active_draft.has_value() || this->active_draft->id != draft.id
+                || this->active_draft->generation != draft.generation)
+                return;
+            if (!error.isEmpty())
+            {
+                setBusy(false);
+                this->status->setText(tr("Draft loaded, but hydraulic network hydration failed: %1").arg(error));
+                return;
+            }
+            if (generation != draft.generation)
+            {
+                setBusy(false);
+                this->status->setText(tr("Draft changed while loading the hydraulic model. Reopen it to get a consistent view."));
+                return;
+            }
+            this->preview_network = network;
+            this->preview_draft_id = draft.id;
+            this->preview_generation = generation;
+            setBusy(false);
+            this->details->setText(this->details->text() +
+                tr("\n\nVerified hydraulic network: %1\nNetwork UUIDv7: %2\n"
+                   "Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6")
+                .arg(network.id, network.uuid.toString(QUuid::WithoutBraces),
+                     QString::number(network.nodes_junctions.size()),
+                     QString::number(network.links_pipes.size()),
+                     QString::number(network.nodes_reservoirs.size()),
+                     QString::number(network.nodes_tanks.size())));
+            this->status->setText(tr("Hydraulic model verified and ready for private editing."));
+            if (this->direct_edit)
+                editDraftNetwork();
+        });
     });
 }
 

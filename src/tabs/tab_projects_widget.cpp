@@ -1095,6 +1095,29 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
             ? tr("A recent health check failed; retrying") : session->error;
         return;
     }
+    // The health probe establishes service reachability independently of
+    // parsing the project catalogue. A malformed or temporarily unreadable
+    // revision graph must not make a responding DVMDB appear offline.
+    if (session->health != nullptr
+        && session->health->currentState() == HttpHealthMonitor::State::Healthy
+        && session->state == SourceState::Error)
+    {
+        color = QColor(QStringLiteral("#dd9537"));
+        status = tr("Available · catalogue error");
+        details = session->error.isEmpty()
+            ? tr("DVMDB is responding, but its project catalogue could not be loaded")
+            : tr("DVMDB is responding, but its project catalogue could not be loaded: %1")
+                .arg(session->error);
+        return;
+    }
+    if (session->health != nullptr
+        && session->health->currentState() == HttpHealthMonitor::State::Checking)
+    {
+        details = session->error.isEmpty()
+            ? tr("Checking DVMDB server identity")
+            : tr("Checking DVMDB server identity; catalogue error: %1").arg(session->error);
+        return;
+    }
     if (session->state == SourceState::Error
         || (session->health != nullptr
             && session->health->currentState() == HttpHealthMonitor::State::Offline))
@@ -1237,9 +1260,20 @@ void ProjectsWidget::updateConnectionStatus()
         : session->health != nullptr
           && session->health->currentState() == HttpHealthMonitor::State::Degraded
             ? tr("Connection unstable · checking again…")
+        : session->health != nullptr
+          && session->health->currentState() == HttpHealthMonitor::State::Offline
+            ? tr("Unavailable · server identity probe failed: %1").arg(
+                  session->error.isEmpty() ? tr("No valid DVMDB response") : session->error)
         : this->source_writer->isBusy() ? tr("Saving to DVMDB…")
+        : session->health != nullptr
+          && session->health->currentState() == HttpHealthMonitor::State::Healthy
+          && session->state == SourceState::Error
+            ? tr("Available · catalogue error: %1").arg(session->error)
+        : session->health != nullptr
+          && session->health->currentState() == HttpHealthMonitor::State::Checking
+            ? tr("Checking server identity…")
         : session->state == SourceState::Connected ? tr("Available · catalogue loaded")
-        : session->state == SourceState::Loading ? tr("Available · loading catalogue…")
+        : session->state == SourceState::Loading ? tr("Loading catalogue…")
         : session->state == SourceState::Error ? tr("Unavailable: %1").arg(session->error)
         : tr("Checking connection…");
     this->database_connection->source_status->setText(has_server && server->pending
@@ -1340,12 +1374,20 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
         while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
         if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1"))) endpoint += QStringLiteral("/dvmdb/v1");
         session->health = new HttpHealthMonitor(this);
-        session->health->start(QUrl(endpoint + QStringLiteral("/projects")),
-            [](const QByteArray &body)
+        // Liveness is not catalogue availability. /projects can fail while
+        // DVMDB is still responding (for example, a revision-graph error).
+        // Probe the lightweight identity route and separately load the
+        // project catalogue. A verified source must keep the same UUIDv7.
+        const QString expected_repository = profile.pending ? QString() : profile.id;
+        session->health->start(QUrl(endpoint + QStringLiteral("/repository")),
+            [expected_repository](const QByteArray &body)
             {
                 const QJsonDocument document = QJsonDocument::fromJson(body);
-                return document.isObject()
-                    && document.object().value(QStringLiteral("projects")).isArray();
+                if (!document.isObject()) return false;
+                const QString identity = document.object().value(
+                    QStringLiteral("repositoryId")).toString();
+                return DvmdbIdentity::isUuidV7(identity)
+                    && (expected_repository.isEmpty() || identity == expected_repository);
             }, [this, id](HttpHealthMonitor::State state, const QString &error)
             {
                 SourceSession *current = this->source_sessions.value(id, nullptr);
@@ -1749,14 +1791,46 @@ void ProjectsWidget::rebuildGraph()
                 project_node.branch += tr(" · %n HEAD(s) not loaded", nullptr, missing_heads);
             project_node.container_id = server_node_id;
             nodes.append(project_node);
+            // Immutable revision records have no owning branch: several HEADs
+            // can legitimately reach the same revision. Label each revision
+            // with its actual reachable branches instead of "Branch: Unknown".
+            QHash<QString, QStringList> revision_parents;
+            for (const ProjectPreviewRevision &revision : project.revisions)
+                revision_parents.insert(revision.id, revision.parents);
+            QHash<QString, QStringList> reachable_branch_names;
+            for (const ProjectPreviewBranch &branch : project.branches)
+            {
+                QStringList pending{branch.head};
+                QSet<QString> visited;
+                while (!pending.isEmpty())
+                {
+                    const QString revision_id = pending.takeLast();
+                    if (revision_id.isEmpty() || visited.contains(revision_id)
+                        || !revision_parents.contains(revision_id)) continue;
+                    visited.insert(revision_id);
+                    reachable_branch_names[revision_id].append(branch.name);
+                    pending.append(revision_parents.value(revision_id));
+                }
+            }
             for (const ProjectPreviewRevision &revision : project.revisions)
             {
                 ProjectGraphNode node;
                 node.id = preview ? revision.id : project.id + QStringLiteral("|") + revision.id;
                 node.title = revision.message.trimmed().isEmpty()
                     ? revision.title : revision.message.simplified();
-                node.branch = tr("Branch: %1").arg(
-                    revision.branch.isEmpty() ? tr("Unknown") : revision.branch);
+                if (!revision.branch.isEmpty())
+                    node.branch = tr("Branch: %1").arg(revision.branch);
+                else
+                {
+                    QStringList names = reachable_branch_names.value(revision.id);
+                    names.sort(Qt::CaseInsensitive);
+                    if (names.size() == 1)
+                        node.branch = tr("Branch: %1").arg(names.first());
+                    else if (!names.isEmpty())
+                        node.branch = tr("Branches: %1").arg(names.join(QStringLiteral(", ")));
+                    else
+                        node.branch = tr("No branch currently references this revision");
+                }
                 node.display_id = revision.id;
                 for (const QString &parent : revision.parents)
                     node.parents.append(preview ? parent : project.id + QStringLiteral("|") + parent);
@@ -2380,6 +2454,8 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Head, backed,
         inspectedRevisionBranch() != nullptr,
         !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty());
+    this->revision_overview->setCommitExplanationVisible(
+        this->selection_kind == SelectionKind::Head && !creating);
     const bool selected_network = this->selection_kind == SelectionKind::Head
         || this->selection_kind == SelectionKind::Revision;
     this->revision_network_overview->open_network->setEnabled(

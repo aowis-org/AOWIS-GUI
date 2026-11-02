@@ -96,6 +96,8 @@ public:
     bool malformed_overlay = false;
     bool corrupt_network_payload = false;
     int network_read_count = 0;
+    int network_summary_count = 0;
+    QString saved_network_id;
     int network_import_count = 0;
     QJsonObject last_network_import;
     bool drop_next_save_acknowledgement = false;
@@ -225,6 +227,21 @@ public:
                         document = QJsonObject{{QStringLiteral("token"), lease_token},
                             {QStringLiteral("generation"), QString::number(this->generation)},
                             {QStringLiteral("expiresAtMs"), QStringLiteral("1800000000000")}};
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/networks/summary "))
+                    {
+                        ++this->network_summary_count;
+                        const QString id = this->saved_network_id;
+                        const QJsonArray networks = id.isEmpty() ? QJsonArray{} : QJsonArray{
+                            QJsonObject{{QStringLiteral("id"), id},
+                                        {QStringLiteral("counts"), QJsonObject{}},
+                                        {QStringLiteral("entityCount"), 0}}};
+                        document = QJsonObject{{QStringLiteral("scope"), QStringLiteral("working-copy")},
+                            {QStringLiteral("draftId"), draft_id},
+                            {QStringLiteral("generation"), QString::number(this->generation)},
+                            {QStringLiteral("networkCount"), networks.size()},
+                            {QStringLiteral("networks"), networks}};
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
                              request_line.contains("/networks/"))
@@ -685,6 +702,24 @@ int main(int argc, char **argv)
                loaded_network.id == QStringLiteral("loaded draft") &&
                bootstrap.network_read_count == 1,
                "canonical draft hydration failed")) return 1;
+    // A successful Commit rebases the draft onto the new revision and clears
+    // its candidate changes. The summary must still locate the inherited
+    // network; using draft.changes here would incorrectly report no network.
+    bootstrap.saved_network_id = network_id;
+    bootstrap.saved_changes = QJsonArray{}; // Emulate a rebased, clean candidate.
+    QJsonObject network_summary;
+    initialized = false;
+    client.summarizeDraftNetworks(bootstrap.target(), draft_id,
+        [&](const QJsonObject &summary, const QString &failure)
+        { network_summary = summary; init_error = failure; initialized = true; });
+    if (!check(until(application, [&] { return initialized; }) && init_error.isEmpty()
+               && network_summary.value(QStringLiteral("generation")).toString()
+                   == QStringLiteral("1")
+               && network_summary.value(QStringLiteral("networkCount")).toInt() == 1
+               && network_summary.value(QStringLiteral("networks")).toArray().first().toObject()
+                   .value(QStringLiteral("id")).toString() == network_id
+               && bootstrap.network_summary_count == 1,
+               "saved draft summary failed to discover an inherited network")) return 1;
     bootstrap.corrupt_network_payload = true;
     initialized = false;
     client.loadDraftNetwork(bootstrap.target(), draft_id, network_id,

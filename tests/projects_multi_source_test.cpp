@@ -45,6 +45,8 @@ struct FakeDvmdb
 {
     QTcpServer server;
     bool valid = true;
+    bool graph_valid = true;
+    bool catalogue_valid = true;
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
     const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a001");
@@ -73,28 +75,36 @@ struct FakeDvmdb
                             data = QJsonDocument(QJsonObject{
                                 {QStringLiteral("repositoryId"), this->repository_id}}).toJson();
                         else if (path == "/dvmdb/v1/projects")
-                            data = QJsonDocument(QJsonObject{
-                                {QStringLiteral("projects"), QJsonArray{QJsonObject{
-                                    {QStringLiteral("id"), this->project_id},
-                                    {QStringLiteral("name"), QStringLiteral("Shared name")}}}}}).toJson();
+                        {
+                            if (this->catalogue_valid)
+                                data = QJsonDocument(QJsonObject{
+                                    {QStringLiteral("projects"), QJsonArray{QJsonObject{
+                                        {QStringLiteral("id"), this->project_id},
+                                        {QStringLiteral("name"), QStringLiteral("Shared name")}}}}}).toJson();
+                        }
                         else if (path == QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
                                      .arg(this->project_id).toUtf8())
                         {
-                            const QJsonObject revision{
-                                {QStringLiteral("id"), this->hash},
-                                {QStringLiteral("recordHash"), this->digest},
-                                {QStringLiteral("parents"), QJsonArray{}},
-                                {QStringLiteral("parentRecordHashes"), QJsonArray{}}};
-                            const QJsonObject response{
-                                {QStringLiteral("revisions"), QJsonArray{revision}},
-                                {QStringLiteral("heads"), QJsonArray{QJsonObject{
-                                    {QStringLiteral("branch"), QStringLiteral("main")},
-                                    {QStringLiteral("branchId"), this->branch_id},
-                                    {QStringLiteral("revision"), this->hash},
-                                    {QStringLiteral("recordHash"), this->digest}}}},
-                                {QStringLiteral("complete"), true},
-                                {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}};
-                            data = QJsonDocument(response).toJson();
+                            if (!this->graph_valid)
+                                data = R"({"broken":true})";
+                            else
+                            {
+                                const QJsonObject revision{
+                                    {QStringLiteral("id"), this->hash},
+                                    {QStringLiteral("recordHash"), this->digest},
+                                    {QStringLiteral("parents"), QJsonArray{}},
+                                    {QStringLiteral("parentRecordHashes"), QJsonArray{}}};
+                                const QJsonObject response{
+                                    {QStringLiteral("revisions"), QJsonArray{revision}},
+                                    {QStringLiteral("heads"), QJsonArray{QJsonObject{
+                                        {QStringLiteral("branch"), QStringLiteral("main")},
+                                        {QStringLiteral("branchId"), this->branch_id},
+                                        {QStringLiteral("revision"), this->hash},
+                                        {QStringLiteral("recordHash"), this->digest}}}},
+                                    {QStringLiteral("complete"), true},
+                                    {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}};
+                                data = QJsonDocument(response).toJson();
+                            }
                         }
                     }
                     socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: "
@@ -170,6 +180,48 @@ int main(int argc, char **argv)
     };
     if (!require(inspectorHasIdentity(first.repository_id),
                  "first database UUID was not shown in inspector")) return 1;
+    // An invalid revision graph is a catalogue failure, not an offline server.
+    // /projects remains valid, so the independent health monitor must keep the
+    // connection available while the UI reports the precise catalogue error.
+    QLabel *health_label = projects.findChild<QLabel *>(
+        QStringLiteral("projectsDatabaseHealthStatus"));
+    QLabel *source_status = projects.findChild<QLabel *>(
+        QStringLiteral("serversPreviewStatus"));
+    QPushButton *refresh = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsSourceRefreshButton"));
+    if (!require(health_label != nullptr && source_status != nullptr && refresh != nullptr,
+                 "missing connection-health or catalogue-status controls")) return 1;
+    if (!require(waitUntil(app, [&] {
+            return health_label->text() == QStringLiteral("Available");
+        }), "healthy service never reached Available state")) return 1;
+    first.graph_valid = false;
+    refresh->click();
+    if (!require(waitUntil(app, [&] {
+            return health_label->text() == QStringLiteral("Available · catalogue error")
+                && source_status->text().contains(QStringLiteral("Invalid DVMDB revision graph page"));
+        }), "catalogue failure incorrectly marked the responding server unavailable")) return 1;
+    if (!require(tree->topLevelItemCount() == 2,
+                 "catalogue failure discarded a previously loaded project snapshot")) return 1;
+    first.graph_valid = true;
+    refresh->click();
+    if (!require(waitUntil(app, [&] {
+            return health_label->text() == QStringLiteral("Available")
+                && source_status->text().contains(QStringLiteral("catalogue loaded"));
+        }), "healthy catalogue did not recover after a refresh")) return 1;
+    // A broken /projects response must not fail the independent identity
+    // probe. The source stays reachable and recovery requires no reconnect.
+    first.catalogue_valid = false;
+    refresh->click();
+    if (!require(waitUntil(app, [&] {
+            return health_label->text() == QStringLiteral("Available · catalogue error")
+                && source_status->text().contains(QStringLiteral("Invalid or oversized DVMDB project list"));
+        }), "project-list failure incorrectly marked the server offline")) return 1;
+    first.catalogue_valid = true;
+    refresh->click();
+    if (!require(waitUntil(app, [&] {
+            return health_label->text() == QStringLiteral("Available")
+                && source_status->text().contains(QStringLiteral("catalogue loaded"));
+        }), "project-list catalogue did not recover")) return 1;
     sources->setCurrentItem(sources->topLevelItem(1));
     app.processEvents();
     if (!require(inspectorHasIdentity(second.repository_id),
@@ -204,6 +256,11 @@ int main(int argc, char **argv)
     const QString first_graph_id = first.repository_id + QStringLiteral("|") + first.project_id + QStringLiteral("|") + first.hash;
     const QString second_graph_id = second.repository_id + QStringLiteral("|") + second.project_id + QStringLiteral("|") + second.hash;
     graph->fitGraph();
+    // Immutable revisions have no exclusive owner in DVMDB. A single
+    // reachable branch must still be identified, never "Branch: Unknown".
+    if (!require(graph->nodeBranchCaption(first_graph_id) == QStringLiteral("Branch: main")
+                 && graph->nodeBranchCaption(second_graph_id) == QStringLiteral("Branch: main"),
+                 "database revisions lost their reachable branch labels")) return 1;
     if (!require(!graph->revisionViewportPosition(first_graph_id).isNull()
                  && !graph->revisionViewportPosition(second_graph_id).isNull(),
                  "aggregate graph omitted a source or merged same-hash revisions")) return 1;

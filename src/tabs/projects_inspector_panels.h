@@ -243,7 +243,39 @@ public:
         this->primary_actions->setSpacing(5);
         this->primary_actions->addStretch(1);
         column->insertLayout(column->indexOf(this->status), this->primary_actions);
+        this->commit_explanation_title = new QLabel(tr("Why commit a revision?"), this);
+        this->commit_explanation_title->setObjectName(
+            QStringLiteral("projectsHeadCommitExplanationTitle"));
+        QFont explanation_font = this->commit_explanation_title->font();
+        explanation_font.setBold(true);
+        this->commit_explanation_title->setFont(explanation_font);
+        column->insertWidget(column->indexOf(this->status), this->commit_explanation_title);
+        this->commit_explanation = new QLabel(
+            tr("Committing creates an immutable snapshot of your hydraulic network, "
+               "preserving its exact state at that point in time.\n\n"
+               "This allows you to:\n"
+               "\u2022 Return to an earlier version of your network.\n"
+               "\u2022 Compare changes between revisions.\n"
+               "\u2022 Create new branches to explore alternatives without modifying the original.\n\n"
+               "Each commit requires a short message describing your changes.\n\n"
+               "You can continue editing afterward. Your HEAD remains writable, and "
+               "changes are automatically saved to your private working copy."), this);
+        this->commit_explanation->setObjectName(
+            QStringLiteral("projectsHeadCommitExplanation"));
+        this->commit_explanation->setWordWrap(true);
+        this->commit_explanation->setMinimumWidth(0);
+        QSizePolicy explanation_policy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+        explanation_policy.setHeightForWidth(true);
+        this->commit_explanation->setSizePolicy(explanation_policy);
+        column->insertWidget(column->indexOf(this->status), this->commit_explanation);
+        this->commit_explanation_title->hide();
+        this->commit_explanation->hide();
         this->metadata->hide();
+    }
+    void setCommitExplanationVisible(bool visible)
+    {
+        this->commit_explanation_title->setVisible(visible);
+        this->commit_explanation->setVisible(visible);
     }
     void placePrimaryActions(QPushButton *create_branch, QPushButton *commit_head)
     {
@@ -253,6 +285,8 @@ public:
     QLabel *branch_label = nullptr;
     TwoLineCommitEditor *commit_message = nullptr;
     QLabel *status = nullptr;
+    QLabel *commit_explanation_title = nullptr;
+    QLabel *commit_explanation = nullptr;
     QHBoxLayout *primary_actions = nullptr;
 };
 
@@ -588,6 +622,9 @@ public:
         this->commit_head->setEnabled(ready && database_backed && has_branch && has_commit_message);
         this->head_working_copies->setVisible(!creating && head && database_backed);
         this->head_working_copies->setEnabled(!busy);
+        // HEAD's details tab explains committing instead of repeating UUIDs.
+        // Immutable revision identities remain visible in the Revision inspector.
+        this->identity_footer->setVisible(!creating && !head);
         setCreationState(creating, busy, valid);
     }
 };

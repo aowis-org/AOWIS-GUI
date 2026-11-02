@@ -477,22 +477,33 @@ MainWindow::MainWindow(QWidget *parent)
                 tr("No durable local application-data directory is available for the edit queue."));
             return;
         }
-        const QMessageBox::StandardButton decision = QMessageBox::question(this,
-            tr("Edit private hydraulic draft"),
-            tr("Open draft %1 with a fenced private DVMDB writer?\n\n"
-               "The current in-memory model will be replaced. Only supported captured "
-               "hydraulic edits can be persisted; unsupported mutations will block this "
-               "session. Local Commit is not implemented yet.").arg(draft_id),
-            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-        if (decision != QMessageBox::Yes) return;
-        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
-        this->personal_edit_active = true;
-        this->personal_edit_blocked = false;
-        this->personal_edit_stop_button->setEnabled(false);
-        this->personal_edit_stop_button->setText(tr("Opening private draft…"));
-        this->personal_edit_stop_button->show();
-        this->personal_edit_session->start(target, draft_id, network_id,
-            QDir(directory).filePath(QStringLiteral("personal-draft-edit-queues")));
+        // Non-blocking confirmation: Qt/WASM must not enter a nested event loop.
+        QMessageBox *question = new QMessageBox(QMessageBox::Question,
+            tr("Open hydraulic network"),
+            tr("Opening this network will replace the currently loaded network in the editor.\n\n"
+               "Your changes will be automatically saved to your private DVMDB working copy.\n\n"
+               "You can preserve important milestones by committing immutable revisions "
+               "from the HEAD Inspector."),
+            QMessageBox::NoButton, this);
+        question->setAttribute(Qt::WA_DeleteOnClose);
+        QPushButton *open_button = question->addButton(tr("Open network"), QMessageBox::AcceptRole);
+        QPushButton *cancel_button = question->addButton(tr("Cancel"), QMessageBox::RejectRole);
+        question->setDefaultButton(cancel_button);
+        question->setEscapeButton(cancel_button);
+        connect(question, &QMessageBox::finished, this,
+                [this, question, open_button, target, draft_id, network_id, directory](int)
+        {
+            if (question->clickedButton() != open_button || this->personal_edit_active) return;
+            this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+            this->personal_edit_active = true;
+            this->personal_edit_blocked = false;
+            this->personal_edit_stop_button->setEnabled(false);
+            this->personal_edit_stop_button->setText(tr("Opening private draft…"));
+            this->personal_edit_stop_button->show();
+            this->personal_edit_session->start(target, draft_id, network_id,
+                QDir(directory).filePath(QStringLiteral("personal-draft-edit-queues")));
+        });
+        question->open();
     });
     connect(this->projects_workspace, &ProjectsWidget::projectContextChanged,
             this->top_control_bar, &TopControlBar::setProjectContext);

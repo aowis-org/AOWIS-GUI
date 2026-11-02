@@ -1385,13 +1385,21 @@ int main(int argc, char **argv)
         ? revision_form->findChild<QPlainTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
     QLabel *revision_identity = action_stack->currentWidget()->findChild<QLabel *>(
         QStringLiteral("projectsRevisionIdentityFooter"));
+    QLabel *commit_explanation_title = revision_form != nullptr
+        ? revision_form->findChild<QLabel *>(
+            QStringLiteral("projectsHeadCommitExplanationTitle")) : nullptr;
+    QLabel *commit_explanation = revision_form != nullptr
+        ? revision_form->findChild<QLabel *>(
+            QStringLiteral("projectsHeadCommitExplanation")) : nullptr;
     if (!require(revision_branch != nullptr && revision_branch->isEnabled()
                      && revision_commit != nullptr && !revision_commit->isVisible()
                      && activeInspectorAction(projects,
                          QStringLiteral("projectsRevisionSaveMetadata")) == nullptr
                      && revision_message != nullptr && revision_message->isEnabled()
-                     && revision_identity != nullptr,
-                 "Revision Inspector did not offer editable message and branch creation")) return 1;
+                     && revision_identity != nullptr && !revision_identity->isHidden()
+                     && commit_explanation_title != nullptr
+                     && commit_explanation != nullptr && commit_explanation->isHidden(),
+                 "Revision Inspector did not offer its immutable metadata and actions")) return 1;
     QLabel *overview_branch = revision_form != nullptr
         ? revision_form->findChild<QLabel *>(QStringLiteral("projectsRevisionBranchLabel")) : nullptr;
     QWidget *revision_branch_tab = projects.findChild<QWidget *>(
@@ -1506,11 +1514,22 @@ int main(int argc, char **argv)
                  "HEAD Inspector must require a commit message and disable branching")) return 1;
     QLabel *head_identity = action_stack->currentWidget()->findChild<QLabel *>(
         QStringLiteral("projectsRevisionIdentityFooter"));
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
     if (!require(head_form != nullptr
-                     && head_identity != nullptr
-                     && head_identity->text().contains(QStringLiteral("Preview project ID"))
-                     && head_identity->text().contains(QStringLiteral("Base revision")),
-                 "HEAD Overview lost its project identity or base revision")) return 1;
+                     && head_identity != nullptr && head_identity->isHidden()
+                     && commit_explanation_title != nullptr
+                     && commit_explanation != nullptr
+                     && commit_explanation_title->isVisible()
+                     && commit_explanation->isVisible()
+                     && commit_explanation_title->text() == QStringLiteral("Why commit a revision?")
+                     && commit_explanation->text().contains(
+                         QStringLiteral("immutable snapshot"))
+                     && commit_explanation->text().contains(
+                         QStringLiteral("continue editing afterward"))
+                     && commit_explanation_title->geometry().top()
+                         >= head_commit->geometry().bottom(),
+                 "HEAD tab must explain commits below the button without UUID labels")) return 1;
     head_message->setPlainText(QStringLiteral("Commit the hydraulic changes"));
     app.processEvents();
     if (!require(!head_commit->isEnabled(),
