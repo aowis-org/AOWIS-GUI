@@ -515,11 +515,10 @@ int main(int argc, char **argv)
                  "Projects Inspector does not route to four independent domain action panels")) return 1;
     QPushButton *working_copies = projects.findChild<QPushButton *>(
         QStringLiteral("projectsInspectorWorkingCopies"));
-    QPushButton *edit_network = projects.findChild<QPushButton *>(
-        QStringLiteral("projectsInspectorEditNetwork"));
     if (!require(working_copies != nullptr && !working_copies->isVisible()
-                     && edit_network != nullptr && !edit_network->isVisible(),
-                 "preview-only branch must not expose persistent network editing")) return 1;
+                     && projects.findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
+                 "preview-only branch must not expose legacy network editing")) return 1;
     if (!require(projects.findChild<QPushButton *>(QStringLiteral("serversRenameButton")) == nullptr
                      && projects.findChild<QPushButton *>(QStringLiteral("serversDeleteButton")) == nullptr,
                  "redundant server rename/delete controls remain in the sidebar"))
@@ -1220,9 +1219,6 @@ int main(int argc, char **argv)
     QPushButton *project_import = project_overview_page == nullptr
         ? nullptr : project_overview_page->findChild<QPushButton *>(
               QStringLiteral("projectsInspectorImport"));
-    QPushButton *project_edit = project_overview_page == nullptr
-        ? nullptr : project_overview_page->findChild<QPushButton *>(
-              QStringLiteral("projectsInspectorEditNetwork"));
     QPushButton *project_overview_create_branch = project_overview_page == nullptr
         ? nullptr : project_overview_page->findChild<QPushButton *>(
               QStringLiteral("projectsInspectorOverviewCreateBranch"));
@@ -1250,7 +1246,7 @@ int main(int argc, char **argv)
     if (!require(inspector_tabs->count() == 2
                      && inspector_tabs->tabText(0) == QStringLiteral("Overview")
                      && inspector_tabs->tabText(1) == QStringLiteral("Branches")
-                     && project_import != nullptr && project_edit != nullptr
+                     && project_import != nullptr
                      && project_overview_create_branch != nullptr
                      && project_create_branch != nullptr && project_branch_list != nullptr
                      && branch_column != nullptr
@@ -1263,9 +1259,7 @@ int main(int argc, char **argv)
                      && project_column->indexOf(project_name->parentWidget()) == 0
                      && project_column->indexOf(project_overview_create_branch) == 1
                      && project_column->indexOf(project_identity) == project_column->count() - 1
-                     && project_column->itemAt(project_column->count() - 2)->layout() != nullptr
-                     && project_column->itemAt(project_column->count() - 2)->layout()->indexOf(project_import) >= 0
-                     && project_column->itemAt(project_column->count() - 2)->layout()->indexOf(project_edit) >= 0
+                     && project_column->itemAt(project_column->count() - 2)->widget() == project_import
                      && branch_column->indexOf(project_create_branch)
                          > branch_column->indexOf(project_branch_list)
                      && project_branches_page->findChild<QPushButton *>(
@@ -1280,7 +1274,7 @@ int main(int argc, char **argv)
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();
     if (!require(project_create_branch->isVisible() && project_create_branch->isEnabled()
-                     && !project_import->isVisible() && !project_edit->isVisible(),
+                     && !project_import->isVisible(),
                  "Branches tab exposes network actions or hides Create branch")) return 1;
     inspector_tabs->setCurrentIndex(0);
     app.processEvents();
@@ -1439,8 +1433,6 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(near(zoom_before_graph_selection, graph->zoomFactor()),
                  "graph HEAD selection unexpectedly fitted the graph")) return 1;
-    QPushButton *head_edit = activeInspectorAction(projects,
-        QStringLiteral("projectsHeadInspectorEditNetwork"));
     if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main")
                      && revision_branch_tags->text() == overview_tags->text()
                      && revision_branch_description->toPlainText()
@@ -1450,7 +1442,8 @@ int main(int argc, char **argv)
                      && inspector_tabs->count() == 3
                      && inspector_tabs->tabText(1) == QStringLiteral("HEAD")
                      && inspector_tabs->tabText(2) == QStringLiteral("Branch")
-                     && head_edit != nullptr && !head_edit->isVisible(),
+                     && activeInspectorAction(projects,
+                         QStringLiteral("projectsHeadInspectorEditNetwork")) == nullptr,
                  "selecting a HEAD card did not open its HEAD/Revision Inspector"))
         return 1;
     QPushButton *head_branch = activeInspectorAction(projects,
@@ -1493,7 +1486,9 @@ int main(int argc, char **argv)
             QStringLiteral("projectsNetworkOverviewExport")) : nullptr;
     if (!require(network_branch != nullptr
                      && network_branch->text().contains(QStringLiteral("main"))
-                     && network_open != nullptr && network_import != nullptr
+                     && network_open != nullptr
+                     && network_open->text() == QStringLiteral("Open network")
+                     && network_import != nullptr
                      && network_export != nullptr && !network_import->isEnabled()
                      && !network_export->isEnabled(),
                  "HEAD network Overview must not expose unscoped import/export")) return 1;

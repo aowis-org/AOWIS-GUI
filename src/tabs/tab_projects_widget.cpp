@@ -706,8 +706,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this, &ProjectsWidget::showWorkingCopies);
     connect(this->revision_inspector->head_working_copies, &QPushButton::clicked,
             this, &ProjectsWidget::showWorkingCopies);
-    connect(this->revision_inspector->edit_head_network, &QPushButton::clicked,
-            this, &ProjectsWidget::editProjectNetwork);
     connect(this->revision_network_overview->open_network, &QPushButton::clicked,
             this, &ProjectsWidget::openInspectedNetwork);
     connect(this->revision_network_overview->export_network, &QPushButton::clicked,
@@ -722,9 +720,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                        "The global EPANET importer does not save into the selected "
                        "DVMDB working copy."));
             });
-    for (QPushButton *button : {this->project_overview->edit_network,
-                                this->branch_inspector->edit_network})
-        connect(button, &QPushButton::clicked, this, &ProjectsWidget::editProjectNetwork);
     connect(this->project_overview->import_network, &QPushButton::clicked,
             this, &ProjectsWidget::importProjectRequested);
     for (ProjectsInspectorPanel *panel : {static_cast<ProjectsInspectorPanel *>(this->database_inspector),
@@ -2374,9 +2369,6 @@ void ProjectsWidget::updateButtons()
     this->project_overview->import_network->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
     this->project_overview->import_network->setEnabled(ready && project != nullptr);
-    this->project_overview->edit_network->setVisible(
-        this->selection_kind == SelectionKind::Project && !creating && backed);
-    this->project_overview->edit_network->setEnabled(ready && project != nullptr);
     this->project_overview->create_branch->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
     this->project_overview->create_branch->setEnabled(ready && project != nullptr);
@@ -2399,9 +2391,7 @@ void ProjectsWidget::updateButtons()
         || this->selection_kind == SelectionKind::Revision;
     this->revision_network_overview->open_network->setEnabled(
         selected_network && ready && backed);
-    this->revision_network_overview->open_network->setText(
-        this->selection_kind == SelectionKind::Head ? tr("Open network in editor")
-        : tr("Open revision network…"));
+    this->revision_network_overview->open_network->setText(tr("Open network"));
     // Import must be scoped to an exact verified empty private working copy.
     // Neither an unborn branch nor an empty committed base proves that a
     // private working copy is empty; do not enable a destructive global import.

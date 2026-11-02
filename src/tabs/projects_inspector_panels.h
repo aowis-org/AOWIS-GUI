@@ -147,8 +147,8 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
     {
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
-        // Project Overview: editable-looking metadata first, branch creation
-        // immediately below it, network actions above the identity footer.
+        // Project Overview: metadata first, branch creation and import above
+        // the identity footer. Opening a network belongs to the selected HEAD.
         // Keep preview explanations near the fields rather than under the IDs.
         column->removeWidget(this->metadata);
         column->removeWidget(this->preview_note);
@@ -165,19 +165,11 @@ public:
         this->import_network = new QPushButton(tr("Import network…"), this);
         this->import_network->setObjectName(QStringLiteral("projectsInspectorImport"));
         this->import_network->setToolTip(tr("Import a network into the selected project"));
-        this->edit_network = new QPushButton(tr("Edit network"), this);
-        this->edit_network->setObjectName(QStringLiteral("projectsInspectorEditNetwork"));
-        this->edit_network->setToolTip(tr("Open the hydraulic network in Distribution Editor with durable autosave"));
-        QHBoxLayout *network_actions = new QHBoxLayout();
-        network_actions->addWidget(this->import_network);
-        network_actions->addWidget(this->edit_network);
-        network_actions->addStretch(1);
-        column->addLayout(network_actions);
+        column->addWidget(this->import_network, 0, Qt::AlignLeft);
         column->addWidget(this->metadata);
     }
     QPushButton *create_branch = nullptr;
     QPushButton *import_network = nullptr;
-    QPushButton *edit_network = nullptr;
 };
 class BranchInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -323,7 +315,7 @@ public:
         this->other_counts->setObjectName(QStringLiteral("projectsNetworkOverviewOtherCounts"));
         this->other_counts->setWordWrap(true);
         column->addWidget(this->other_counts);
-        this->open_network = new QPushButton(tr("Open network in editor"), this);
+        this->open_network = new QPushButton(tr("Open network"), this);
         this->open_network->setObjectName(QStringLiteral("projectsNetworkOverviewOpen"));
         column->addWidget(this->open_network);
         QHBoxLayout *actions = new QHBoxLayout();
@@ -525,19 +517,14 @@ public:
         this->working_copies = addButton(tr("Personal working copies…"),
             QStringLiteral("projectsInspectorWorkingCopies"),
             tr("Create or reopen a durable private draft for this exact branch HEAD"));
-        this->edit_network = addButton(tr("Edit network"),
-            QStringLiteral("projectsInspectorEditNetwork"),
-            tr("Open the hydraulic network in Distribution Editor with durable autosave"));
         this->create_branch = addButton(tr("Create branch"),
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from an explicitly chosen revision"));
         this->delete_branch = addButton(tr("Delete branch…"),
             QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview branch"));
-        moveToFullWidth(this->edit_network);
         moveToFullWidth(this->working_copies);
     }
     QPushButton *working_copies = nullptr;
-    QPushButton *edit_network = nullptr;
     QPushButton *create_branch = nullptr;
     QPushButton *delete_branch = nullptr;
 
@@ -545,8 +532,6 @@ public:
     {
         this->working_copies->setVisible(!creating && backed);
         this->working_copies->setEnabled(!busy);
-        this->edit_network->setVisible(!creating && backed);
-        this->edit_network->setEnabled(ready);
         this->create_branch->setVisible(!creating);
         this->create_branch->setEnabled(ready);
         this->delete_branch->setVisible(!creating && preview);
@@ -564,9 +549,6 @@ public:
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from this selected revision or HEAD"));
         this->create_branch->setAttribute(Qt::WA_AlwaysShowToolTips);
-        this->edit_head_network = addButton(tr("Edit network"),
-            QStringLiteral("projectsHeadInspectorEditNetwork"),
-            tr("Edit this HEAD through a durable private working copy"));
         this->head_working_copies = addButton(tr("Personal working copies…"),
             QStringLiteral("projectsHeadInspectorWorkingCopies"),
             tr("Create or reopen a private working copy of this branch HEAD"));
@@ -580,11 +562,9 @@ public:
         this->identity_footer->setMinimumWidth(0);
         this->identity_footer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         this->column->addWidget(this->identity_footer);
-        moveToFullWidth(this->edit_head_network);
         moveToFullWidth(this->head_working_copies);
     }
     QPushButton *create_branch = nullptr;
-    QPushButton *edit_head_network = nullptr;
     QPushButton *head_working_copies = nullptr;
     QPushButton *commit_head = nullptr;
     QLabel *identity_footer = nullptr;
@@ -606,8 +586,6 @@ public:
             : tr("Create a new branch from this immutable revision"));
         this->commit_head->setVisible(!creating && head);
         this->commit_head->setEnabled(ready && database_backed && has_branch && has_commit_message);
-        this->edit_head_network->setVisible(!creating && head && database_backed);
-        this->edit_head_network->setEnabled(ready);
         this->head_working_copies->setVisible(!creating && head && database_backed);
         this->head_working_copies->setEnabled(!busy);
         setCreationState(creating, busy, valid);
