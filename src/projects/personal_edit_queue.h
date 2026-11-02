@@ -47,6 +47,14 @@ public:
 
     QList<Entry> pending() const;
     bool isOpen() const;
+
+    // The queue root every private draft session uses on this device.
+    static QString defaultRoot();
+    // Number of queued transaction files of one draft, read without taking
+    // the lock (a running session may hold it). -1 if the directory cannot
+    // be listed. Used to refuse a Commit that would leave queued edits out.
+    static int pendingTransactionFileCount(const QString &root, const QUuid &repository_id,
+                                           const QUuid &draft_id);
     QString directoryPath() const;
     QUuid repositoryId() const;
     QUuid draftId() const;

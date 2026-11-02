@@ -21,6 +21,16 @@ decision. The backend's corresponding independent notes are at
 - Session leases, fencing tokens, expected generations and idempotency keys
   prevent accidental concurrent overwrites or duplicate operations; none of
   them authorizes a user.
+- The Commit author is one UUIDv7 per GUI installation plus the operating
+  system account name (since 2026-11-02). It labels revisions consistently;
+  it is not a verified user identity.
+- Standalone's embedded loopback listener (`embedded_dvmdb_host.cpp`)
+  accepts any request: no credential, no `Host`/`Origin` check, and DVMDB
+  ignores `Content-Type`. Any local process, and a web page in the user's
+  browser (simple cross-origin POSTs; DNS rebinding for reads), can reach
+  the private repository. Candidate fix for the security concept: a
+  per-process secret checked in a pre-routing handler plus `Host`/`Origin`
+  checks (review of 2026-11-02).
 - Existing GUI config and project/graph features must not claim to secure an
   HTTP DVMDB. For current development, keep unauthenticated writable services
   within controlled deployments; do not expose them to untrusted/public clients.

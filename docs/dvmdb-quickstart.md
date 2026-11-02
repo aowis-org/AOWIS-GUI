@@ -53,6 +53,8 @@ settings page. A mismatching or unverified repository identity is an error.
    network. A real external HTTP DVMDB GUI-restart/reopen test has already
    succeeded for tested edits. Complete-network and Standalone acceptance
    are still pending.
+6. To create a revision: stop private editing, select the branch **HEAD**
+   and use **Commit** with a commit message in its Inspector.
 
 Advanced controls live in the **branch Inspector**, not in the project
 Inspector: select the database-backed **branch** (expand the project in the
@@ -61,7 +63,7 @@ branch privately**, draft creation/reopen, **View in Distribution Monitor**
 (read-only), and **Edit in Distribution Editor** (fenced editing).
 
 The branch checkout transfers one selected remote branch, not every branch
-of a project. A whole-project Clone button and local Commit are not present.
+of a project. A whole-project Clone button is not present.
 
 ## 4. Hydraulic Libraries, controls and labels
 
@@ -74,14 +76,18 @@ mutation-path and network-root autosave acceptance is not yet finished.
 
 ## 5. What not to assume
 
-- **Save draft** does not create a revision; **Commit locally** remains a
-  future GUI workflow. **Publish** is a separate later workflow.
-- Updating root network settings such as simulation headloss formula does
-  **not** yet have complete durable metadata transaction support.
-- EPANET and EPANET-JS import are **not yet defined as safe replace/merge
-  operations for an active private draft**. The proposed HC-02.9 import ban
-  was **rejected and not applied**. See
+- **Save draft** does not create a revision; **Commit** (HEAD Inspector)
+  does. **Publish** is a separate later workflow.
+- Root network settings such as the simulation headloss formula are not
+  yet saved as draft edits; during a private session the headloss selector
+  returns to the draft's value.
+- EPANET and EPANET-JS import and the built-in examples are **refused while
+  a private draft is being edited** (interim rule, 2026-11-02); stop private
+  editing first. Replace/merge semantics are still open, see
   [network open/import decisions](network-open-import-replacement.md).
+- One editor operation may change at most 128 entities. Moving a large
+  selection is refused and blocks the session; reopen the draft and move it
+  in smaller parts.
 - An HTTP response timeout may occur **after** DVMDB accepted a Save. Do
   not discard pending queue records or retry as a fresh event without
   authoritative journal verification.

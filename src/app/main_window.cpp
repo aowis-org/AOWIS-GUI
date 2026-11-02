@@ -470,7 +470,7 @@ MainWindow::MainWindow(QWidget *parent)
                 tr("A personal DVMDB and verified draft/network UUIDv7 identities are required."));
             return;
         }
-        const QString directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        const QString directory = PersonalEditQueue::defaultRoot();
         if (directory.isEmpty())
         {
             QMessageBox::warning(this, tr("Cannot edit private draft"),
@@ -500,8 +500,7 @@ MainWindow::MainWindow(QWidget *parent)
             this->personal_edit_stop_button->setEnabled(false);
             this->personal_edit_stop_button->setText(tr("Opening private draft…"));
             this->personal_edit_stop_button->show();
-            this->personal_edit_session->start(target, draft_id, network_id,
-                QDir(directory).filePath(QStringLiteral("personal-draft-edit-queues")));
+            this->personal_edit_session->start(target, draft_id, network_id, directory);
         });
         question->open();
     });
@@ -578,8 +577,26 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->top_control_bar, &TopControlBar::signalHeadlossFormulaChanged, this->dock_entity_inspector, &EntityInspectorDock::onHeadlossFormulaChanged);
     connect(this->top_control_bar, &TopControlBar::signalHeadlossFormulaChanged, this, [this](HeadlossFormulas)
     {
-        this->hydraulic_data->setSimulationHeadlossFormula(
-            this->top_control_bar->selectedSimulationHeadlossFormula());
+        const HydraulicHeadlossFormula selected =
+            this->top_control_bar->selectedSimulationHeadlossFormula();
+        const HydraulicHeadlossFormula current =
+            this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula;
+        if (this->personal_edit_active && selected != current)
+        {
+            // Network-level settings are not yet saved through private draft
+            // events (HC-03 to HC-05). Changing them here would make the live
+            // model differ from the draft and block the session, so the
+            // selector returns to the draft's formula instead.
+            QTimer::singleShot(0, this, [this]
+            {
+                this->top_control_bar->setSelectedSimulationHeadlossFormula(
+                    this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
+            });
+            statusBar()->showMessage(tr("The headloss formula cannot be changed while a private "
+                                        "draft is being edited."), 8000);
+            return;
+        }
+        this->hydraulic_data->setSimulationHeadlossFormula(selected);
     });
     connect(this->hydraulic_data, &HydraulicData::signalNetworkLoaded, this, [this]
     {
@@ -1196,8 +1213,16 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
 
 void MainWindow::checkPersonalDraftModel()
 {
-    if (!this->personal_edit_active || !this->hydraulic_data->logicalEditCaptureEnabled())
+    if (!this->personal_edit_active || this->personal_edit_blocked)
         return;
+    // Only this session enables capture, and the checks run only after it is
+    // ready. Capture switched off underneath it (a model replacement) means
+    // later edits would be neither saved nor detected: block instead.
+    if (!this->hydraulic_data->logicalEditCaptureEnabled())
+    {
+        blockPersonalDraftEditing(tr("Edit capture was switched off while the private draft was open."));
+        return;
+    }
     if (!this->personal_edit_session->isReady())
     {
         blockPersonalDraftEditing(tr("Private draft writer is no longer ready."));

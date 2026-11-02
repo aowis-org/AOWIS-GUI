@@ -32,9 +32,14 @@ public:
 
 private:
     void refresh();
-    void createDraft();
+    void createDraft(const QString &base);
     void inspectDraft();
     void checkoutBranch();
+    // Direct edit of the branch's single draft: make sure it is based on the
+    // branch's current personal HEAD before it is opened (see .cpp).
+    void verifyDirectDraft(const QString &draft_id);
+    void replaceStaleDraft(const PersonalWorkingCopyInfo &draft, const QString &personal_head);
+    int queuedLocalEdits(const QString &draft_id) const;
     void initializeNetwork();
     void viewDraftNetwork();
     void editDraftNetwork();
@@ -70,4 +75,9 @@ private:
     bool accepted_edit = false;
     bool direct_edit = false;
     bool busy = false;
+    // Direct edit pulls newer source commits at most once per dialog.
+    bool source_pull_attempted = false;
+    // A modified draft on an older base is opened only after confirmation.
+    bool confirm_before_editing = false;
+    QString stale_notice;
 };

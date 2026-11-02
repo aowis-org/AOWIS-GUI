@@ -58,6 +58,10 @@ private:
     bool import_into_private_head = false;
 
     void chooseNetworkProjectFile();
+    // A private draft session binds the live model to its fenced writer
+    // (edit capture is enabled only by that session). Replacing the model
+    // would switch capture off without anyone noticing; refuse instead.
+    bool refuseReplacementDuringPrivateEditing(QWidget *parent_widget) const;
     void finishSimulation(const EpanetResultRun &run_result);
     void finishEpanetNetworkImport(EpanetResultImport import_result, QWidget *parent_widget);
     SimulationStatisticsDialog *ensureSimulationStatisticsDialog();

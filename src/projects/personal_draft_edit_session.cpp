@@ -86,11 +86,22 @@ void PersonalDraftEditSession::start(
                 fail(QStringLiteral("Draft changed during network hydration: %1").arg(load_error));
                 return;
             }
-            // The acquisition checks the generation once more. It fences
-            // concurrent sessions before we open the local event queue.
+            // Take the local queue lock BEFORE the lease. All writers of this
+            // draft lease with its session UUID, and every acquisition rotates
+            // the fencing token: a second window that acquired first would
+            // fence out the running session and only then fail on the lock.
+            // The queue lock is per machine, so it refuses here instead.
+            QString stage_error;
+            if (!this->stage_.open(this->queue_root_, QUuid(this->target_.repository_id),
+                                   QUuid(this->draft_id_), network, journal_tail,
+                                   &stage_error))
+            {
+                fail(QStringLiteral("Unable to recover local draft event queue: %1").arg(stage_error));
+                return;
+            }
+            // The acquisition checks the generation once more.
             this->client_.acquireLease(this->target_, this->draft_id_, this->session_id_, 90,
-                [this, network, journal_tail](const PersonalWorkingCopyLease &lease,
-                                               const QString &lease_error)
+                [this](const PersonalWorkingCopyLease &lease, const QString &lease_error)
             {
                 if (!lease_error.isEmpty())
                 {
@@ -108,14 +119,6 @@ void PersonalDraftEditSession::start(
                 if (lease.generation != this->generation_ || leaseIsExpiring())
                 {
                     fail(QStringLiteral("Draft generation changed or lease expired during checkout."));
-                    return;
-                }
-                QString stage_error;
-                if (!this->stage_.open(this->queue_root_, QUuid(this->target_.repository_id),
-                                       QUuid(this->draft_id_), network, journal_tail,
-                                       &stage_error))
-                {
-                    fail(QStringLiteral("Unable to recover local draft event queue: %1").arg(stage_error));
                     return;
                 }
                 this->state_ = State::Ready;

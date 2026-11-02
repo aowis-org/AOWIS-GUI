@@ -1,6 +1,6 @@
 # Hydraulic editing and canonical transactions
 
-**Checkpoint: 2026-11-01.** This document describes the implemented GUI
+**Checkpoint: 2026-11-02.** This document describes the implemented GUI
 capture and editing paths, their limits, and the remaining HC work. It does
 not treat unit coverage as complete user-facing autosave coverage.
 
@@ -16,6 +16,12 @@ MODEL owns `ModelCodec<T>`, the canonical `ModelEditTransaction` format,
 and UUID identity. GUI captures a before/after image of each changed entity
 and emits one MODEL edit transaction per logical operation. DVMDB's
 server-owned root and membership records must **not** be synthesized by GUI.
+
+The transaction UUID is a UUIDv7. Entity UUIDs are model keys and may be
+any non-null UUID; networks imported from EPANET carry deterministic UUIDv5
+entity keys. Until the 2026-11-02 MODEL patch
+(`aowis-server-model-entity-uuid-any-version.zip`) the edit codec accepted
+only UUIDv7 entity keys, so editing any imported entity failed at capture.
 
 ## 2. The 18 collections
 
@@ -50,6 +56,15 @@ finds entities by UUID across every collection and rejects ambiguous or
 duplicate UUIDs; it distinguishes absent/create, before/after update, and
 delete. No-op changes generate no event. Empty/invalid codec images fail
 closed instead of being silently counted as successful saves.
+
+**Collection order is part of the canonical network.** The draft stage and
+DVMDB's membership chunks append a created entity to the end of its
+collection and remove entities without reordering. Editor operations must
+match: `HydraulicNetworkEditor::splitPipeAtVertex()` inserted the new pipe
+right after the original, so the live model differed from the staged
+candidate after every split and the session blocked. It appends since
+2026-11-02 (test: *Pipe split keeps canonical collection order*). Each
+current create operation creates exactly one entity.
 
 The HC-01 focused `aowis-hydraulic-edit-transaction` test was reported
 passing. It exercises generic canonical images, replay and membership
@@ -108,8 +123,16 @@ but its later passing result was not supplied in this conversation.
    accept success only after authoritative verification. Preserve the queue
    on uncertain results, stale state or errors.
 7. On restart, reconcile the queue with the DVMDB journal and candidate
-   without losing or duplicating an accepted event. A Save **never** creates
-   a committed revision.
+   without losing or duplicating an accepted event. The oldest event is
+   also retired when the candidate already holds exactly its result. A
+   Save **never** creates a committed revision.
+
+One operation must fit one Save: at most **128 changed entities**, 128 of
+them created or removed, and about 7 MiB of encoded data. A larger operation
+(for example moving a selection of roughly 45 or more junctions, whose
+attached pipes move too) is refused before it is queued; the session blocks
+and reopening restores the saved network. Splitting large operations into
+bounded, still atomic Saves is open work on the DVMDB side.
 
 `PersonalDraftEditSession`, `PersonalDraftEditStage`, `PersonalEditQueue`,
 `HydraulicDraftEventAdapter`, and `MainWindow` implement this path. A
@@ -119,17 +142,20 @@ substitute for capturing an unimplemented edit.
 
 ## 5. Known gaps; do not claim 100% GUI autosave
 
-- **HC-02.9:** complete the remaining mutation-path audit, especially
-  EPANET/EPANET-JS import and whole-network replacement. Its proposed
-  blanket import block was **rejected and not applied**. The behavior must
-  be decided before implementation; see
+- **HC-02.9:** a scripted audit (2026-11-02) of `hydraulic_data.cpp` found
+  every model mutator capturing its edit except `setSimulationHeadlossFormula()`
+  (root metadata, HC-05) and whole-model replacement. No code outside
+  `HydraulicData` mutates the model. Import and examples are refused while a
+  private session is open (**interim rule**, 2026-11-02); the final
+  load/import/replace/merge semantics are still open, see
   [network loading/import decisions](network-open-import-replacement.md).
 - **HC-03:** define canonical MODEL transactions for persistent
   network-root metadata; not one of the 18 entity collections.
 - **HC-04:** let DVMDB apply those logical metadata changes to its
   server-owned root atomically, under expected generation and fencing.
 - **HC-05:** wire GUI setters (for example, hydraulic headloss formula)
-  into the root-metadata edit path.
+  into the root-metadata edit path. Until then the headloss selector returns
+  to the draft's value during a private session.
 - **HC-06:** implement the agreed bulk import/replacement/merge semantics.
 - **HC-07:** prove complete canonical equality across GUI and DVMDB
   restarts, errors, and both external HTTP and embedded Standalone.

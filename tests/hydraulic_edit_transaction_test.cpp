@@ -343,6 +343,96 @@ void testHydraulicDataLogicalOperations()
     test_harness.expectTrue(!data.logicalEditCaptureEnabled(),
                             "switching model disables history capture until new working copy is bound");
 }
+// The private draft stage and DVMDB append a created entity to the end of its
+// collection. Every editor operation must do the same, or the live model and
+// the replayed candidate differ in order (and private editing blocks). A pipe
+// split of a pipe that is not the last one is the case that used to differ.
+void testPipeSplitKeepsCanonicalCollectionOrder()
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("Split order");
+    HydraulicData data;
+    data.replaceNetworkHydraulic(base, {});
+    const QUuid first = data.addJunction(coordinate(50.1, 8.4));
+    const QUuid middle = data.addJunction(coordinate(50.2, 8.5));
+    const QUuid last = data.addJunction(coordinate(50.3, 8.6));
+    QList<CoordinateWGS84> vertices;
+    vertices.append(coordinate(50.15, 8.45));
+    const QUuid split_pipe = data.addPipe(first, middle, vertices);
+    const QUuid trailing_pipe = data.addPipe(middle, last, {});
+    test_harness.expectTrue(!split_pipe.isNull() && !trailing_pipe.isNull() &&
+                            data.networkHydraulic().links_pipes.size() == 2 &&
+                            data.networkHydraulic().links_pipes.first().uuid == split_pipe,
+                            "split pipe is not the last pipe");
+
+    const NetworkHydraulic verified = data.networkHydraulic();
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+    const QUuid inserted = data.addJunction(coordinate(50.15, 8.45));
+    const QUuid created_pipe = data.splitPipeAtVertex(split_pipe, 0, inserted);
+    test_harness.expectTrue(!created_pipe.isNull() && events.size() == 2,
+                            "junction and split are two captured events");
+    test_harness.expectTrue(data.networkHydraulic().links_pipes.size() == 3 &&
+                            data.networkHydraulic().links_pipes.last().uuid == created_pipe,
+                            "the pipe created by a split is appended");
+
+    NetworkHydraulic staged = verified;
+    for (const QByteArray &event : events)
+    {
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        QString error;
+        test_harness.expectTrue(HydraulicDraftEventAdapter::prepareWithMembership(
+                                    event, staged, records, membership, &error),
+                                "captured split events replay on the verified candidate");
+    }
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+                            "replayed candidate equals the live model byte for byte after a split");
+}
+
+// An event DVMDB can never accept (here 130 created junctions in one
+// operation) must be refused before it reaches the durable queue; otherwise
+// every reopen would replay it and fail to save it again.
+void testDraftStageRefusesUnsaveableEvent()
+{
+    QTemporaryDir root;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("Bulk guard");
+    NetworkHydraulic live = base;
+    HydraulicNetworkEditor editor(live);
+    HydraulicEditTransactionCapture bulk(QStringLiteral("hydraulic.junction.bulk"));
+    for (int index = 0; index < 130; ++index)
+    {
+        const QUuid junction = editor.addJunction(coordinate(50.0 + index * 0.001, 8.4));
+        bulk.watchCreated(junction);
+    }
+    const std::optional<QByteArray> event = bulk.finish(live);
+    test_harness.expectTrue(event.has_value(), "bulk operation is one captured event");
+    if (!event.has_value())
+        return;
+    QString error;
+    PersonalDraftEditStage stage;
+    test_harness.expectTrue(stage.open(root.path(), repository, draft, base, {}, &error),
+                            "stage opens on the verified candidate");
+    test_harness.expectTrue(!stage.append(*event, &error) &&
+                            error.contains(QStringLiteral("at most 128")),
+                            "an event beyond the DVMDB save bounds is refused");
+    test_harness.expectTrue(stage.pendingCount() == 0 && !stage.isBlocked(),
+                            "the refused event is not queued");
+    stage.close();
+    PersonalEditQueue raw;
+    test_harness.expectTrue(raw.open(root.path(), repository, draft, &error) &&
+                            raw.pending().isEmpty(),
+                            "nothing durable refers to the refused event");
+}
+
 void testPropertyCaptureAndNoop()
 {
     HydraulicData data;
@@ -1891,14 +1981,33 @@ void testDraftStageRejectsOutOfOrderReplay()
                             stage.append(*event, &error),
                             "valid pending event is recorded");
     stage.close();
+
+    // A candidate in which the junction exists with *different* content is
+    // neither the event's before state nor its result: keep the event.
+    NetworkHydraulic diverged = live;
+    HydraulicNetworkEditor diverged_editor(diverged);
+    test_harness.expectTrue(diverged_editor.setNodeId(junction, QStringLiteral("J-elsewhere")),
+                            "prepare a diverged candidate");
     PersonalDraftEditStage reopened;
-    test_harness.expectTrue(!reopened.open(root.path(), repository, draft, live, {}, &error) &&
+    test_harness.expectTrue(!reopened.open(root.path(), repository, draft, diverged, {}, &error) &&
                             error.contains(QStringLiteral("replay"), Qt::CaseInsensitive),
                             "stale server journal cannot silently replay event against an already changed model");
     PersonalEditQueue raw;
     test_harness.expectTrue(raw.open(root.path(), repository, draft, &error) &&
                             raw.pending().size() == 1,
                             "rejected replay never removes the locally durable transaction");
+    raw.close();
+
+    // A candidate that already *is* the event's result (the Save reached
+    // DVMDB, its acknowledgement was lost and a Commit then cleared the
+    // journal): the oldest event is retired locally, not replayed twice.
+    PersonalDraftEditStage recovered;
+    test_harness.expectTrue(recovered.open(root.path(), repository, draft, live, {}, &error) &&
+                            recovered.pendingCount() == 0,
+                            "an already applied oldest event is acknowledged on reopen");
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.visibleNetwork()) ==
+                            aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+                            "the recovered candidate is used unchanged");
 }
 
 }
@@ -1910,6 +2019,8 @@ int main(int argc, char **argv)
     test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);
     test_harness.runCase("HydraulicData logical operations", testHydraulicDataLogicalOperations);
+    test_harness.runCase("Pipe split keeps canonical collection order",
+                         testPipeSplitKeepsCanonicalCollectionOrder);
     test_harness.runCase("Hydraulic property capture and no-op", testPropertyCaptureAndNoop);
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
@@ -1925,5 +2036,6 @@ int main(int argc, char **argv)
     test_harness.runCase("Verified draft staging and recovery", testVerifiedDraftStageReplayAndAck);
     test_harness.runCase("Structural editing across draft restarts", testStructuralDraftRecoveryAcrossRestart);
     test_harness.runCase("Reject unverified draft replay", testDraftStageRejectsOutOfOrderReplay);
+    test_harness.runCase("Refuse unsaveable draft event", testDraftStageRefusesUnsaveableEvent);
     return test_harness.finish();
 }

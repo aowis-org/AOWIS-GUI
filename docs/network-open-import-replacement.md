@@ -1,10 +1,41 @@
 # Loading, importing and replacing a hydraulic network
 
-**Design record — OPEN, not approved for implementation.** This distinction
-was raised during HC-02.9. An earlier proposed patch that refused all
-imports while a private draft was open was **rejected and not applied**.
-Do not implement the rejected restriction, or an automatic replacement,
-without resolving the decisions below.
+**Design record — replace/merge semantics OPEN; interim import rule
+ADOPTED 2026-11-02.** This distinction was raised during HC-02.9. An earlier
+proposal to refuse all imports while a private draft was open was rejected
+at the time. On 2026-11-02 the refusal was adopted as an **interim rule**
+(below), because the alternative silently stopped autosave. The decisions
+further down remain open and are still required for HC-06; the interim rule
+is not a replace or merge design.
+
+## Interim rule (adopted 2026-11-02)
+
+Delivered in `aowis-server-gui-private-draft-editing-fixes.zip`; not yet
+built or tested.
+
+- While a private draft session is open (edit capture enabled), **EPANET
+  and EPANET-JS import and the built-in examples are refused** with a
+  message; the draft and the live model stay unchanged.
+  `SimulationManager::refuseReplacementDuringPrivateEditing()` checks at
+  the entry points (`importNetworkProject()`,
+  `importNetworkProjectResource()`) and again directly before
+  `replaceNetworkHydraulic()`, because a session can start while a file
+  dialog is open.
+- **Import into a selected private HEAD** (`importNetworkProjectForHead()`,
+  only into an untouched unborn draft) is not affected: it does not
+  replace the live model.
+- Safety net: if edit capture is ever switched off while a session is
+  open and not already blocked, `MainWindow::checkPersonalDraftModel()`
+  blocks the session instead of letting later edits go unsaved unnoticed.
+  Before this, `replaceNetworkHydraulic()` turned capture off and the
+  divergence check skipped itself, so the session looked active while
+  nothing was saved.
+- Root-metadata settings that are not yet transactions (HC-05): the
+  headloss formula selector returns to the draft's value during a session,
+  with a status-bar message, instead of blocking it.
+
+To import while editing: stop private editing first. The interim rule ends
+when HC-06 implements the decided new-project / replace / merge operations.
 
 ## Terms: operations with different meaning
 
@@ -21,7 +52,7 @@ user-facing copy. Verified load itself must not emit edit transactions.
 
 ## Source boundary that prompted this decision
 
-`HydraulicData::replaceNetworkHydraulic()` currently replaces the entire
+`HydraulicData::replaceNetworkHydraulic()` replaces the entire
 in-memory network and disables logical edit capture. The GUI uses it both
 for verified DVMDB loading and for imported/replaced models. Consequently,
 it is **not** a general-purpose, transaction-safe operation for editing a
@@ -68,10 +99,10 @@ Importing into a new project should not unexpectedly replace the current
 editor. Replacement should always identify its target draft and describe
 what changes; merge should expose collision/conflict choices.
 
-These are **proposals, not settled defaults**. Until decisions are made, the
-safe development rule is to keep existing import and editing behavior
-explicitly documented as *not fully integrated* with durable draft Save,
-without inventing a blanket restriction or describing it as complete.
+These are **proposals, not settled defaults**. Until decisions are made,
+the interim rule above applies: no import replaces the model of an open
+private session, and import remains *not integrated* with durable draft
+Save. Do not describe it as complete.
 
 ## Implementation/acceptance sequence after the decision
 

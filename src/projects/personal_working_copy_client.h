@@ -193,6 +193,18 @@ public:
                       const QString &session_id, const QString &fencing_token,
                       Completion completion);
 
+    // Current HEAD of a branch in the personal repository, addressed by its
+    // UUIDv7. An empty revision means the branch is unborn.
+    using BranchHeadCompletion = std::function<void(const QString &revision, const QString &error)>;
+    void branchHead(const PersonalRepositoryTarget &target, const QString &project_id,
+                    const QString &branch_id, BranchHeadCompletion completion);
+
+    // Delete a draft under a live lease of `session_id`, fenced like a Save.
+    // A lost reply is resolved by reopening: "not found" confirms deletion.
+    void discardDraft(const PersonalRepositoryTarget &target, const QString &draft_id,
+                      const QString &session_id, const QString &fencing_token,
+                      const QString &expected_generation, Completion completion);
+
     // Checkout a pinned source branch into a distinct private HTTP repository.
     // A committed branch transfers a verified full bundle. An unborn root branch
     // is provisioned with its original UUID and null HEAD, without a bundle.

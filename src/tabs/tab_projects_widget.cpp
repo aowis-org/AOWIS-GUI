@@ -2,6 +2,7 @@
 #include "projects/dvmdb_identity.h"
 #include "config/personal_repository_storage.h"
 #include "projects/embedded_dvmdb_host.h"
+#include "projects/personal_edit_queue.h"
 #include "tabs/project_graph_placement.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "tabs/projects_inspector_panels.h"
@@ -34,6 +35,7 @@
 #include <QFrame>
 #include <QHash>
 #include <QDateTime>
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -4462,6 +4464,18 @@ void ProjectsWidget::commitSelectedHead()
                     ? tr("The saved working copy is no longer valid or has no changes.") : reopen_error);
                 client->deleteLater(); return;
             }
+            // Edits still in this device's queue are not part of the saved
+            // draft yet; committing now would leave them out of the revision.
+            const int queued = PersonalEditQueue::pendingTransactionFileCount(
+                PersonalEditQueue::defaultRoot(), QUuid(target.repository_id), QUuid(draft.id));
+            if (queued != 0) {
+                QMessageBox::warning(this, tr("Edits not yet saved"), queued < 0
+                    ? tr("The local edit queue of this draft cannot be read. Commit was not started.")
+                    : tr("%n edit(s) of this draft are queued on this device but not yet saved "
+                         "to DVMDB. Open the network for editing so they are saved, stop "
+                         "editing, then commit.", nullptr, queued));
+                client->deleteLater(); return;
+            }
             // A fresh writer session must acquire the lease, fencing out edits
             // from another GUI session. Never commit a stale editor session.
             const QString session_id = DvmdbIdentity::newUuidV7();
@@ -4473,13 +4487,24 @@ void ProjectsWidget::commitSelectedHead()
                     client->deleteLater(); return;
                 }
                 client->commitSavedDraft(target, draft, session_id, lease, message,
-                    [this, client, source_id, selected_branch](const QString &revision,
-                                                                const QString &commit_error) {
-                    client->deleteLater();
+                    [this, client, target, draft, session_id, lease, source_id, selected_branch]
+                    (const QString &revision, const QString &commit_error) {
                     if (!commit_error.isEmpty()) {
+                        // An unconfirmed Commit may still finish on the server;
+                        // its lease then expires on its own (120 s).
+                        client->deleteLater();
                         QMessageBox::warning(this, tr("Commit not confirmed"), commit_error);
                         return;
                     }
+                    // Give the draft back at once, before the modal message:
+                    // otherwise reopening it for editing fails for up to two
+                    // minutes ("draft held by another writer session").
+                    client->releaseLease(target, draft.id, session_id, lease.token,
+                        [client](const QString &release_error) {
+                            if (!release_error.isEmpty())
+                                qWarning() << "Commit lease release not confirmed:" << release_error;
+                            client->deleteLater();
+                        });
                     this->head_commit_drafts.remove(selected_branch);
                     if (this->server_id == source_id) loadSource(source_id);
                     QMessageBox::information(this, tr("Committed"),

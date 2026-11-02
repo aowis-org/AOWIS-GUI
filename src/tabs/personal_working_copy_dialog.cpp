@@ -1,5 +1,6 @@
 #include "tabs/personal_working_copy_dialog.h"
 #include "projects/dvmdb_identity.h"
+#include "projects/personal_edit_queue.h"
 
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -112,7 +113,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     connect(this->checkout_button, &QPushButton::clicked, this,
             [this] { checkoutBranch(); });
     connect(this->create_button, &QPushButton::clicked, this,
-            [this] { createDraft(); });
+            [this] { createDraft(this->head); });
     connect(this->reopen_button, &QPushButton::clicked, this,
             [this] { inspectDraft(); });
     connect(this->initialize_button, &QPushButton::clicked, this,
@@ -210,14 +211,14 @@ void PersonalWorkingCopyDialog::refresh()
         if (this->drafts->count() == 1)
         {
             this->drafts->setCurrentRow(0);
-            inspectDraft();
+            verifyDirectDraft(this->drafts->item(0)->data(Qt::UserRole).toString());
             return;
         }
         if (this->source_repository_id == this->target.repository_id)
         {
             // Project already lives on the designated personal server.
             // No clone, transfer or invented first commit is necessary.
-            createDraft();
+            createDraft(this->head);
             return;
         }
         if (this->source_endpoint.isEmpty())
@@ -230,14 +231,14 @@ void PersonalWorkingCopyDialog::refresh()
     });
 }
 
-void PersonalWorkingCopyDialog::createDraft()
+void PersonalWorkingCopyDialog::createDraft(const QString &base)
 {
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
     this->status->setText(tr("Creating durable private draft…"));
-    this->client.create(this->target, this->project_id, this->branch_id, this->head,
-                        [this](const PersonalWorkingCopyInfo &draft, const QString &error)
+    this->client.create(this->target, this->project_id, this->branch_id, base,
+                        [this, base](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
         setBusy(false);
         if (!error.isEmpty())
@@ -249,7 +250,7 @@ void PersonalWorkingCopyDialog::createDraft()
             return;
         }
         if (draft.project_id != this->project_id || draft.branch_id != this->branch_id
-            || draft.base_revision != this->head)
+            || draft.base_revision != base)
         {
             this->status->setText(tr("Personal DVMDB created a draft for a different project, "
                                      "branch or base. Do not edit it; refresh the repository."));
@@ -399,7 +400,14 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
                      QString::number(network.nodes_reservoirs.size()),
                      QString::number(network.nodes_tanks.size())));
             this->status->setText(tr("Hydraulic model verified and ready for private editing."));
-            if (this->direct_edit)
+            if (this->direct_edit && this->confirm_before_editing)
+            {
+                // Leave the decision to the user (see verifyDirectDraft()).
+                this->edit_button->show();
+                this->edit_button->setText(tr("Edit draft anyway"));
+                this->status->setText(this->stale_notice);
+            }
+            else if (this->direct_edit)
                 editDraftNetwork();
         });
     });
@@ -519,6 +527,137 @@ void PersonalWorkingCopyDialog::initializeNetwork()
     });
 }
 
+int PersonalWorkingCopyDialog::queuedLocalEdits(const QString &draft_id) const
+{
+    return PersonalEditQueue::pendingTransactionFileCount(PersonalEditQueue::defaultRoot(),
+        QUuid(this->target.repository_id), QUuid(draft_id));
+}
+
+// Opening "the branch" must show the branch's current HEAD. A draft keeps the
+// base it was created on, so after a newer commit reached the personal
+// repository (another draft's Commit, a later checkout) the single existing
+// draft can be older than the branch. An unmodified draft is replaced by one
+// at the current HEAD; a modified one is opened only after confirmation,
+// because its edits are based on the older revision.
+// For a branch from another repository, newer source commits are pulled
+// first when the draft is unmodified (a fast-forward bundle import). If that
+// fails, e.g. because the personal branch has local commits the source does
+// not have, the personal HEAD is used as it is.
+void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id)) return;
+    this->active_draft.reset();
+    this->preview_network.reset();
+    this->confirm_before_editing = false;
+    setBusy(true);
+    this->status->setText(tr("Checking the private draft against the branch HEAD…"));
+    this->client.reopen(this->target, draft_id,
+        [this](const PersonalWorkingCopyInfo &draft, const QString &error)
+    {
+        if (!error.isEmpty() || draft.project_id != this->project_id ||
+            draft.branch_id != this->branch_id)
+        {
+            setBusy(false);
+            this->status->setText(error.isEmpty()
+                ? tr("Reopened draft belongs to a different project or branch.") : error);
+            return;
+        }
+        this->client.branchHead(this->target, this->project_id, this->branch_id,
+            [this, draft](const QString &personal_head, const QString &head_error)
+        {
+            if (!head_error.isEmpty())
+            {
+                setBusy(false);
+                this->status->setText(tr("Cannot read the branch HEAD in your personal DVMDB: %1")
+                                      .arg(head_error));
+                return;
+            }
+            const int queued = queuedLocalEdits(draft.id);
+            const bool unmodified = !draft.dirty && queued == 0;
+            const bool other_repository = this->source_repository_id != this->target.repository_id;
+            if (unmodified && other_repository && !this->source_endpoint.isEmpty() &&
+                this->head != personal_head && !this->source_pull_attempted)
+            {
+                this->source_pull_attempted = true;
+                this->status->setText(tr("Updating the branch from its source repository…"));
+                this->client.checkoutBranchPrivately(this->target, this->source_endpoint,
+                    this->source_repository_id, this->project_id, this->project_name,
+                    this->branch_id, this->head, [this, draft](const QString &pull_error)
+                {
+                    if (!pull_error.isEmpty())
+                        this->details->setText(tr("The branch could not be updated from its "
+                            "source (%1). Your personal HEAD is used.").arg(pull_error));
+                    verifyDirectDraft(draft.id);
+                });
+                return;
+            }
+            if (draft.base_revision == personal_head)
+            {
+                setBusy(false);
+                showDraft(draft);
+                return;
+            }
+            if (unmodified)
+            {
+                replaceStaleDraft(draft, personal_head);
+                return;
+            }
+            const QString notice = tr("This private draft is based on revision %1, but the branch "
+                "HEAD is now %2. Its %3 is opened on the older revision; committing it will be "
+                "refused while the branch has moved on.")
+                .arg(draft.base_revision.isEmpty() ? tr("(no commits)") : draft.base_revision,
+                     personal_head.isEmpty() ? tr("(no commits)") : personal_head,
+                     queued > 0 ? tr("unsaved queued edits are") : tr("saved edits are"));
+            this->confirm_before_editing = true;
+            this->stale_notice = notice;
+            setBusy(false);
+            showDraft(draft);
+        });
+    });
+}
+
+void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo &draft,
+                                                  const QString &personal_head)
+{
+    this->status->setText(tr("Replacing the unmodified draft with one at the current HEAD…"));
+    // A fresh session: an editor still holding the draft makes this fail
+    // instead of deleting a draft that is in use.
+    const QString session_id = DvmdbIdentity::newUuidV7();
+    this->client.acquireLease(this->target, draft.id, session_id, 30,
+        [this, draft, personal_head, session_id](const PersonalWorkingCopyLease &lease,
+                                                  const QString &lease_error)
+    {
+        if (!lease_error.isEmpty())
+        {
+            setBusy(false);
+            this->status->setText(tr("The outdated draft is in use and was not replaced: %1")
+                                  .arg(lease_error));
+            return;
+        }
+        if (lease.generation != draft.generation)
+        {
+            this->client.releaseLease(this->target, draft.id, session_id, lease.token,
+                [this](const QString &)
+            {
+                setBusy(false);
+                this->status->setText(tr("The draft changed while it was being replaced. Open it again."));
+            });
+            return;
+        }
+        this->client.discardDraft(this->target, draft.id, session_id, lease.token,
+                                  lease.generation, [this, personal_head](const QString &error)
+        {
+            if (!error.isEmpty())
+            {
+                setBusy(false);
+                this->status->setText(tr("The outdated draft could not be removed: %1").arg(error));
+                return;
+            }
+            createDraft(personal_head);
+        });
+    });
+}
+
 void PersonalWorkingCopyDialog::checkoutBranch()
 {
     this->active_draft.reset();
@@ -539,6 +678,6 @@ void PersonalWorkingCopyDialog::checkoutBranch()
         }
         this->status->setText(tr("Branch checked out to personal DVMDB."));
         if (this->direct_edit)
-            createDraft();
+            createDraft(this->head);
     });
 }

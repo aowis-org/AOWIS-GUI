@@ -15,6 +15,7 @@
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
+#include <QStandardPaths>
 #include <QtEndian>
 
 #if defined(Q_OS_UNIX) && !defined(Q_OS_WASM)
@@ -277,6 +278,31 @@ bool PersonalEditQueue::acknowledgePersisted(const QUuid &transaction_id, QStrin
     this->pending_bytes_ -= static_cast<quint64>(first.encoded_transaction.size());
     this->entries_.removeFirst();
     return true;
+}
+
+QString PersonalEditQueue::defaultRoot()
+{
+    const QString directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (directory.isEmpty())
+        return {};
+    return QDir(directory).filePath(QStringLiteral("personal-draft-edit-queues"));
+}
+
+int PersonalEditQueue::pendingTransactionFileCount(const QString &root, const QUuid &repository_id,
+                                                   const QUuid &draft_id)
+{
+    if (root.isEmpty() || repository_id.isNull() || draft_id.isNull())
+        return -1;
+    const QDir directory(QDir(root).filePath(normalizedUuid(repository_id) +
+                                             QLatin1Char('/') + normalizedUuid(draft_id)));
+    if (!directory.exists())
+        return 0;
+    const QRegularExpression pattern(QStringLiteral("^[0-9a-f]{16}_[0-9a-f-]{36}\\.txn$"));
+    int count = 0;
+    for (const QString &name : directory.entryList(QDir::Files | QDir::Hidden | QDir::System))
+        if (pattern.match(name).hasMatch())
+            ++count;
+    return count;
 }
 
 QList<PersonalEditQueue::Entry> PersonalEditQueue::pending() const

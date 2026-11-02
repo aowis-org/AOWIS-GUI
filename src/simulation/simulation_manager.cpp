@@ -542,9 +542,24 @@ void SimulationManager::showEpanetLog()
         statistics_dialog->showEpanetLogTab();
 }
 
+bool SimulationManager::refuseReplacementDuringPrivateEditing(QWidget *parent_widget) const
+{
+    if (this->hydraulic_data == nullptr || !this->hydraulic_data->logicalEditCaptureEnabled())
+        return false;
+    showMessageBox(
+        parent_widget,
+        QMessageBox::Warning,
+        tr("Private draft editing active"),
+        tr("The editor is bound to a private DVMDB draft. Stop private editing before "
+           "opening or importing another network; the current draft was not changed."));
+    return true;
+}
+
 void SimulationManager::importNetworkProject()
 {
     this->import_into_private_head = false;
+    if (refuseReplacementDuringPrivateEditing(QApplication::activeWindow()))
+        return;
     chooseNetworkProjectFile();
 }
 
@@ -593,6 +608,9 @@ void SimulationManager::importNetworkProjectResource(
 
     QWidget *main_window = QApplication::activeWindow();
     QPointer<QWidget> parent_widget(main_window);
+    this->import_into_private_head = false;
+    if (refuseReplacementDuringPrivateEditing(parent_widget))
+        return;
 
     QFile resource_file(resource_path);
     if (!resource_file.open(QIODevice::ReadOnly))
@@ -703,6 +721,9 @@ void SimulationManager::importNetworkProjectContent(
                     conversion_result.source_display_units, &unrepresented_units);
                 const QString imported_project_name = conversion_result.network.id;
 
+                // A private session may have started while the file was chosen.
+                if (manager->refuseReplacementDuringPrivateEditing(parent_widget))
+                    return;
                 manager->hydraulic_data->replaceNetworkHydraulic(
                     std::move(conversion_result.network),
                     std::move(conversion_result.quality_runs));
@@ -912,6 +933,9 @@ void SimulationManager::finishEpanetNetworkImport(
     const bool complete = import_result.complete;
     const QString diagnostic_text = importFailureDetails(import_result);
 
+    // A private session may have started while the file was chosen.
+    if (refuseReplacementDuringPrivateEditing(parent_widget))
+        return;
     this->hydraulic_data->replaceNetworkHydraulic(
         std::move(import_result.request.network),
         std::move(import_result.request.quality_runs));

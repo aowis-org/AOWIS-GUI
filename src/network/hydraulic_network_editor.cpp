@@ -1973,7 +1973,12 @@ QUuid HydraulicNetworkEditor::splitPipeAtVertex(const QUuid &pipe_uuid, int vert
         }
 
         this->network.links_pipes[i] = first_pipe;
-        this->network.links_pipes.insert(i + 1, second_pipe);
+        // Append, never insert after the original: a created entity joins the
+        // end of its collection in the private draft stage and in DVMDB's
+        // membership chunks. Inserting here made the live model's pipe order
+        // differ from the staged candidate after every split, which blocked
+        // private draft editing ("Live model differs ...").
+        this->network.links_pipes.append(second_pipe);
 
         const double split = split_position.value();
         constexpr double attachment_tolerance = 1.0e-12;

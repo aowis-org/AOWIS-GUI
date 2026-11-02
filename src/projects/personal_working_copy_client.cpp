@@ -1,6 +1,7 @@
 #include "projects/personal_working_copy_client.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
+#include "config/gui_configuration.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
 #include <aowis/model/serialization/model_codec.h>
@@ -17,9 +18,11 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRandomGenerator>
+#include <QSettings>
 #include <QUuid>
 #include <QUrl>
 
+#include <memory>
 #include <utility>
 
 namespace
@@ -61,6 +64,47 @@ bool decimal(const QString &value)
     for (const QChar digit : value)
         if (digit < QLatin1Char('0') || digit > QLatin1Char('9')) return false;
     return true;
+}
+
+// Commit authorship must name the same person on every Commit. Until the
+// security concept defines user identities, this installation keeps one
+// UUIDv7, created on first use, and the operating-system account name.
+QSettings *openAuthorSettings()
+{
+#ifdef __EMSCRIPTEN__
+    // Browser-persistent storage; the WASM ini path is a read-only resource.
+    return new QSettings(QStringLiteral("AOWIS"), QStringLiteral("AOWIS-SERVER-GUI"));
+#else
+    return new QSettings(guiConfigurationFilePath(), QSettings::IniFormat);
+#endif
+}
+
+QString commitAuthorId()
+{
+    const std::unique_ptr<QSettings> settings(openAuthorSettings());
+    const QString key = QStringLiteral("dvmdb/commit_author_id");
+    QString id = settings->value(key).toString();
+    if (!DvmdbIdentity::isUuidV7(id))
+    {
+        id = DvmdbIdentity::newUuidV7();
+        settings->setValue(key, id);
+        settings->sync();
+    }
+    return id;
+}
+
+QString commitAuthorName()
+{
+    QString name = qEnvironmentVariable("USER").trimmed();
+    if (name.isEmpty())
+        name = qEnvironmentVariable("USERNAME").trimmed();
+    // DVMDB accepts 1..200 bytes of UTF-8 without control characters.
+    bool printable = true;
+    for (const QChar character : name)
+        if (character.category() == QChar::Other_Control) printable = false;
+    if (name.isEmpty() || name.toUtf8().size() > 128 || !printable)
+        name = QStringLiteral("AOWIS user");
+    return name;
 }
 
 QJsonArray encodeChanges(const QList<PersonalWorkingCopyChange> &changes)
@@ -534,7 +578,7 @@ void PersonalWorkingCopyClient::commitSavedDraft(
         return;
     }
     const QString operation_id = DvmdbIdentity::newUuidV7();
-    const QString author_id = DvmdbIdentity::newUuidV7();
+    const QString author_id = commitAuthorId();
     const QJsonObject body{
         {QStringLiteral("operationId"), operation_id},
         {QStringLiteral("draftId"), draft.id},
@@ -544,7 +588,7 @@ void PersonalWorkingCopyClient::commitSavedDraft(
         {QStringLiteral("expectedHead"), draft.base_revision.isEmpty()
             ? QJsonValue(QJsonValue::Null) : QJsonValue(draft.base_revision)},
         {QStringLiteral("author"), QJsonObject{{QStringLiteral("id"), author_id},
-                                               {QStringLiteral("name"), QStringLiteral("AOWIS user")}}},
+                                               {QStringLiteral("name"), commitAuthorName()}}},
         {QStringLiteral("message"), message}};
     request(target, "POST", QStringLiteral("/local-commits"), body,
             [this, target, operation_id, completion = std::move(completion)](
@@ -558,7 +602,7 @@ void PersonalWorkingCopyClient::commitSavedDraft(
         // A dropped acknowledgement may follow a successful durable Commit.
         // Never create another operation ID or blindly retry the POST.
         request(target, "GET", QStringLiteral("/local-commits/") + operation_id, {},
-                [completion = std::move(completion), error](const QJsonObject &status,
+                [completion = std::move(completion), error, operation_id](const QJsonObject &status,
                                                              const QString &lookup_error) mutable
         {
             const QString state = status.value(QStringLiteral("state")).toString();
@@ -570,7 +614,8 @@ void PersonalWorkingCopyClient::commitSavedDraft(
             }
             completion({}, lookup_error.isEmpty()
                 ? (state == QStringLiteral("pending")
-                    ? QStringLiteral("Commit is pending; check its operation UUID before retrying.")
+                    ? QStringLiteral("Commit %1 is still pending; refresh before retrying.")
+                        .arg(operation_id)
                     : status.value(QStringLiteral("reason")).toString())
                 : (error.isEmpty() ? lookup_error : error + QStringLiteral("; status: ") + lookup_error));
         });
@@ -1130,6 +1175,70 @@ void PersonalWorkingCopyClient::releaseLease(
         if (!error.isEmpty()) { completion(error); return; }
         completion(response.value(QStringLiteral("released")) == QJsonValue(true)
             ? QString() : QStringLiteral("Invalid lease-release response."));
+    });
+}
+
+void PersonalWorkingCopyClient::branchHead(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_id, BranchHeadCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(project_id) || !DvmdbIdentity::isUuidV7(branch_id))
+    {
+        completion({}, QStringLiteral("Invalid project or branch UUIDv7."));
+        return;
+    }
+    request(target, "GET", QStringLiteral("/projects/") + project_id +
+                QStringLiteral("/branch-ids/") + branch_id, {},
+            [branch_id, completion = std::move(completion)](const QJsonObject &branch,
+                                                             const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, error); return; }
+        const QJsonValue revision = branch.value(QStringLiteral("revision"));
+        if (branch.value(QStringLiteral("branchId")).toString() != branch_id ||
+            !(revision.isNull() || DvmdbIdentity::isUuidV7(revision.toString())))
+        {
+            completion({}, QStringLiteral("Invalid personal branch HEAD response."));
+            return;
+        }
+        completion(revision.isNull() ? QString() : revision.toString(), {});
+    });
+}
+
+void PersonalWorkingCopyClient::discardDraft(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &session_id, const QString &fencing_token,
+    const QString &expected_generation, Completion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(session_id) ||
+        !DvmdbIdentity::isUuidV7(fencing_token) || !decimal(expected_generation))
+    {
+        completion(QStringLiteral("Invalid draft discard request."));
+        return;
+    }
+    request(target, "POST", QStringLiteral("/working-copies/") + draft_id +
+                QStringLiteral("/discard"),
+            QJsonObject{{QStringLiteral("sessionId"), session_id},
+                        {QStringLiteral("fencingToken"), fencing_token},
+                        {QStringLiteral("expectedGeneration"), expected_generation}},
+            [this, target, draft_id, completion = std::move(completion)](
+                const QJsonObject &response, const QString &error) mutable
+    {
+        if (error.isEmpty() && response.value(QStringLiteral("discarded")) == QJsonValue(true))
+        {
+            completion({});
+            return;
+        }
+        // A repeated discard after success answers 404, and so may the replay
+        // Qt before 6.10 sends after a dropped connection: only the draft's
+        // absence proves the deletion.
+        reopen(target, draft_id, [error, completion = std::move(completion)](
+                   const PersonalWorkingCopyInfo &, const QString &reopen_error) mutable
+        {
+            if (reopen_error.endsWith(QStringLiteral("(not_found)")))
+                completion({});
+            else
+                completion(error.isEmpty() ? QStringLiteral("Invalid draft discard response.") : error);
+        });
     });
 }
 

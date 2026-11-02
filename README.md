@@ -24,14 +24,16 @@ working-copy Save; **Save never creates a Commit**. The branch Inspector's
 **Personal working copies…** dialog provides advanced branch checkout and
 draft management, not a one-click whole-project Clone.
 
-**Current persistence boundary (2026-11-01):** the generic transaction
+**Current persistence boundary (2026-11-02):** the generic transaction
 capture/adapter covers all 18 `NetworkHydraulic` entity collections, and
 library, rule and map-label editors now use captured model operations. A
 reported real external HTTP GUI edit/restart test successfully preserved a
 network; all entity editing paths, full root metadata Save and Standalone
 restart acceptance remain incomplete. HC-02.9 import/replacement semantics
-are **undecided**; a proposed blanket import-block patch was **not applied**.
-Local Commit, whole-project Clone, Publish and merge still require work.
+are **undecided**; until then import is refused while a private draft is
+being edited (interim rule, 2026-11-02). **HEAD Inspector → Commit** creates
+a local revision from the saved draft. Whole-project Clone, Publish and
+merge still require work.
 
 Standalone embeds the native DVMDB service **within the GUI process** and
 uses a dynamic localhost HTTP endpoint to access its routes; it does not

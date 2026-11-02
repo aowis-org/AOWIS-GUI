@@ -63,12 +63,18 @@ revision. See [graph layout](project-graph-layout.md).
    multiple branches, select the intended branch before editing.
 3. The GUI opens/creates a private working copy and its network, verifies
    the candidate, replays durable local pending edits, obtains a fenced
-   writer session and opens **Distribution Editor**.
+   writer session and opens **Distribution Editor**. If the branch's draft
+   is older than the branch HEAD, an unmodified draft is replaced by one at
+   the current HEAD; a draft with edits opens only after confirmation
+   (**Edit draft anyway**).
 4. `HydraulicData` captures supported logical entity changes; the local
    queue and DVMDB Save persist them without moving the committed HEAD.
 5. Stopping and reopening the session is distinct from Commit. An actual
    external HTTP GUI-restart recovery was reported for tested edits; full
    coverage remains incomplete.
+6. **HEAD Inspector → Commit** with a commit message creates the immutable
+   revision from the saved draft. Stop editing first; Commit is refused
+   while edits are still queued on this device.
 
 For branch-level checkout/working-copy administration, select an actual
 **database-backed branch** in Projects & Branches and use the **Personal
@@ -87,7 +93,7 @@ draft session makes supported edits eligible for durable Save.
 | Action | Effect | GUI availability |
 |---|---|---|
 | **Save draft** | Persist changes in the private working copy; no revision or committed HEAD movement | Available for captured entity edits in a fenced session; incomplete metadata coverage |
-| **Commit locally** | Create immutable revision UUIDv7 from validated private state, CAS-update **personal** branch HEAD | **Not yet integrated in GUI** |
+| **Commit locally** | Create immutable revision UUIDv7 from validated private state, CAS-update **personal** branch HEAD | **HEAD Inspector → Commit**; operation UUID reconciled after a lost reply, not yet persisted across restarts |
 | **Fetch/Clone** | Transfer/present verified remote history and tracking | Advanced **branch-level** checkout exists; whole-project Clone absent |
 | **Publish** | Transfer local commits and CAS-update **shared** branch HEAD | **Not yet complete in GUI** |
 | **Reconcile/merge** | Explicitly compare divergent histories and resolve model conflicts | Planned; no silent force-push/rebase |
@@ -105,10 +111,12 @@ an existing working network and merging entities are **distinct potential
 operations**. The GUI currently has whole-model replacement code that
 resets capture; it is not an accepted persistent replacement operation.
 
-No blanket rule against import during private editing has been approved.
-The HC-02.9 proposed restriction was **rejected and not applied**. Before
-implementing more behavior, decide target identity, transaction atomicity,
-pending queue handling and conflict/recovery semantics in
+**Interim rule (2026-11-02):** while a private draft session is open,
+EPANET/EPANET-JS import and the built-in examples are refused; stop private
+editing first. Import into a selected empty private HEAD is unaffected.
+The final replace/merge behavior is still undecided: target identity,
+transaction atomicity, pending queue handling and conflict/recovery
+semantics are tracked in
 [network import decisions](network-open-import-replacement.md).
 
 ## 7. Acceptance and known limits
@@ -121,11 +129,15 @@ pending queue handling and conflict/recovery semantics in
   stale-session errors block instead of discarding local work.
 - `NetworkHydraulic` **network-root metadata** still needs HC-03/04/05.
   Generic 18/18 entity capture is not complete GUI coverage.
-- Whole-model import/replace/merge needs the HC-02.9/06 design decision.
+- Whole-model import/replace/merge needs the HC-02.9/06 design decision;
+  import is refused during a private session until then.
+- One editor operation may change at most 128 entities; larger ones are
+  refused and the session blocks. A draft holds at most 4096 events and
+  20 000 changed records (8 MiB each) until Commit, without a warning yet.
 - Real end-to-end equality after DVMDB and GUI restart must be proven for
   **both** external HTTP and embedded Standalone (HC-07).
-- Local Commit, full-project Clone, Publish and reconciliation remain
-  separate future work.
+- Full-project Clone, Publish and reconciliation remain separate future
+  work; local Commit exists but has not passed acceptance.
 
 See [quickstart](dvmdb-quickstart.md),
 [working repository](working-repository-configuration.md),

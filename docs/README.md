@@ -18,15 +18,17 @@ source**, **reported test evidence**, **unfinished milestones** and
 | Decide how network load, import, replacement and merge should interact | [Network import decision record — **OPEN**](network-open-import-replacement.md) |
 | Review immutable history/layout and UUID rules | [Project graph layout](project-graph-layout.md), [UUIDv7 contract](dvmdb-uuidv7-gui-readiness.md) |
 
-**Current boundary (2026-11-01):** External HTTP DVMDB has successfully
+**Current boundary (2026-11-02):** External HTTP DVMDB has successfully
 saved and reopened a tested GUI-edited hydraulic network. The GUI now
 supports canonical entity capture for all 18 collections, durable queued
-Save, library CRUD/UI and rule/label CRUD/UI. **Full `NetworkHydraulic`
-autosave is not yet complete:** root metadata transactions and final
-import/mutation-path design remain open, and Standalone end-to-end
-acceptance has not been reported. Local Commit and Publish are separate
-future milestones. The HC-02.9 blanket import-block patch was **not
-applied** and is not an approved policy.
+Save, library CRUD/UI, rule/label CRUD/UI and local Commit from the HEAD
+Inspector. **Full `NetworkHydraulic` autosave is not yet complete:** root
+metadata transactions and the final import/replace/merge design remain
+open, and Standalone end-to-end acceptance has not been reported. Import is
+refused while a private draft is being edited (interim rule, 2026-11-02).
+The 2026-11-02 editing fixes (stale drafts, pipe split order, imported
+UUIDv5 entities, per-operation bounds, Commit lease) are delivered but not
+yet built or tested. Publish is a separate future milestone.
 
 ## Other GUI systems
 
