@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
 #include "config/personal_repository_storage.h"
@@ -164,6 +165,7 @@ struct ProjectsWidget::SourceSession
     SourceState state = SourceState::Checking;
     QString repository_id;
     QString error;
+    QString codec_error; // explicit version error from the health response
     bool loading = false;
 };
 
@@ -1125,9 +1127,10 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
             && session->health->currentState() == HttpHealthMonitor::State::Offline))
     {
         color = QColor(QStringLiteral("#c24848"));
-        status = tr("Unavailable");
-        details = session->error.isEmpty()
-            ? tr("Database connection unavailable") : session->error;
+        status = session->codec_error.isEmpty()
+            ? tr("Unavailable") : tr("Incompatible MODEL");
+        details = !session->codec_error.isEmpty() ? session->codec_error
+            : session->error.isEmpty() ? tr("Database connection unavailable") : session->error;
         return;
     }
     if (session->state == SourceState::Connected
@@ -1382,13 +1385,18 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
         // project catalogue. A verified source must keep the same UUIDv7.
         const QString expected_repository = profile.pending ? QString() : profile.id;
         session->health->start(QUrl(endpoint + QStringLiteral("/repository")),
-            [expected_repository](const QByteArray &body)
+            [this, id, expected_repository](const QByteArray &body)
             {
                 const QJsonDocument document = QJsonDocument::fromJson(body);
+                SourceSession *current = this->source_sessions.value(id, nullptr);
+                if (current != nullptr)
+                    current->codec_error = document.isObject()
+                        ? ModelCodecCompatibility::error(document.object()) : QString();
                 if (!document.isObject()) return false;
                 const QString identity = document.object().value(
                     QStringLiteral("repositoryId")).toString();
                 return DvmdbIdentity::isUuidV7(identity)
+                    && (current == nullptr || current->codec_error.isEmpty())
                     && (expected_repository.isEmpty() || identity == expected_repository);
             }, [this, id](HttpHealthMonitor::State state, const QString &error)
             {
@@ -1404,7 +1412,8 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
                     if (!current->loading)
                     {
                         current->state = SourceState::Error;
-                        current->error = error;
+                        current->error = current->codec_error.isEmpty()
+                            ? error : current->codec_error;
                         // Keep an existing catalogue as an explicitly offline cache;
                         // never claim it is currently writable.
                     }
@@ -2752,6 +2761,14 @@ void ProjectsWidget::saveNewSource()
             const QString id = document.isObject()
                 ? document.object().value(QStringLiteral("repositoryId")).toString()
                 : QString();
+            const QString codec_error = document.isObject()
+                ? ModelCodecCompatibility::error(document.object())
+                : tr("Missing DVMDB identity response.");
+            if (!codec_error.isEmpty())
+            {
+                QMessageBox::warning(this, tr("Incompatible MODEL codec"), codec_error);
+                return;
+            }
             if (!DvmdbIdentity::isUuidV7(id))
             {
                 QMessageBox::warning(this, tr("Invalid DVMDB identity"),
@@ -4258,6 +4275,13 @@ void ProjectsWidget::setPersonalServer(bool enabled)
         const QJsonObject data = document.isObject() ? document.object() : QJsonObject();
         const QString id = data.value(QStringLiteral("repositoryId")).toString();
         const QString role = data.value(QStringLiteral("role")).toString();
+        const QString codec_error = ModelCodecCompatibility::error(data);
+        if (!codec_error.isEmpty())
+        {
+            manager->deleteLater();
+            rejectSelection(codec_error);
+            return;
+        }
         if (!DvmdbIdentity::isUuidV7(id))
         {
             manager->deleteLater();

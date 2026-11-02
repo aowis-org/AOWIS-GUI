@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "projects/project_source_reader.h"
 #include "projects/dvmdb_identity.h"
 
@@ -92,6 +93,7 @@ int main(int argc, char **argv)
     bool first_commit_project = false;
     bool invalid_unborn_digest = false;
     bool invalid_repository_id = false;
+    bool invalid_codec_fingerprint = false;
     QObject::connect(&server, &QTcpServer::newConnection, &server, [&]
     {
         while (server.hasPendingConnections())
@@ -103,7 +105,7 @@ int main(int argc, char **argv)
                  &corrupt_branch_id, &corrupt_origin_id, &corrupt_fork_id, &change_pinned_fork,
                  &unreachable_fork,
                  &unborn_project, &first_commit_project,
-                 &invalid_unborn_digest, &invalid_repository_id, repository_id,
+                 &invalid_unborn_digest, &invalid_repository_id, &invalid_codec_fingerprint, repository_id,
                  project_id, a, b, c, d, e, branch_main,
                  branch_feature, branch_alias, branch_history, record, head]
             {
@@ -115,7 +117,10 @@ int main(int argc, char **argv)
                 if (path == "/dvmdb/v1/repository")
                     body = QJsonDocument(QJsonObject{
                         {QStringLiteral("repositoryId"), invalid_repository_id
-                            ? QStringLiteral("invalid") : repository_id}}).toJson();
+                            ? QStringLiteral("invalid") : repository_id},
+                        {QStringLiteral("modelCodecFingerprint"), invalid_codec_fingerprint
+                            ? QString(64, QLatin1Char('0'))
+                            : ModelCodecCompatibility::fingerprint()}}).toJson();
                 else if (path == "/dvmdb/v1/projects")
                     body = QJsonDocument(QJsonObject{{QStringLiteral("projects"), QJsonArray{
                         QJsonObject{{QStringLiteral("id"), project_id},
@@ -239,6 +244,11 @@ int main(int argc, char **argv)
                  && received.repository_id.isEmpty(),
                  "reader accepted an invalid repository identity")) return 1;
     invalid_repository_id = false;
+    invalid_codec_fingerprint = true;
+    if (!require(load() && failure.contains(QStringLiteral("MODEL codec mismatch"))
+                 && received.projects.isEmpty(),
+                 "reader did not reject a different MODEL codec before loading projects")) return 1;
+    invalid_codec_fingerprint = false;
 
     change_pinned_head = true;
     if (!require(load() && !failure.isEmpty() && received.projects.isEmpty(),

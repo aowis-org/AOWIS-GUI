@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "tabs/tab_projects_widget.h"
 #include "tabs/projects_inspector_panels.h"
 #include "tabs/projects_inspector_details.h"
@@ -1968,6 +1969,7 @@ int main(int argc, char **argv)
                     if (tracking)
                     {
                         answer = QJsonObject{{"repositoryId", repositoryId},
+                            {"modelCodecFingerprint", ModelCodecCompatibility::fingerprint()},
                             {"role", isPrivate ? QStringLiteral("private") : QStringLiteral("unconfigured")},
                             {"remotes", QJsonArray()}, {"tracking", QJsonArray()}};
                     }

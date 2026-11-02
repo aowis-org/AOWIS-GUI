@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "tabs/tab_projects_widget.h"
 #include "config/project_server_profile_storage.h"
 #include "projects/dvmdb_identity.h"
@@ -73,7 +74,9 @@ struct FakeDvmdb
                     {
                         if (path == "/dvmdb/v1/repository")
                             data = QJsonDocument(QJsonObject{
-                                {QStringLiteral("repositoryId"), this->repository_id}}).toJson();
+                                {QStringLiteral("repositoryId"), this->repository_id},
+                                {QStringLiteral("modelCodecFingerprint"),
+                                 ModelCodecCompatibility::fingerprint()}}).toJson();
                         else if (path == "/dvmdb/v1/projects")
                         {
                             if (this->catalogue_valid)

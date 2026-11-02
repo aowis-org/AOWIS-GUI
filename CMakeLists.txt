@@ -76,6 +76,14 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/CMakeList
     )
 endif()
 add_subdirectory(external/AOWIS-SERVER-MODEL EXCLUDE_FROM_ALL)
+# Embed the checksum of the actual MODEL sources in every GUI target. Re-run
+# CMake automatically when a codec source or header changes, even if uncommitted.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ModelCodecFingerprint.cmake")
+aowis_generate_model_codec_fingerprint(
+    "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL"
+    "${CMAKE_CURRENT_BINARY_DIR}/model-fingerprint")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/model-fingerprint")
+
 
 # AOWIS-SERVER-EPANET submodule
 if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-EPANET/CMakeLists.txt")

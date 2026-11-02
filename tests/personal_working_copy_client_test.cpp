@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "projects/personal_working_copy_client.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
@@ -65,6 +66,7 @@ public:
     QTcpServer server;
     QString identity = repository_id;
     QString role = QStringLiteral("private");
+    bool incompatible_codec = false;
     bool is_source = false;
     QString source_head = head_id;
     QString bundle_head = head_id;
@@ -143,6 +145,9 @@ public:
                     if (request_line.startsWith("GET /dvmdb/v1/repository "))
                     {
                         document.insert(QStringLiteral("repositoryId"), this->identity);
+                        document.insert(QStringLiteral("modelCodecFingerprint"),
+                            this->incompatible_codec ? QString(64, QLatin1Char('0'))
+                                                     : ModelCodecCompatibility::fingerprint());
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/projects/") &&
                              request_line.contains("/branch-ids/"))
@@ -201,6 +206,9 @@ public:
                     else if (request_line.startsWith("GET /dvmdb/v1/repository/tracking "))
                     {
                         document.insert(QStringLiteral("repositoryId"), this->identity);
+                        document.insert(QStringLiteral("modelCodecFingerprint"),
+                            this->incompatible_codec ? QString(64, QLatin1Char('0'))
+                                                     : ModelCodecCompatibility::fingerprint());
                         document.insert(QStringLiteral("role"), this->role);
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies "))
@@ -782,6 +790,20 @@ int main(int argc, char **argv)
     bool done = false;
     QString error;
     QList<PersonalWorkingCopyInfo> listed;
+    // A mismatched server is rejected before even listing drafts, and therefore
+    // before any queued MODEL edit can be replayed through save-events.
+    stub.incompatible_codec = true;
+    client.list(stub.target(), [&](const QList<PersonalWorkingCopyInfo> &, const QString &failure)
+    {
+        error = failure;
+        done = true;
+    });
+    if (!check(until(application, [&] { return done; })
+               && error.contains(QStringLiteral("MODEL codec mismatch"))
+               && stub.listing_count == 0,
+               "MODEL mismatch was not rejected before private DVMDB access")) return 1;
+    stub.incompatible_codec = false;
+    done = false;
     client.list(stub.target(), [&](const QList<PersonalWorkingCopyInfo> &drafts, const QString &failure)
     {
         listed = drafts;

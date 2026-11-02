@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "projects/project_source_reader.h"
 #include "projects/dvmdb_identity.h"
 
@@ -306,6 +307,8 @@ bool ProjectSourceReader::processRestDocument(const QByteArray &json, QString &e
     const QJsonObject object = document.object();
     if (this->step == Step::Repository)
     {
+        error = ModelCodecCompatibility::error(object);
+        if (!error.isEmpty()) return false;
         this->snapshot.repository_id = object.value(QStringLiteral("repositoryId")).toString();
         if (!DvmdbIdentity::isUuidV7(this->snapshot.repository_id))
         {

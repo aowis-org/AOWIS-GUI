@@ -107,3 +107,19 @@ see [network import](network-open-import-replacement.md).
 
 See [hydraulic edit transactions](hydraulic-edit-transactions.md) and
 [implementation roadmap](dvmdb-integration-roadmap.md).
+
+### MODEL codec compatibility before editing
+
+The GUI embeds a content fingerprint of its AOWIS-SERVER-MODEL checkout at
+build time. DVMDB advertises its corresponding fingerprint through repository
+identity and tracking responses. Opening a project catalogue checks the source
+server; every private-draft operation checks the personal server again before
+accessing or writing a draft. Checkout from a shared source checks its
+fingerprint as well. Missing or mismatched fingerprints stop the operation
+before queued MODEL transactions can be submitted.
+
+If a mismatch is reported, rebuild both components from identical MODEL source
+files (including any uncommitted changes), restart the GUI and server, and
+retry. Do **not** delete the on-disk edit queue to address a mismatch. The
+fingerprint proves source-content agreement for the tracked files, not database
+integrity or the identity/authorization of the remote endpoint.

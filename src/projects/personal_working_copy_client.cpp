@@ -1,3 +1,4 @@
+#include "projects/model_codec_compatibility.h"
 #include "projects/personal_working_copy_client.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
@@ -409,6 +410,12 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
             return;
         }
         const QJsonObject repository = QJsonDocument::fromJson(bytes).object();
+        const QString codec_error = ModelCodecCompatibility::error(repository);
+        if (!codec_error.isEmpty())
+        {
+            completion({}, codec_error);
+            return;
+        }
         if (repository.value(QStringLiteral("repositoryId")).toString() != target.repository_id
             || repository.value(QStringLiteral("role")).toString() != QStringLiteral("private"))
         {
@@ -1284,8 +1291,15 @@ void PersonalWorkingCopyClient::checkoutBranchPrivately(
         const bool validIdentity = sourceIdentity->error() == QNetworkReply::NoError &&
             sourceIdentity->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
         sourceIdentity->deleteLater();
-        if (!validIdentity || QJsonDocument::fromJson(identityBytes).object()
-                .value(QStringLiteral("repositoryId")).toString() != source_repository_id)
+        const QJsonObject source_info = QJsonDocument::fromJson(identityBytes).object();
+        const QString codec_error = ModelCodecCompatibility::error(source_info);
+        if (validIdentity && !codec_error.isEmpty())
+        {
+            completion(codec_error);
+            return;
+        }
+        if (!validIdentity || source_info.value(QStringLiteral("repositoryId")).toString()
+            != source_repository_id)
         {
             completion(QStringLiteral("Source repository UUID changed or is unavailable."));
             return;
