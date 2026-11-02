@@ -1,125 +1,91 @@
-# Projects graph — Git-style committed revision DAG
+# Projects graph — HEAD cards and revision ancestry
 
-**Normative GUI design.** The practical graph cutover is milestone VC-09
-of the [GUI implementation roadmap](dvmdb-integration-roadmap.md).
-The revision graph follows
-`AOWIS-SERVER-DVMDB/docs/version-control-semantics.md`. The graph is a
-visualization of **committed history organized into development branches**,
-not a tree of branch-creation events and not a view of mutable editor state.
-The commit/parent graph follows Git's `log --graph --all --decorate` model:
-branch names label pointers to immutable committed revisions. Lanes are
-routing choices for ancestry edges, **not branch ownership or lineage**.
+This describes the current Projects graph and its deliberate separation of
+**writable HEAD cards** from **immutable revisions**. The native DVMDB
+`headRevisionId` is the branch's *committed* tip (null for unborn), while the
+GUI HEAD card represents the branch's working tip. The HEAD card is not an
+extra immutable revision record. See [Projects workspace](projects-workspace.md)
+and the DVMDB [version-control contract](../../AOWIS-SERVER-DVMDB/docs/version-control-semantics.md).
 
-## The three levels
-
-1. **Database/source**: a connection or embedded database container. Every
-   selected/visible source has a node, including those without projects.
-2. **Project**: a UUIDv7 model-history container. A newly created project has
-   a default `main` branch but no committed revisions.
-3. **One revision DAG with branch decorations**: immutable UUIDv7 revisions
-   and true parent edges form history. Each UUIDv7 branch names a movable
-   pointer to its current committed revision (or null for unborn). The GUI
-   may use colored lanes to route the DAG but does not force a separate
-   historical column or duplicate ancestor for each branch.
-
-A branch is a persistent development line, **not a revision leaf**. Its
-committed HEAD is a *movable reference* to the latest committed revision on
-that line. A separate private working copy is what a user edits.
+## Card hierarchy
 
 ```text
-Database / Project A
-
-              R0
-               |
-              R1
-             /  \
-            R2   F2      (two genuine commits with parent R1)
-            |     |
-       [main HEAD] [feature HEAD]   (branch refs, not vertices)
+Server
+└── Project: Water Network
+    ├── HEAD                        Branch: main (unborn)
+    └── HEAD                        Branch: experiment (unborn)
 ```
 
-R1 exists only once. The real ancestry edges R1->R2 and R1->F2 make
-its fork visible after the corresponding commits. Creating `feature` at R1
-without a commit adds a *branch reference* to R1 but no vertex or edge.
-The inspector may show `Created from main at R1`; this is optional metadata
-and **not** an additional ancestry line.
+There are **no separate branch cards**. A user can create multiple independent
+unborn branches directly in a project, each with its own HEAD. Such HEADs
+connect structurally to the Project card and display `No commits yet`.
 
-## Empty projects and branches
+Once revisions are committed:
 
-Creating a project gives `main` with **no HEAD revision**. The graph displays the project, the unborn `main` ref and `No commits
-yet`—never a fabricated revision card. Creating a branch requires an
-existing committed revision (so the first commit must precede branching).
-The new branch label references its exact fork revision, **without creating
-another revision**. Divergence appears only when independent commits exist.
+```text
+Server → Project → Revision R1 (Branch: main)
+                       ├── HEAD (Branch: main)
+                       └── HEAD (Branch: experiment)
+```
 
-Branches that share a committed HEAD are distinct references to the same
-node. Show their names in a readable ref list, badges beside the node, or a
-synchronized branch panel; never create fake descendant cards or force all
-labels inside one cramped revision card.
-The same committed revision remains one logical object regardless of how
-many branch histories reach it. A branch HEAD can be a non-leaf of the
-project-wide revision DAG.
+The HEADs reference the selected immutable base; creating a branch at R1
+does not produce another R1. When independent subsequent revisions are
+committed, real ancestry edges express their divergence. Immutable R1
+remains **one** card even if several branches inherit it. The GUI can show
+`Branches: main, experiment` for a shared revision when useful. Never label a
+revision `Branch: Unknown` merely because a single historical owner was not
+included in a partial graph response; use actual referencing branches or an
+explicit unreferenced status.
 
-## What an edge means
+## Edge semantics
 
-- **Revision ancestry edge**: from one committed revision to another; only
-  real ordered revision-parent IDs create these edges.
-- **Server/project/branch organization**: grouping or lane geometry, not
-  revision ancestry or a commit.
-- **Branch creation provenance**: show source branch UUIDv7 and exact fork
-  revision UUIDv7 in inspector metadata, **not** a dashed extra graph edge.
-- **Working-copy relationship**: an editor workspace/status indicator, not
-  a committed revision node or ancestry edge.
+- **Revision → Revision:** only a real immutable parent/child relationship
+  from the DVMDB revision record. Merges have up to two ordered parents.
+- **Revision → HEAD:** the branch's editable tip, based on that committed
+  revision. Not a new commit or immutable ancestry edge.
+- **Project → unborn HEAD:** organizational connection where no committed
+  base exists.
+- **Server → Project:** organization, not model ancestry.
 
-Do not connect a branch card to both another branch and a revision. Do not
-make branch creation itself appear as a revision or a new level in history.
-Do not infer ancestry by comparing UUIDv7 timestamps, branch names or screen
-positions.
+Never invent a branch-creation ancestry revision or duplicate immutable
+shared ancestors. Branch names are mutable display metadata; UUIDv7s are
+stable identities. The revision SHA-256 is an integrity digest, not a key.
 
-## Selection and inspector
+## Selection and Inspector routing
 
-The graph and navigator share the same project, branch and revision UUIDs.
-Selecting a branch opens its inspector with name, UUIDv7, committed HEAD,
-origin branch, immutable fork revision and available working-copy operations.
-Selecting a revision opens its immutable snapshot and ordered parents.
-Selecting an active working copy opens the editor; it must not change the
-committed HEAD merely by changing selection.
+| Click | Destination |
+|---|---|
+| Server / Project card | Database / Project Inspector |
+| Writable HEAD card | HEAD Inspector (`Overview | HEAD | Branch`) |
+| Immutable revision card | Revision Inspector (`Overview | Revision | Branch | Ancestry`) |
+| Named branch in left tree | Branch-management Inspector, not HEAD |
 
-The inspector remains a compact standard-width dock; object identity stays
-above contextual tabs, and actions are tied to the selected object. Keep
-long UUIDs and SHA-256 digest fields copyable without forcing the dock wider.
+Clicking HEAD never opens the old Branch Inspector accidentally. Selecting a
+revision opens its historical snapshot without making it editable. To edit
+that snapshot, create a branch explicitly from the selected revision.
 
-## Layout and interaction requirements
+## Layout and camera
 
-- Use `src/graph/layered_dag_layout.h` for genuine revision ancestry only.
-  Lanes are inferred for stable, readable routing of the common commit DAG;
-  they are not stored per-branch ownership of immutable revisions.
-- Rank history oldest-to-newest top-down. Route merge parent edges with no
-  invented intermediate committed vertices.
-- Reserve enough space for reference labels, long UTF-8 branch names and
-  project labels; never overlap graph lanes or adjacent projects. All source groups remain visually distinct.
-- The `Full history` view covers all branch tips and *both* merge parents;
-  `HEADs` selects branch-local latest committed revisions. Unborn HEADs are
-  displayed explicitly, not omitted as broken pointers.
-- A page/graph snapshot is published only after ancestry closure and
-  branch-HEAD consistency are validated. Cancellation cannot merge two
-  different graph generations.
-- Selection, inspector tab changes and refresh do not unexpectedly refit
-  or reset the camera. Fit is an explicit action after initial display.
+The renderer uses the internal layered layout (`src/tabs/project_graph_placement.h`
+and related graph code), not Graphviz. Server cards sit at the same top
+rank; projects and their history follow top-down. The two presentation
+filters show the full graph or the editable HEAD tips as appropriate.
+Fit happens for initial display or on explicit user request; later camera
+pan/zoom and dock changes should not unexpectedly reset the user's view.
+Revision and HEAD hit-testing must use the transformed viewport geometry,
+including after keyboard panning and a delayed page resize.
 
-## Graph acceptance examples
+## Acceptance examples
 
-1. One empty project: project + `main`, no revision vertices.
-2. `main` and `feature` share committed R0: one R0 vertex, two legible
-   branch labels pointing to it; no fake second branch-ancestry line.
-3. A new branch from R0 changes reference labels, not revision count.
-4. Commits on both branches produce true divergence from R0; no extra
-   provenance edge and no false double connection.
-5. A merge has two real parents, preserves the source branch and updates
-   only the target branch's committed HEAD.
-6. Two simultaneous working copies of the same branch do not add branches,
-   move HEADs, or create revision vertices until a commit succeeds.
-
-This document specifies the intended graph behavior. The renderer and Qt
-tests must be updated to match it before the corresponding UI is considered
-complete.
+1. Brand-new project: its default `main` has a selectable HEAD, no immutable
+   revision, and the graph shows a structural Project → HEAD connection.
+2. Add an independent unborn branch: two distinct HEAD cards, different
+   branch UUIDs and no invented revision.
+3. Commit `main`: one immutable root revision, main's new editable HEAD
+   connected to it; reopened draft can read the committed base network.
+4. Branch from the root revision: a second HEAD points to the **same** root,
+   without duplicating it.
+5. Divergence/merge: ancestry follows only the real parent IDs; branch
+   provenance does not create fictitious DAG edges.
+6. Clicking HEAD, revision, project and tree branch opens the correct
+   Inspector after pan, resize, filtering, and refresh.

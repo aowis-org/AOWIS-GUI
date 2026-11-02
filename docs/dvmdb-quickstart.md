@@ -1,99 +1,116 @@
-# DVMDB quickstart — browse, edit and save a private network
+# DVMDB quickstart — project, HEAD, editor and Commit
 
-This is the shortest current workflow for the AOWIS **Projects** GUI.
-It distinguishes what is available today from features still planned.
-For the exact lifecycle and failure rules see the
-[Save/recovery contract](personal-working-copy-save.md).
+This is the current shortest workflow for the **Projects** tab. For exact
+UI controls see [Projects workspace](projects-workspace.md); for uncertain
+writes, leases and recovery see [private Save](personal-working-copy-save.md).
 
-## 1. Make a DVMDB source available
+## 1. Start and verify your DVMDB server
 
-**Separate DVMDB server:** start the DVMDB HTTP executable using that
-repository's build/run script. Its usual development endpoint is
-`http://127.0.0.1:8755` (subject to server configuration). Verify:
+From the **AOWIS-SERVER-DVMDB** repository:
 
 ```bash
-curl -fsS http://127.0.0.1:8755/dvmdb/v1/ready
+./compile_linux.sh             # build only server/dependencies, then run
+# or: ./compile_linux.sh --build-only
+```
+
+From a second terminal, for the default local endpoint:
+
+```bash
+curl -fsS http://127.0.0.1:8755/dvmdb/v1/health
 curl -fsS http://127.0.0.1:8755/dvmdb/v1/repository
+curl -fsS http://127.0.0.1:8755/dvmdb/v1/ready
 curl -fsS http://127.0.0.1:8755/dvmdb/v1/projects
 ```
 
-**Standalone:** its DVMDB engine is built into the same process as the GUI.
-Select a local source with a persistent absolute DVMDB data directory. It
-uses an internal dynamically bound `127.0.0.1` HTTP endpoint and does not
-require starting a separate server executable.
+A 200 `/health` means the process responds; it does **not** prove the
+catalogue or repository identity matches your GUI profile. If `/projects`
+returns an unexpected empty list, **check the storage root and repository
+UUID before creating anything**, rather than assuming saved data was lost.
 
-## 2. Add and designate your personal database
+Standalone embeds DVMDB in the GUI process and exposes its routes on a
+runtime-only loopback port; it does not require a separate server binary.
 
-1. Open **Projects**.
-2. Add/select a database/server in the left-side server section and use
-   its **Server Inspector** to verify source identity and configuration.
-3. Select **Use as my personal working database** on the repository that
-   should hold your private drafts. If necessary, the GUI verifies/configures
-   its private role. Do not choose a shared server merely because it is the
-   currently selected project source.
-4. Check for **♛** in the navigator and the **gold, crowned server card** in
-   the history graph.
+## 2. Select your personal database
 
-The user does **not** need to type a repository UUID in a separate personal
-settings page. A mismatching or unverified repository identity is an error.
+1. In **Projects**, configure the local/remote database in its
+   **Database Inspector → Connection** tab.
+2. Confirm its UUID and availability, and designate the intended private
+   source **Use as my personal working database**.
+3. The selected personal server displays a ♛ in the navigator and a gold
+   crowned card in the graph.
 
-## 3. Create, edit and reopen a network
+Shared browsing sources and the personal editing source are **not**
+interchangeable. An offline or mismatched personal repository must not be
+silently substituted with another configured server.
 
-1. Select the personal server in Projects and create a new project.
-   New `main` is **unborn**; there is no artificial first Commit.
-2. Select the project; in the **Project Inspector**, choose **Edit network**.
-   If it has multiple branches, select the intended branch first.
-3. The GUI creates/reuses a private working draft and initializes an empty
-   hydraulic network when appropriate. It opens **Distribution Editor**
-   after verifying the saved candidate and obtaining a writer lease.
-4. Make supported changes (for example, add two junctions and a pipe).
-   They are captured and durably queued before DVMDB Save. A status message
-   can confirm the private draft was saved; this does **not** create R1.
-5. Stop private editing, reopen the same project/draft and verify the
-   network. A real external HTTP DVMDB GUI-restart/reopen test has already
-   succeeded for tested edits. Complete-network and Standalone acceptance
-   are still pending.
-6. To create a revision: stop private editing, select the branch **HEAD**
-   and use **Commit** with a commit message in its Inspector.
+## 3. Create a project and HEAD
 
-Advanced controls live in the **branch Inspector**, not in the project
-Inspector: select the database-backed **branch** (expand the project in the
-tree) and use **Personal working copies…**. That dialog offers **Checkout
-branch privately**, draft creation/reopen, **View in Distribution Monitor**
-(read-only), and **Edit in Distribution Editor** (fenced editing).
+Create a project in the selected personal database. DVMDB creates an unborn
+`main` branch automatically; the graph shows **Project → HEAD (Branch: main)**
+with no committed revision.
 
-The branch checkout transfers one selected remote branch, not every branch
-of a project. A whole-project Clone button is not present.
+The **Project Inspector → Overview** and **Branches** tab both expose
+**Create branch**. Enter branch **name**, optional comma-separated **tags**
+and **description**. From the Project Inspector this creates another
+independent unborn branch and a HEAD card, not a synthetic revision.
 
-## 4. Hydraulic Libraries, controls and labels
+Choose the HEAD card corresponding to the branch you intend to edit. The
+Branch tab lets you rename its owning branch (with confirmation) and edit
+its tags/description.
 
-The narrow vertical application navigation bar includes **Hydraulic
-Libraries**, followed by **Controls & Map Labels**. Those pages call the
-transaction-safe `HydraulicData` editing APIs. Their edits participate in
-the MODEL transaction system when a writable personal draft is bound.
-The generic capture engine covers all 18 entity collections, but complete
-mutation-path and network-root autosave acceptance is not yet finished.
+## 4. Open, import and edit
 
-## 5. What not to assume
+Open the chosen **HEAD → Overview**. The six network counters summarize the
+**saved private working copy**, including its committed base, rather than
+just the branch's last committed revision. `No commits yet` is not the same
+as `No network`: an unborn HEAD can already contain a saved model.
 
-- **Save draft** does not create a revision; **Commit** (HEAD Inspector)
-  does. **Publish** is a separate later workflow.
-- Root network settings such as the simulation headloss formula are not
-  yet saved as draft edits; during a private session the headloss selector
-  returns to the draft's value.
-- EPANET and EPANET-JS import and the built-in examples are **refused while
-  a private draft is being edited** (interim rule, 2026-11-02); stop private
-  editing first. Replace/merge semantics are still open, see
-  [network open/import decisions](network-open-import-replacement.md).
-- One editor operation may change at most 128 entities. Moving a large
-  selection is refused and blocks the session; reopen the draft and move it
-  in smaller parts.
-- An HTTP response timeout may occur **after** DVMDB accepted a Save. Do
-  not discard pending queue records or retry as a fresh event without
-  authoritative journal verification.
-- Standalone's internal HTTP server is still a loopback listener, not a
-  security boundary.
+- **Open network:** replaces the current in-memory editor model with the
+  selected verified draft, acquires a fenced writer lease and opens
+  Distribution Editor. Supported model changes autosave to DVMDB.
+- **Import network:** accepts EPANET `.inp` or `.ejsdb` into an **untouched,
+  empty unborn private HEAD**. It is disabled for populated HEADs and does
+  not replace a previously saved network. Importing into a manually emptied
+  existing HEAD is not yet implemented.
+- **Export network:** exports the selected saved HEAD's exact generation
+  when one network is present; it does not export whichever model happens
+  to be open in another editor session.
 
-For detailed status: [roadmap](dvmdb-integration-roadmap.md),
-[Projects UI](projects-workspace.md), and
-[personal database configuration](working-repository-configuration.md).
+There is **no Delete network action** on the Inspector. Deleting entities
+is an editor operation, with ordinary undo/redo and autosave behavior.
+
+## 5. Commit an immutable revision
+
+On **HEAD → HEAD**, enter a **nonblank commit message** describing your work.
+Choose **Commit** once the private draft is saved and modified. Local Commit
+creates an immutable revision and advances only the personal branch. The
+working HEAD remains available, based on the new revision. Reopen it from
+the graph; the network can be inherited entirely from the committed base
+even when the draft overlay has no pending changes.
+
+Committing preserves a milestone for future comparison or branching; it is
+not an independently stored backup and does not automatically Publish to
+another server. The HEAD tab explains the distinction in **Why commit a
+revision?**.
+
+To open an immutable **Revision** network, use Revision → Overview →
+**Open network** and choose either read-only Distribution Monitor or
+**Create branch and open for full editing**. Editing the revision directly
+is forbidden; making a branch does not rewrite the original snapshot.
+
+## 6. Limits and recovery
+
+- Generic capture supports all **18 hydraulic entity collections**, but not
+  every network-root metadata mutation has been accepted end-to-end.
+- Unsupported/uncaptured changes must block rather than appear saved.
+- The current safe imported-network path is first import to untouched unborn
+  HEAD; replacement and entity merge are separate unfinished workflows.
+- A draft Save does not Commit. A local Commit does not Publish.
+- On uncertain HTTP responses, inspect the saved draft/operation status;
+  don't blindly retry a state-changing request with a new identity.
+- Standalone and browser/WASM full end-to-end acceptance remain separate
+  validation tasks.
+
+See [network import semantics](network-open-import-replacement.md),
+[hydraulic transactions](hydraulic-edit-transactions.md), and the
+[integration roadmap](dvmdb-integration-roadmap.md).

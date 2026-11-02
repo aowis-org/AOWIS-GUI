@@ -8,48 +8,45 @@ This software is written in C++ with Qt and can be compiled for all major platfo
 
 ## Projects workspace and DVMDB
 
-The **Projects** workspace connects to actual DVMDB repositories, lists
-projects/branches/revisions and displays a multi-server Git-style revision
-graph. A new project starts with an unborn `main` branch and **no synthetic
-commit**. Database identity is UUIDv7; branch and committed HEAD identities
-remain repository-qualified.
+The **Projects** workspace connects to actual DVMDB repositories and shows
+server/project cards, immutable revision cards and **writable HEAD cards**
+for branches. There are no independent branch cards. A new project creates
+an unborn `main` HEAD without an initial synthetic commit; the Project
+Inspector can create additional independent unborn branches. Shared
+revisions appear only once in the graph.
 
-In the **Server Inspector**, **Use as my personal working database** marks
-one verified private repository. Its entry has a ♛ and its graph server
-card is gold, with the normal server icon and a crown beside its name.
-For a personal project with an unambiguous branch, **Project Inspector →
-Edit network** starts a private draft and opens Distribution Editor. Captured
-MODEL entity changes go through a durable local queue and DVMDB's fenced
-working-copy Save; **Save never creates a Commit**. The branch Inspector's
-**Personal working copies…** dialog provides advanced branch checkout and
-draft management, not a one-click whole-project Clone.
+The **Database Inspector** configures connections and designates one verified
+♛ **personal working database** (gold graph card). Open the chosen HEAD
+card, then **Overview → Open network** to load its saved private working
+copy in Distribution Editor. Captured changes autosave to the private DVMDB
+draft under a fenced session; **Save is not Commit**. The HEAD tab offers
+**Commit** with a required message to create an immutable revision without
+automatically publishing it elsewhere.
 
-**Current persistence boundary (2026-11-02):** the generic transaction
-capture/adapter covers all 18 `NetworkHydraulic` entity collections, and
-library, rule and map-label editors now use captured model operations. A
-reported real external HTTP GUI edit/restart test successfully preserved a
-network; all entity editing paths, full root metadata Save and Standalone
-restart acceptance remain incomplete. HC-02.9 import/replacement semantics
-are **undecided**; until then import is refused while a private draft is
-being edited (interim rule, 2026-11-02). **HEAD Inspector → Commit** creates
-a local revision from the saved draft. Whole-project Clone, Publish and
-merge still require work.
+Network Overview also provides the selected saved-network summary, **Import
+network** (only an untouched, empty unborn private draft) and **Export
+network** (exact selected draft or immutable revision). Opening an immutable
+revision offers read-only Monitor or creation of a branch for editing. There
+is no Inspector **Delete network** button. Standalone embeds the DVMDB HTTP
+service inside the GUI process.
 
-Standalone embeds the native DVMDB service **within the GUI process** and
-uses a dynamic localhost HTTP endpoint to access its routes; it does not
-start a separate database-server executable. Ordinary desktop GUI uses
-configured DVMDB HTTP endpoints. Built-in example models are separate from
-persisted DVMDB projects.
+**Known limits (source review 2026-11-02):** capture covers all 18 persisted
+entity collections, but complete network-root settings, all GUI mutation
+paths and Standalone/WASM acceptance are not yet proven. General import
+replacement/merge, Fetch and Publish are unfinished. HEAD/Revision detail
+Tags/Description currently share branch metadata persistence with the
+Branch tab; version-specific annotations are not yet separate.
 
-Start with the [documentation index](docs/README.md),
+Start with [documentation index](docs/README.md),
 [DVMDB quickstart](docs/dvmdb-quickstart.md),
 [Projects workspace](docs/projects-workspace.md),
-[Save/recovery contract](docs/personal-working-copy-save.md),
-[open import/replacement decisions](docs/network-open-import-replacement.md),
-and [implementation roadmap](docs/dvmdb-integration-roadmap.md).
+[graph layout](docs/project-graph-layout.md),
+[Save/recovery](docs/personal-working-copy-save.md),
+[network import semantics](docs/network-open-import-replacement.md),
+and the [integration roadmap](docs/dvmdb-integration-roadmap.md).
 
-The Projects revision graph is currently drawn with **QWidget/QPainter**;
-it does not initialize a second bgfx device alongside the map renderer.
+The Projects revision graph is drawn with **QWidget/QPainter**; it does not
+create a second bgfx device next to the map renderer.
 
 ## Git submodules
 

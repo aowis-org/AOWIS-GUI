@@ -15,6 +15,9 @@ it is never an alternative revision identity.
 | Working copy | User/session-private UUIDv7, mutable model state, pinned base revision UUID/null |
 
 A new project creates an unborn `main` and **no committed revision**.
+Additional independent unborn branches can be added to the same project.
+The GUI renders one working HEAD **card** for each branch; it is not a
+committed revision or a revision DAG vertex.
 Creating a branch from committed history does **not** create a revision.
 Creating a new working copy does **not** create or advance a branch HEAD.
 Only a successful expected-HEAD commit creates a new immutable revision.

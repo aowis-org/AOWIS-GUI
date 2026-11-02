@@ -1,145 +1,146 @@
-# Projects workspace — visible controls and version-control contract
+# Projects workspace — current user interface
 
-The **Projects** tab brings together database servers, projects, branches,
-revision history and a context-sensitive Inspector. It is the entry point
-for editing hydraulic networks stored in DVMDB. The product's Git-like
-object model is specified here; where a control is not yet implemented it is
-explicitly identified as a future action.
+The **Projects** tab unifies DVMDB databases, project containers, named
+branches, committed revision history and working **HEAD** cards. Its inspector
+is selected by the object clicked in the navigator or graph. For a practical
+workflow see [quickstart](dvmdb-quickstart.md); for graph semantics see
+[graph layout](project-graph-layout.md).
 
-## 1. Screen layout
+## Workspace structure
 
-| Area | What it shows/does |
+| Area | Current responsibility |
 |---|---|
-| Left — Servers | Configured local/remote DVMDB databases; a visibility checkbox filters that source from the displayed workspace; the **♛** marks the personal working database |
-| Left — Projects & Branches | Actual projects and their named branches; expand a project to select a **branch** and reveal branch-only Inspector actions |
-| Left — Revisions | Committed revisions for the current source/context; an unborn branch has no revision |
-| Center — graph | Server/project/branch presentation and committed revision ancestry; each server has a left-hand server icon; the personal server's card is **gold with a crown** beside its name |
-| Right — Inspector | Selection-specific identity, project/branch/revision information, creation/edit actions and connection configuration |
+| Servers (left) | Configured local/remote databases, connection status, per-source visibility, and ♛ personal database designation |
+| Projects & Branches (left) | Project and named-branch navigation; selecting a *branch row* opens its branch-management inspector |
+| Revisions (left) | Immutable committed revisions; absent for a branch with no commits |
+| Graph (center) | Server and project cards, **immutable revision cards** and **writable HEAD cards**; no independent branch cards |
+| Inspector (right) | Context-sensitive Overview and management tabs for Database, Project, Branch, HEAD or Revision |
 
-The Inspector is shown for relevant selections/actions. Selecting a server,
-project, branch or revision changes its content. Branch actions should not
-be expected when the **project row** is selected. Hiding a database from
-the graph is not disconnecting or deleting it.
+The personal database has a crown in the navigator and a gold server card in
+the graph. A visibility checkbox is a graph/list filter, **not** a
+connect/disconnect control. DVMDB connection and repository identity are
+configured in the Database Inspector; its health indicator must not confuse a
+reachable server with an unreadable project catalogue.
 
-All project/branch/revision identities are UUIDv7, not labels. A repository
-ID qualifies a branch reference: two repositories may have the same
-logical project and branch UUIDs but different committed HEADs.
+Every project, branch, revision and private draft uses UUIDv7 identity.
+Branch names are labels and may change. A revision's SHA-256 is integrity
+metadata, never an object ID.
 
-## 2. Configure and identify databases
+## Graph cards and click targets
 
-The **Server Inspector** includes **Use as my personal working database**.
-Exactly one source can be designated at a time. For a reachable source the
-GUI verifies repository identity and role; an unconfigured repository can
-be explicitly configured as private, but a shared repository cannot be
-silently repurposed. This selected source owns private drafts and future
-local commits, regardless of which shared source is being browsed.
+A newly created project automatically has `main` with **no committed
+revision**. Its graph starts as `Server → Project → HEAD (Branch: main)`.
+Creating another independent unborn branch from the **Project Inspector**
+adds another HEAD card directly beneath the project, without creating a
+revision. A branch created **from an immutable revision** has a new HEAD
+linked to its selected fork revision. There is no separate branch card.
 
-Standalone has a native DVMDB service embedded in its own process, accessed
-through temporary loopback HTTP routes. Local profiles select persistent
-absolute storage directories; the runtime endpoint is not persisted.
-Desktop/basic GUI connects to configured HTTP repositories. Selecting a
-server is **not** the same as selecting a working copy.
+After committing HEAD, an immutable revision card is added. The next writable
+HEAD inherits the committed network through that revision. A revision shared
+by several branches is one immutable object, not duplicate history.
+Revision-to-revision edges encode only true parentage; the HEAD-to-base or
+Project-to-unborn-HEAD links are structural, not extra commits.
 
-## 3. Projects, branches and revisions
+- Click a **HEAD card** → HEAD/Revision Inspector in HEAD mode.
+- Click an **immutable Revision card** → the same Inspector in Revision mode.
+- Click a **Branch in the left tree** → Branch Inspector; this is distinct
+  from clicking its HEAD card.
+- Click a Project or Database card → its respective inspector.
 
-A newly created project has a UUIDv7 and an unborn `main` branch. Unborn
-means `headRevisionId` is null; **no R0 or empty synthetic Commit** is
-created. Branch creation from an immutable committed revision records
-origin branch and exact fork revision without adding an extra revision.
-Branch UUIDs and names are distinct; names may include UTF-8/spaces subject
-to the backend's validation.
+The graph starts top-down; Fit is available explicitly. Camera movement,
+selection and source filtering never change saved history.
 
-A **revision** is an immutable whole-model snapshot with genuine parent
-revisions; SHA-256 is an integrity check, not the revision ID. One committed
-revision may be referenced by several branches. The graph must not invent
-branch-creation ancestry or present a writable draft as an immutable
-revision. See [graph layout](project-graph-layout.md).
+## Inspectors
 
-## 4. Current editing workflow
+**Project Inspector:** Overview has editable **Name** (persisted project
+rename), Tags/Description display, **Create branch**, and **Import network**
+where that project-level action is available. Branches tab lists branches
+and offers another **Create branch** button at the bottom. The branch dialog
+asks for **name, tags, description**, then creates an independent unborn HEAD.
+No source revision selector is needed when invoked from a Project.
 
-1. Mark one database personal in its **Server Inspector** (♛).
-2. Create/select a project **on the personal database**. If it has one
-   branch, **Project Inspector → Edit network** can open that branch. With
-   multiple branches, select the intended branch before editing.
-3. The GUI opens/creates a private working copy and its network, verifies
-   the candidate, replays durable local pending edits, obtains a fenced
-   writer session and opens **Distribution Editor**. If the branch's draft
-   is older than the branch HEAD, an unmodified draft is replaced by one at
-   the current HEAD; a draft with edits opens only after confirmation
-   (**Edit draft anyway**).
-4. `HydraulicData` captures supported logical entity changes; the local
-   queue and DVMDB Save persist them without moving the committed HEAD.
-5. Stopping and reopening the session is distinct from Commit. An actual
-   external HTTP GUI-restart recovery was reported for tested edits; full
-   coverage remains incomplete.
-6. **HEAD Inspector → Commit** with a commit message creates the immutable
-   revision from the saved draft. Stop editing first; Commit is refused
-   while edits are still queued on this device.
+**HEAD Inspector:** `Overview | HEAD | Branch`. Overview shows selected
+branch, saved network inventory (junctions, pipes, reservoirs, tanks, pumps,
+valves), **Open network**, **Import network**, **Export network**. The **HEAD**
+tab contains the editable two-line-height commit message, draft-specific
+tags and description fields, state, disabled **Create branch** with a
+commit-first tooltip, **Commit**, and the **Why commit a revision?** explanation.
+The **Branch** tab edits name, tags and description of the owning branch;
+branch renaming requires confirmation. There is **no Revisions tab** on HEAD.
 
-For branch-level checkout/working-copy administration, select an actual
-**database-backed branch** in Projects & Branches and use the **Personal
-working copies…** Inspector button. The advanced dialog offers one-branch
-**Checkout branch privately**, draft operations, read-only **View in
-Distribution Monitor** and writable **Edit in Distribution Editor**.
-This is **not** an existing one-click whole-project clone UI.
+**Revision Inspector:** `Overview | Revision | Branch | Ancestry`.
+Overview summarizes the pinned immutable network. **Open network** offers
+read-only Distribution Monitor or creating a new branch to edit the
+selected revision. Revision tab offers an editable **display message**,
+metadata fields and **Create branch**; immutable contents and record SHA-256
+are never rewritten. Branch tab edits branch metadata. Ancestry displays
+actual parent revisions.
 
-The narrow left application navigation bar also has **Hydraulic Libraries**
-and **Controls & Map Labels** pages. They edit the current shared in-memory
-`HydraulicData` using transaction-safe APIs. Only a properly bound private
-draft session makes supported edits eligible for durable Save.
+**Current metadata limitation:** Tags and Description shown on the
+HEAD/Revision details and Branch tabs currently share the branch-metadata
+save path. They are **not yet separately persisted per-HEAD/per-revision
+annotations**. A distinct revision/HEAD metadata store remains future work.
+Do not present the duplicate editors as independent persisted fields.
 
-## 5. Save, Commit, Publish — different operations
+**Database Inspector:** `Overview | Connection | Projects`; server status and
+connection settings belong here. Keep repository UUID identity distinct from
+the editable database display name.
 
-| Action | Effect | GUI availability |
+## Open, Save, Commit, Publish
+
+The normal editing entry is **HEAD → Overview → Open network**. A confirmation
+explains that the in-memory editor network will be replaced; supported edits
+are automatically captured and saved to the private DVMDB draft. The editor
+requires a verified personal repository and fenced writer lease. Uncaptured
+or inconsistent edits block the session rather than pretending to save.
+
+| Operation | Meaning | Status in current GUI |
 |---|---|---|
-| **Save draft** | Persist changes in the private working copy; no revision or committed HEAD movement | Available for captured entity edits in a fenced session; incomplete metadata coverage |
-| **Commit locally** | Create immutable revision UUIDv7 from validated private state, CAS-update **personal** branch HEAD | **HEAD Inspector → Commit**; operation UUID reconciled after a lost reply, not yet persisted across restarts |
-| **Fetch/Clone** | Transfer/present verified remote history and tracking | Advanced **branch-level** checkout exists; whole-project Clone absent |
-| **Publish** | Transfer local commits and CAS-update **shared** branch HEAD | **Not yet complete in GUI** |
-| **Reconcile/merge** | Explicitly compare divergent histories and resolve model conflicts | Planned; no silent force-push/rebase |
+| Open HEAD | Load saved private working state and open Distribution Editor | Implemented; requires selected usable private draft |
+| Open Revision | Read-only Monitor, or create a branch based on that immutable revision for full editing | Implemented entry point; end-to-end platform coverage remains to be verified |
+| Save / autosave | Durably record supported edited entities in private draft; no immutable revision | Implemented for captured operations; root-metadata coverage remains limited |
+| Commit | Require a nonblank commit message, commit saved modified draft, advance only personal committed HEAD | Implemented via DVMDB Local Commit API; still requires valid saved draft/lease |
+| Publish | Conditionally advance shared history, separately from personal Commit | **Not implemented as complete GUI workflow** |
+| Fetch/Clone | Transfer a specific remote branch into personal working repository | Advanced branch-level checkout exists; whole-project workflow not complete |
+| Merge/reconcile | Resolve divergent committed histories without losing drafts | Complete end-to-end UI not available |
 
-A timeout after Commit/Publish must be reconciled by the **same persisted
-operation UUID and digest**, not by issuing a second unrelated action. A
-local branch HEAD and a shared branch HEAD are independent even when their
-branch UUID is identical.
+After Commit the saved draft overlay can be empty, but the network still
+exists in its committed **base** revision. The HEAD loader and summary must
+read the full saved draft view, not just pending changed records.
 
-## 6. Open network versus import
+## Network actions, restrictions and unresolved work
 
-Loading an authoritative DVMDB network into `HydraulicData` is a read,
-not a user edit. Importing EPANET/EPANET-JS data as new project, replacing
-an existing working network and merging entities are **distinct potential
-operations**. The GUI currently has whole-model replacement code that
-resets capture; it is not an accepted persistent replacement operation.
+**HEAD Overview summaries** use `GET /working-copies/{draftId}/networks/summary`
+for a selected saved private draft (including its committed base).
+**Revision Overview summaries** use the exact committed revision. A zero
+network count, a network with zero entities and an unavailable summary are
+**different states**; do not silently equate them.
 
-**Interim rule (2026-11-02):** while a private draft session is open,
-EPANET/EPANET-JS import and the built-in examples are refused; stop private
-editing first. Import into a selected empty private HEAD is unaffected.
-The final replace/merge behavior is still undecided: target identity,
-transaction atomicity, pending queue handling and conflict/recovery
-semantics are tracked in
-[network import decisions](network-open-import-replacement.md).
+- **Open network:** opens the chosen HEAD/editor or revision viewer/branching
+  dialog, never whichever unrelated model is already in memory.
+- **Import network:** targeted EPANET `.inp` / `.ejsdb` bulk import currently
+  supports an **untouched, empty, unborn private HEAD** only. The server
+  rejects overwrite of an already populated draft. A HEAD manually emptied
+  later is **not** automatically eligible for this first-import path.
+- **Export network:** exports the chosen exact saved HEAD generation or exact
+  committed revision, not the currently open editor network. Current flow
+  expects exactly one selected network with a verified identity.
+- There is **no Delete network button** in the Inspector. If users remove
+  all entities they do so in the network editor using its normal selection
+  and deletion operations; that does not itself guarantee the network root
+  has ceased to exist.
 
-## 7. Acceptance and known limits
+A failing summary or a reported unavailable database is not evidence of data
+loss. Check `/health`, `/repository`, `/ready`, `/projects`, the selected
+repository UUID, and the saved draft/committed revision separately.
 
-- Personal source identity/role and exact target must be checked; no
-  fallback to the selected shared source if personal DVMDB is unreachable.
-- Captured entity transaction and membership updates must be validated as
-  one durable unit, with lease fencing and expected generation.
-- Failed/uncertain Save retains pending queue records; wrong-target and
-  stale-session errors block instead of discarding local work.
-- `NetworkHydraulic` **network-root metadata** still needs HC-03/04/05.
-  Generic 18/18 entity capture is not complete GUI coverage.
-- Whole-model import/replace/merge needs the HC-02.9/06 design decision;
-  import is refused during a private session until then.
-- One editor operation may change at most 128 entities; larger ones are
-  refused and the session blocks. A draft holds at most 4096 events and
-  20 000 changed records (8 MiB each) until Commit, without a warning yet.
-- Real end-to-end equality after DVMDB and GUI restart must be proven for
-  **both** external HTTP and embedded Standalone (HC-07).
-- Full-project Clone, Publish and reconciliation remain separate future
-  work; local Commit exists but has not passed acceptance.
+## Known acceptance gaps
 
-See [quickstart](dvmdb-quickstart.md),
-[working repository](working-repository-configuration.md),
-[hydraulic transactions](hydraulic-edit-transactions.md), and
-[roadmap](dvmdb-integration-roadmap.md).
+The complete `NetworkHydraulic` model contains 18 persisted entity
+collections. Generic entity capture does not prove that every GUI mutation
+path or root setting autosaves. The remaining work includes full root
+metadata, import into a deliberately emptied existing draft, standalone and
+WASM acceptance, user-friendly recovery for stale/conflicting drafts, and
+Fetch/Publish. See [Save/recovery](personal-working-copy-save.md),
+[network import](network-open-import-replacement.md), and the
+[integration roadmap](dvmdb-integration-roadmap.md).

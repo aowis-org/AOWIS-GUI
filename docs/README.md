@@ -1,44 +1,40 @@
 # GUI documentation
 
-AOWIS-SERVER-GUI is the Qt controller, hydraulic editor and Projects
-workspace for AOWIS. The following documents distinguish **implemented
-source**, **reported test evidence**, **unfinished milestones** and
-**unresolved design choices**.
+AOWIS-SERVER-GUI is the Qt-based hydraulic editor, map/monitor workspace and
+DVMDB Projects client. This index separates **current source behavior** from
+**unfinished acceptance or planned work**; a code path's presence does not
+by itself demonstrate successful end-to-end execution on Linux or WASM.
 
-## Start here — Projects and DVMDB
+## Projects and DVMDB
 
-| What you need | Document |
+| Start with | Purpose |
 |---|---|
-| Create a private project and edit/save a network | [DVMDB quickstart](dvmdb-quickstart.md) |
-| Find the server/project/branch controls and understand Commit vs Save | [Projects workspace](projects-workspace.md) |
-| Understand the selected ♛ personal database and Standalone transport | [Personal working repository](working-repository-configuration.md) |
-| Follow current implementation status and HC/VC delivery order | [Integration roadmap](dvmdb-integration-roadmap.md) |
-| Understand all 18 entity collections and remaining capture gaps | [Hydraulic edit transactions](hydraulic-edit-transactions.md) |
-| Understand durable queues, fencing and lost-acknowledgement recovery | [Save/recovery contract](personal-working-copy-save.md) |
-| Decide how network load, import, replacement and merge should interact | [Network import decision record — **OPEN**](network-open-import-replacement.md) |
-| Review immutable history/layout and UUID rules | [Project graph layout](project-graph-layout.md), [UUIDv7 contract](dvmdb-uuidv7-gui-readiness.md) |
+| [DVMDB quickstart](dvmdb-quickstart.md) | Configure the personal database; create project/HEAD, open, import, export and Commit |
+| [Projects workspace](projects-workspace.md) | Current database/project/HEAD/revision inspector tabs and buttons |
+| [Project graph layout](project-graph-layout.md) | Separate HEAD cards, immutable shared revisions and ancestry edges |
+| [Personal working repository](working-repository-configuration.md) | ♛ private source, embedded Standalone and repository identity |
+| [Private autosave and recovery](personal-working-copy-save.md) | Durable event queue, session fencing and generation checks |
+| [Network import and replacement](network-open-import-replacement.md) | Implemented safe unborn first import vs unsupported replacement/merge |
+| [Hydraulic edit transactions](hydraulic-edit-transactions.md) | 18 persisted entity collections and gaps in mutation/root metadata capture |
+| [Integration roadmap](dvmdb-integration-roadmap.md) | Remaining GUI/DVMDB integration and acceptance gates |
 
-**Current boundary (2026-11-02):** External HTTP DVMDB has successfully
-saved and reopened a tested GUI-edited hydraulic network. The GUI now
-supports canonical entity capture for all 18 collections, durable queued
-Save, library CRUD/UI, rule/label CRUD/UI and local Commit from the HEAD
-Inspector. **Full `NetworkHydraulic` autosave is not yet complete:** root
-metadata transactions and the final import/replace/merge design remain
-open, and Standalone end-to-end acceptance has not been reported. Import is
-refused while a private draft is being edited (interim rule, 2026-11-02).
-The 2026-11-02 editing fixes (stale drafts, pipe split order, imported
-UUIDv5 entities, per-operation bounds, Commit lease) are delivered but not
-yet built or tested. Publish is a separate future milestone.
+**Status snapshot (source review 2026-11-02):** HEAD/Revision Inspectors,
+network summary, selected-network opening/export, safe first import to an
+untouched unborn draft, persistent branch metadata and Local Commit are
+implemented in source. Complete root-metadata autosave, import into an
+existing working network, Fetch/Publish, and full Standalone/WASM acceptance
+remain open. In the current GUI the duplicate Tags/Description editors on
+HEAD/Revision details and Branch share a branch-metadata save path, **not**
+independent persisted version annotations.
 
-## Other GUI systems
+## Other systems
 
-- [Map workspace architecture](map-workspace-architecture.md) — map and
-  render ownership.
+- [Map workspace architecture](map-workspace-architecture.md)
 - [Numeric editor transactions](numeric-editor-transactions.md),
-  [numeric formatting](numeric-formatting.md), and
-  [unit presentation coverage](unit-gui-coverage-matrix.md) — numeric UI.
-- [Apply patches](apply-patches.md) — source/patch ZIP tooling.
+  [numeric formatting](numeric-formatting.md) and
+  [unit presentation coverage](unit-gui-coverage-matrix.md)
+- [Patch workflow](apply-patches.md)
 
 Security is deferred to [separate considerations](deferred-security-considerations.md).
-AOWIS is pre-first-release: no legacy database format migrations or
-compatibility scaffolding are prerequisites for these changes.
+Before the first release, do not add obsolete database-format migration or
+compatibility scaffolding merely to preserve development data.

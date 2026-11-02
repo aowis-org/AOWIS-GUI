@@ -1,5 +1,19 @@
 # DVMDB integration: implementation contract and roadmap
 
+> **Current implementation checkpoint — 2026-11-02.** The older HC/VC
+> milestone rows below are a delivery/history plan, **not a live feature
+> inventory**. Since they were written, GUI HEAD/Revision Inspector routing,
+> multiple unborn branches, project/branch metadata updates, Local Commit,
+> saved-draft network summaries, selected revision/HEAD export and first
+> import to an untouched unborn private draft have been added. Claims below
+> that these are “not integrated”, “not present”, or “not started” are
+> superseded by the [current workspace guide](projects-workspace.md) and
+> [quickstart](dvmdb-quickstart.md). Outstanding acceptance is still broad:
+> root metadata capture, import replacement/merge, full hydraulic validation,
+> cross-platform restart/recovery, Fetch and Publish. Do not infer test success
+> from feature implementation alone.
+
+
 This is the authoritative **GUI-side handoff** for the Projects workspace,
 private hydraulic editing, and local version control. Read it with
 [Projects workspace](projects-workspace.md),
@@ -9,14 +23,11 @@ private hydraulic editing, and local version control. Read it with
 The DVMDB repository owns the corresponding storage and HTTP contracts; the
 MODEL repository owns canonical model serialization and edit transactions.
 
-**Checkpoint: 2026-11-02, from the uploaded GUI source plus the
-2026-11-02 patches** `aowis-server-gui-private-draft-editing-fixes.zip` and
-`aowis-server-model-entity-uuid-any-version.zip` (delivered, **not yet built
-or tested**). “Implemented” means present in this source, **not** that all
-deployment modes have passed acceptance. Tests reported in previous
-implementation threads are identified separately. Since 2026-11-02 an
-**interim rule** refuses import while a private session is open (section 3);
-the HC-02.9/06 replace/merge semantics remain open.
+**Baseline snapshot: 2026-11-01 (historical, superseded by the 2026-11-02 checkpoint above).** “Implemented” means
+present in this source, **not** that all deployment modes have passed acceptance.
+Tests reported in previous implementation threads are identified separately.
+The rejected HC-02.9 import-blocking proposal was **not applied** and is **not**
+part of this contract. Do not infer product decisions from an unmerged patch.
 
 ## 1. Fixed architecture and terminology
 
@@ -26,10 +37,10 @@ the HC-02.9/06 replace/merge semantics remain open.
 | Project | UUIDv7; contains branches and network history |
 | Branch | Stable UUIDv7 plus user label; repository-specific nullable **committed** HEAD |
 | Revision (Commit) | Immutable UUIDv7 model snapshot with real ancestry; SHA-256/Merkle data verify content, not identity |
-| Personal DVMDB | Exactly one selected profile marked **Use as my personal working database**; owns private drafts and, eventually, local commits |
+| Personal DVMDB | Exactly one selected profile marked **Use as my personal working database**; owns private drafts and local commits |
 | Working copy / draft | Private, editable UUIDv7 state based on a specific revision (or an unborn branch); saved independently of committed HEAD |
 | Save | Persist edits to that working copy; **never** create an immutable revision |
-| Commit locally | Future explicit operation creating an immutable revision and conditionally advancing the **local** HEAD |
+| Commit locally | Implemented HEAD Inspector operation creating an immutable revision and conditionally advancing the **local** HEAD; full acceptance pending |
 | Publish | Future explicit transfer/update of **shared** HEAD, independently checked against its expected value |
 | Load network | Reconstruct/verify DVMDB candidate and install it in GUI memory; no edit event by itself |
 
@@ -53,11 +64,11 @@ security effort**, not a hidden prerequisite for these VC milestones.
 | Personal database | Select in Server Inspector; profile verification/role handling; ♛ in navigator and golden, crowned graph card | Private repository is a functional designation, not an authentication mechanism |
 | Remote → personal | Advanced **Personal working copies…** dialog on a database-backed **branch**; committed bundle checkout and unborn branch checkout paths | One-click **whole-project clone** with all branches; fully verified Standalone cross-server workflow |
 | Personal draft | Open/create/reopen, network initialization, verified load, fenced writer, durable queued event Save | All persistent `NetworkHydraulic` fields and operational failure acceptance |
-| Distribution Editor | **Edit network** entry from a personal project/single branch, or **Edit in Distribution Editor** in the advanced dialog; captured edits queue and Save | Uncaptured mutation paths, network-root metadata, verified import/replacement semantics |
+| Distribution Editor | **HEAD card → Overview → Open network**, or advanced draft editing dialog; captured edits queue and Save | Uncaptured mutation paths, network-root metadata, general import replacement/merge |
 | Entity capture | All **18** persisted collections supported by the generic MODEL transaction encoder and draft event adapter | 18/18 is **not** proof that every widget/mutation path autosaves |
 | Editing surfaces | Transaction-safe libraries (8 collections), rule controls and map labels, with navigation pages and widget tests | Final mutation-path audit and runtime persisted equality |
 | Standalone | Native DVMDB engine and cpp-httplib routes hosted **inside the GUI process** over ephemeral `127.0.0.1` HTTP | Full Standalone edit/restart acceptance; listener isolation is not authentication |
-| Local Commit | **HEAD Inspector → Commit** commits the single modified saved draft: fresh-session lease, operation UUIDv7 with status reconciliation, expected generation and HEAD, lease released after success, refused while local edits are queued; per-installation author UUIDv7 | Persisted operation ID across restarts (DG-03), end-to-end acceptance |
+| Local Commit | Native + HTTP Commit/status, GUI HEAD Commit button, expected local HEAD and idempotent operation ID | Whole-model hydraulic validation and cross-platform failure/restart acceptance |
 | Fetch, Publish, merge | Backend transport/graph and merge primitives exist | Complete GUI workflows, conflict handling and acceptance |
 
 **Verified by reports in this conversation:** focused HC-01 transaction test;
@@ -97,8 +108,8 @@ absolute. Ordinary desktop GUI uses a reachable personal HTTP profile.
 ### Create and edit a project
 
 Open **Projects** → select the personal server → create a project. A new
-project starts with one unborn `main`. In the **Project Inspector**, use
-**Edit network**; with multiple branches, select the intended branch first.
+project starts with one unborn `main`. From the selected **HEAD card → Overview**, use
+**Open network**; with multiple branches, select the intended branch first.
 The GUI creates/reuses a draft, initializes an empty network if appropriate,
 loads the verified candidate into `HydraulicData`, binds the fenced editing
 session and opens **Distribution Editor**. Captured edits are queued locally
@@ -111,39 +122,15 @@ or unborn branch to the personal repository, then open a private draft. The
 **View in Distribution Monitor** action loads a verified read-only preview;
 **Edit in Distribution Editor** starts a separate writable session.
 
-### Opening a branch shows its current HEAD
-
-**Edit network** compares the branch's single draft with the branch HEAD in
-the personal repository. An unmodified draft on an older base is replaced by
-one at the current HEAD (after pulling newer source commits for a branch
-from another repository); a draft with edits on an older base opens only
-after confirmation (**Edit draft anyway**). See the
-[Save/recovery contract](personal-working-copy-save.md).
-
 ### Network import is not the same as load
 
-The current EPANET/EPANET-JS import paths can replace the in-memory model.
+The current selected-HEAD first-import path can persist converted EPANET/EPANET-JS data into an untouched empty unborn private draft. General import paths can still replace the in-memory model.
 The general `HydraulicData::replaceNetworkHydraulic()` resets edit capture.
-That function is also used when loading a verified DVMDB draft.
-**Interim rule (2026-11-02):** while a private session is open, import and
-built-in examples are refused; stop editing first. If capture is switched
-off during a session anyway, the session blocks instead of silently not
-saving. This is not an approved “replace working network” or merge
-contract; those decision gates are tracked in
+That function is also used when loading a verified DVMDB draft. **There is an approved narrow first-import path into an untouched empty
+unborn private draft**. That does not approve replacing an already saved
+network. The old HC-02.9 blanket import ban was rejected. Do not interpret
+`replaceNetworkHydraulic()` as a persistent replacement API. The options and decision gates are tracked in
 [network loading/import decisions](network-open-import-replacement.md).
-
-### Limits a session can hit
-
-| Limit | Where | Effect today |
-|---|---|---|
-| 128 entities (128 created/removed) and ~7 MiB per operation | `/save-events` | Operation refused before it is queued; session blocks, reopen restores |
-| 4096 events / 8 MiB journal per draft | DVMDB draft record | Save fails until Commit; no warning yet |
-| 20 000 records / 8 MiB candidate per draft | DVMDB draft record | Save fails until Commit; no warning yet |
-| 5 MiB canonical / ~20 000 entities | Import into a private HEAD | Import refused |
-| 8 MiB network payload | Draft network load | Larger draft networks cannot be opened for editing |
-
-These need DVMDB design work (paged candidate storage, bounded atomic
-multi-page Saves, journal compaction).
 
 ## 4. Hydraulic coverage milestones (HC)
 
@@ -162,26 +149,22 @@ explicit.
 | HC-02.6 | Hydraulic Libraries GUI editor | Implemented; widget retest not confirmed |
 | HC-02.7 | Transaction-safe rule/label CRUD | Implemented; focused result not reported |
 | HC-02.8 | Controls & Map Labels GUI editor | **Implemented, focused test passed** |
-| HC-02.9 | Finish mutation-path audit; define load/import/replace/merge semantics | **Audit done (only headloss formula and model replacement uncaptured); interim import refusal adopted 2026-11-02; semantics open** |
-| HC-03 | MODEL canonical network-root metadata transaction representation | **Not started** |
-| HC-04 | DVMDB server-owned atomic metadata updates in draft Save | **Not started** |
-| HC-05 | GUI settings mutation capture and root-metadata autosave | **Not started** |
+| HC-02.9 | Finish mutation-path audit; define load/import/replace/merge semantics | **Design open; proposed blocking patch NOT applied** |
+| HC-03 | MODEL canonical network-root metadata transaction representation | **Partly integrated in source; acceptance incomplete** |
+| HC-04 | DVMDB server-owned atomic metadata updates in draft Save | **Partly integrated in source; acceptance incomplete** |
+| HC-05 | GUI settings mutation capture and root-metadata autosave | **Partly integrated in source; acceptance incomplete** |
 | HC-06 | Agreed bulk import/replacement behavior and persistence | **Not started; dependent on decisions** |
-| HC-07 | Complete `NetworkHydraulic` equality/restart/crash acceptance in HTTP and Standalone | **Not started** |
+| HC-07 | Complete `NetworkHydraulic` equality/restart/crash acceptance in HTTP and Standalone | **Partly integrated in source; acceptance incomplete** |
 
 ### HC-02.9 — Decision before code
 
 Inventory each remaining persistent `HydraulicData` mutation and each
 external model replacement path. Identify whether a change is (a) a verified
 read/load, (b) an entity edit, (c) a network-root settings edit, or (d) an
-explicit user-requested import/replacement/merge. A scripted audit
-(2026-11-02) found all mutators captured except `setSimulationHeadlossFormula()`
-(c) and whole-model replacement (d). The interim refusal of (d) during a
-private session was adopted on 2026-11-02 so that autosave cannot stop
-silently; it is **not** the final design. Agree on target-selection,
-conflict, atomicity, UUID/reference, queued-edit and recovery semantics
-before HC-06. This is a design gate, not an excuse to mark HC-02 complete
-prematurely.
+explicit user-requested import/replacement/merge. **Do not implement a
+unilateral import ban or silent replacement.** Agree on target-selection,
+conflict, atomicity, UUID/reference, queued-edit and recovery semantics first.
+This is a design gate, not an excuse to mark HC-02 complete prematurely.
 
 ### HC-03 — MODEL network metadata
 
@@ -238,7 +221,7 @@ advances a committed branch HEAD.
 | VC-02 | Branch creation from exact committed revision with fork provenance | Implemented at source level; integrated acceptance pending |
 | VC-03 | Source and personal-repository identity/role handling | Implemented; deployment validation pending |
 | **VC-04** | Private checkout, complete edit capture, durable Save, restart recovery | **In progress; HC-02.9 through HC-07 outstanding** |
-| **VC-05** | Explicit local Commit: immutable revision, expected-local-HEAD CAS, idempotency/status | **In GUI** (HEAD Inspector → Commit); operation ID not yet persisted across restarts; acceptance pending |
+| **VC-05** | Explicit local Commit: immutable revision, expected-local-HEAD CAS, idempotency/status | **Integrated in source; acceptance incomplete** |
 | VC-06 | Complete Fetch/Clone and remote-tracking UI, including all branches | Branch-level checkout exists; full-project workflow pending |
 | VC-07 | Verified Publish with expected shared HEAD, idempotency and recovery | GUI workflow pending |
 | VC-08 | Explicit fast-forward / three-way merge with hydraulic validation | GUI workflow pending |
@@ -246,8 +229,8 @@ advances a committed branch HEAD.
 | VC-10 | Coherent editing lifecycle on desktop, Standalone and web | Incomplete acceptance |
 | VC-11 | First-release integrity, recovery and workload qualification | Incomplete |
 
-**Sequence:** finish the accepted VC-04 working-copy semantics and HC
-coverage; then VC-05 local Commit; then improve whole-project Clone,
+**Sequence:** finish VC-04/HC coverage and complete VC-05 validation and
+acceptance (the Commit API/button already exist); then improve whole-project Clone,
 Fetch/Publish/merge and cross-platform acceptance. Separate source-level
 primitives from user-visible workflow completion in every status update.
 
@@ -275,8 +258,7 @@ These predate the HC import discussion and remain binding:
 
 **Separate open design gate — network import:** no approved decision yet for
 new-project import, replacing an active working network, or merging imported
-entities. These are not solved by DG-01 through DG-06. Interim rule since
-2026-11-02: import is refused while a private session is open.
+entities. These are not solved by DG-01 through DG-06.
 
 ## 7. Required evidence and handoff rules
 
@@ -287,7 +269,7 @@ Standalone. Maintain a source snapshot and targeted test in each handoff.
 
 Minimum acceptance stories:
 
-1. New personal project → unborn main → Edit network → two junctions and a
+1. New personal project → unborn main → Open network → two junctions and a
    pipe → autosave → GUI restart → exact recovered network; no Commit.
 2. Library/pattern/curve/material edits, rule clauses and map-label edits,
    including failed reference changes and cascading removals, survive reload.
@@ -300,11 +282,7 @@ Minimum acceptance stories:
 6. Standalone embedded and remote HTTP use the same accepted model content;
    no fabricated revisions and no silent fallback to another repository.
 7. Import actions follow the **decided** policy, with recoverable failures and
-   no untracked model replacement (after HC-02.9/06 decisions). Until then:
-   import during a private session is refused and the draft is unchanged.
-8. An EPANET-imported network (UUIDv5 entity keys) committed, branched and
-   edited in a private draft: property edit, pipe split, delete, GUI
-   restart, Commit, reopen at the new HEAD.
+   no untracked model replacement (after HC-02.9/06 decisions).
 
 The GUI implementation must obey C++ repository style: no `auto` variables;
 use `this->` for member variables, not member-function invocations. Keep
