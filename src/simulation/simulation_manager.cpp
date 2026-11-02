@@ -544,6 +544,18 @@ void SimulationManager::showEpanetLog()
 
 void SimulationManager::importNetworkProject()
 {
+    this->import_into_private_head = false;
+    chooseNetworkProjectFile();
+}
+
+void SimulationManager::importNetworkProjectForHead()
+{
+    this->import_into_private_head = true;
+    chooseNetworkProjectFile();
+}
+
+void SimulationManager::chooseNetworkProjectFile()
+{
 #ifdef Q_OS_WASM
     pending_project_import_manager = this;
     aowisOpenNetworkProjectFile();
@@ -555,8 +567,11 @@ void SimulationManager::importNetworkProject()
         tr("Water network projects (*.inp *.ejsdb)"),
         [manager](const QString &file_name, const QByteArray &file_content)
         {
-            if (!manager || file_name.isEmpty())
+            if (!manager) return;
+            if (file_name.isEmpty()) {
+                manager->import_into_private_head = false;
                 return;
+            }
 
             QMetaObject::invokeMethod(
                 manager,
@@ -638,6 +653,7 @@ void SimulationManager::importNetworkProjectContent(
 
                 if (!import_result.recognized)
                 {
+                    manager->import_into_private_head = false;
                     showDetailedMessageBox(
                         parent_widget,
                         QMessageBox::Critical,
@@ -654,6 +670,7 @@ void SimulationManager::importNetworkProjectContent(
                     if (details.isEmpty())
                         details = conversion_result.errorSummary();
 
+                    manager->import_into_private_head = false;
                     showDetailedMessageBox(
                         parent_widget,
                         QMessageBox::Critical,
@@ -670,6 +687,13 @@ void SimulationManager::importNetworkProjectContent(
                 {
                     if (diagnostic.severity == EpanetJsConversionDiagnosticSeverity::Warning)
                         ++warning_count;
+                }
+
+                if (manager->import_into_private_head) {
+                    manager->import_into_private_head = false;
+                    emit manager->signalPrivateHeadNetworkImported(
+                        std::move(conversion_result.network));
+                    return;
                 }
 
                 // Unit-profile creation is optional and never affects import conversion.
@@ -854,6 +878,18 @@ void SimulationManager::importNetworkProjectContent(
 
     EpanetRunner runner;
     EpanetResultImport import_result = runner.importInp(temporary_file_path);
+    if (this->import_into_private_head) {
+        this->import_into_private_head = false;
+        if (!import_result.status.success) {
+            showDetailedMessageBox(parent_widget, QMessageBox::Critical,
+                tr("EPANET import failed"),
+                tr("The selected EPANET network could not be imported."),
+                importFailureDetails(import_result));
+            return;
+        }
+        emit signalPrivateHeadNetworkImported(std::move(import_result.request.network));
+        return;
+    }
     finishEpanetNetworkImport(std::move(import_result), parent_widget);
 }
 

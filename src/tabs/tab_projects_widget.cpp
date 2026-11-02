@@ -70,6 +70,7 @@
 #include <QVBoxLayout>
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <algorithm>
 
@@ -711,15 +712,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->revision_network_overview->export_network, &QPushButton::clicked,
             this, &ProjectsWidget::exportInspectedNetwork);
     connect(this->revision_network_overview->import_network, &QPushButton::clicked,
-            this, [this] {
-                // The global EPANET importer replaces the active in-memory
-                // editor model, not the selected DVMDB draft. Do not route a
-                // selected HEAD import to that unrelated destination.
-                QMessageBox::information(this, tr("Import into HEAD"),
-                    tr("Import into this specific private HEAD is not available yet. "
-                       "The global EPANET importer does not save into the selected "
-                       "DVMDB working copy."));
-            });
+            this, &ProjectsWidget::beginInspectedNetworkImport);
     connect(this->project_overview->import_network, &QPushButton::clicked,
             this, &ProjectsWidget::importProjectRequested);
     for (ProjectsInspectorPanel *panel : {static_cast<ProjectsInspectorPanel *>(this->database_inspector),
@@ -2392,20 +2385,36 @@ void ProjectsWidget::updateButtons()
     this->revision_network_overview->open_network->setEnabled(
         selected_network && ready && backed);
     this->revision_network_overview->open_network->setText(tr("Open network"));
-    // Import must be scoped to an exact verified empty private working copy.
-    // Neither an unborn branch nor an empty committed base proves that a
-    // private working copy is empty; do not enable a destructive global import.
-    this->revision_network_overview->import_network->setEnabled(false);
-    this->revision_network_overview->import_network->setToolTip(
-        tr("Requires a verified empty private HEAD and a draft-scoped importer. "
-           "The global importer does not target this HEAD."));
+    const ProjectPreviewBranch *selected_branch = inspectedRevisionBranch();
+    const bool unborn_head = selected_network
+        && this->selection_kind == SelectionKind::Head
+        && selected_branch != nullptr && selected_branch->head.isEmpty();
+    const PersonalRepositoryTarget personal = resolvePersonalRepositoryTarget();
+    const bool import_ready = ready && backed && unborn_head
+        && this->network_summary_count == 0
+        && (!this->network_summary_is_working_copy
+            || this->network_summary_generation == QStringLiteral("0"))
+        && personal.kind != PersonalRepositoryTarget::Kind::Unavailable
+        && !this->head_network_import_active;
+    this->revision_network_overview->import_network->setEnabled(import_ready);
+    this->revision_network_overview->import_network->setToolTip(import_ready
+        ? tr("Import an EPANET project into this empty unborn private HEAD")
+        : tr("Import requires an empty unborn HEAD and an available personal DVMDB. "
+             "Existing network contents are never overwritten."));
+    const bool revision_export = this->selection_kind == SelectionKind::Revision
+        && this->network_summary_count == 1
+        && DvmdbIdentity::isUuidV7(this->network_summary_id);
+    const bool draft_export = this->selection_kind == SelectionKind::Head
+        && this->network_summary_is_working_copy
+        && this->network_summary_count == 1
+        && DvmdbIdentity::isUuidV7(this->network_summary_id)
+        && DvmdbIdentity::isUuidV7(this->network_summary_draft_id)
+        && !this->network_summary_generation.isEmpty();
     this->revision_network_overview->export_network->setEnabled(
-        ready && backed && this->selection_kind == SelectionKind::Revision
-        && this->network_summary_count == 1);
+        ready && backed && (revision_export || draft_export));
     this->revision_network_overview->export_network->setToolTip(
         this->selection_kind == SelectionKind::Head
-        ? tr("Export the current working copy from the editor. The committed "
-             "base may differ from this HEAD's saved private draft.")
+        ? tr("Export the selected saved private working-copy generation, not the editor's current model")
         : tr("Export only the selected immutable revision's hydraulic network"));
     if (this->inspector_actions_stack != nullptr)
         this->inspector_actions_stack->setVisible(
@@ -2865,6 +2874,9 @@ void ProjectsWidget::refreshNetworkSummary()
     const int epoch = ++this->network_read_epoch;
     this->network_summary_count = -1;
     this->network_summary_id.clear();
+    this->network_summary_draft_id.clear();
+    this->network_summary_generation.clear();
+    this->network_summary_is_working_copy = false;
     this->network_summary_revision.clear();
     this->network_summary_project.clear();
     this->network_summary_branch.clear();
@@ -2928,8 +2940,19 @@ void ProjectsWidget::refreshNetworkSummary()
         }
         if (matches == 0) {
             client->deleteLater();
-            // No saved private draft: a committed-base summary is meaningful,
-            // but does not authorize editing or replacing a network.
+            const ProjectPreviewBranch *selected = inspectedRevisionBranch();
+            if (selected != nullptr && selected->head.isEmpty()) {
+                // Unborn HEAD, no private draft and therefore no candidate
+                // records: a new draft can safely be provisioned for import.
+                this->network_summary_count = 0;
+                this->revision_network_overview->showCounts(QJsonObject{}, 0);
+                this->revision_network_overview->network_status->setText(
+                    tr("No hydraulic network in this unborn HEAD."));
+                updateButtons();
+                return;
+            }
+            // A committed branch without a private draft displays only its
+            // pinned base; its counts are not permission to overwrite it.
             refreshCommittedNetworkSummary(epoch, project_id, branch_name, {});
             return;
         }
@@ -3016,6 +3039,19 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
         return;
     }
     this->network_summary_count = networks.size();
+    this->network_summary_is_working_copy = working_copy;
+    if (working_copy) {
+        this->network_summary_draft_id = result.value(QStringLiteral("draftId")).toString();
+        this->network_summary_generation = result.value(QStringLiteral("generation")).toString();
+        if (!DvmdbIdentity::isUuidV7(this->network_summary_draft_id)
+            || this->network_summary_generation.isEmpty()) {
+            this->network_summary_count = -1;
+            this->revision_network_overview->network_status->setText(
+                tr("Invalid saved draft identity or generation."));
+            updateButtons();
+            return;
+        }
+    }
     this->revision_network_overview->clearCounts();
     const QStringList keys{QStringLiteral("junctions"), QStringLiteral("pipes"),
         QStringLiteral("reservoirs"), QStringLiteral("tanks"),
@@ -3047,7 +3083,7 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
                 ? tr("No committed hydraulic network. Private draft contents may differ.")
                 : tr("No hydraulic network in this committed revision.")));
     } else {
-        if (!working_copy && networks.size() == 1)
+        if (networks.size() == 1)
             this->network_summary_id = networks.first().toObject()
                 .value(QStringLiteral("id")).toString();
         const QString heading = networks.size() == 1
@@ -3151,9 +3187,184 @@ void ProjectsWidget::fetchInspectedNetwork(bool export_requested)
     });
 }
 
+void ProjectsWidget::beginInspectedNetworkImport()
+{
+    if (this->head_network_import_active || this->selection_kind != SelectionKind::Head
+        || !this->revision_network_overview->import_network->isEnabled()) return;
+    this->pending_head_import_epoch = this->network_read_epoch;
+    emit selectedHeadImportFileRequested();
+}
+
+void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
+{
+    const int epoch = this->pending_head_import_epoch;
+    this->pending_head_import_epoch = -1;
+    if (epoch < 0 || epoch != this->network_read_epoch
+        || this->head_network_import_active || this->selection_kind != SelectionKind::Head
+        || this->network_summary_count != 0) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    const ProjectServerProfile *source = currentServer();
+    if (project == nullptr || branch == nullptr || source == nullptr
+        || !project->database_backed || !branch->head.isEmpty()) return;
+    const QString branch_uuid = branch->id.mid(project->id.size() + 1);
+    const QString project_uuid = project->backend_id;
+    if (!DvmdbIdentity::isUuidV7(project_uuid)
+        || !DvmdbIdentity::isUuidV7(branch_uuid)) return;
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable) return;
+    if (!DvmdbIdentity::isUuidV7(network.uuid.toString(QUuid::WithoutBraces)))
+        network.uuid = QUuid(DvmdbIdentity::newUuidV7());
+    if (network.id.trimmed().isEmpty()) network.id = project->name;
+    const QString source_repository = project->repository_id;
+    const QString project_name = project->name;
+    QString source_endpoint = source->connection_type == QStringLiteral("remote")
+        ? source->endpoint : QString();
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    if (source->connection_type == QStringLiteral("local"))
+        source_endpoint = embeddedDvmdbEndpoint(source->local_path, source->personal,
+                                                nullptr, nullptr);
+#endif
+    this->head_network_import_active = true;
+    updateButtons();
+    this->revision_network_overview->network_status->setText(
+        tr("Importing hydraulic network into saved private HEAD…"));
+    PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    const std::shared_ptr<NetworkHydraulic> imported =
+        std::make_shared<NetworkHydraulic>(std::move(network));
+    const std::function<void(const QString &)> failed =
+        [this, client, epoch](const QString &error) {
+            client->deleteLater();
+            this->head_network_import_active = false;
+            if (this->network_read_epoch == epoch
+                && this->selection_kind == SelectionKind::Head)
+                this->revision_network_overview->network_status->setText(
+                    tr("Network import was not confirmed: %1").arg(error));
+            updateButtons();
+        };
+    const std::function<void(const PersonalWorkingCopyInfo &, const QString &)> use_draft =
+        [this, client, target, epoch, project_uuid, branch_uuid, imported, failed]
+        (const PersonalWorkingCopyInfo &draft, const QString &error) {
+            if (!error.isEmpty()) { failed(error); return; }
+            if (this->network_read_epoch != epoch || this->selection_kind != SelectionKind::Head) {
+                failed(tr("HEAD selection changed during import.")); return;
+            }
+            if (draft.project_id != project_uuid || draft.branch_id != branch_uuid
+                || !draft.base_revision.isEmpty() || !draft.changes.isEmpty()
+                || (!draft.event_count.isEmpty() && draft.event_count != QStringLiteral("0"))) {
+                failed(tr("Private draft is not an untouched unborn HEAD. Existing content was preserved."));
+                return;
+            }
+            client->acquireLease(target, draft.id, draft.session_id, 90,
+                [this, client, target, epoch, draft, imported, failed]
+                (const PersonalWorkingCopyLease &lease, const QString &lease_error) {
+                    if (!lease_error.isEmpty()) { failed(lease_error); return; }
+                    if (lease.generation != draft.generation
+                        || this->network_read_epoch != epoch
+                        || this->selection_kind != SelectionKind::Head) {
+                        client->releaseLease(target, draft.id, draft.session_id,
+                            lease.token, [failed](const QString &) {
+                                failed(QObject::tr("Draft changed before import; no data was overwritten."));
+                            });
+                        return;
+                    }
+                    client->importNetworkIntoEmptyDraft(target, draft.id, draft.session_id,
+                        lease.token, lease.generation, *imported,
+                        [this, client, target, epoch, draft, lease, failed]
+                        (const PersonalWorkingCopyInfo &saved, const QString &import_error) {
+                            client->releaseLease(target, draft.id, draft.session_id,
+                                lease.token,
+                                [this, client, epoch, saved, import_error, failed]
+                                (const QString &release_error) {
+                                    if (!import_error.isEmpty()) { failed(import_error); return; }
+                                    client->deleteLater();
+                                    this->head_network_import_active = false;
+                                    if (this->network_read_epoch == epoch
+                                        && this->selection_kind == SelectionKind::Head) {
+                                        refreshNetworkSummary();
+                                        if (!release_error.isEmpty())
+                                            this->revision_network_overview->network_status->setText(
+                                                tr("Network saved to draft %1, but lease release is unconfirmed: %2")
+                                                    .arg(saved.id, release_error));
+                                    }
+                                    updateButtons();
+                                });
+                        });
+                });
+        };
+    client->list(target,
+        [this, client, target, epoch, project_uuid, branch_uuid, source_repository,
+         source_endpoint, project_name, use_draft, failed]
+        (const QList<PersonalWorkingCopyInfo> &drafts, const QString &list_error) {
+            if (!list_error.isEmpty()) { failed(list_error); return; }
+            if (this->network_read_epoch != epoch || this->selection_kind != SelectionKind::Head) {
+                failed(tr("HEAD selection changed during import.")); return;
+            }
+            QString matched;
+            for (const PersonalWorkingCopyInfo &draft : drafts) {
+                if (draft.project_id != project_uuid || draft.branch_id != branch_uuid) continue;
+                if (!matched.isEmpty()) {
+                    failed(tr("Multiple private drafts exist for this HEAD. Choose one in Personal working copies."));
+                    return;
+                }
+                matched = draft.id;
+            }
+            if (!matched.isEmpty()) {
+                client->reopen(target, matched, use_draft);
+                return;
+            }
+            const std::function<void(const QString &)> create_draft =
+                [client, target, project_uuid, branch_uuid, use_draft, failed]
+                (const QString &error) {
+                    if (!error.isEmpty()) { failed(error); return; }
+                    client->create(target, project_uuid, branch_uuid, {}, use_draft);
+                };
+            if (source_repository == target.repository_id) {
+                create_draft({});
+            } else if (!source_endpoint.isEmpty()) {
+                client->checkoutBranchPrivately(target, source_endpoint, source_repository,
+                    project_uuid, project_name, branch_uuid, {}, create_draft);
+            } else {
+                failed(tr("Source branch must be checked out into the personal DVMDB first."));
+            }
+        });
+}
+
 void ProjectsWidget::exportInspectedNetwork()
 {
-    fetchInspectedNetwork(true);
+    if (this->selection_kind == SelectionKind::Revision) {
+        fetchInspectedNetwork(true);
+        return;
+    }
+    if (this->selection_kind != SelectionKind::Head
+        || !this->network_summary_is_working_copy
+        || this->network_summary_count != 1
+        || !DvmdbIdentity::isUuidV7(this->network_summary_draft_id)
+        || !DvmdbIdentity::isUuidV7(this->network_summary_id)) return;
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable) return;
+    const QString draft_id = this->network_summary_draft_id;
+    const QString network_id = this->network_summary_id;
+    const QString generation = this->network_summary_generation;
+    const int epoch = this->network_read_epoch;
+    PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    client->loadDraftNetwork(target, draft_id, network_id,
+        [this, client, epoch, generation](const NetworkHydraulic &network,
+                                          const QString &saved_generation,
+                                          const QString &error) {
+        client->deleteLater();
+        if (epoch != this->network_read_epoch || this->selection_kind != SelectionKind::Head)
+            return;
+        if (!error.isEmpty() || saved_generation != generation) {
+            this->revision_network_overview->network_status->setText(error.isEmpty()
+                ? tr("HEAD changed since its network summary. Refresh before exporting.")
+                : tr("Saved HEAD export failed: %1").arg(error));
+            this->network_summary_count = -1;
+            updateButtons();
+            return;
+        }
+        emit selectedNetworkExportRequested(network);
+    });
 }
 
 void ProjectsWidget::createEditingBranchFromRevision(const QString &name)

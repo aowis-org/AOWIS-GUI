@@ -577,6 +577,53 @@ void PersonalWorkingCopyClient::commitSavedDraft(
     });
 }
 
+void PersonalWorkingCopyClient::importNetworkIntoEmptyDraft(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &session_id, const QString &fencing_token,
+    const QString &generation, const NetworkHydraulic &network, DraftCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(session_id)
+        || !DvmdbIdentity::isUuidV7(fencing_token) || !decimal(generation)
+        || !DvmdbIdentity::isUuidV7(network.uuid.toString(QUuid::WithoutBraces))) {
+        completion({}, QStringLiteral("Invalid private draft, lease, generation or network UUIDv7."));
+        return;
+    }
+    const QByteArray encoded = aowis::model::ModelCodec<NetworkHydraulic>::encode(network);
+    if (encoded.isEmpty() || encoded.size() > 5 * 1024 * 1024) {
+        completion({}, QStringLiteral("Imported network exceeds the supported canonical HTTP payload size."));
+        return;
+    }
+    request(target, "POST", QStringLiteral("/working-copies/") + draft_id
+                + QStringLiteral("/import-network"),
+            QJsonObject{{QStringLiteral("sessionId"), session_id},
+                        {QStringLiteral("fencingToken"), fencing_token},
+                        {QStringLiteral("expectedGeneration"), generation},
+                        {QStringLiteral("payloadBase64"), QString::fromLatin1(encoded.toBase64())}},
+            [completion = std::move(completion), draft_id, generation, network_id = network.uuid]
+            (const QJsonObject &body, const QString &error) {
+        if (!error.isEmpty()) {
+            completion({}, error + QStringLiteral(" Reopen the saved draft before retrying; "
+                "the import may already have completed."));
+            return;
+        }
+        PersonalWorkingCopyInfo saved;
+        if (!parseDraft(body, saved) || saved.id != draft_id || !saved.dirty
+            || saved.generation != QString::number(generation.toULongLong() + 1)) {
+            completion({}, QStringLiteral("Invalid imported-draft acknowledgement. Reopen before retrying."));
+            return;
+        }
+        bool found = false;
+        const QString id = network_id.toString(QUuid::WithoutBraces);
+        for (const PersonalWorkingCopyChange &change : saved.changes)
+            if (!change.deleted && change.kind == 100 && change.uuid == id) found = true;
+        if (!found) {
+            completion({}, QStringLiteral("Imported network identity missing from saved draft."));
+            return;
+        }
+        completion(saved, {});
+    });
+}
+
 void PersonalWorkingCopyClient::summarizeDraftNetworks(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     SummaryCompletion completion)

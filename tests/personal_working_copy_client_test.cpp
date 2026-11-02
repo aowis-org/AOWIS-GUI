@@ -96,6 +96,8 @@ public:
     bool malformed_overlay = false;
     bool corrupt_network_payload = false;
     int network_read_count = 0;
+    int network_import_count = 0;
+    QJsonObject last_network_import;
     bool drop_next_save_acknowledgement = false;
 
     QByteArray bundlePayload() const
@@ -262,6 +264,35 @@ public:
                                 {QStringLiteral("kind"), 100},
                                 {QStringLiteral("references"), QJsonArray{}},
                                 {QStringLiteral("payloadBase64"), QStringLiteral("AQID")}}};
+                            document = draftRecord(this->lease_session);
+                            document.insert(QStringLiteral("changes"), this->saved_changes);
+                            document.insert(QStringLiteral("events"), QJsonArray{});
+                        }
+                    }
+                    else if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/import-network "))
+                    {
+                        ++this->network_import_count;
+                        this->last_network_import = request_body;
+                        const QByteArray payload = QByteArray::fromBase64(
+                            request_body.value(QStringLiteral("payloadBase64")).toString().toLatin1());
+                        const std::optional<NetworkHydraulic> network =
+                            aowis::model::ModelCodec<NetworkHydraulic>::decode(payload);
+                        if (!network || this->generation != 0
+                            || request_body.value(QStringLiteral("sessionId")).toString() != this->lease_session
+                            || request_body.value(QStringLiteral("fencingToken")).toString() != lease_token
+                            || request_body.value(QStringLiteral("expectedGeneration")).toString()
+                                != QString::number(this->generation)) {
+                            status = 409;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("conflict"), QStringLiteral("empty unborn draft required")));
+                        } else {
+                            ++this->generation;
+                            this->saved_changes = QJsonArray{QJsonObject{
+                                {QStringLiteral("uuid"), network->uuid.toString(QUuid::WithoutBraces)},
+                                {QStringLiteral("kind"), 100},
+                                {QStringLiteral("references"), QJsonArray{}},
+                                {QStringLiteral("payloadBase64"), QString::fromLatin1(payload.toBase64())}}};
                             document = draftRecord(this->lease_session);
                             document.insert(QStringLiteral("changes"), this->saved_changes);
                             document.insert(QStringLiteral("events"), QJsonArray{});
@@ -678,6 +709,39 @@ int main(int argc, char **argv)
     if (!check(until(application, [&] { return initialized; }) && !init_error.isEmpty() &&
                bootstrap.generation == 1,
                "GUI first hydraulic network accepted a stale second initialization")) return 1;
+    // A complete imported EPANET model is sent to a specific, fenced private
+    // draft; no global editor model or committed revision is touched.
+    Stub import_stub;
+    if (!check(import_stub.listen(), "could not start full-network import fixture")) return 1;
+    import_stub.lease_session = init_session;
+    NetworkHydraulic imported_network;
+    imported_network.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    imported_network.id = QStringLiteral("Imported network");
+    initialized = false;
+    client.importNetworkIntoEmptyDraft(import_stub.target(), draft_id, init_session,
+        lease_token, QStringLiteral("0"), imported_network,
+        [&](const PersonalWorkingCopyInfo &draft, const QString &failure) {
+            initial_draft = draft;
+            init_error = failure;
+            initialized = true;
+        });
+    if (!check(until(application, [&] { return initialized; }) && init_error.isEmpty()
+            && import_stub.network_import_count == 1 &&
+            import_stub.generation == 1 && initial_draft.dirty
+            && initial_draft.generation == QStringLiteral("1")
+            && initial_draft.changes.size() == 1
+            && initial_draft.changes.first().uuid == imported_network.uuid.toString(QUuid::WithoutBraces),
+            "GUI full-network import did not save to the selected private draft")) return 1;
+    initialized = false;
+    client.importNetworkIntoEmptyDraft(import_stub.target(), draft_id, init_session,
+        lease_token, QStringLiteral("0"), imported_network,
+        [&](const PersonalWorkingCopyInfo &, const QString &failure) {
+            init_error = failure;
+            initialized = true;
+        });
+    if (!check(until(application, [&] { return initialized; }) && !init_error.isEmpty()
+            && import_stub.network_import_count == 2 && import_stub.generation == 1,
+            "GUI full-network import accepted overwrite of a populated draft")) return 1;
     if (!check(DvmdbIdentity::isUuidV7(PersonalWorkingCopyClient::newSessionUuidV7()),
                "session generator did not produce UUIDv7")) return 1;
     bool done = false;

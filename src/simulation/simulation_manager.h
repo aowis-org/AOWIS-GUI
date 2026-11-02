@@ -39,6 +39,7 @@ public:
     void showSimulationDiagnostics();
     void showEpanetLog();
     void importNetworkProject();
+    void importNetworkProjectForHead();
     void importNetworkProjectResource(const QString &resource_path, const QString &file_name);
     void exportEpanetNetwork();
     void exportSelectedEpanetNetwork(const NetworkHydraulic &network);
@@ -54,7 +55,9 @@ private:
     std::shared_ptr<std::atomic_bool> simulation_cancellation_flag;
     bool simulation_running = false;
     bool epanet_js_import_in_progress = false;
+    bool import_into_private_head = false;
 
+    void chooseNetworkProjectFile();
     void finishSimulation(const EpanetResultRun &run_result);
     void finishEpanetNetworkImport(EpanetResultImport import_result, QWidget *parent_widget);
     SimulationStatisticsDialog *ensureSimulationStatisticsDialog();
@@ -65,5 +68,6 @@ signals:
     void signalSimulationFinished(bool cancelled);
     void signalEpanetLogAvailabilityChanged(bool available);
     void signalEpanetNetworkImported();
+    void signalPrivateHeadNetworkImported(NetworkHydraulic network);
 };
 #endif // SIMULATION_MANAGER_H

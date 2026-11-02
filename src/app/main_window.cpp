@@ -448,6 +448,10 @@ MainWindow::MainWindow(QWidget *parent)
     });
     connect(this->projects_workspace, &ProjectsWidget::selectedNetworkExportRequested,
             this->simulation_manager, &SimulationManager::exportSelectedEpanetNetwork);
+    connect(this->projects_workspace, &ProjectsWidget::selectedHeadImportFileRequested,
+            this->simulation_manager, &SimulationManager::importNetworkProjectForHead);
+    connect(this->simulation_manager, &SimulationManager::signalPrivateHeadNetworkImported,
+            this->projects_workspace, &ProjectsWidget::importNetworkIntoSelectedHead);
     connect(this->projects_workspace, &ProjectsWidget::draftNetworkEditRequested,
             this, [this](const QString &draft_id, const QString &network_id)
     {

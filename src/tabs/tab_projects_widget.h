@@ -107,6 +107,7 @@ public slots:
     void selectProjectByName(const QString &name);
     void selectBranchByName(const QString &name);
     void showRevisionHistory();
+    void importNetworkIntoSelectedHead(NetworkHydraulic network);
 
 signals:
     void projectContextChanged(const QStringList &projects,
@@ -121,6 +122,7 @@ signals:
     void draftNetworkEditRequested(const QString &draft_id, const QString &network_id);
     void immutableNetworkPreviewRequested(NetworkHydraulic network, const QString &revision);
     void selectedNetworkExportRequested(NetworkHydraulic network);
+    void selectedHeadImportFileRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -188,6 +190,7 @@ private:
     void displayNetworkSummary(const QJsonObject &result, bool working_copy);
     void openInspectedNetwork();
     void exportInspectedNetwork();
+    void beginInspectedNetworkImport();
     void fetchInspectedNetwork(bool export_requested);
     void createEditingBranchFromRevision(const QString &name);
     void reportServerSaveFailure();
@@ -233,6 +236,11 @@ private:
     QNetworkAccessManager *network_read_manager = nullptr;
     int network_read_epoch = 0;
     QString network_summary_id;
+    QString network_summary_draft_id;
+    QString network_summary_generation;
+    bool network_summary_is_working_copy = false;
+    bool head_network_import_active = false;
+    int pending_head_import_epoch = -1;
     QString network_summary_revision;
     QString network_summary_branch;
     QString network_summary_project;

@@ -122,6 +122,12 @@ public:
     using SummaryCompletion = std::function<void(const QJsonObject &, const QString &)>;
     void summarizeDraftNetworks(const PersonalRepositoryTarget &target,
                                 const QString &draft_id, SummaryCompletion completion);
+    // Atomically import a complete canonical network into an untouched unborn
+    // private draft, never an already populated or committed HEAD.
+    void importNetworkIntoEmptyDraft(const PersonalRepositoryTarget &target,
+                                     const QString &draft_id, const QString &session_id,
+                                     const QString &fencing_token, const QString &generation,
+                                     const NetworkHydraulic &network, DraftCompletion completion);
     void loadDraftNetwork(const PersonalRepositoryTarget &target,
                           const QString &draft_id, const QString &network_id,
                           NetworkCompletion completion);
