@@ -186,6 +186,7 @@ private:
 
     bool monitor_node_decluttering = true;
     bool monitor_globe_3d_icons = false;
+    int monitor_globe_icon_size_percent = 100;
     std::shared_ptr<MapBgfxEditorOverlay> monitor_globe_icon_overlay;
     // The surface presents frames: picking and hover only run against a
     // live surface.

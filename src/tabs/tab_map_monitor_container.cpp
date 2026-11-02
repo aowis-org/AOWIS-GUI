@@ -360,6 +360,16 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
     connect(this->hydraulic_data, &HydraulicData::signalNetworkGeometryChanged, this,
             [sync_network_present](quint64) { sync_network_present(); });
     sync_network_present();
+    // The 3D Monitor overlays the Editor's actual pixmaps; its percent slider
+    // must resize that overlay rather than only the underlying GPU symbology.
+    connect(this->map_menu->mapNavigationWidget(),
+        &MapNavigationWidget::signalIconSizeChanged, this, [this](int percent)
+    {
+        this->monitor_globe_icon_size_percent = qBound(50, percent, 600);
+        if (this->bgfx_surface != nullptr && !this->editor_mode
+            && this->map_model->viewMode() == MapViewMode::Globe)
+            this->bgfx_surface->requestRedraw();
+    });
     connect(this->map_menu->mapNavigationWidget(),
         &MapNavigationWidget::signalMonitorIconSizeUnitChanged, this,
         [this](NetworkSymbologySizeUnit unit)
@@ -1663,8 +1673,10 @@ void MapMonitorContainer::activateMonitorSurface()
                 this->hydraulic_data != nullptr && !this->basemap_only
                     ? &this->hydraulic_data->networkRenderSnapshot() : nullptr;
             const double zoom = this->map_model->view2dContinuousZoom();
-            const int width = qMax(1, qRound(std::clamp(
-                10.0 + (zoom - 16.0) * 10.0, 10.0, 40.0)));
+            const double base_width = std::clamp(
+                10.0 + (zoom - 16.0) * 10.0, 10.0, 40.0);
+            const int width = qMax(1, qRound(base_width
+                * this->monitor_globe_icon_size_percent / 100.0));
             this->monitor_globe_icon_overlay->buildGlobe(
                 canvas, cache, MapEditorViewportRenderState(), projector,
                 snapshot, width, viewport, frustum);

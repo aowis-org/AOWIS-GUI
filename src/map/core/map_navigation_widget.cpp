@@ -72,7 +72,7 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
     slider_map_visibility->setRange(0, 100);
     connect(slider_map_visibility, &QSlider::valueChanged, this, &MapNavigationWidget::signalSlideOpacityChanged);
 
-    QLabel *label_slider_icon_size = new QLabel(
+    this->label_icon_size = new QLabel(
         this->mode == CanvasMode::Monitor ? QStringLiteral("Icon Size") : QStringLiteral("Icon Size [%]"));
     if (this->mode == CanvasMode::Monitor)
     {
@@ -94,38 +94,31 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         {
             const MapViewMode view_mode = this->map->model()->viewMode();
             const bool is_3d = view_mode == MapViewMode::Globe;
-            const NetworkSymbologySizeUnit unit = is_3d
-                ? this->icon_size_3d_unit : this->icon_size_2d_unit;
+            // The Monitor globe shares the Editor's percentage-based pixmap
+            // overlay. Keep the 2D Monitor's metre/pixel settings separate.
+            if (is_3d)
+            {
+                this->icon_size_3d_percent = raw_value;
+                emit signalIconSizeChanged(raw_value);
+                return;
+            }
+            const NetworkSymbologySizeUnit unit = this->icon_size_2d_unit;
             if (unit == NetworkSymbologySizeUnit::Meters)
-            {
-                if (is_3d)
-                    this->icon_size_3d_m = raw_value;
-                else
-                    this->icon_size_2d_m = raw_value;
-                emit signalMonitorIconSizeChanged(unit, raw_value);
-            }
+                this->icon_size_2d_m = raw_value;
             else
-            {
-                if (is_3d)
-                    this->icon_size_3d_px = raw_value;
-                else
-                    this->icon_size_2d_px = raw_value;
-                emit signalMonitorIconSizeChanged(unit, raw_value);
-            }
+                this->icon_size_2d_px = raw_value;
+            emit signalMonitorIconSizeChanged(unit, raw_value);
         });
         connect(this->combo_icon_size_unit, &QComboBox::currentIndexChanged, this,
             [this](int index)
         {
             const NetworkSymbologySizeUnit unit = static_cast<NetworkSymbologySizeUnit>(
                 this->combo_icon_size_unit->itemData(index).toInt());
-            const MapViewMode view_mode = this->map->model()->viewMode();
-            const bool is_3d = view_mode == MapViewMode::Globe;
-            NetworkSymbologySizeUnit &current_unit = is_3d
-                ? this->icon_size_3d_unit : this->icon_size_2d_unit;
-            if (current_unit == unit)
+            if (this->map->model()->viewMode() == MapViewMode::Globe
+                || this->icon_size_2d_unit == unit)
                 return;
 
-            current_unit = unit;
+            this->icon_size_2d_unit = unit;
             syncIconSizeSliderForViewMode(this->map->model()->viewMode());
             emit signalMonitorIconSizeUnitChanged(unit);
         });
@@ -201,7 +194,7 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
     const int label_controls_row = icon_slider_row + 1;
     if (this->check_3d_icons != nullptr)
         this->grid->addWidget(this->check_3d_icons, 3, 0, 1, 3);
-    this->grid->addWidget(label_slider_icon_size, icon_label_row, 0, 1,
+    this->grid->addWidget(this->label_icon_size, icon_label_row, 0, 1,
         this->mode == CanvasMode::Monitor ? 2 : 3);
     if (this->combo_icon_size_unit != nullptr)
         this->grid->addWidget(this->combo_icon_size_unit, icon_label_row, 2);
@@ -312,8 +305,9 @@ void MapNavigationWidget::refreshIconSizeUnitPresentation()
         "Pixels retain their independent screen-space sizing.").arg(display.unit));
 
     const bool is_3d = this->map->model()->viewMode() == MapViewMode::Globe;
-    const NetworkSymbologySizeUnit active_unit = is_3d
-        ? this->icon_size_3d_unit : this->icon_size_2d_unit;
+    if (is_3d)
+        return; // The 3D Monitor uses a percentage, independent of unit profiles.
+    const NetworkSymbologySizeUnit active_unit = this->icon_size_2d_unit;
     if (active_unit == NetworkSymbologySizeUnit::Meters)
     {
         MapSymbologySlider *slider = static_cast<MapSymbologySlider *>(this->slider_icon_size);
@@ -339,13 +333,28 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
     const bool is_3d = view_mode == MapViewMode::Globe;
     if (this->mode == CanvasMode::Monitor)
     {
-        const NetworkSymbologySizeUnit unit = is_3d
-            ? this->icon_size_3d_unit : this->icon_size_2d_unit;
-        const int remembered_value = unit == NetworkSymbologySizeUnit::Meters
-            ? qRound(is_3d ? this->icon_size_3d_m : this->icon_size_2d_m)
-            : (is_3d ? this->icon_size_3d_px : this->icon_size_2d_px);
+        if (this->label_icon_size != nullptr)
+            this->label_icon_size->setText(is_3d
+                ? QStringLiteral("Icon Size [%]") : QStringLiteral("Icon Size"));
+        if (this->combo_icon_size_unit != nullptr)
+            this->combo_icon_size_unit->setVisible(!is_3d);
         MapSymbologySlider *symbology_slider =
             static_cast<MapSymbologySlider *>(this->slider_icon_size);
+        if (is_3d)
+        {
+            // Match the Editor globe overlay: 50–600%, default 100%,
+            // with an independent value when switching between 2D and 3D.
+            this->icon_size_3d_percent = qBound(50, this->icon_size_3d_percent, 600);
+            symbology_slider->setConfiguration(
+                50, 600, 100, this->icon_size_3d_percent,
+                QStringLiteral("Scales 3D entity icons as in the Distribution Editor."),
+                QStringLiteral(" %"));
+            emit signalIconSizeChanged(this->icon_size_3d_percent);
+            return;
+        }
+        const NetworkSymbologySizeUnit unit = this->icon_size_2d_unit;
+        const int remembered_value = unit == NetworkSymbologySizeUnit::Meters
+            ? qRound(this->icon_size_2d_m) : this->icon_size_2d_px;
         if (unit == NetworkSymbologySizeUnit::Meters)
         {
             const MapSymbologyLengthUnits::Presentation display =

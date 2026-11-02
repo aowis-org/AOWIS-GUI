@@ -63,6 +63,7 @@ private:
     QCheckBox *check_label_node_values = nullptr;
     QCheckBox *check_label_link_values = nullptr;
     QSlider *slider_icon_size = nullptr;
+    QLabel *label_icon_size = nullptr;
     QSlider *slider_map_opacity = nullptr;
     bool network_present = false;
     QComboBox *combo_icon_size_unit = nullptr;
@@ -71,9 +72,6 @@ private:
     NetworkSymbologySizeUnit icon_size_2d_unit = NetworkSymbologySizeUnit::Pixels;
     int icon_size_2d_px = NetworkSymbologyDefaultIconSizePx;
     double icon_size_2d_m = NetworkSymbologyDefaultIconSizeM;
-    NetworkSymbologySizeUnit icon_size_3d_unit = NetworkSymbologySizeUnit::Pixels;
-    int icon_size_3d_px = NetworkSymbologyDefaultIconSizePx;
-    double icon_size_3d_m = NetworkSymbologyDefaultIconSizeM;
 
     void activateMapProvider(MapProvider provider);
     void sync3dIconsForViewMode(MapViewMode view_mode);
