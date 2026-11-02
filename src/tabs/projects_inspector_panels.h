@@ -276,11 +276,22 @@ public:
         form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         this->name->setParent(this);
         form->addRow(tr("Branch name"), this->name);
+        this->tags = new QLineEdit(this);
+        this->tags->setObjectName(QStringLiteral("projectsRevisionBranchTags"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+        form->addRow(tr("Tags"), this->tags);
+        this->description = new QTextEdit(this);
+        this->description->setObjectName(QStringLiteral("projectsRevisionBranchDescription"));
+        this->description->setMinimumHeight(90);
+        this->description->setMaximumHeight(170);
+        form->addRow(tr("Description"), this->description);
         column->addLayout(form);
         column->addStretch(1);
     }
 
     QLineEdit *name = nullptr;
+    QLineEdit *tags = nullptr;
+    QTextEdit *description = nullptr;
 };
 
 class ProjectsInspectorActionStack final : public QStackedWidget

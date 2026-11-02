@@ -889,13 +889,43 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (this->source_writer->isBusy()) this->revision_autosave_timer->start();
         else saveRevisionInspectorChanges();
     });
+    // Overview and Branch edit the same branch metadata. Keep both editors in
+    // sync, while the Overview remains the single source read by autosave and
+    // HEAD commit validation. Block reflected signals to avoid feedback loops.
+    connect(this->revision_overview->tags, &QLineEdit::textChanged,
+            this, [this](const QString &text) {
+        const QSignalBlocker blocked(this->revision_branch_page->tags);
+        this->revision_branch_page->tags->setText(text);
+    });
+    connect(this->revision_branch_page->tags, &QLineEdit::textChanged,
+            this, [this](const QString &text) {
+        const QSignalBlocker blocked(this->revision_overview->tags);
+        this->revision_overview->tags->setText(text);
+    });
     connect(this->revision_overview->tags, &QLineEdit::editingFinished,
             this, [this]() {
-        if (this->updating_ui) return;
-        this->revision_autosave_timer->start();
+        if (!this->updating_ui) this->revision_autosave_timer->start();
+    });
+    connect(this->revision_branch_page->tags, &QLineEdit::editingFinished,
+            this, [this]() {
+        if (!this->updating_ui) this->revision_autosave_timer->start();
     });
     connect(this->revision_overview->description, &QTextEdit::textChanged,
             this, [this]() {
+        const QString text = this->revision_overview->description->toPlainText();
+        if (this->revision_branch_page->description->toPlainText() != text) {
+            const QSignalBlocker blocked(this->revision_branch_page->description);
+            this->revision_branch_page->description->setPlainText(text);
+        }
+        if (!this->updating_ui) this->revision_autosave_timer->start();
+    });
+    connect(this->revision_branch_page->description, &QTextEdit::textChanged,
+            this, [this]() {
+        const QString text = this->revision_branch_page->description->toPlainText();
+        if (this->revision_overview->description->toPlainText() != text) {
+            const QSignalBlocker blocked(this->revision_overview->description);
+            this->revision_overview->description->setPlainText(text);
+        }
         if (!this->updating_ui) this->revision_autosave_timer->start();
     });
     connect(this->revision_inspector->commit_head, &QPushButton::clicked,
@@ -2218,6 +2248,19 @@ void ProjectsWidget::updateInspector()
         overview->name->setReadOnly(false);
         overview->tags->setReadOnly(false);
         overview->description->setReadOnly(false);
+        {
+            // present() blocks signals while replacing Overview's values;
+            // explicitly refresh the Branch tab too on every selection.
+            const QSignalBlocker tags_blocker(this->revision_branch_page->tags);
+            const QSignalBlocker description_blocker(this->revision_branch_page->description);
+            this->revision_branch_page->tags->setText(this->revision_overview->tags->text());
+            this->revision_branch_page->description->setPlainText(
+                this->revision_overview->description->toPlainText());
+        }
+        this->revision_branch_page->tags->setEnabled(has_branch && !this->source_writer->isBusy());
+        this->revision_branch_page->description->setEnabled(has_branch && !this->source_writer->isBusy());
+        this->revision_branch_page->tags->setReadOnly(false);
+        this->revision_branch_page->description->setReadOnly(false);
         this->revision_overview->branch_label->setText(view.name);
         this->revision_inspector->identity_footer->setText(view.metadata);
         const QSignalBlocker message_blocker(this->revision_overview->commit_message);

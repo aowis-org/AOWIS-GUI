@@ -1351,6 +1351,15 @@ int main(int argc, char **argv)
         QStringLiteral("projectsRevisionBranchTab"));
     QLineEdit *revision_branch_edit = revision_branch_tab != nullptr
         ? revision_branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+    QLineEdit *revision_branch_tags = revision_branch_tab != nullptr
+        ? revision_branch_tab->findChild<QLineEdit *>(QStringLiteral("projectsRevisionBranchTags")) : nullptr;
+    QTextEdit *revision_branch_description = revision_branch_tab != nullptr
+        ? revision_branch_tab->findChild<QTextEdit *>(
+              QStringLiteral("projectsRevisionBranchDescription")) : nullptr;
+    QLineEdit *overview_tags = revision_form != nullptr
+        ? revision_form->findChild<QLineEdit *>(QStringLiteral("projectInspectorTags")) : nullptr;
+    QTextEdit *overview_description = revision_form != nullptr
+        ? revision_form->findChild<QTextEdit *>(QStringLiteral("projectInspectorDescription")) : nullptr;
     QLabel *branch_name_label = nullptr;
     if (revision_branch_tab != nullptr)
         for (QFormLayout *form : revision_branch_tab->findChildren<QFormLayout *>())
@@ -1361,8 +1370,13 @@ int main(int argc, char **argv)
                  "HEAD/Revision Branch page is visible outside its selected tab")) return 1;
     inspector_tabs->setCurrentIndex(1);
     app.processEvents();
-    if (!require(head_branch_page->isVisible() && revision_branch_edit->isVisible(),
-                 "HEAD/Revision Branch editor is not visible on its own tab")) return 1;
+    if (!require(head_branch_page->isVisible() && revision_branch_edit->isVisible()
+                     && revision_branch_tags != nullptr && revision_branch_tags->isVisible()
+                     && revision_branch_description != nullptr
+                     && revision_branch_description->isVisible()
+                     && revision_branch_tags->parentWidget() == revision_branch_tab
+                     && revision_branch_description->parentWidget() == revision_branch_tab,
+                 "HEAD/Revision Branch tab lacks visible Tags and Description editors")) return 1;
     inspector_tabs->setCurrentIndex(0);
     app.processEvents();
     if (!require(!head_branch_page->isVisible(),
@@ -1387,6 +1401,27 @@ int main(int argc, char **argv)
     if (!require(overview_branch->text() == QStringLiteral("pressure-study-next"),
                  "Overview branch label did not track Branch tab edits")) return 1;
     revision_branch_edit->setText(QStringLiteral("pressure-study"));
+    if (!require(overview_tags != nullptr && overview_description != nullptr
+                     && revision_branch_tags->text() == overview_tags->text()
+                     && revision_branch_description->toPlainText()
+                         == overview_description->toPlainText(),
+                 "Branch metadata did not load from the selected revision")) return 1;
+    const QString original_tags = overview_tags->text();
+    const QString original_description = overview_description->toPlainText();
+    revision_branch_tags->setText(QStringLiteral("hydraulic, reviewed"));
+    revision_branch_description->setPlainText(QStringLiteral("Edited in Branch tab"));
+    if (!require(overview_tags->text() == QStringLiteral("hydraulic, reviewed")
+                     && overview_description->toPlainText()
+                         == QStringLiteral("Edited in Branch tab"),
+                 "Branch tab edits did not synchronize to Overview/autosave fields")) return 1;
+    overview_tags->setText(QStringLiteral("overview, updated"));
+    overview_description->setPlainText(QStringLiteral("Edited in Overview"));
+    if (!require(revision_branch_tags->text() == QStringLiteral("overview, updated")
+                     && revision_branch_description->toPlainText()
+                         == QStringLiteral("Edited in Overview"),
+                 "Overview metadata edits did not synchronize to the Branch tab")) return 1;
+    overview_tags->setText(original_tags);
+    overview_description->setPlainText(original_description);
 
     dock->close();
     const double zoom_before_graph_selection = graph->zoomFactor();
@@ -1397,6 +1432,9 @@ int main(int argc, char **argv)
     QPushButton *head_edit = activeInspectorAction(projects,
         QStringLiteral("projectsHeadInspectorEditNetwork"));
     if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main")
+                     && revision_branch_tags->text() == overview_tags->text()
+                     && revision_branch_description->toPlainText()
+                         == overview_description->toPlainText()
                      && action_stack->currentWidget()->objectName()
                          == QStringLiteral("projectsRevisionInspector")
                      && inspector_tabs->count() == 2
