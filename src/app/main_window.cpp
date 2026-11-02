@@ -262,6 +262,7 @@ MainWindow::MainWindow(QWidget *parent)
         // Never load the raw HTTP snapshot into an editable workspace.
         this->hydraulic_data->replaceNetworkHydraulic(
             this->personal_edit_session->visibleNetwork(), {});
+        this->immutable_network_read_only = false;
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionEditor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
         this->hydraulic_data->setLogicalEditCaptureEnabled(true);
@@ -389,8 +390,10 @@ MainWindow::MainWindow(QWidget *parent)
     {
         // Once a fenced session is blocked, do not let the shared UI switch
         // straight back into its editor while the working copy is unverified.
-        if (this->personal_edit_active && this->personal_edit_blocked &&
-            mode == MapWorkspaceWidget::DistributionEditor)
+        if ((this->personal_edit_active && this->personal_edit_blocked
+             && mode == MapWorkspaceWidget::DistributionEditor)
+            || (this->immutable_network_read_only
+                && mode == MapWorkspaceWidget::DistributionEditor))
             this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
     });
     connect(this->projects_workspace, &ProjectsWidget::draftNetworkPreviewRequested,
@@ -413,9 +416,38 @@ MainWindow::MainWindow(QWidget *parent)
             QMessageBox::Cancel);
         if (decision != QMessageBox::Yes) return;
         this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
+        this->immutable_network_read_only = true;
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
     });
+    connect(this->projects_workspace, &ProjectsWidget::immutableNetworkPreviewRequested,
+            this, [this](NetworkHydraulic network, const QString &revision) {
+        if (this->personal_edit_active) {
+            QMessageBox::warning(this, tr("Private draft editing active"),
+                tr("Stop your current editing session before opening a revision snapshot."));
+            return;
+        }
+        // The immutable network is shown only in Distribution Monitor; no
+        // draft lease, editing capture or repository write is created.
+        QMessageBox *question = new QMessageBox(QMessageBox::Question,
+            tr("Open immutable revision"),
+            tr("Load revision %1 into Distribution Monitor in read-only mode? "
+               "This replaces the current in-memory network.").arg(revision),
+            QMessageBox::Yes | QMessageBox::Cancel, this);
+        question->setAttribute(Qt::WA_DeleteOnClose);
+        question->setDefaultButton(QMessageBox::Cancel);
+        connect(question, &QMessageBox::finished, this,
+                [this, question, network](int result) mutable {
+            if (result != QMessageBox::Yes || this->personal_edit_active) return;
+            this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
+            this->immutable_network_read_only = true;
+            this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
+            this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
+        });
+        question->open();
+    });
+    connect(this->projects_workspace, &ProjectsWidget::selectedNetworkExportRequested,
+            this->simulation_manager, &SimulationManager::exportSelectedEpanetNetwork);
     connect(this->projects_workspace, &ProjectsWidget::draftNetworkEditRequested,
             this, [this](const QString &draft_id, const QString &network_id)
     {
@@ -573,6 +605,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->top_control_bar, &TopControlBar::signalExportEpanetNetwork, this->simulation_manager, &SimulationManager::exportEpanetNetwork);
     connect(this->simulation_manager, &SimulationManager::signalEpanetNetworkImported, this, [this]
     {
+        this->immutable_network_read_only = false;
         QList<WaterQualityAnalysisType> analyses;
         for (const WaterQualitySolverOptions &quality_options : this->hydraulic_data->simulationQualityRunOptions())
         {

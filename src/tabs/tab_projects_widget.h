@@ -44,6 +44,8 @@ class DatabaseInspectorOverview;
 class ProjectInspectorOverview;
 class BranchInspectorOverview;
 class RevisionInspectorOverview;
+class RevisionNetworkOverview;
+class QNetworkAccessManager;
 class RevisionInspectorBranch;
 class ProjectInspector;
 class BranchInspector;
@@ -116,6 +118,8 @@ signals:
     void draftNetworkPreviewRequested(NetworkHydraulic network, const QString &draft_id,
                                       const QString &generation);
     void draftNetworkEditRequested(const QString &draft_id, const QString &network_id);
+    void immutableNetworkPreviewRequested(NetworkHydraulic network, const QString &revision);
+    void selectedNetworkExportRequested(NetworkHydraulic network);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -177,6 +181,11 @@ private:
     const ProjectPreviewBranch *inspectedRevisionBranch() const;
     void saveRevisionInspectorChanges();
     void commitSelectedHead();
+    void refreshNetworkSummary();
+    void openInspectedNetwork();
+    void exportInspectedNetwork();
+    void fetchInspectedNetwork(bool export_requested);
+    void createEditingBranchFromRevision(const QString &name);
     void reportServerSaveFailure();
     void setPersonalServer(bool enabled);
     ProjectServerProfile *currentServer();
@@ -215,6 +224,16 @@ private:
     ProjectInspectorOverview *project_overview = nullptr;
     BranchInspectorOverview *branch_overview = nullptr;
     RevisionInspectorOverview *revision_overview = nullptr;
+    RevisionNetworkOverview *revision_network_overview = nullptr;
+    QWidget *revision_details_page = nullptr;
+    QNetworkAccessManager *network_read_manager = nullptr;
+    int network_read_epoch = 0;
+    QString network_summary_id;
+    QString network_summary_revision;
+    QString network_summary_branch;
+    QString network_summary_project;
+    int network_summary_count = -1;
+    bool edit_after_branch_creation = false;
     RevisionInspectorBranch *revision_branch_page = nullptr;
     DatabaseInspectorConnection *database_connection = nullptr;
     DatabaseInspectorRelations *database_relations = nullptr;

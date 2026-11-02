@@ -2,6 +2,10 @@
 
 #include <QHBoxLayout>
 #include <QFormLayout>
+#include <QGridLayout>
+#include <QJsonObject>
+#include <QList>
+#include <QLocale>
 #include <QFont>
 #include <QtMath>
 #include <QEvent>
@@ -258,6 +262,106 @@ public:
     TwoLineCommitEditor *commit_message = nullptr;
     QLabel *status = nullptr;
     QHBoxLayout *primary_actions = nullptr;
+};
+
+// The selected revision/HEAD's network entry point. This is deliberately not
+// a duplicate editor for commit metadata: HEAD/Revision and Branch have their
+// own tabs and fields. Counts are supplied by a revision-pinned DVMDB read.
+class RevisionNetworkOverview final : public ProjectsInspectorOverview
+{
+public:
+    explicit RevisionNetworkOverview(QWidget *parent = nullptr)
+        : ProjectsInspectorOverview(QStringLiteral("Network"), parent)
+    {
+        this->setObjectName(QStringLiteral("projectsRevisionNetworkOverview"));
+        this->fields->hide();
+        this->metadata->hide();
+        this->preview_note->hide();
+        QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
+        QLayoutItem *stretch = column->takeAt(column->count() - 1);
+        delete stretch;
+        this->branch = new QLabel(this);
+        this->branch->setObjectName(QStringLiteral("projectsNetworkOverviewBranch"));
+        this->branch->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        column->insertWidget(0, this->branch);
+        this->state = new QLabel(this);
+        this->state->setObjectName(QStringLiteral("projectsNetworkOverviewState"));
+        column->insertWidget(1, this->state);
+        QLabel *heading = new QLabel(tr("Hydraulic network"), this);
+        QFont heading_font = heading->font();
+        heading_font.setBold(true);
+        heading->setFont(heading_font);
+        column->addWidget(heading);
+        this->network_status = new QLabel(tr("Checking network…"), this);
+        this->network_status->setObjectName(QStringLiteral("projectsNetworkOverviewSummaryStatus"));
+        this->network_status->setWordWrap(true);
+        this->network_status->setMinimumWidth(0);
+        column->addWidget(this->network_status);
+        const QStringList captions{tr("Junctions"), tr("Pipes"), tr("Reservoirs"),
+                                   tr("Tanks"), tr("Pumps"), tr("Valves")};
+        QWidget *counts_widget = new QWidget(this);
+        QGridLayout *counts_layout = new QGridLayout(counts_widget);
+        counts_layout->setContentsMargins(0, 0, 0, 0);
+        counts_layout->setHorizontalSpacing(8);
+        counts_layout->setVerticalSpacing(8);
+        for (int index = 0; index < captions.size(); ++index) {
+            QLabel *value = new QLabel(QStringLiteral("—"), counts_widget);
+            value->setObjectName(QStringLiteral("projectsNetworkCount") + QString::number(index));
+            QFont font = value->font();
+            font.setBold(true);
+            value->setFont(font);
+            QLabel *caption = new QLabel(captions.at(index), counts_widget);
+            QVBoxLayout *item_layout = new QVBoxLayout();
+            item_layout->setContentsMargins(2, 2, 2, 2);
+            item_layout->addWidget(caption);
+            item_layout->addWidget(value);
+            counts_layout->addLayout(item_layout, index / 2, index % 2);
+            this->counts.append(value);
+        }
+        column->addWidget(counts_widget);
+        this->other_counts = new QLabel(this);
+        this->other_counts->setObjectName(QStringLiteral("projectsNetworkOverviewOtherCounts"));
+        this->other_counts->setWordWrap(true);
+        column->addWidget(this->other_counts);
+        this->open_network = new QPushButton(tr("Open network in editor"), this);
+        this->open_network->setObjectName(QStringLiteral("projectsNetworkOverviewOpen"));
+        column->addWidget(this->open_network);
+        QHBoxLayout *actions = new QHBoxLayout();
+        this->import_network = new QPushButton(tr("Import network…"), this);
+        this->import_network->setObjectName(QStringLiteral("projectsNetworkOverviewImport"));
+        this->export_network = new QPushButton(tr("Export network…"), this);
+        this->export_network->setObjectName(QStringLiteral("projectsNetworkOverviewExport"));
+        actions->addWidget(this->import_network);
+        actions->addWidget(this->export_network);
+        column->addLayout(actions);
+        column->addStretch(1);
+        clearCounts();
+    }
+
+    void clearCounts()
+    {
+        for (QLabel *value : this->counts) value->setText(QStringLiteral("—"));
+        this->other_counts->clear();
+    }
+
+    void showCounts(const QJsonObject &counts, int total)
+    {
+        const QStringList keys{QStringLiteral("junctions"), QStringLiteral("pipes"),
+            QStringLiteral("reservoirs"), QStringLiteral("tanks"),
+            QStringLiteral("pumps"), QStringLiteral("valves")};
+        for (int index = 0; index < keys.size(); ++index)
+            this->counts.at(index)->setText(QLocale().toString(counts.value(keys.at(index)).toInt()));
+        this->other_counts->setText(tr("Total hydraulic entities: %1").arg(QLocale().toString(total)));
+    }
+
+    QLabel *branch = nullptr;
+    QLabel *state = nullptr;
+    QLabel *network_status = nullptr;
+    QList<QLabel *> counts;
+    QLabel *other_counts = nullptr;
+    QPushButton *open_network = nullptr;
+    QPushButton *import_network = nullptr;
+    QPushButton *export_network = nullptr;
 };
 
 // Both HEAD and immutable Revision use this tab to edit the same branch name.

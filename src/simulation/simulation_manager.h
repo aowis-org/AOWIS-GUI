@@ -41,6 +41,7 @@ public:
     void importNetworkProject();
     void importNetworkProjectResource(const QString &resource_path, const QString &file_name);
     void exportEpanetNetwork();
+    void exportSelectedEpanetNetwork(const NetworkHydraulic &network);
 
 private slots:
     void importNetworkProjectContent(const QString &file_name, const QByteArray &file_content);

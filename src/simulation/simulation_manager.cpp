@@ -895,6 +895,11 @@ void SimulationManager::finishEpanetNetworkImport(
 
 void SimulationManager::exportEpanetNetwork()
 {
+    exportSelectedEpanetNetwork(this->hydraulic_data->networkHydraulic());
+}
+
+void SimulationManager::exportSelectedEpanetNetwork(const NetworkHydraulic &network_hydraulic)
+{
     QWidget *main_window = QApplication::activeWindow();
 
 #ifndef Q_OS_WASM
@@ -926,7 +931,6 @@ void SimulationManager::exportEpanetNetwork()
     }
 #endif
 
-    const NetworkHydraulic &network_hydraulic = this->hydraulic_data->networkHydraulic();
     EpanetRunRequest export_request;
     export_request.network = network_hydraulic;
     export_request.quality_runs = this->hydraulic_data->simulationQualityRunOptions();

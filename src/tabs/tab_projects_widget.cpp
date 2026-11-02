@@ -14,6 +14,7 @@
 #include "common/_sizes.h"
 #include "widgets/group_box_collapsible.h"
 #include "services/http_health_monitor.h"
+#include <aowis/model/serialization/model_codec.h>
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -36,6 +37,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRadioButton>
+#include <QPointer>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QPainter>
@@ -62,10 +65,12 @@
 #include <QTreeWidgetItemIterator>
 #include <QToolButton>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QUuid>
 #include <QVBoxLayout>
 
 #include <functional>
+#include <optional>
 #include <algorithm>
 
 namespace
@@ -535,14 +540,22 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->database_overview = new DatabaseInspectorOverview(this->inspector_overview_stack);
     this->project_overview = new ProjectInspectorOverview(this->inspector_overview_stack);
     this->branch_overview = new BranchInspectorOverview(this->inspector_overview_stack);
-    this->revision_overview = new RevisionInspectorOverview(this->inspector_overview_stack);
+    this->revision_network_overview = new RevisionNetworkOverview(this->inspector_overview_stack);
     for (ProjectsInspectorOverview *overview : {
              static_cast<ProjectsInspectorOverview *>(this->database_overview),
              static_cast<ProjectsInspectorOverview *>(this->project_overview),
              static_cast<ProjectsInspectorOverview *>(this->branch_overview),
-             static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
+             static_cast<ProjectsInspectorOverview *>(this->revision_network_overview)})
         this->inspector_overview_stack->addWidget(overview);
     overview_layout->addWidget(this->inspector_overview_stack);
+    this->revision_details_page = new QWidget(this->inspector_tabs);
+    this->revision_details_page->setObjectName(QStringLiteral("projectsRevisionDetailsTab"));
+    QVBoxLayout *revision_details_layout = new QVBoxLayout(this->revision_details_page);
+    revision_details_layout->setContentsMargins(0, 12, 0, 4);
+    this->revision_overview = new RevisionInspectorOverview(this->revision_details_page);
+    revision_details_layout->addWidget(this->revision_overview);
+    this->revision_details_page->hide();
+    this->network_read_manager = new QNetworkAccessManager(this);
     this->revision_branch_page = new RevisionInspectorBranch(
         this->revision_overview->name, this->inspector_tabs);
     // A page parented to QTabWidget but not yet registered through addTab()
@@ -695,6 +708,20 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this, &ProjectsWidget::showWorkingCopies);
     connect(this->revision_inspector->edit_head_network, &QPushButton::clicked,
             this, &ProjectsWidget::editProjectNetwork);
+    connect(this->revision_network_overview->open_network, &QPushButton::clicked,
+            this, &ProjectsWidget::openInspectedNetwork);
+    connect(this->revision_network_overview->export_network, &QPushButton::clicked,
+            this, &ProjectsWidget::exportInspectedNetwork);
+    connect(this->revision_network_overview->import_network, &QPushButton::clicked,
+            this, [this] {
+                // The global EPANET importer replaces the active in-memory
+                // editor model, not the selected DVMDB draft. Do not route a
+                // selected HEAD import to that unrelated destination.
+                QMessageBox::information(this, tr("Import into HEAD"),
+                    tr("Import into this specific private HEAD is not available yet. "
+                       "The global EPANET importer does not save into the selected "
+                       "DVMDB working copy."));
+            });
     for (QPushButton *button : {this->project_overview->edit_network,
                                 this->branch_inspector->edit_network})
         connect(button, &QPushButton::clicked, this, &ProjectsWidget::editProjectNetwork);
@@ -881,6 +908,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->revision_overview->name, &QLineEdit::textChanged,
             this, [this](const QString &name) {
         this->revision_overview->branch_label->setText(name);
+        this->revision_network_overview->branch->setText(tr("Branch: %1").arg(name));
     });
     connect(this->revision_overview->name, &QLineEdit::editingFinished,
             this, [this]() {
@@ -1432,7 +1460,13 @@ void ProjectsWidget::loadSource(const QString &id)
                                 if (branch.id == project.id + QStringLiteral(":") + branch_to_select
                                     || branch.name == branch_to_select)
                                 {
-                                    select(SelectionKind::Branch, branch.id);
+                                    const bool edit_new = this->edit_after_branch_creation;
+                                    this->edit_after_branch_creation = false;
+                                    select(edit_new ? SelectionKind::Head
+                                                    : SelectionKind::Branch, branch.id);
+                                    if (edit_new)
+                                        QTimer::singleShot(0, this,
+                                            [this] { editProjectNetwork(); });
                                     break;
                                 }
                         break;
@@ -1993,7 +2027,7 @@ ProjectsInspectorOverview *ProjectsWidget::activeOverview() const
     case SelectionKind::Project: return this->project_overview;
     case SelectionKind::Branch: return this->branch_overview;
     case SelectionKind::Head:
-    case SelectionKind::Revision: return this->revision_overview;
+    case SelectionKind::Revision: return this->revision_network_overview;
     case SelectionKind::Server:
     case SelectionKind::NewSource:
     case SelectionKind::None: return this->database_overview;
@@ -2010,6 +2044,7 @@ void ProjectsWidget::updateInspectorTabs()
     // clear() removes pages from the tab bar. Detached pages must not be
     // visible as direct QTabWidget children on Database/Project/Branch views.
     this->revision_branch_page->hide();
+    this->revision_details_page->hide();
     this->database_connection->hide();
     for (ProjectsInspectorRelations *panel : {
              static_cast<ProjectsInspectorRelations *>(this->database_relations),
@@ -2054,11 +2089,15 @@ void ProjectsWidget::updateInspectorTabs()
         related = this->revision_relations;
         title = tr("Ancestry");
     }
-    // HEAD/Revision have a branch metadata tab; the former Revisions tab
-    // duplicates the revision tree and graph, so it is omitted for HEAD.
+    // The network's Overview is the first tab; the existing commit form has
+    // a mode-specific HEAD/Revision tab, followed by independent branch data.
     if (this->selection_kind == SelectionKind::Head
         || this->selection_kind == SelectionKind::Revision)
+    {
+        this->inspector_tabs->addTab(this->revision_details_page,
+            this->selection_kind == SelectionKind::Head ? tr("HEAD") : tr("Revision"));
         this->inspector_tabs->addTab(this->revision_branch_page, tr("Branch"));
+    }
     // An empty database still needs its Projects tab to offer Create project.
     if (related != nullptr && (this->selection_kind == SelectionKind::Server
                                || this->selection_kind == SelectionKind::Project
@@ -2224,9 +2263,8 @@ void ProjectsWidget::updateInspector()
     overview->present(view.name, view.tags, view.description, view.metadata,
                       view.editable && !real_data,
                       this->selection_kind != SelectionKind::None
-                          && (!real_data || this->selection_kind == SelectionKind::Project
-                              || this->selection_kind == SelectionKind::Head
-                              || this->selection_kind == SelectionKind::Revision));
+                          && this->selection_kind != SelectionKind::Head
+                          && this->selection_kind != SelectionKind::Revision);
     // Project UUIDs are immutable, but the display name is stored by DVMDB.
     // Keep Tags/Description selectable until their persistent edit API exists.
     if (real_data && this->selection_kind == SelectionKind::Project)
@@ -2241,7 +2279,12 @@ void ProjectsWidget::updateInspector()
     else if (this->selection_kind == SelectionKind::Head
              || this->selection_kind == SelectionKind::Revision)
     {
+        // The network Overview and commit-details page are independent. The
+        // latter retains its own tags, message and description editors.
+        this->revision_overview->present(view.name, view.tags, view.description,
+                                         view.metadata, true, true);
         const bool has_branch = inspectedRevisionBranch() != nullptr;
+        overview = this->revision_overview;
         overview->name->setEnabled(has_branch && !this->source_writer->isBusy());
         overview->tags->setEnabled(has_branch && !this->source_writer->isBusy());
         overview->description->setEnabled(has_branch && !this->source_writer->isBusy());
@@ -2285,6 +2328,7 @@ void ProjectsWidget::updateInspector()
         this->selection_kind == SelectionKind::Server && overview_database != nullptr
         && overview_database->personal);
     updateInspectorTabs();
+    refreshNetworkSummary();
     // Route to the inspector associated with the selected model object.
     QWidget *active_inspector = this->database_inspector;
     if (this->selection_kind == SelectionKind::Project)
@@ -2351,6 +2395,28 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Head, backed,
         inspectedRevisionBranch() != nullptr,
         !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty());
+    const bool selected_network = this->selection_kind == SelectionKind::Head
+        || this->selection_kind == SelectionKind::Revision;
+    this->revision_network_overview->open_network->setEnabled(
+        selected_network && ready && backed);
+    this->revision_network_overview->open_network->setText(
+        this->selection_kind == SelectionKind::Head ? tr("Open network in editor")
+        : tr("Open revision network…"));
+    // Import must be scoped to an exact verified empty private working copy.
+    // Neither an unborn branch nor an empty committed base proves that a
+    // private working copy is empty; do not enable a destructive global import.
+    this->revision_network_overview->import_network->setEnabled(false);
+    this->revision_network_overview->import_network->setToolTip(
+        tr("Requires a verified empty private HEAD and a draft-scoped importer. "
+           "The global importer does not target this HEAD."));
+    this->revision_network_overview->export_network->setEnabled(
+        ready && backed && this->selection_kind == SelectionKind::Revision
+        && this->network_summary_count == 1);
+    this->revision_network_overview->export_network->setToolTip(
+        this->selection_kind == SelectionKind::Head
+        ? tr("Export the current working copy from the editor. The committed "
+             "base may differ from this HEAD's saved private draft.")
+        : tr("Export only the selected immutable revision's hydraulic network"));
     if (this->inspector_actions_stack != nullptr)
         this->inspector_actions_stack->setVisible(
             this->selection_kind != SelectionKind::None);
@@ -2798,6 +2864,306 @@ void ProjectsWidget::createProject()
     populateProjectTree();
     cancelCreation();
     select(SelectionKind::Project, id);
+}
+
+// Read-only, revision-pinned network statistics. A private working-copy draft
+// can differ from the committed base, and is NEVER treated as empty on the
+// strength of an unborn HEAD or a zero-count committed revision.
+void ProjectsWidget::refreshNetworkSummary()
+{
+    ++this->network_read_epoch;
+    this->network_summary_count = -1;
+    this->network_summary_id.clear();
+    this->network_summary_revision.clear();
+    this->network_summary_project.clear();
+    this->network_summary_branch.clear();
+    if (this->selection_kind != SelectionKind::Head
+        && this->selection_kind != SelectionKind::Revision) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    this->revision_network_overview->branch->setText(
+        tr("Branch: %1").arg(branch == nullptr ? tr("Unknown") : branch->name));
+    this->revision_network_overview->state->setText(
+        this->selection_kind == SelectionKind::Head ? tr("Writable HEAD")
+                                                  : tr("Immutable revision"));
+    this->revision_network_overview->clearCounts();
+    this->revision_network_overview->network_status->setText(tr("Checking network…"));
+    if (project == nullptr || branch == nullptr || !project->database_backed) {
+        this->revision_network_overview->network_status->setText(
+            tr("Network contents are not persisted for this preview."));
+        return;
+    }
+    const ProjectServerProfile *server = currentServer();
+    QString endpoint = server != nullptr && server->connection_type == QStringLiteral("remote")
+        ? server->endpoint.trimmed() : QString();
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    if (server != nullptr && server->connection_type == QStringLiteral("local"))
+        endpoint = embeddedDvmdbEndpoint(server->local_path, server->personal,
+                                         nullptr, nullptr);
+#endif
+    if (endpoint.isEmpty()) {
+        this->revision_network_overview->network_status->setText(
+            tr("A connected DVMDB HTTP endpoint is needed for network statistics."));
+        return;
+    }
+    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
+    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
+        endpoint += QStringLiteral("/dvmdb/v1");
+    const QString revision_id = this->selection_kind == SelectionKind::Revision
+        ? this->selected_id : QString();
+    const QString project_id = project->backend_id;
+    const QString branch_name = branch->name;
+    QUrl url(endpoint + QStringLiteral("/projects/") + project_id
+        + QStringLiteral("/branches/")
+        + QString::fromLatin1(QUrl::toPercentEncoding(branch_name))
+        + QStringLiteral("/networks/summary"));
+    if (!revision_id.isEmpty()) {
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("revision"), revision_id);
+        url.setQuery(query);
+    }
+    const int epoch = this->network_read_epoch;
+    QNetworkReply *reply = this->network_read_manager->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, epoch, project_id, branch_name, revision_id, endpoint]() {
+        const QByteArray bytes = reply->readAll();
+        const QString request_error = reply->error() == QNetworkReply::NoError
+            ? QString() : reply->errorString();
+        reply->deleteLater();
+        if (this->network_read_epoch != epoch) return;
+        const QJsonDocument document = QJsonDocument::fromJson(bytes);
+        if (!request_error.isEmpty() || !document.isObject()) {
+            this->revision_network_overview->network_status->setText(
+                tr("Network summary unavailable: %1").arg(
+                    request_error.isEmpty() ? tr("Invalid response") : request_error));
+            updateButtons();
+            return;
+        }
+        const QJsonObject result = document.object();
+        if (result.value(QStringLiteral("scope")).toString()
+                != QStringLiteral("committed")
+            || !result.value(QStringLiteral("networks")).isArray()) {
+            this->revision_network_overview->network_status->setText(
+                tr("Network summary response is not revision-pinned."));
+            updateButtons();
+            return;
+        }
+        const QJsonArray networks = result.value(QStringLiteral("networks")).toArray();
+        this->network_summary_count = networks.size();
+        this->network_summary_project = project_id;
+        this->network_summary_branch = branch_name;
+        this->network_summary_revision = result.value(QStringLiteral("revision")).toString();
+        this->revision_network_overview->clearCounts();
+        if (networks.isEmpty()) {
+            this->revision_network_overview->network_status->setText(
+                this->selection_kind == SelectionKind::Head
+                ? tr("No committed hydraulic network. Private draft contents may differ.")
+                : tr("No hydraulic network stored in this revision."));
+        } else {
+            const QStringList keys{QStringLiteral("junctions"), QStringLiteral("pipes"),
+                QStringLiteral("reservoirs"), QStringLiteral("tanks"),
+                QStringLiteral("pumps"), QStringLiteral("valves")};
+            QHash<QString, int> totals;
+            int all_entities = 0;
+            for (const QJsonValue &entry : networks) {
+                const QJsonObject network = entry.toObject();
+                const QJsonObject counts = network.value(QStringLiteral("counts")).toObject();
+                all_entities += network.value(QStringLiteral("entityCount")).toInt();
+                for (const QString &key : keys)
+                    totals.insert(key, totals.value(key) + counts.value(key).toInt());
+            }
+            QJsonObject sum;
+            for (const QString &key : keys) sum.insert(key, totals.value(key));
+            this->revision_network_overview->showCounts(sum, all_entities);
+            if (networks.size() == 1)
+                this->network_summary_id = networks.first().toObject()
+                    .value(QStringLiteral("id")).toString();
+            const QString heading = networks.size() == 1
+                ? tr("Network: %1").arg(networks.first().toObject()
+                    .value(QStringLiteral("title")).toString().trimmed())
+                : tr("%1 hydraulic networks in this revision").arg(networks.size());
+            this->revision_network_overview->network_status->setText(
+                heading + (this->selection_kind == SelectionKind::Head
+                    ? tr("\nCommitted base only; private draft changes are not included.")
+                    : QString()));
+        }
+        updateButtons();
+    });
+}
+
+// A read of an immutable revision always pins its exact UUID. This avoids
+// exporting or previewing a different revision after a concurrent HEAD move.
+void ProjectsWidget::fetchInspectedNetwork(bool export_requested)
+{
+    if (this->selection_kind != SelectionKind::Revision
+        || this->network_summary_count != 1
+        || !DvmdbIdentity::isUuidV7(this->network_summary_id)
+        || !DvmdbIdentity::isUuidV7(this->network_summary_revision)) return;
+    const ProjectServerProfile *server = currentServer();
+    QString endpoint = server != nullptr && server->connection_type == QStringLiteral("remote")
+        ? server->endpoint.trimmed() : QString();
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    if (server != nullptr && server->connection_type == QStringLiteral("local"))
+        endpoint = embeddedDvmdbEndpoint(server->local_path, server->personal,
+                                         nullptr, nullptr);
+#endif
+    if (endpoint.isEmpty()) return;
+    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
+    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
+        endpoint += QStringLiteral("/dvmdb/v1");
+    QUrl url(endpoint + QStringLiteral("/projects/") + this->network_summary_project
+        + QStringLiteral("/branches/")
+        + QString::fromLatin1(QUrl::toPercentEncoding(this->network_summary_branch))
+        + QStringLiteral("/networks/") + this->network_summary_id);
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("revision"), this->network_summary_revision);
+    url.setQuery(query);
+    const QString expected_id = this->network_summary_id;
+    const QString revision_id = this->network_summary_revision;
+    const int epoch = this->network_read_epoch;
+    QNetworkReply *reply = this->network_read_manager->get(QNetworkRequest(url));
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, epoch, expected_id, revision_id, export_requested]() {
+        const QByteArray bytes = reply->readAll();
+        const QString transport_error = reply->error() == QNetworkReply::NoError
+            ? QString() : reply->errorString();
+        reply->deleteLater();
+        if (this->network_read_epoch != epoch
+            || this->selection_kind != SelectionKind::Revision) return;
+        const QJsonDocument result = QJsonDocument::fromJson(bytes);
+        if (!transport_error.isEmpty() || !result.isObject()) {
+            QMessageBox::warning(this, tr("Network read failed"),
+                transport_error.isEmpty() ? tr("Invalid DVMDB response") : transport_error);
+            return;
+        }
+        const QJsonObject object = result.object();
+        if (object.value(QStringLiteral("uuid")).toString() != expected_id
+            || object.value(QStringLiteral("revision")).toString() != revision_id) {
+            QMessageBox::warning(this, tr("Network identity mismatch"),
+                tr("The DVMDB reply did not match the selected revision and network."));
+            return;
+        }
+        const QByteArray encoded = object.value(QStringLiteral("payloadBase64"))
+            .toString().toLatin1();
+        const QByteArray::FromBase64Result decoded = QByteArray::fromBase64Encoding(
+            encoded, QByteArray::AbortOnBase64DecodingErrors);
+        if (!decoded || decoded.decoded.toBase64() != encoded) {
+            QMessageBox::warning(this, tr("Network validation failed"),
+                tr("The DVMDB response contains invalid canonical base64."));
+            return;
+        }
+        const QByteArray data = decoded.decoded;
+        QString codec_error;
+        const std::optional<NetworkHydraulic> network =
+            aowis::model::ModelCodec<NetworkHydraulic>::decode(data, &codec_error);
+        if (!network || network->uuid.toString(QUuid::WithoutBraces) != expected_id
+            || aowis::model::ModelCodec<NetworkHydraulic>::encode(*network) != data) {
+            QMessageBox::warning(this, tr("Network validation failed"),
+                tr("The selected revision network could not be decoded: %1")
+                    .arg(codec_error));
+            return;
+        }
+        if (export_requested)
+            emit selectedNetworkExportRequested(*network);
+        else
+            emit immutableNetworkPreviewRequested(*network, revision_id);
+    });
+}
+
+void ProjectsWidget::exportInspectedNetwork()
+{
+    fetchInspectedNetwork(true);
+}
+
+void ProjectsWidget::createEditingBranchFromRevision(const QString &name)
+{
+    if (this->selection_kind != SelectionKind::Revision || this->source_writer->isBusy()) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    const ProjectServerProfile *server = currentServer();
+    const QString requested_name = name.trimmed();
+    if (project == nullptr || branch == nullptr || server == nullptr
+        || !project->database_backed || requested_name.isEmpty()) return;
+    for (const ProjectPreviewBranch &candidate : project->branches)
+        if (candidate.name.compare(requested_name, Qt::CaseInsensitive) == 0) {
+            QMessageBox::warning(this, tr("Branch name already exists"),
+                tr("Choose a different name for the new branch."));
+            return;
+        }
+    const QString source_uuid = branch->id.mid(project->id.size() + 1);
+    const QString project_id = project->backend_id;
+    const QString revision_id = this->selected_id;
+    if (!DvmdbIdentity::isUuidV7(source_uuid)
+        || !DvmdbIdentity::isUuidV7(revision_id)) return;
+    this->source_writer->createBranch(*server, project_id, requested_name, source_uuid,
+        revision_id, [this, project_id, requested_name](const QString &id, const QString &error) {
+            this->edit_after_branch_creation = error.isEmpty();
+            finishSourceWrite(id, error, project_id,
+                id.isEmpty() ? requested_name : id);
+        });
+    updateButtons();
+}
+
+void ProjectsWidget::openInspectedNetwork()
+{
+    if (this->selection_kind == SelectionKind::Head) {
+        editProjectNetwork();
+        return;
+    }
+    if (this->selection_kind != SelectionKind::Revision) return;
+    // Nonblocking modal dialog: QDialog::exec() is not supported reliably by
+    // the WebAssembly event loop.
+    QDialog *dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Open immutable revision"));
+    QVBoxLayout *column = new QVBoxLayout(dialog);
+    QLabel *context = new QLabel(tr("Revision %1\nBranch: %2")
+        .arg(this->selected_id, this->network_summary_branch), dialog);
+    context->setWordWrap(true);
+    column->addWidget(context);
+    QRadioButton *read_only = new QRadioButton(tr("Open read-only in Distribution Monitor"), dialog);
+    QRadioButton *new_branch = new QRadioButton(tr("Create branch and open for full editing"), dialog);
+    column->addWidget(read_only);
+    column->addWidget(new_branch);
+    read_only->setEnabled(this->network_summary_count == 1);
+    if (read_only->isEnabled()) read_only->setChecked(true);
+    else new_branch->setChecked(true);
+    QLineEdit *branch_name = new QLineEdit(dialog);
+    branch_name->setObjectName(QStringLiteral("projectsRevisionOpenBranchName"));
+    branch_name->setPlaceholderText(tr("New branch name"));
+    branch_name->setEnabled(new_branch->isChecked());
+    column->addWidget(branch_name);
+    QDialogButtonBox *buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    QPushButton *confirm = buttons->button(QDialogButtonBox::Ok);
+    confirm->setText(tr("Open"));
+    connect(new_branch, &QRadioButton::toggled, branch_name, &QLineEdit::setEnabled);
+    const std::function<void()> validate = [new_branch, branch_name, confirm] {
+        confirm->setEnabled(!new_branch->isChecked() || !branch_name->text().trimmed().isEmpty());
+    };
+    connect(new_branch, &QRadioButton::toggled, dialog,
+            [validate](bool) { validate(); });
+    connect(branch_name, &QLineEdit::textChanged, dialog,
+            [validate](const QString &) { validate(); });
+    validate();
+    const QString selected_project = this->project_id;
+    const QString selected_revision = this->selected_id;
+    connect(buttons, &QDialogButtonBox::accepted, dialog,
+            [this, dialog, read_only, branch_name, selected_project, selected_revision] {
+        if (this->project_id != selected_project
+            || this->selected_id != selected_revision
+            || this->selection_kind != SelectionKind::Revision) {
+            dialog->reject();
+            return;
+        }
+        if (read_only->isChecked())
+            fetchInspectedNetwork(false);
+        else
+            createEditingBranchFromRevision(branch_name->text());
+        dialog->accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    dialog->open();
 }
 
 void ProjectsWidget::showWorkingCopies()

@@ -130,6 +130,7 @@ private:
     QTimer *personal_edit_guard = nullptr;
     bool personal_edit_active = false;
     bool personal_edit_blocked = false;
+    bool immutable_network_read_only = false;
     quint64 personal_edit_last_checked_revision = 0;
     
     GpsProvider *gps = nullptr;
