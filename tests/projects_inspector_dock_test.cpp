@@ -38,6 +38,7 @@
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTextEdit>
+#include <QPlainTextEdit>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QToolButton>
@@ -83,8 +84,13 @@ QWidget *activeInspectorOverview(ProjectsWidget &projects)
 QLineEdit *activeInspectorName(ProjectsWidget &projects)
 {
     QWidget *overview = activeInspectorOverview(projects);
-    return overview != nullptr
-        ? overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+    if (overview == nullptr) return nullptr;
+    QLineEdit *name = overview->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
+    if (name != nullptr) return name;
+    // HEAD and revision edit branch metadata in their dedicated Branch tab.
+    QWidget *branch_tab = projects.findChild<QWidget *>(QStringLiteral("projectsRevisionBranchTab"));
+    return branch_tab != nullptr
+        ? branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
 }
 
 QLabel *activeInspectorMetadata(ProjectsWidget &projects)
@@ -428,6 +434,12 @@ int main(int argc, char **argv)
     {
         QWidget *page = overview_stack->widget(index);
         QLineEdit *field = page->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
+        if (field == nullptr && page->objectName() == QStringLiteral("projectsRevisionOverviewForm"))
+        {
+            QWidget *branch_tab = projects.findChild<QWidget *>(QStringLiteral("projectsRevisionBranchTab"));
+            if (branch_tab != nullptr)
+                field = branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName"));
+        }
         if (!require(field != nullptr && page->findChild<QLabel *>(
                          QStringLiteral("projectInspectorMetadata")) != nullptr,
                      "domain form lacks its own fields and metadata")) return 1;
@@ -1317,8 +1329,8 @@ int main(int argc, char **argv)
     QPushButton *revision_commit = activeInspectorAction(projects,
         QStringLiteral("projectsHeadInspectorCommit"));
     QWidget *revision_form = activeInspectorOverview(projects);
-    QTextEdit *revision_message = revision_form != nullptr
-        ? revision_form->findChild<QTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
+    QPlainTextEdit *revision_message = revision_form != nullptr
+        ? revision_form->findChild<QPlainTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
     QLabel *revision_identity = action_stack->currentWidget()->findChild<QLabel *>(
         QStringLiteral("projectsRevisionIdentityFooter"));
     if (!require(revision_branch != nullptr && revision_branch->isEnabled()
@@ -1328,19 +1340,36 @@ int main(int argc, char **argv)
                      && revision_message != nullptr && revision_message->isEnabled()
                      && revision_identity != nullptr,
                  "Revision Inspector did not offer editable message and branch creation")) return 1;
-    QFormLayout *revision_fields = nullptr;
-    if (revision_form != nullptr)
-        for (QFormLayout *form : revision_form->findChildren<QFormLayout *>())
-            revision_fields = form;
-    QLabel *branch_name_label = revision_fields != nullptr
-        ? qobject_cast<QLabel *>(revision_fields->labelForField(activeInspectorName(projects)))
-        : nullptr;
+    QLabel *overview_branch = revision_form != nullptr
+        ? revision_form->findChild<QLabel *>(QStringLiteral("projectsRevisionBranchLabel")) : nullptr;
+    QWidget *revision_branch_tab = projects.findChild<QWidget *>(
+        QStringLiteral("projectsRevisionBranchTab"));
+    QLineEdit *revision_branch_edit = revision_branch_tab != nullptr
+        ? revision_branch_tab->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+    QLabel *branch_name_label = nullptr;
+    if (revision_branch_tab != nullptr)
+        for (QFormLayout *form : revision_branch_tab->findChildren<QFormLayout *>())
+            branch_name_label = qobject_cast<QLabel *>(form->labelForField(revision_branch_edit));
     if (!require(revision_form != nullptr && revision_form->isVisible()
-                     && revision_message != nullptr && branch_name_label != nullptr
+                     && revision_message != nullptr && overview_branch != nullptr
+                     && overview_branch->text() == QStringLiteral("pressure-study")
+                     && revision_branch_edit != nullptr && branch_name_label != nullptr
                      && branch_name_label->text() == QStringLiteral("Branch name")
+                     && inspector_tabs->tabText(1) == QStringLiteral("Branch")
                      && revision_branch->parentWidget() == revision_form
                      && revision_commit->parentWidget() == revision_form,
-                 "HEAD/Revision Overview did not show the branch name and inline primary actions")) return 1;
+                 "Revision inspector did not separate branch editing from Overview")) return 1;
+    if (!require(revision_message->minimumHeight() == revision_message->maximumHeight()
+                     && revision_message->height() == revision_message->minimumHeight()
+                     && revision_message->height() >= 2 * revision_message->fontMetrics().lineSpacing()
+                     && revision_message->height() < 4 * revision_message->fontMetrics().lineSpacing()
+                         + 2 * revision_message->frameWidth() + 16,
+                 "commit message editor is not constrained to two visible text lines")) return 1;
+    // Typing in Branch previews the name on Overview without modifying revisions.
+    revision_branch_edit->setText(QStringLiteral("pressure-study-next"));
+    if (!require(overview_branch->text() == QStringLiteral("pressure-study-next"),
+                 "Overview branch label did not track Branch tab edits")) return 1;
+    revision_branch_edit->setText(QStringLiteral("pressure-study"));
 
     dock->close();
     const double zoom_before_graph_selection = graph->zoomFactor();
@@ -1353,8 +1382,8 @@ int main(int argc, char **argv)
     if (!require(dock->isVisible() && activeInspectorName(projects)->text() == QStringLiteral("main")
                      && action_stack->currentWidget()->objectName()
                          == QStringLiteral("projectsRevisionInspector")
-                     && inspector_tabs->count() > 1
-                     && inspector_tabs->tabText(1) == QStringLiteral("Revisions")
+                     && inspector_tabs->count() == 2
+                     && inspector_tabs->tabText(1) == QStringLiteral("Branch")
                      && head_edit != nullptr && !head_edit->isVisible(),
                  "selecting a HEAD card did not open its HEAD/Revision Inspector"))
         return 1;
@@ -1363,8 +1392,8 @@ int main(int argc, char **argv)
     QPushButton *head_commit = activeInspectorAction(projects,
         QStringLiteral("projectsHeadInspectorCommit"));
     QWidget *head_form = activeInspectorOverview(projects);
-    QTextEdit *head_message = head_form != nullptr
-        ? head_form->findChild<QTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
+    QPlainTextEdit *head_message = head_form != nullptr
+        ? head_form->findChild<QPlainTextEdit *>(QStringLiteral("projectsRevisionCommitMessage")) : nullptr;
     if (!require(head_branch != nullptr && !head_branch->isEnabled()
                      && head_branch->toolTip().contains(QStringLiteral("Commit HEAD first"))
                      && head_commit != nullptr && head_commit->isVisible()

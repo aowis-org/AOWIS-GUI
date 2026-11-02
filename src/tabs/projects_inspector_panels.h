@@ -3,6 +3,10 @@
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QFont>
+#include <QtMath>
+#include <QEvent>
+#include <QPlainTextEdit>
+#include <QTextDocument>
 #include <QLabel>
 #include <QLineEdit>
 #include <QTextEdit>
@@ -177,6 +181,41 @@ public:
     explicit BranchInspectorOverview(QWidget *parent = nullptr)
         : ProjectsInspectorOverview(QStringLiteral("Branch"), parent) {}
 };
+// Compact plain-text commit editor. Its viewport shows exactly two font lines;
+// more content scrolls, and a font/style change recalculates the physical height.
+class TwoLineCommitEditor final : public QPlainTextEdit
+{
+public:
+    explicit TwoLineCommitEditor(QWidget *parent = nullptr)
+        : QPlainTextEdit(parent)
+    {
+        setLineWrapMode(QPlainTextEdit::WidgetWidth);
+        setTabChangesFocus(true);
+        setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        updateTwoLineHeight();
+    }
+
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        QPlainTextEdit::changeEvent(event);
+        if (event->type() == QEvent::FontChange
+            || event->type() == QEvent::StyleChange
+            || event->type() == QEvent::ApplicationFontChange)
+            updateTwoLineHeight();
+    }
+
+private:
+    void updateTwoLineHeight()
+    {
+        const int line_height = fontMetrics().lineSpacing();
+        const int document_margin = qCeil(document()->documentMargin());
+        const QMargins margins = contentsMargins();
+        setFixedHeight(2 * line_height + 2 * document_margin
+                             + 2 * frameWidth() + margins.top() + margins.bottom());
+    }
+};
+
 class RevisionInspectorOverview final : public ProjectsInspectorOverview
 {
 public:
@@ -184,23 +223,30 @@ public:
         : ProjectsInspectorOverview(QStringLiteral("Revision"), parent)
     {
         QFormLayout *form = qobject_cast<QFormLayout *>(this->fields->layout());
-        this->commit_message = new QTextEdit(this->fields);
+        // The branch editor belongs to the Branch tab, not Overview. Keep the
+        // existing QLineEdit instance so presentation and autosave use one state.
+        const QFormLayout::TakeRowResult name_row = form->takeRow(0);
+        if (name_row.labelItem != nullptr) {
+            delete name_row.labelItem->widget();
+            delete name_row.labelItem;
+        }
+        delete name_row.fieldItem; // does not delete the detached QLineEdit
+        this->branch_label = new QLabel(this->fields);
+        this->branch_label->setObjectName(QStringLiteral("projectsRevisionBranchLabel"));
+        this->branch_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        form->insertRow(0, tr("Branch"), this->branch_label);
+        this->commit_message = new TwoLineCommitEditor(this->fields);
         this->commit_message->setObjectName(QStringLiteral("projectsRevisionCommitMessage"));
-        this->commit_message->setMinimumHeight(88);
-        this->commit_message->setMaximumHeight(160);
-        this->commit_message->setTabChangesFocus(true);
         form->insertRow(2, tr("Commit message"), this->commit_message);
         this->status = new QLabel(this);
         this->status->setObjectName(QStringLiteral("projectsRevisionStatus"));
         this->status->setWordWrap(true);
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
         column->insertWidget(column->indexOf(this->preview_note), this->status);
-        // HEAD and Revision share their controls immediately below Description.
         this->primary_actions = new QHBoxLayout();
         this->primary_actions->setSpacing(5);
         this->primary_actions->addStretch(1);
         column->insertLayout(column->indexOf(this->status), this->primary_actions);
-        // UUID labels are displayed only in the identity footer at the bottom.
         this->metadata->hide();
     }
     void placePrimaryActions(QPushButton *create_branch, QPushButton *commit_head)
@@ -208,9 +254,33 @@ public:
         this->primary_actions->insertWidget(0, create_branch);
         this->primary_actions->insertWidget(1, commit_head);
     }
-    QTextEdit *commit_message = nullptr;
+    QLabel *branch_label = nullptr;
+    TwoLineCommitEditor *commit_message = nullptr;
     QLabel *status = nullptr;
     QHBoxLayout *primary_actions = nullptr;
+};
+
+// Both HEAD and immutable Revision use this tab to edit the same branch name.
+class RevisionInspectorBranch final : public QWidget
+{
+public:
+    explicit RevisionInspectorBranch(QLineEdit *name_edit, QWidget *parent = nullptr)
+        : QWidget(parent), name(name_edit)
+    {
+        setObjectName(QStringLiteral("projectsRevisionBranchTab"));
+        QVBoxLayout *column = new QVBoxLayout(this);
+        column->setContentsMargins(0, 12, 0, 4);
+        QFormLayout *form = new QFormLayout();
+        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+        form->setLabelAlignment(Qt::AlignLeft);
+        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+        this->name->setParent(this);
+        form->addRow(tr("Branch name"), this->name);
+        column->addLayout(form);
+        column->addStretch(1);
+    }
+
+    QLineEdit *name = nullptr;
 };
 
 class ProjectsInspectorActionStack final : public QStackedWidget

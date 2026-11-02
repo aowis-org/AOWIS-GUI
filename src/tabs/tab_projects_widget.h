@@ -44,6 +44,7 @@ class DatabaseInspectorOverview;
 class ProjectInspectorOverview;
 class BranchInspectorOverview;
 class RevisionInspectorOverview;
+class RevisionInspectorBranch;
 class ProjectInspector;
 class BranchInspector;
 class RevisionInspector;
@@ -214,6 +215,7 @@ private:
     ProjectInspectorOverview *project_overview = nullptr;
     BranchInspectorOverview *branch_overview = nullptr;
     RevisionInspectorOverview *revision_overview = nullptr;
+    RevisionInspectorBranch *revision_branch_page = nullptr;
     DatabaseInspectorConnection *database_connection = nullptr;
     DatabaseInspectorRelations *database_relations = nullptr;
     ProjectInspectorRelations *project_relations = nullptr;

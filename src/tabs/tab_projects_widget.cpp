@@ -543,6 +543,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
              static_cast<ProjectsInspectorOverview *>(this->revision_overview)})
         this->inspector_overview_stack->addWidget(overview);
     overview_layout->addWidget(this->inspector_overview_stack);
+    this->revision_branch_page = new RevisionInspectorBranch(
+        this->revision_overview->name, this->inspector_tabs);
     this->database_connection = new DatabaseInspectorConnection(
         defaultLocalDvmdbPath(), this->inspector_tabs);
     this->database_connection->hide();
@@ -870,6 +872,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         }
         saveRevisionInspectorChanges();
     });
+    // A pending rename is reflected in Overview while typing, but is not
+    // persisted until the asynchronous confirmation is accepted.
+    connect(this->revision_overview->name, &QLineEdit::textChanged,
+            this, [this](const QString &name) {
+        this->revision_overview->branch_label->setText(name);
+    });
     connect(this->revision_overview->name, &QLineEdit::editingFinished,
             this, [this]() {
         if (this->updating_ui) return;
@@ -888,7 +896,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     });
     connect(this->revision_inspector->commit_head, &QPushButton::clicked,
             this, &ProjectsWidget::commitSelectedHead);
-    connect(this->revision_overview->commit_message, &QTextEdit::textChanged,
+    connect(this->revision_overview->commit_message, &QPlainTextEdit::textChanged,
             this, [this] {
         if (this->updating_ui || (this->selection_kind != SelectionKind::Head
                                   && this->selection_kind != SelectionKind::Revision)) return;
@@ -1997,8 +2005,7 @@ void ProjectsWidget::updateInspectorTabs()
         related = this->project_relations;
         title = tr("Branches");
     }
-    else if (this->selection_kind == SelectionKind::Branch
-             || this->selection_kind == SelectionKind::Head)
+    else if (this->selection_kind == SelectionKind::Branch)
     {
         this->branch_relations->populate(currentProject(), currentBranch());
         related = this->branch_relations;
@@ -2010,6 +2017,11 @@ void ProjectsWidget::updateInspectorTabs()
         related = this->revision_relations;
         title = tr("Ancestry");
     }
+    // HEAD/Revision have a branch metadata tab; the former Revisions tab
+    // duplicates the revision tree and graph, so it is omitted for HEAD.
+    if (this->selection_kind == SelectionKind::Head
+        || this->selection_kind == SelectionKind::Revision)
+        this->inspector_tabs->addTab(this->revision_branch_page, tr("Branch"));
     // An empty database still needs its Projects tab to offer Create project.
     if (related != nullptr && (this->selection_kind == SelectionKind::Server
                                || this->selection_kind == SelectionKind::Project
@@ -2199,6 +2211,7 @@ void ProjectsWidget::updateInspector()
         overview->name->setReadOnly(false);
         overview->tags->setReadOnly(false);
         overview->description->setReadOnly(false);
+        this->revision_overview->branch_label->setText(view.name);
         this->revision_inspector->identity_footer->setText(view.metadata);
         const QSignalBlocker message_blocker(this->revision_overview->commit_message);
         this->revision_overview->commit_message->setPlainText(
@@ -3585,6 +3598,7 @@ void ProjectsWidget::saveRevisionInspectorChanges()
         } else if (this->selection_kind == mode && this->selected_id == selected_id) {
             const QSignalBlocker blocked(this->revision_overview->name);
             this->revision_overview->name->setText(old_name);
+            this->revision_overview->branch_label->setText(old_name);
             this->revision_autosave_timer->start();
         }
     });
