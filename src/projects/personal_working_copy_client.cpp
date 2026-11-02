@@ -577,6 +577,34 @@ void PersonalWorkingCopyClient::commitSavedDraft(
     });
 }
 
+void PersonalWorkingCopyClient::summarizeDraftNetworks(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    SummaryCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id)) {
+        completion({}, QStringLiteral("Invalid saved draft UUIDv7."));
+        return;
+    }
+    request(target, "GET", QStringLiteral("/working-copies/") + draft_id
+                + QStringLiteral("/networks/summary"), {},
+            [completion = std::move(completion), draft_id]
+            (const QJsonObject &response, const QString &error) {
+        if (!error.isEmpty()) { completion({}, error); return; }
+        const QString generation = response.value(QStringLiteral("generation")).toString();
+        const QJsonArray networks = response.value(QStringLiteral("networks")).toArray();
+        if (response.value(QStringLiteral("scope")).toString() != QStringLiteral("working-copy")
+            || response.value(QStringLiteral("draftId")).toString() != draft_id
+            || !decimal(generation)
+            || !response.value(QStringLiteral("networks")).isArray()
+            || !response.value(QStringLiteral("networkCount")).isDouble()
+            || response.value(QStringLiteral("networkCount")).toInt(-1) != networks.size()) {
+            completion({}, QStringLiteral("Invalid saved draft network summary response."));
+            return;
+        }
+        completion(response, {});
+    });
+}
+
 void PersonalWorkingCopyClient::loadDraftNetwork(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &network_id, NetworkCompletion completion)

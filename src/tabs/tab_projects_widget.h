@@ -46,6 +46,7 @@ class BranchInspectorOverview;
 class RevisionInspectorOverview;
 class RevisionNetworkOverview;
 class QNetworkAccessManager;
+class QJsonObject;
 class RevisionInspectorBranch;
 class ProjectInspector;
 class BranchInspector;
@@ -182,6 +183,9 @@ private:
     void saveRevisionInspectorChanges();
     void commitSelectedHead();
     void refreshNetworkSummary();
+    void refreshCommittedNetworkSummary(int epoch, const QString &project_id,
+                                        const QString &branch_name, const QString &revision_id);
+    void displayNetworkSummary(const QJsonObject &result, bool working_copy);
     void openInspectedNetwork();
     void exportInspectedNetwork();
     void fetchInspectedNetwork(bool export_requested);

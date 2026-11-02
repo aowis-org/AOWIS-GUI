@@ -117,6 +117,11 @@ public:
     // This operation does not acquire a lease or enable unsaved editor edits.
     using NetworkCompletion = std::function<void(
         const NetworkHydraulic &, const QString &generation, const QString &error)>;
+    // Lightweight summary of the exact SAVED candidate generation. Unlike
+    // committed branch-tip counts, this includes unpublished unborn HEADs.
+    using SummaryCompletion = std::function<void(const QJsonObject &, const QString &)>;
+    void summarizeDraftNetworks(const PersonalRepositoryTarget &target,
+                                const QString &draft_id, SummaryCompletion completion);
     void loadDraftNetwork(const PersonalRepositoryTarget &target,
                           const QString &draft_id, const QString &network_id,
                           NetworkCompletion completion);

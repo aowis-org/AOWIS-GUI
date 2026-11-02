@@ -2866,12 +2866,13 @@ void ProjectsWidget::createProject()
     select(SelectionKind::Project, id);
 }
 
-// Read-only, revision-pinned network statistics. A private working-copy draft
-// can differ from the committed base, and is NEVER treated as empty on the
-// strength of an unborn HEAD or a zero-count committed revision.
+// HEAD is NOT the committed branch tip. It is the saved private working-copy
+// candidate, which may be unborn or contain edits not yet committed. Revisions
+// always resolve to their exact immutable snapshot. Never show committed-base
+// counts as though they were the user's saved writable network.
 void ProjectsWidget::refreshNetworkSummary()
 {
-    ++this->network_read_epoch;
+    const int epoch = ++this->network_read_epoch;
     this->network_summary_count = -1;
     this->network_summary_id.clear();
     this->network_summary_revision.clear();
@@ -2893,6 +2894,75 @@ void ProjectsWidget::refreshNetworkSummary()
             tr("Network contents are not persisted for this preview."));
         return;
     }
+    const QString project_id = project->backend_id;
+    const QString branch_name = branch->name;
+    if (this->selection_kind == SelectionKind::Revision) {
+        refreshCommittedNetworkSummary(epoch, project_id, branch_name, this->selected_id);
+        return;
+    }
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable) {
+        this->revision_network_overview->network_status->setText(
+            tr("No personal database selected. Only the committed base can be summarized."));
+        refreshCommittedNetworkSummary(epoch, project_id, branch_name, {});
+        return;
+    }
+    const QString branch_uuid = branch->id.mid(project->id.size() + 1);
+    if (!DvmdbIdentity::isUuidV7(project_id)
+        || !DvmdbIdentity::isUuidV7(branch_uuid)) {
+        this->revision_network_overview->network_status->setText(
+            tr("Cannot identify the selected HEAD in the personal database."));
+        return;
+    }
+    PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    client->list(target, [this, client, target, epoch, project_id, branch_name, branch_uuid]
+        (const QList<PersonalWorkingCopyInfo> &drafts, const QString &error) {
+        if (this->network_read_epoch != epoch) { client->deleteLater(); return; }
+        if (!error.isEmpty()) {
+            this->revision_network_overview->network_status->setText(
+                tr("Unable to read saved personal working copies: %1").arg(error));
+            client->deleteLater(); return;
+        }
+        QString draft_id;
+        int matches = 0;
+        for (const PersonalWorkingCopyInfo &draft : drafts) {
+            if (draft.project_id != project_id || draft.branch_id != branch_uuid) continue;
+            ++matches;
+            draft_id = draft.id;
+        }
+        if (matches > 1) {
+            this->revision_network_overview->network_status->setText(
+                tr("Multiple private working copies exist for this HEAD. "
+                   "Open Personal working copies and choose one; their contents may differ."));
+            client->deleteLater(); return;
+        }
+        if (matches == 0) {
+            client->deleteLater();
+            // No saved private draft: a committed-base summary is meaningful,
+            // but does not authorize editing or replacing a network.
+            refreshCommittedNetworkSummary(epoch, project_id, branch_name, {});
+            return;
+        }
+        client->summarizeDraftNetworks(target, draft_id,
+            [this, client, epoch](const QJsonObject &summary, const QString &summary_error) {
+            client->deleteLater();
+            if (this->network_read_epoch != epoch) return;
+            if (!summary_error.isEmpty()) {
+                this->revision_network_overview->network_status->setText(
+                    tr("Saved working-copy summary unavailable: %1").arg(summary_error));
+                updateButtons();
+                return;
+            }
+            displayNetworkSummary(summary, true);
+        });
+    });
+}
+
+void ProjectsWidget::refreshCommittedNetworkSummary(int epoch, const QString &project_id,
+                                                     const QString &branch_name,
+                                                     const QString &revision_id)
+{
+    if (this->network_read_epoch != epoch) return;
     const ProjectServerProfile *server = currentServer();
     QString endpoint = server != nullptr && server->connection_type == QStringLiteral("remote")
         ? server->endpoint.trimmed() : QString();
@@ -2909,10 +2979,6 @@ void ProjectsWidget::refreshNetworkSummary()
     while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
     if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
         endpoint += QStringLiteral("/dvmdb/v1");
-    const QString revision_id = this->selection_kind == SelectionKind::Revision
-        ? this->selected_id : QString();
-    const QString project_id = project->backend_id;
-    const QString branch_name = branch->name;
     QUrl url(endpoint + QStringLiteral("/projects/") + project_id
         + QStringLiteral("/branches/")
         + QString::fromLatin1(QUrl::toPercentEncoding(branch_name))
@@ -2922,73 +2988,98 @@ void ProjectsWidget::refreshNetworkSummary()
         query.addQueryItem(QStringLiteral("revision"), revision_id);
         url.setQuery(query);
     }
-    const int epoch = this->network_read_epoch;
     QNetworkReply *reply = this->network_read_manager->get(QNetworkRequest(url));
-    connect(reply, &QNetworkReply::finished, this,
-            [this, reply, epoch, project_id, branch_name, revision_id, endpoint]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, epoch]() {
         const QByteArray bytes = reply->readAll();
-        const QString request_error = reply->error() == QNetworkReply::NoError
+        const QString error = reply->error() == QNetworkReply::NoError
             ? QString() : reply->errorString();
         reply->deleteLater();
         if (this->network_read_epoch != epoch) return;
         const QJsonDocument document = QJsonDocument::fromJson(bytes);
-        if (!request_error.isEmpty() || !document.isObject()) {
+        if (!error.isEmpty() || !document.isObject()) {
             this->revision_network_overview->network_status->setText(
-                tr("Network summary unavailable: %1").arg(
-                    request_error.isEmpty() ? tr("Invalid response") : request_error));
+                tr("Committed network summary unavailable: %1").arg(
+                    error.isEmpty() ? tr("Invalid response") : error));
             updateButtons();
             return;
         }
-        const QJsonObject result = document.object();
-        if (result.value(QStringLiteral("scope")).toString()
-                != QStringLiteral("committed")
-            || !result.value(QStringLiteral("networks")).isArray()) {
-            this->revision_network_overview->network_status->setText(
-                tr("Network summary response is not revision-pinned."));
-            updateButtons();
-            return;
-        }
-        const QJsonArray networks = result.value(QStringLiteral("networks")).toArray();
-        this->network_summary_count = networks.size();
-        this->network_summary_project = project_id;
-        this->network_summary_branch = branch_name;
-        this->network_summary_revision = result.value(QStringLiteral("revision")).toString();
-        this->revision_network_overview->clearCounts();
-        if (networks.isEmpty()) {
-            this->revision_network_overview->network_status->setText(
-                this->selection_kind == SelectionKind::Head
-                ? tr("No committed hydraulic network. Private draft contents may differ.")
-                : tr("No hydraulic network stored in this revision."));
-        } else {
-            const QStringList keys{QStringLiteral("junctions"), QStringLiteral("pipes"),
-                QStringLiteral("reservoirs"), QStringLiteral("tanks"),
-                QStringLiteral("pumps"), QStringLiteral("valves")};
-            QHash<QString, int> totals;
-            int all_entities = 0;
-            for (const QJsonValue &entry : networks) {
-                const QJsonObject network = entry.toObject();
-                const QJsonObject counts = network.value(QStringLiteral("counts")).toObject();
-                all_entities += network.value(QStringLiteral("entityCount")).toInt();
-                for (const QString &key : keys)
-                    totals.insert(key, totals.value(key) + counts.value(key).toInt());
-            }
-            QJsonObject sum;
-            for (const QString &key : keys) sum.insert(key, totals.value(key));
-            this->revision_network_overview->showCounts(sum, all_entities);
-            if (networks.size() == 1)
-                this->network_summary_id = networks.first().toObject()
-                    .value(QStringLiteral("id")).toString();
-            const QString heading = networks.size() == 1
-                ? tr("Network: %1").arg(networks.first().toObject()
-                    .value(QStringLiteral("title")).toString().trimmed())
-                : tr("%1 hydraulic networks in this revision").arg(networks.size());
-            this->revision_network_overview->network_status->setText(
-                heading + (this->selection_kind == SelectionKind::Head
-                    ? tr("\nCommitted base only; private draft changes are not included.")
-                    : QString()));
-        }
-        updateButtons();
+        displayNetworkSummary(document.object(), false);
     });
+}
+
+void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool working_copy)
+{
+    const QString scope = working_copy ? QStringLiteral("working-copy")
+                                       : QStringLiteral("committed");
+    if (result.value(QStringLiteral("scope")).toString() != scope
+        || !result.value(QStringLiteral("networks")).isArray()) {
+        this->revision_network_overview->network_status->setText(
+            tr("Unexpected network summary response."));
+        updateButtons();
+        return;
+    }
+    const QJsonArray networks = result.value(QStringLiteral("networks")).toArray();
+    if (result.value(QStringLiteral("networkCount")).toInt(-1) != networks.size()) {
+        this->revision_network_overview->network_status->setText(
+            tr("Network count does not match the saved summary."));
+        updateButtons();
+        return;
+    }
+    this->network_summary_count = networks.size();
+    this->revision_network_overview->clearCounts();
+    const QStringList keys{QStringLiteral("junctions"), QStringLiteral("pipes"),
+        QStringLiteral("reservoirs"), QStringLiteral("tanks"),
+        QStringLiteral("pumps"), QStringLiteral("valves")};
+    QHash<QString, int> totals;
+    int all_entities = 0;
+    for (const QJsonValue &entry : networks) {
+        const QJsonObject network = entry.toObject();
+        if (!entry.isObject() || !network.value(QStringLiteral("counts")).isObject()
+            || !DvmdbIdentity::isUuidV7(network.value(QStringLiteral("id")).toString())) {
+            this->network_summary_count = -1;
+            this->revision_network_overview->network_status->setText(
+                tr("Invalid hydraulic network in summary response."));
+            updateButtons();
+            return;
+        }
+        const QJsonObject counts = network.value(QStringLiteral("counts")).toObject();
+        all_entities += network.value(QStringLiteral("entityCount")).toInt();
+        for (const QString &key : keys)
+            totals.insert(key, totals.value(key) + counts.value(key).toInt());
+    }
+    QJsonObject sum;
+    for (const QString &key : keys) sum.insert(key, totals.value(key));
+    this->revision_network_overview->showCounts(sum, all_entities);
+    if (networks.isEmpty()) {
+        this->revision_network_overview->network_status->setText(working_copy
+            ? tr("No hydraulic network in this saved working copy.")
+            : (this->selection_kind == SelectionKind::Head
+                ? tr("No committed hydraulic network. Private draft contents may differ.")
+                : tr("No hydraulic network in this committed revision.")));
+    } else {
+        if (!working_copy && networks.size() == 1)
+            this->network_summary_id = networks.first().toObject()
+                .value(QStringLiteral("id")).toString();
+        const QString heading = networks.size() == 1
+            ? tr("Network: %1").arg(networks.first().toObject()
+                .value(QStringLiteral("title")).toString().trimmed())
+            : tr("%1 hydraulic networks").arg(networks.size());
+        this->revision_network_overview->network_status->setText(heading + (working_copy
+            ? tr("\nSaved private working copy · generation %1")
+                  .arg(result.value(QStringLiteral("generation")).toString())
+            : (this->selection_kind == SelectionKind::Head
+                ? tr("\nCommitted base only; no private draft was found.") : QString())));
+    }
+    if (!working_copy) {
+        const ProjectPreviewData *project = currentProject();
+        const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+        if (project != nullptr && branch != nullptr) {
+            this->network_summary_project = project->backend_id;
+            this->network_summary_branch = branch->name;
+            this->network_summary_revision = result.value(QStringLiteral("revision")).toString();
+        }
+    }
+    updateButtons();
 }
 
 // A read of an immutable revision always pins its exact UUID. This avoids
