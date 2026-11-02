@@ -745,6 +745,7 @@ void MapEditorContainer::activateSharedSurface(bool active)
     // restore the editor presentation on every mode activation.
     surface->setGlobe3dIconsEnabled(
         MapWorkspace::useGlobe3dIconModels(MapWorkspace::DistributionEditor));
+    surface->setGlobeFlatEntityIconsEnabled(true);
     surface->setNodeDeclutteringEnabled(false);
     surface->setLabelSettings(this->map_menu->mapNavigationWidget()->labelSettings());
     surface->setLabelSymbolRects(this->editor_node_label_rect, this->editor_link_label_rect);

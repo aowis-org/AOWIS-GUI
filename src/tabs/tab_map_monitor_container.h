@@ -26,6 +26,8 @@
 
 #include <QIcon>
 
+#include <memory>
+
 #include "common/_enums_structs.h"
 #include "network/network_symbology.h"
 #include "map/render/map_network_render_symbology.h"
@@ -38,6 +40,7 @@
 class HydraulicData;
 class MapTerrainRepository;
 class MapBgfxSurface;
+class MapBgfxEditorOverlay;
 class MapBgfxGlobeHudController;
 class QTimer;
 class QShortcut;
@@ -183,6 +186,7 @@ private:
 
     bool monitor_node_decluttering = true;
     bool monitor_globe_3d_icons = false;
+    std::shared_ptr<MapBgfxEditorOverlay> monitor_globe_icon_overlay;
     // The surface presents frames: picking and hover only run against a
     // live surface.
     bool bgfx_render_surface_active = false;

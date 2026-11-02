@@ -136,6 +136,9 @@ public:
     // underground pipes Solid (through the terrain), X-Ray (buried runs
     // dashed through the terrain) or Hide.
     void setGlobe3dIconsEnabled(bool enabled);
+    // Full-colour overlay icons on the globe replace only its generic GPU
+    // atlas symbols; the 2D monitor symbology is unchanged.
+    void setGlobeFlatEntityIconsEnabled(bool enabled);
     void setUndergroundMode(MapUndergroundMode mode);
     MapUndergroundMode undergroundMode() const { return this->underground_mode; }
     void setTerrainWireframeVisible(bool visible);
@@ -432,6 +435,7 @@ private:
     // HUD's), draw list and bgfx objects.
     OverlayBuilder overlay_builder;
     GlobeOverlayBuilder globe_overlay_builder;
+    bool globe_flat_entity_icons_enabled = false;
     MapBgfxHudTextCache overlay_text_cache{2048};
     MapBgfxHudCanvas overlay_canvas;
     MapBgfxHudGpu overlay_gpu;

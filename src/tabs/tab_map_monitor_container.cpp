@@ -16,6 +16,8 @@
 #include "map/render/map_network_render_symbology.h"
 #include "map/render/map_render_types.h"
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
+#include "map/bgfx/map_bgfx_editor_icons.h"
+#include "map/bgfx/map_bgfx_editor_overlay.h"
 #include "map/bgfx/map_bgfx_legend_content.h"
 #include "map/bgfx/map_bgfx_surface.h"
 
@@ -35,8 +37,10 @@
 #include <QTimer>
 #include <QWheelEvent>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 #include <string_view>
 
 #ifndef Q_OS_WASM
@@ -449,7 +453,7 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
         {
             return surface->globeSurfacePointAtScreen(screen_position, point);
         });
-        // Globe network (slice 3): tanks and reservoirs as 3D models.
+        // Keep the 3D-model preference disabled in both distribution workspaces.
         connect(this->map_menu->mapNavigationWidget(),
                 &MapNavigationWidget::signal3dIconsChanged,
                 surface, [this, surface](bool enabled)
@@ -1635,7 +1639,39 @@ void MapMonitorContainer::activateMonitorSurface()
         }
     });
     surface->setOverlayBuilder(MapBgfxSurface::OverlayBuilder());
-    surface->setGlobeOverlayBuilder(MapBgfxSurface::GlobeOverlayBuilder());
+    // The 3D Monitor uses exactly the Editor's full-colour pixmaps and
+    // terrain-aware globe projection. The 2D Monitor still draws its own
+    // GPU-atlas symbols; no 2D overlay is installed.
+    if (this->monitor_globe_icon_overlay == nullptr)
+    {
+        const std::shared_ptr<MapBgfxEditorIcons> icons =
+            std::make_shared<MapBgfxEditorIcons>();
+        this->monitor_globe_icon_overlay = std::make_shared<MapBgfxEditorOverlay>();
+        this->monitor_globe_icon_overlay->setIconProvider(
+            [icons](MapBgfxHudTextCache *cache, InfrastructureEntity entity,
+                    const QString &path, int width, MapBgfxEditorOverlay::Highlight highlight)
+            {
+                return icons->icon(cache, entity, path, width, highlight);
+            });
+    }
+    surface->setGlobeOverlayBuilder(
+        [this](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+               const MapBgfxSurface::GlobeProjector &projector, const QSizeF &viewport,
+               const MapBgfxGlobeIconIndex::Frustum &frustum)
+        {
+            const NetworkRenderSnapshot *snapshot =
+                this->hydraulic_data != nullptr && !this->basemap_only
+                    ? &this->hydraulic_data->networkRenderSnapshot() : nullptr;
+            const double zoom = this->map_model->view2dContinuousZoom();
+            const int width = qMax(1, qRound(std::clamp(
+                10.0 + (zoom - 16.0) * 10.0, 10.0, 40.0)));
+            this->monitor_globe_icon_overlay->buildGlobe(
+                canvas, cache, MapEditorViewportRenderState(), projector,
+                snapshot, width, viewport, frustum);
+        });
+    // Suppress only the generic globe icons, not the 2D symbols or the
+    // monitor's network colours, legend, simulation values and flow arrows.
+    surface->setGlobeFlatEntityIconsEnabled(true);
     surface->setLabelSymbolRects(MapBgfxLabels::SymbolRect(), MapBgfxLabels::SymbolRect());
     surface->setNodeDeclutteringEnabled(this->monitor_node_decluttering);
     surface->setGlobe3dIconsEnabled(MapWorkspace::useGlobe3dIconModels(

@@ -62,14 +62,14 @@ int main()
                 "invalid modes must never enable the distribution network"))
         return 1;
 
-    // Regression: a persistent globe must not carry the monitor's configurable
-    // 3D models into Distribution Editor. The monitor restores its preference.
+    // Both distribution 3D views use the same flat entity icons, regardless
+    // of the old monitor icon-model preference.
     if (!expect(!useGlobe3dIconModels(DistributionEditor, true),
                 "editor must use its original flat globe icons")
-        || !expect(useGlobe3dIconModels(DistributionMonitor, true),
-                   "monitor must restore enabled 3D icon models")
+        || !expect(!useGlobe3dIconModels(DistributionMonitor, true),
+                   "monitor must not render 3D icon models")
         || !expect(!useGlobe3dIconModels(DistributionMonitor, false),
-                   "monitor 3D icon-model preference must be honored")
+                   "monitor must use flat icons even when models are disabled")
         || !expect(!useGlobe3dIconModels(DrainageMonitor, true)
                        && !useGlobe3dIconModels(DrainageEditor, true)
                        && !useGlobe3dIconModels(MapManagement, true),

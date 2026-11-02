@@ -2638,6 +2638,8 @@ MapNetworkRenderSymbology MapBgfxSurface::globeSymbology() const
     // As the former QRhi monitor: a neutral icon fill
     // on dark windows, a soft pink on light ones (visibility on imagery).
     MapNetworkRenderSymbology themed = this->symbology;
+    if (this->globe_flat_entity_icons_enabled)
+        themed.show_icons = false;
     // An explicit per-mode icon fill (e.g. Monitor's white demand-point
     // stars) must survive 2D/3D switching. Only the unconfigured/default
     // colour is replaced by the globe's window-theme colour.
@@ -2691,6 +2693,15 @@ void MapBgfxSurface::synchronizeEntityStyle()
         this->entity_state_dirty = false;
     }
     this->entity_style.synchronize();
+}
+
+void MapBgfxSurface::setGlobeFlatEntityIconsEnabled(bool enabled)
+{
+    if (this->globe_flat_entity_icons_enabled == enabled)
+        return;
+    this->globe_flat_entity_icons_enabled = enabled;
+    this->globe_network.setSymbology(globeSymbology());
+    requestRedraw();
 }
 
 void MapBgfxSurface::setGlobe3dIconsEnabled(bool enabled)
