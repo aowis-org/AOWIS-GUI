@@ -2,6 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <optional>
@@ -44,6 +45,13 @@ bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulic
         return false;
     for (const aowis::model::ModelEntityEdit &edit : event->edits)
     {
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        {
+            if (edit.entityId != candidate.uuid ||
+                edit.after != aowis::model::hydraulicRootImage(candidate))
+                return false;
+            continue;
+        }
         std::optional<QByteArray> image;
         bool known = false;
 #define AOWIS_CURRENT_IMAGE(name, type, storage_kind, ordinal) \

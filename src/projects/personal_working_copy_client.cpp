@@ -5,6 +5,7 @@
 #include "config/gui_configuration.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QDateTime>
@@ -169,6 +170,29 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
     {
         for (const aowis::model::ModelEntityEdit &edit : event.edits)
         {
+            if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+            {
+                if (events.size() != 1 || event.edits.size() != 1 ||
+                    !changes.isEmpty() || !membership.isEmpty() ||
+                    !edit.before.has_value() || !edit.after.has_value() ||
+                    !aowis::model::decodeHydraulicRootImage(*edit.before) ||
+                    !aowis::model::decodeHydraulicRootImage(*edit.after))
+                    return QStringLiteral("Invalid metadata-only network-root event batch.");
+                continue;
+            }
+            // All normal entity edits must have matching native candidates,
+            // including updates that do not change collection membership.
+            bool recordMatched = false;
+            for (const PersonalWorkingCopyChange &record : changes)
+                if (record.uuid == edit.entityId.toString(QUuid::WithoutBraces) &&
+                    record.deleted == !edit.after.has_value() &&
+                    (record.deleted || record.payload == edit.after.value()))
+                {
+                    recordMatched = true;
+                    break;
+                }
+            if (!recordMatched)
+                return QStringLiteral("MODEL event is missing its typed candidate record.");
             const bool created = !edit.before.has_value() && edit.after.has_value();
             const bool removed = edit.before.has_value() && !edit.after.has_value();
             const HydraulicDraftMembershipEdit *intent = intents.value(edit.entityId, nullptr);
@@ -238,14 +262,14 @@ bool decimalValue(const QString &value, qulonglong &number)
 QString validateSaveRequest(const QString &draft_id, const QString &session_id,
                             const QString &fencing_token,
                             const QString &expected_generation,
-                            const QList<PersonalWorkingCopyChange> &changes)
+                            const QList<PersonalWorkingCopyChange> &changes, bool allow_empty = false)
 {
     bool parsed = false;
     const qulonglong generation = expected_generation.toULongLong(&parsed);
     if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(session_id)
         || !DvmdbIdentity::isUuidV7(fencing_token) || !decimal(expected_generation)
         || !parsed || generation == std::numeric_limits<qulonglong>::max()
-        || changes.isEmpty() || changes.size() > 128)
+        || (!allow_empty && changes.isEmpty()) || changes.size() > 128)
         return QStringLiteral("Invalid draft save identifiers, generation or batch size.");
     QSet<QString> seen;
     for (const PersonalWorkingCopyChange &change : changes)
@@ -945,7 +969,7 @@ void PersonalWorkingCopyClient::saveEventsRecovering(
     const QList<HydraulicDraftMembershipEdit> &membership, EventSaveCompletion completion)
 {
     const QString invalid = validateSaveRequest(draft_id, session_id, fencing_token,
-                                                expected_generation, changes);
+                                                expected_generation, changes, true);
     qulonglong expected = 0;
     if (!invalid.isEmpty() || !decimalValue(expected_generation, expected) ||
         expected == std::numeric_limits<qulonglong>::max() ||
@@ -1086,6 +1110,16 @@ void PersonalWorkingCopyClient::flushOldestQueuedEvent(
     // from `membership`, which saveEventsRecovering checks against the event.
     for (const aowis::model::ModelEntityEdit &edit : event->edits)
     {
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        {
+            if (event->edits.size() != 1 || !changes.isEmpty() ||
+                !edit.before.has_value() || !edit.after.has_value())
+            {
+                completion({}, false, QStringLiteral("Invalid network-root event batch."));
+                return;
+            }
+            continue;
+        }
         const QString uuid = edit.entityId.toString(QUuid::WithoutBraces);
         bool found = false;
         for (const PersonalWorkingCopyChange &change : changes)

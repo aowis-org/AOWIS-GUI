@@ -675,21 +675,19 @@ MainWindow::MainWindow(QWidget *parent)
     {
         const HydraulicHeadlossFormula selected =
             this->top_control_bar->selectedSimulationHeadlossFormula();
-        const HydraulicHeadlossFormula current =
-            this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula;
-        if (this->personal_edit_active && selected != current)
+        // The private draft must be fully ready to capture before an editor
+        // setting may change. A blocked or still-opening draft must never
+        // acquire an uncaptured in-memory mutation.
+        if (this->personal_edit_active &&
+            (this->personal_edit_blocked ||
+             !this->hydraulic_data->logicalEditCaptureEnabled()))
         {
-            // Network-level settings are not yet saved through private draft
-            // events (HC-03 to HC-05). Changing them here would make the live
-            // model differ from the draft and block the session, so the
-            // selector returns to the draft's formula instead.
             QTimer::singleShot(0, this, [this]
             {
                 this->top_control_bar->setSelectedSimulationHeadlossFormula(
                     this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
             });
-            statusBar()->showMessage(tr("The headloss formula cannot be changed while a private "
-                                        "draft is being edited."), 8000);
+            statusBar()->showMessage(tr("The private draft is not ready for editing."), 8000);
             return;
         }
         this->hydraulic_data->setSimulationHeadlossFormula(selected);

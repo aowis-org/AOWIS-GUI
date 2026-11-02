@@ -2,6 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/serialization/model_codec.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/uuid.h>
 
 #include <utility>
@@ -34,6 +35,12 @@ HydraulicEditTransactionCapture::EntityImage HydraulicEditTransactionCapture::im
     const NetworkHydraulic &network, const QUuid &uuid)
 {
     EntityImage result;
+    if (!network.uuid.isNull() && uuid == network.uuid)
+    {
+        result.type = QString::fromLatin1(aowis::model::hydraulicRootEditType);
+        result.data = aowis::model::hydraulicRootImage(network);
+        return result;
+    }
     int matches = 0;
 #define FIND_HYDRAULIC_ENTITY(name, model_type, storage_kind, ordinal) \
     matches += findEncoded(network.name, uuid, QStringLiteral(#model_type), result.type, result.data);

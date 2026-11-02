@@ -8,6 +8,7 @@
 #include "test_harness.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QCoreApplication>
@@ -2010,11 +2011,95 @@ void testDraftStageRejectsOutOfOrderReplay()
                             "the recovered candidate is used unchanged");
 }
 
+
+void testNetworkRootMetadataCaptureAndReplay()
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("Root-Network");
+    base.title_line_1 = QStringLiteral("Original");
+    const QUuid junction = createUuidV7();
+    HydraulicNodeJunction node;
+    node.uuid = junction;
+    node.id = QStringLiteral("J1");
+    base.nodes_junctions.append(node);
+    HydraulicData data;
+    data.replaceNetworkHydraulic(base, {});
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+    data.setSimulationHeadlossFormula(HydraulicHeadlossFormula::DarcyWeisbach);
+    test_harness.expectTrue(events.size() == 1,
+        "headloss formula change emits one canonical network-root transaction");
+    if (events.size() != 1) return;
+    const std::optional<aowis::model::ModelEditTransaction> event = decoded(events.first());
+    test_harness.expectTrue(event && event->edits.size() == 1 &&
+        event->edits.first().entityId == base.uuid &&
+        event->edits.first().entityType ==
+            QString::fromLatin1(aowis::model::hydraulicRootEditType),
+        "headloss event identifies only the network root");
+    QList<PersonalWorkingCopyChange> records;
+    QList<HydraulicDraftMembershipEdit> membership;
+    QString error;
+    NetworkHydraulic replayed = base;
+    test_harness.expectTrue(HydraulicDraftEventAdapter::prepareWithMembership(
+        events.first(), replayed, records, membership, &error) &&
+        records.isEmpty() && membership.isEmpty() &&
+        replayed.options_hydraulic.headloss_formula == HydraulicHeadlossFormula::DarcyWeisbach &&
+        replayed.nodes_junctions.size() == 1,
+        "replay updates metadata without creating client-owned manifest records");
+    NetworkHydraulic stale = base;
+    stale.title_line_1 = QStringLiteral("Other");
+    test_harness.expectTrue(!HydraulicDraftEventAdapter::prepareWithMembership(
+        events.first(), stale, records, membership, &error),
+        "root replay rejects stale before-image");
+    data.setSimulationHeadlossFormula(HydraulicHeadlossFormula::DarcyWeisbach);
+    test_harness.expectTrue(events.size() == 1,
+        "setting same network option does not create another logical edit");
+
+    // Source changes must pass through the same durable offline queue; a
+    // process restart may not drop or reinterpret a metadata-only event.
+    QTemporaryDir directory;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    PersonalDraftEditStage stage;
+    test_harness.expectTrue(directory.isValid() &&
+        stage.open(directory.path(), repository, draft, base, {}, &error) &&
+        stage.append(events.first(), &error) && stage.pendingCount() == 1,
+        "root event entered a durable private queue");
+    stage.close();
+    PersonalDraftEditStage reopened;
+    test_harness.expectTrue(reopened.open(directory.path(), repository, draft, base, {}, &error) &&
+        reopened.pendingCount() == 1 &&
+        reopened.visibleNetwork().options_hydraulic.headloss_formula ==
+            HydraulicHeadlossFormula::DarcyWeisbach,
+        "root metadata event replays across private draft restart");
+    QList<PersonalWorkingCopyChange> stagedRecords;
+    QList<HydraulicDraftMembershipEdit> stagedMembership;
+    NetworkHydraulic stagedCandidate;
+    test_harness.expectTrue(reopened.prepareOldest(stagedCandidate, stagedRecords,
+        stagedMembership, &error) && stagedRecords.isEmpty() && stagedMembership.isEmpty() &&
+        reopened.acknowledgeOldest(events.first(), &error) && reopened.pendingCount() == 0,
+        "root event can be authoritatively acknowledged without a client manifest record");
+    reopened.close();
+
+    NetworkHydraulic metadata =
+        aowis::model::hydraulicRootMetadata(data.networkHydraulic());
+    metadata.title_line_2 = QStringLiteral("Updated network-wide metadata");
+    metadata.duration_s = 7200;
+    test_harness.expectTrue(data.setNetworkRootMetadata(metadata) && events.size() == 2 &&
+        data.networkHydraulic().title_line_2 == metadata.title_line_2 &&
+        data.networkHydraulic().duration_s == 7200,
+        "generic metadata edit captures title and simulation duration together");
+}
+
 }
 
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
     test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);

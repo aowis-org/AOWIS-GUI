@@ -60,6 +60,9 @@ public:
         NetworkHydraulic network,
         QList<WaterQualitySolverOptions> quality_run_options);
     const QList<WaterQualitySolverOptions> &simulationQualityRunOptions() const;
+    // Canonical, reversible edit of all network-wide metadata (not collections).
+    // A private draft emits one MODEL event; server owns the manifest bytes.
+    bool setNetworkRootMetadata(const NetworkHydraulic &metadata);
     void setSimulationHeadlossFormula(HydraulicHeadlossFormula formula);
     QUuid sourceTraceOriginNodeUuid() const;
     bool setSourceTraceOriginNodeUuid(const QUuid &uuid);

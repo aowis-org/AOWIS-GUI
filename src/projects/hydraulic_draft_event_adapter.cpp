@@ -2,6 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 #include <aowis/model/serialization/model_validation.h>
 
@@ -130,6 +131,22 @@ bool HydraulicDraftEventAdapter::prepareWithMembership(
         if (edit.entityId.isNull() || seen.contains(edit.entityId))
             return fail(error, QStringLiteral("Duplicate or null event entity UUID"));
         seen.insert(edit.entityId);
+        // Network-root events are metadata-only. DVMDB owns the manifest and
+        // materializes its record inside the same fenced event save; there is
+        // deliberately no client-supplied kind-100 record or membership edit.
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        {
+            if (event->edits.size() != 1 || edit.entityId != next.uuid ||
+                !edit.before.has_value() || !edit.after.has_value() ||
+                aowis::model::hydraulicRootImage(next) != *edit.before)
+                return fail(error, QStringLiteral("Stale or invalid hydraulic network-root event"));
+            QString root_error;
+            const std::optional<NetworkHydraulic> after =
+                aowis::model::decodeHydraulicRootImage(*edit.after, &root_error);
+            if (!after || !aowis::model::applyHydraulicRootMetadata(next, *after))
+                return fail(error, QStringLiteral("Invalid network-root metadata: ") + root_error);
+            continue;
+        }
         quint16 kind = 0;
         quint16 collection_index = 0;
         bool membership_changed = false;

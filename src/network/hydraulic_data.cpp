@@ -2,6 +2,8 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/serialization/model_codec.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/serialization/model_validation.h>
 #include <aowis/model/uuid.h>
 #include "network/hydraulic_rule_dependencies.h"
 #include "network/network_render_snapshot_builder.h"
@@ -448,14 +450,53 @@ const QList<WaterQualitySolverOptions> &HydraulicData::simulationQualityRunOptio
     return this->simulation_quality_run_options;
 }
 
+bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulic &metadata)
+{
+    const NetworkHydraulic old_metadata = aowis::model::hydraulicRootMetadata(this->network_hydraulic);
+    const NetworkHydraulic new_metadata = aowis::model::hydraulicRootMetadata(metadata);
+    const QByteArray before_image = aowis::model::hydraulicRootImage(old_metadata);
+    const QByteArray after_image = aowis::model::hydraulicRootImage(new_metadata);
+    if (before_image.isEmpty() || after_image.isEmpty())
+        return false;
+    if (before_image == after_image)
+        return true;
+
+    NetworkHydraulic updated = this->network_hydraulic;
+    if (!aowis::model::applyHydraulicRootMetadata(updated, new_metadata))
+        return false;
+    const aowis::model::HydraulicDependencyValidation checked =
+        aowis::model::validateHydraulicNetworkWithDependencies(updated);
+    if (!checked.report.valid())
+        return false;
+
+    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.network.root.update"));
+    if (this->logical_edit_capture_enabled &&
+        !capture.watch(this->network_hydraulic, this->network_hydraulic.uuid))
+    {
+        this->logical_edit_capture_enabled = false;
+        emit signalLogicalEditCaptureFailed(QStringLiteral("Cannot capture hydraulic network metadata"));
+        return false;
+    }
+    const bool headloss_changed =
+        this->network_hydraulic.options_hydraulic.headloss_formula !=
+        updated.options_hydraulic.headloss_formula;
+    this->network_hydraulic = std::move(updated);
+    if (this->logical_edit_capture_enabled)
+        publishCapturedEdit(capture);
+    markNetworkChanged(NetworkChange::Visual);
+    if (headloss_changed)
+        emit signalSimulationHeadlossFormulaChanged();
+    return true;
+}
+
 void HydraulicData::setSimulationHeadlossFormula(HydraulicHeadlossFormula formula)
 {
     if (this->network_hydraulic.options_hydraulic.headloss_formula == formula)
         return;
-
-    this->network_hydraulic.options_hydraulic.headloss_formula = formula;
-    markNetworkChanged(NetworkChange::Visual);
-    emit signalSimulationHeadlossFormulaChanged();
+    NetworkHydraulic metadata = aowis::model::hydraulicRootMetadata(this->network_hydraulic);
+    metadata.options_hydraulic.headloss_formula = formula;
+    if (!setNetworkRootMetadata(metadata))
+        emit signalLogicalEditCaptureFailed(QStringLiteral("Invalid hydraulic headloss setting"));
 }
 
 QUuid HydraulicData::sourceTraceOriginNodeUuid() const
