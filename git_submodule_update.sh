@@ -6,10 +6,16 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 usage() {
     cat <<'HELP'
-Usage: ./git_submodule_update.sh [--geographiclib | --bgfx | --all | --help]
+Usage: ./git_submodule_update.sh [--model | --epanet | --epanet-deps | --geographiclib | --bgfx | --all | --help]
 
-  (no option)  Update AOWIS submodules from their tracked remote branches,
-               and pin GeographicLib to the tested stable release r2.7.
+  (no option)  Update all AOWIS-owned direct submodules (MODEL and EPANET)
+               to their tracked remote branches. Do not recurse into EPANET's
+               third-party submodules or update GeographicLib/bgfx.
+  --model      Update only AOWIS-SERVER-MODEL.
+  --epanet     Update only AOWIS-SERVER-EPANET, not its nested dependencies.
+  --epanet-deps
+               Update AOWIS-SERVER-EPANET, then check out its nested third-party
+               submodules at the exact versions pinned by EPANET (not remote tip).
   --geographiclib
                Pin only GeographicLib to r2.7; do not update AOWIS/bgfx.
   --bgfx       Initialize/update bgfx, bx and bimg to their upstream master
@@ -18,7 +24,8 @@ Usage: ./git_submodule_update.sh [--geographiclib | --bgfx | --all | --help]
                Afterwards regenerate the committed bgfx shaders with
                ./compile_linux.sh --shader-tools and commit them together
                with the new gitlinks: shader binaries must match bgfx.
-  --all        Update AOWIS, GeographicLib and bgfx groups.
+  --all        Update AOWIS submodules, their EPANET-pinned dependencies,
+               GeographicLib and bgfx. Third-party updates are opt-in.
   --help       Show this help.
 
 On the first --bgfx run, any missing bgfx/bx/bimg Git submodules are
@@ -27,10 +34,8 @@ submodule gitlinks together so other clones receive their pinned versions.
 HELP
 }
 
-standard_paths=(
-    external/AOWIS-SERVER-EPANET
-    external/AOWIS-SERVER-MODEL
-)
+model_path="external/AOWIS-SERVER-MODEL"
+epanet_path="external/AOWIS-SERVER-EPANET"
 
 # Deliberate release pin: a new GeographicLib version requires an explicit
 # compatibility check on Linux, Windows (MinGW), and WebAssembly, followed by
@@ -105,9 +110,27 @@ update_geographiclib() {
         "$geographiclib_tag" "$geographiclib_path"
 }
 
+update_model() {
+    # Do not recurse into or update unrelated submodules when only MODEL is needed.
+    git submodule update --init --remote -- "$model_path"
+}
+
+update_epanet() {
+    # Follow AOWIS EPANET only. The --remote+--recursive combination would
+    # advance its third-party dependencies (e.g. EPANET-MSX) unexpectedly.
+    git submodule update --init --remote -- "$epanet_path"
+}
+
+update_epanet_deps() {
+    update_epanet
+    # Explicitly synchronize third-party dependencies to EPANET's recorded
+    # gitlinks, not their upstream development branches.
+    git -C "$epanet_path" submodule update --init --recursive --checkout
+}
+
 update_standard() {
-    update_geographiclib
-    git submodule update --init --recursive --remote -- "${standard_paths[@]}"
+    update_model
+    update_epanet
 }
 
 update_bgfx() {
@@ -123,6 +146,18 @@ case "${1:-}" in
         [[ $# -eq 0 ]] || { usage >&2; exit 2; }
         update_standard
         ;;
+    --model)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_model
+        ;;
+    --epanet)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_epanet
+        ;;
+    --epanet-deps)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_epanet_deps
+        ;;
     --geographiclib)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
         update_geographiclib
@@ -134,6 +169,9 @@ case "${1:-}" in
     --all)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
         update_standard
+        # --all explicitly includes third-party dependency synchronization.
+        git -C "$epanet_path" submodule update --init --recursive --checkout
+        update_geographiclib
         update_bgfx
         ;;
     --help|-h)
