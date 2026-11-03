@@ -48,6 +48,18 @@ and the [integration roadmap](docs/dvmdb-integration-roadmap.md).
 The Projects revision graph is drawn with **QWidget/QPainter**; it does not
 create a second bgfx device next to the map renderer.
 
+## Hydraulic Distribution Editor
+
+The **Distribution Editor** works with one hydraulic network in both the 2D map
+and the 3D terrain globe. Entity placement, snapping, pipe bends, attachments,
+selection and movement use the shared editing workflow. In 3D, terrain-relative
+node edits update terrain height while preserving offsets; absolute elevations
+are preserved. Through-terrain picking remains available. The 3D **Delete
+Selected** control is currently disabled.
+
+See the [Distribution Editor guide](docs/distribution-editor.md) for controls,
+terrain and elevation behavior, editing limitations and relevant tests.
+
 ## Git submodules
 
 Clone the repository with its dependencies, or initialize them after cloning:

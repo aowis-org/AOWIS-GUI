@@ -19,6 +19,10 @@ matching indices. The default mode is Distribution Monitor. Switching to a
 blank drainage mode is valid and must not accidentally display distribution
 networks or run distribution editing.
 
+For the current 2D/3D hydraulic editing controls, network workflows and
+height behavior, see the [Distribution Editor guide](distribution-editor.md).
+This page focuses on the shared map workspace and renderer ownership.
+
 ## Ownership and boundaries
 
 `MapWorkspaceWidget` owns the single shared `MapModel` and hosts
@@ -63,15 +67,27 @@ highlights. The monitor's model-selection and simulation-diagnostic signals
 may change while editing, but cannot overwrite the editor's GPU state; the
 latest selected entity and diagnostics are restored when returning to monitor.
 The monitor reinstates its own HUD action handlers, labels and symbology.
-The shared globe also restores icon *presentation* on each activation:
-Distribution Editor disables the generic globe icon atlas and projects its
-full-colour editor pixmaps through the terrain-aware globe overlay, using the
-same icon provider and anchoring as its 2D overlay. Distribution Monitor uses
-its own GPU icon atlas and configurable 3D icon-model preference. The editor
-projection culls off-horizon and off-viewport icons before asking for atlas
-sprites, without regenerating retained GPU network geometry. The mode policy
-is encoded in `MapWorkspace::useGlobe3dIconModels()`, and projection behavior
-is tested independently of bgfx.
+The shared globe restores icon *presentation* on each activation. Both
+distribution modes use flat entity sprites rather than 3D object models.
+Distribution Editor projects its full-colour editor pixmaps through the
+terrain-aware overlay, shared with its 2D visual-state pipeline; the Monitor
+uses its own overlay instance and icon-size setting without inheriting Editor
+selection or placement state. The Editor positions hydraulic entity icons
+using resolved model elevations where appropriate, while demand points and
+reservoir markers remain terrain-anchored. Icon placement is culled for
+invisible/off-viewport entities, and the drawn icon rectangles support picking
+through terrain. This presentation does not require a new retained network
+geometry snapshot. The no-3D-model mode policy lives in
+`MapWorkspace::useGlobe3dIconModels()`.
+
+The editor's hydraulic tool state is not duplicated for the globe:
+`MapCanvasEntities` and the marker, pipe, device-link and placement helpers
+remain responsible for the actual editing actions. The projection boundary
+(`MapCanvasProjection`) supplies Mercator or globe coordinates and renderer
+hits; `MapEditorController` handles shared-map input and selection rectangles.
+Both the 2D and globe overlay builders consume `MapEditorVisualState`. For
+user-visible controls and elevation rules, see the
+[Distribution Editor guide](distribution-editor.md).
 
 `MainWindow` has only one distribution `MapModel`. Camera movement, provider
 changes, zoom edits, GPS navigation and fullscreen edge-panning are routed
@@ -266,7 +282,7 @@ editing operations. Distribution Editor shows its editing controls directly
 without a QToolBox. The 3D Editor icon scale ranges to 600% while 2D retains
 its former 250% limit.
 
-## 3D icon visibility, terrain sampling and performance acceptance
+## 3D Distribution Editor icon projection and terrain sampling
 
 The 3D Distribution Editor retains a geographic icon-anchor spatial index
 across pan, zoom, rotation and mode changes. For large regional networks it

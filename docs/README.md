@@ -5,6 +5,11 @@ DVMDB Projects client. This index separates **current source behavior** from
 **unfinished acceptance or planned work**; a code path's presence does not
 by itself demonstrate successful end-to-end execution on Linux or WASM.
 
+## Hydraulic Distribution Editor
+
+- [Distribution Editor — controls, workflows, elevations and limitations](distribution-editor.md): current 2D and 3D editing behavior, selection, node/link/vertex operations, attachments and terrain-aware movement.
+- [Maps workspace architecture](map-workspace-architecture.md): shared map viewport, renderer ownership and editor/monitor isolation.
+
 ## Projects and DVMDB
 
 | Start with | Purpose |
@@ -29,7 +34,6 @@ independent persisted version annotations.
 
 ## Other systems
 
-- [Map workspace architecture](map-workspace-architecture.md)
 - [Numeric editor transactions](numeric-editor-transactions.md),
   [numeric formatting](numeric-formatting.md) and
   [unit presentation coverage](unit-gui-coverage-matrix.md)
