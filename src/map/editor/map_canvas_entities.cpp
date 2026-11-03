@@ -529,15 +529,6 @@ bool MapCanvasEntities::creatingPreviewActive() const
     return this->placement->isCreating();
 }
 
-bool MapCanvasEntities::creatingGlobeNode() const
-{
-    if (!this->placement->isCreating())
-        return false;
-    const InfrastructureEntity type = this->placement->entity();
-    return type == InfrastructureEntity::Junction || type == InfrastructureEntity::Tank
-        || type == InfrastructureEntity::Reservoir;
-}
-
 bool MapCanvasEntities::floatEntity(const QPointF &position)
 {
     if (this->demand_point_attachment_moving)
@@ -619,7 +610,13 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
     if (!mouse_coordinate.has_value())
     {
         if (!this->projection->supportsMercatorHitBox() && this->placement->isCreating())
+        {
             this->placement->invalidateMousePosition(position);
+            // The ray may miss terrain while the pointer is over an elevated
+            // or underground network icon. Its renderer hit is still a valid
+            // snap candidate; never retain a stale target from the last ray.
+            updateConnectionTarget(position);
+        }
         updateCanvas();
         return true;
     }
@@ -675,13 +672,9 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
     return true;
 }
 
-bool MapCanvasEntities::anchorMarker(const QPointF &position, bool commit_to_model)
+bool MapCanvasEntities::anchorMarker(const QPointF &position)
 {
-    // The shared placement path supports terrain-aware node creation on the
-    // globe. Link completion and existing-entity movement remain guarded.
-    if (!commit_to_model && !this->placement->isCreating())
-        return false;
-    if (commit_to_model && anchorPipeVertexMove(position))
+    if (anchorPipeVertexMove(position))
         return true;
 
     if (!this->placement->hasFloatingMarker())
@@ -710,13 +703,10 @@ bool MapCanvasEntities::anchorMarker(const QPointF &position, bool commit_to_mod
     if (this->placement->isCreating())
     {
         if (InfrastructureEntityTraits::isHydraulicDeviceLink(this->placement->entity()))
-            return anchorDeviceLink(position, commit_to_model);
+            return anchorDeviceLink(position);
         if (this->placement->entity() == InfrastructureEntity::Pipe)
-            return anchorPipe(position, commit_to_model);
+            return anchorPipe(position);
     }
-
-    if (!commit_to_model)
-        return true; // Floating junction/tank/reservoir/demand icons only.
 
     const std::optional<CoordinateWGS84> projected_coordinate =
         this->projection->coordinateFromScreen(position, this->map_canvas->size());
@@ -804,12 +794,8 @@ QUuid MapCanvasEntities::createHydraulicPointEntity(InfrastructureEntity entity,
     }
 }
 
-bool MapCanvasEntities::anchorDeviceLink(const QPointF &position, bool commit_to_model)
+bool MapCanvasEntities::anchorDeviceLink(const QPointF &position)
 {
-    // The start-node choice is shared preview state. Completion would add
-    // a hydraulic device, so the globe cannot do it yet.
-    if (!commit_to_model && this->device_links->hasStartNode())
-        return true;
     const InfrastructureEntity entity = this->placement->entity();
     InfrastructureEntityReference reference;
     reference.type = entity;
@@ -1160,7 +1146,7 @@ void MapCanvasEntities::deletePipeVertex(const QUuid &pipe_uuid, int vertex_inde
     }
 }
 
-bool MapCanvasEntities::anchorPipe(const QPointF &position, bool commit_to_model)
+bool MapCanvasEntities::anchorPipe(const QPointF &position)
 {
     const QUuid connection_target_uuid = this->placement->connectionTargetUuid();
     if (!this->pipes->hasStartNode())
@@ -1181,8 +1167,6 @@ bool MapCanvasEntities::anchorPipe(const QPointF &position, bool commit_to_model
 
     if (!connection_target_uuid.isNull())
     {
-        if (!commit_to_model)
-            return true; // Show the snapped completion preview; do not add a pipe.
         if (connection_target_uuid == this->pipes->startNodeUuid())
             return true;
 
@@ -2539,8 +2523,20 @@ void MapCanvasEntities::updateConnectionTarget(const QPointF &mouse_position)
         QUuid excluded_uuid;
         if (InfrastructureEntityTraits::isHydraulicDeviceLink(this->placement->entity()))
             excluded_uuid = this->device_links->startNodeUuid();
-        nearest_entity = this->point_markers->nearestConnectionTarget(
-            mouse_position, excluded_uuid);
+        if (this->projection && !this->projection->supportsMercatorHitBox())
+        {
+            const std::optional<InfrastructureEntityReference> renderer_hit =
+                this->projection->hitEntity(mouse_position, this->map_canvas->size());
+            if (renderer_hit.has_value() && renderer_hit->uuid != excluded_uuid &&
+                InfrastructureEntityTraits::isHydraulicConnectionNode(renderer_hit->type) &&
+                this->point_markers->markerByUuid(renderer_hit->uuid).has_value())
+            {
+                nearest_entity = renderer_hit;
+            }
+        }
+        if (!nearest_entity.has_value())
+            nearest_entity = this->point_markers->nearestConnectionTarget(
+                mouse_position, excluded_uuid);
     }
 
     const QUuid nearest_uuid = nearest_entity.has_value() ? nearest_entity->uuid : QUuid();

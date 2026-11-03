@@ -177,15 +177,32 @@ std::optional<DeviceLinkGeometry> MapCanvasDeviceLinks::completionGeometry(
         return std::nullopt;
     }
 
+    DeviceLinkGeometry geometry;
+    geometry.start_node = start_marker->entity;
+    geometry.end_node = end_marker->entity;
+    if (!this->projection->supportsMercatorHitBox())
+    {
+        // A globe screen-space midpoint is not guaranteed to hit terrain:
+        // the endpoints may be elevated, underground, or across a valley.
+        // Store the geographic center of the actual hydraulic endpoints.
+        const CoordinateWGS84 &start = start_marker->coord_wgs84;
+        const CoordinateWGS84 &end = end_marker->coord_wgs84;
+        geometry.center_coordinate.latitude_deg =
+            (start.latitude_deg + end.latitude_deg) / 2.0;
+        const double longitude_delta = GeoWebMercator::normalizeLongitude(
+            end.longitude_deg - start.longitude_deg);
+        geometry.center_coordinate.longitude_deg = GeoWebMercator::normalizeLongitude(
+            start.longitude_deg + longitude_delta / 2.0);
+        return geometry;
+    }
+
+    // Keep the original 2D behavior, where the marker is centered in the
+    // projected map between the two visible endpoints.
     const QPointF start_point = screenFromWgs84(start_marker->coord_wgs84);
     const QPointF end_point = screenFromWgs84(end_marker->coord_wgs84);
     if (!std::isfinite(start_point.x()) || !std::isfinite(start_point.y()) ||
         !std::isfinite(end_point.x()) || !std::isfinite(end_point.y()))
         return std::nullopt;
-
-    DeviceLinkGeometry geometry;
-    geometry.start_node = start_marker->entity;
-    geometry.end_node = end_marker->entity;
     const std::optional<CoordinateWGS84> center = this->projection->coordinateFromScreen(
         (start_point + end_point) / 2.0, this->map_canvas->size());
     if (!center.has_value())

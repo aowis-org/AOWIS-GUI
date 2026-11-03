@@ -96,6 +96,69 @@ void testTerrainRelativeNodeCreationIsAtomic()
         "existing 2D junction creation retains its original elevation mode");
 }
 
+void test3dSharedLinkCreationKeepsHydraulicElevations()
+{
+    HydraulicData data;
+    const QUuid junction = data.addJunction(coordinate(50.0, 8.0), 127.5);
+    const QUuid tank = data.addTank(coordinate(50.2, 8.2), 168.0);
+    const QUuid reservoir = data.addReservoir(coordinate(50.4, 8.4), 205.0);
+    test_harness.expectTrue(!junction.isNull() && !tank.isNull() && !reservoir.isNull(),
+                            "3D shared link test starts with valid terrain-relative nodes");
+    test_harness.expectTrue(data.setJunctionElevationOffsetM(junction, 4.0) &&
+                            data.setTankBottomOffsetM(tank, 7.0) &&
+                            data.setReservoirHeadOffsetM(reservoir, 13.0),
+                            "link endpoints have nonzero hydraulic offsets");
+
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+
+    QList<CoordinateWGS84> bends;
+    bends.append(coordinate(50.1, 8.1));
+    bends.append(coordinate(50.15, 8.15));
+    const QUuid pipe_id = data.addPipe(junction, tank, bends);
+    const QUuid pump_id = data.addPump(tank, reservoir, coordinate(50.3, 8.3));
+    const QUuid valve_id = data.addValve(reservoir, junction, coordinate(50.2, 8.2));
+    const std::optional<HydraulicLinkPipe> pipe = data.pipe(pipe_id);
+    const std::optional<HydraulicLinkPump> pump = data.pump(pump_id);
+    const std::optional<HydraulicLinkValve> valve = data.valve(valve_id);
+    test_harness.expectTrue(pipe.has_value() && pipe->node_uuid_from == junction &&
+                            pipe->node_uuid_to == tank && pipe->vertices.size() == 2 &&
+                            pipe->vertices.at(0).coordinate_wgs84.longitude_deg == 8.1 &&
+                            pipe->vertices.at(1).coordinate_wgs84.longitude_deg == 8.15,
+                            "pipe completion persists both endpoints and all intermediate bends");
+    test_harness.expectTrue(pump.has_value() && pump->node_uuid_from == tank &&
+                            pump->node_uuid_to == reservoir &&
+                            valve.has_value() && valve->node_uuid_from == reservoir &&
+                            valve->node_uuid_to == junction,
+                            "pump and valve creation use the same hydraulic link operations as 2D");
+    test_harness.expectTrue(events.size() == 3,
+                            "three completed links record exactly three reversible logical edits");
+    for (const QByteArray &bytes : events)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> transaction = decoded(bytes);
+        test_harness.expectTrue(transaction.has_value() && transaction->edits.size() == 1 &&
+                                !transaction->edits.first().before.has_value() &&
+                                transaction->edits.first().after.has_value(),
+                                "each completed link is one reversible creation event");
+    }
+
+    const std::optional<HydraulicNodeJunction> junction_after = data.junction(junction);
+    const std::optional<HydraulicNodeTank> tank_after = data.tank(tank);
+    const std::optional<HydraulicNodeReservoir> reservoir_after = data.reservoir(reservoir);
+    test_harness.expectTrue(junction_after.has_value() &&
+                            junction_after->terrain_elevation_m == 127.5 &&
+                            junction_after->elevation_offset_m == 4.0 &&
+                            tank_after.has_value() &&
+                            tank_after->terrain_elevation_m == 168.0 &&
+                            tank_after->bottom_offset_m == 7.0 &&
+                            reservoir_after.has_value() &&
+                            reservoir_after->terrain_elevation_m == 205.0 &&
+                            reservoir_after->hydraulic_head_offset_m == 13.0,
+                            "link placement never modifies node terrain elevations or offsets");
+}
+
 void testTerrainAwareNodeMovementIsAtomic()
 {
     HydraulicData data;
@@ -2257,6 +2320,8 @@ int main(int argc, char **argv)
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);
+    test_harness.runCase("3D link creation preserves hydraulic heights",
+                         test3dSharedLinkCreationKeepsHydraulicElevations);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
     test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);

@@ -1160,8 +1160,8 @@ MapEditorMenuWidget::MapEditorMenuWidget(MapWidget *map, MapCanvasWidget *map_ca
 void MapEditorMenuWidget::applyViewMode(MapViewMode view_mode)
 {
     const bool globe = view_mode == MapViewMode::Globe;
-    // A tool in use ends on either view switch. Both views arm the same
-    // selection/creation tools, but the globe currently previews only.
+    // A tool in use ends on either view switch. Both views use the same
+    // selection and creation tools; deleting in globe mode is still disabled.
     if (this->button_radio_select != nullptr)
         this->button_radio_select->setChecked(true);
     if (this->edit_tools != nullptr)

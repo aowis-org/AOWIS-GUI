@@ -48,11 +48,39 @@ void testMissingGlobeCoordinateDiscardsPreview()
     test_harness.expectTrue(placement.isIdle() && !placement.floatingMarkerVisible(),
                             "tool cancellation clears its preview");
 }
+void testGlobeLinkSnapAcrossMissingTerrainRay()
+{
+    MapCanvasPlacement placement(nullptr);
+    placement.startCreate(InfrastructureEntity::Pipe, QStringLiteral(":/pipe.png"), 32);
+    CoordinateWGS84 ground;
+    ground.longitude_deg = 8.0;
+    ground.latitude_deg = 50.0;
+    placement.updateMousePosition(QPointF(120.0, 140.0), ground);
+    const QUuid previous_target = QUuid::createUuid();
+    placement.setConnectionTarget(previous_target);
+    placement.invalidateMousePosition(QPointF(440.0, 240.0));
+    test_harness.expectTrue(placement.connectionTargetUuid().isNull() &&
+                            !placement.mouseCoordinateValid(),
+                            "globe link preview cannot reuse a stale snap after a missed terrain ray");
+
+    // A renderer hit on an elevated node may still be valid even when the
+    // screen ray does not intersect the terrain under the pointer.
+    const QUuid through_terrain_target = QUuid::createUuid();
+    placement.setConnectionTarget(through_terrain_target);
+    test_harness.expectTrue(placement.isCreating() &&
+                            placement.connectionTargetUuid() == through_terrain_target &&
+                            !placement.mouseCoordinateValid(),
+                            "through-terrain network snapping does not require a DEM cursor hit");
+    placement.stop();
+    test_harness.expectTrue(placement.connectionTargetUuid().isNull() && placement.isIdle(),
+                            "cancelling a 3D link clears its snap and placement state");
+}
 }
 
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
     test_harness.runCase("3D shared creation preview ray miss", testMissingGlobeCoordinateDiscardsPreview);
+    test_harness.runCase("3D link snap survives terrain-ray miss", testGlobeLinkSnapAcrossMissingTerrainRay);
     return test_harness.finish();
 }

@@ -127,7 +127,7 @@ void MapEditorController::stopEntityPositioning()
 
 void MapEditorController::deleteSelectedEntities()
 {
-    // Preview-only globe interaction must never mutate the hydraulic model.
+    // Globe deletion remains disabled until the shared delete and undo workflow is enabled.
     if (!globeMode() && this->map_canvas_entities)
         this->map_canvas_entities->onMarkerSelectedDeleteRequested();
 }
@@ -521,10 +521,11 @@ bool MapEditorController::globeMousePress(const QPointF &position,
         }
         if (this->map_canvas_entities->creatingPreviewActive())
         {
-            // Link previews remain read-only in this increment.
+            // The same shared 2D placement path now also commits globe links.
+            // A missing terrain ray invalidates the cursor; snapped nodes can
+            // still be connected when they are visible through the terrain.
             this->map_canvas_entities->floatEntity(position);
-            return this->map_canvas_entities->anchorMarker(
-                position, this->map_canvas_entities->creatingGlobeNode());
+            return this->map_canvas_entities->anchorMarker(position);
         }
         if (this->map_canvas_entities->showMarkerContextMenuAt(position, global_position))
             return true;
