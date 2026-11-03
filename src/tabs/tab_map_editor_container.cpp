@@ -31,6 +31,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <optional>
 
@@ -193,6 +194,8 @@ MapEditorContainer::~MapEditorContainer()
     // The resolvers capture the bgfx surface (the monitor's destructor).
     // The shared MapWidget resolvers belong to the workspace monitor.
     this->editor_controller->setGlobeCoordinateResolver(MapEditorController::ScreenCoordinateResolver());
+    this->map_canvas->mapCanvasEntities()->setTerrainElevationResolver(
+        MapCanvasEntities::TerrainElevationResolver());
 }
 
 void MapEditorContainer::hideEvent(QHideEvent *event)
@@ -399,8 +402,8 @@ void MapEditorContainer::setupBgfxEditor()
     MapBgfxSurface *surface = this->monitor->sharedBgfxSurface();
     Q_ASSERT(surface != nullptr);
     // The globe is offered (MapBgfxSurface's default): 3D shows the terrain
-    // and the network; of the editor, only the cache sections' tile
-    // selection works there (see the class comment).
+    // and the network. Shared editing previews and terrain-aware node
+    // creation are enabled; links and movement remain guarded.
     // Never rename, reparent, hide or restart the workspace-owned surface.
     this->bgfx_surface = surface;
     // Editor HUD: crosshair, scale bar, the fullscreen button with the
@@ -448,6 +451,17 @@ void MapEditorContainer::setupBgfxEditor()
     // picking as in the monitor: pointer coordinates with DEM altitude,
     // globe pans on the drawn terrain, the tile selection's corners on it.
     surface->setTerrainRepository(this->terrain_repository);
+    this->map_canvas->mapCanvasEntities()->setTerrainElevationResolver(
+        [this](const CoordinateWGS84 &coordinate) -> std::optional<double>
+    {
+        if (this->bgfx_surface == nullptr)
+            return std::nullopt;
+        double elevation_m = 0.0;
+        if (!this->bgfx_surface->cachedTerrainElevationAtCoordinate(coordinate, &elevation_m)
+            || !std::isfinite(elevation_m))
+            return std::nullopt;
+        return elevation_m;
+    });
     this->editor_controller->setGlobeCoordinateResolver(
         [surface](const QPointF &screen_position, CoordinateWGS84 *coordinate)
     {

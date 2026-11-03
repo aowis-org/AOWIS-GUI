@@ -16,6 +16,7 @@
 #include <QTemporaryDir>
 #include <aowis/model/uuid.h>
 
+#include <limits>
 #include <utility>
 
 namespace
@@ -38,6 +39,61 @@ std::optional<aowis::model::ModelEditTransaction> decoded(const QByteArray &byte
     test_harness.expectTrue(transaction.has_value() && error.isEmpty(),
                             "transaction decodes with the canonical MODEL codec");
     return transaction;
+}
+
+void testTerrainRelativeNodeCreationIsAtomic()
+{
+    HydraulicData data;
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+
+    const QUuid junction_uuid = data.addJunction(coordinate(50.0, 8.0), 0.0);
+    const std::optional<HydraulicNodeJunction> junction = data.junction(junction_uuid);
+    test_harness.expectTrue(junction.has_value() &&
+        junction->elevation_input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset &&
+        junction->terrain_elevation_m == 0.0 && junction->elevation_offset_m == 0.0,
+        "3D junction accepts sea-level DEM and starts in terrain + zero-offset mode");
+
+    const QUuid tank_uuid = data.addTank(coordinate(50.1, 8.1), 152.25);
+    const std::optional<HydraulicNodeTank> tank = data.tank(tank_uuid);
+    test_harness.expectTrue(tank.has_value() &&
+        tank->elevation_input_type == HydraulicNodeTankElevationInputType::TerrainElevationAndOffset &&
+        tank->terrain_elevation_m == 152.25 && tank->bottom_offset_m == 0.0,
+        "3D tank bottom uses sampled terrain without creating a separate visual height");
+
+    const QUuid reservoir_uuid = data.addReservoir(coordinate(50.2, 8.2), -4.5);
+    const std::optional<HydraulicNodeReservoir> reservoir = data.reservoir(reservoir_uuid);
+    test_harness.expectTrue(reservoir.has_value() &&
+        reservoir->head_input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset &&
+        reservoir->terrain_elevation_m == -4.5 && reservoir->hydraulic_head_offset_m == 0.0,
+        "3D reservoir uses the terrain-relative hydraulic-head rule");
+
+    test_harness.expectTrue(events.size() == 3,
+        "each 3D node is created in exactly one hydraulic logical edit");
+    for (const QByteArray &bytes : events)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> event = decoded(bytes);
+        test_harness.expectTrue(event.has_value() && event->edits.size() == 1 &&
+            !event->edits.first().before.has_value() &&
+            event->edits.first().after.has_value(),
+            "terrain-relative node creation is one reversible insertion");
+    }
+
+    const int previous_events = events.size();
+    const double invalid_height = std::numeric_limits<double>::quiet_NaN();
+    test_harness.expectTrue(data.addJunction(coordinate(51.0, 9.0), invalid_height).isNull() &&
+        data.addReservoir(coordinate(51.0, 9.0), invalid_height).isNull() &&
+        data.addTank(coordinate(51.0, 9.0), invalid_height).isNull() &&
+        events.size() == previous_events,
+        "nonfinite DEM heights reject the entire creation without partial writes");
+
+    const QUuid flat_uuid = data.addJunction(coordinate(51.0, 9.0));
+    const std::optional<HydraulicNodeJunction> flat = data.junction(flat_uuid);
+    test_harness.expectTrue(flat.has_value() &&
+        flat->elevation_input_type != HydraulicNodeElevationInputType::TerrainElevationAndOffset,
+        "existing 2D junction creation retains its original elevation mode");
 }
 
 void testCaptureOnlyTouchedEntities()
@@ -2100,6 +2156,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
+    test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
     test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);

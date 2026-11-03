@@ -327,8 +327,8 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
             return globeMouseMove(position, viewport_size);
         // Use the EXACT 2D placement state machine for a live globe preview.
         // Creating only: floatEntity() in move mode changes model geometry.
-        // Only temporary link-start/bend choices are allowed on right-click;
-        // hydraulic completion, moving and deletion await 3D-00D2.
+        // Link-start/bend choices remain previews; terrain-aware nodes are
+        // committed by the shared right-click creation handler.
         if (this->map_canvas_entities->creatingPreviewActive()
             && (!this->rectangle_selection_active
                 || this->rectangle_selection_interacts_with_entities))
@@ -510,10 +510,12 @@ bool MapEditorController::globeMousePress(const QPointF &position, Qt::MouseButt
         && this->map_canvas_entities->creatingPreviewActive()
         && (!this->rectangle_selection_active || this->rectangle_selection_interacts_with_entities))
     {
-        // The ordinary editor owns link-start/bend state and placement
-        // feedback. The explicit false forbids every hydraulic mutation.
+        // Node placement now commits through the SAME shared editor path as
+        // 2D, but only if the globe DEM resolver supplies a valid elevation.
+        // Pipe/device previews are still read-only in this increment.
         this->map_canvas_entities->floatEntity(position);
-        return this->map_canvas_entities->anchorMarker(position, false);
+        return this->map_canvas_entities->anchorMarker(
+            position, this->map_canvas_entities->creatingGlobeNode());
     }
     // Only the cache sections' tile selection; everything else (left drag
     // pans, middle / Ctrl orbits) belongs to the globe navigation.

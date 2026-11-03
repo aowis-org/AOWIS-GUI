@@ -2945,10 +2945,11 @@ bool HydraulicData::removeCurveGeneric(const QUuid &uuid)
     return false;
 }
 
-QUuid HydraulicData::addJunction(const CoordinateWGS84 &coordinate)
+QUuid HydraulicData::addJunction(const CoordinateWGS84 &coordinate,
+                             std::optional<double> terrain_elevation_m)
 {
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.junction.create"));
-    const QUuid uuid = this->network_editor.addJunction(coordinate);
+    const QUuid uuid = this->network_editor.addJunction(coordinate, terrain_elevation_m);
     if (!uuid.isNull())
     {
         if (extendBoundingBoxWgs84(coordinate))
@@ -2963,10 +2964,11 @@ QUuid HydraulicData::addJunction(const CoordinateWGS84 &coordinate)
     return uuid;
 }
 
-QUuid HydraulicData::addReservoir(const CoordinateWGS84 &coordinate)
+QUuid HydraulicData::addReservoir(const CoordinateWGS84 &coordinate,
+                             std::optional<double> terrain_elevation_m)
 {
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.reservoir.create"));
-    const QUuid uuid = this->network_editor.addReservoir(coordinate);
+    const QUuid uuid = this->network_editor.addReservoir(coordinate, terrain_elevation_m);
     if (!uuid.isNull())
     {
         if (extendBoundingBoxWgs84(coordinate))
@@ -2981,10 +2983,11 @@ QUuid HydraulicData::addReservoir(const CoordinateWGS84 &coordinate)
     return uuid;
 }
 
-QUuid HydraulicData::addTank(const CoordinateWGS84 &coordinate)
+QUuid HydraulicData::addTank(const CoordinateWGS84 &coordinate,
+                             std::optional<double> terrain_elevation_m)
 {
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.tank.create"));
-    const QUuid uuid = this->network_editor.addTank(coordinate);
+    const QUuid uuid = this->network_editor.addTank(coordinate, terrain_elevation_m);
     if (!uuid.isNull())
     {
         if (extendBoundingBoxWgs84(coordinate))

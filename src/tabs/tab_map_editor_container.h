@@ -51,9 +51,10 @@
 // cannot start, a status label takes the map's place.
 //
 // 3D: the HUD's 2D/3D switch shows the globe (terrain, the network in the
-// editor look, the globe HUD) once the bgfx globe initialized. The same
-// editing tools preview in 3D, but hydraulic writes remain 2D-only until
-// terrain-safe commits are implemented. Cache tile selection works in 3D.
+// editor look, the globe HUD) once the bgfx globe initialized. New nodes
+// commit through the shared 2D editor path with cached terrain elevations;
+// link completion and movement remain preview-only until elevation-safe.
+// Cache tile selection works in 3D.
 class MapModeToolPanel;
 class MapBgfxSurface;
 class MapMonitorContainer;

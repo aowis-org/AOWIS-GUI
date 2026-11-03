@@ -157,6 +157,11 @@ MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraul
 
 MapCanvasEntities::~MapCanvasEntities() = default;
 
+void MapCanvasEntities::setTerrainElevationResolver(TerrainElevationResolver resolver)
+{
+    this->terrain_elevation_resolver = std::move(resolver);
+}
+
 void MapCanvasEntities::setProjection(std::unique_ptr<MapCanvasProjection> projection)
 {
     if (!projection)
@@ -524,6 +529,15 @@ bool MapCanvasEntities::creatingPreviewActive() const
     return this->placement->isCreating();
 }
 
+bool MapCanvasEntities::creatingGlobeNode() const
+{
+    if (!this->placement->isCreating())
+        return false;
+    const InfrastructureEntity type = this->placement->entity();
+    return type == InfrastructureEntity::Junction || type == InfrastructureEntity::Tank
+        || type == InfrastructureEntity::Reservoir;
+}
+
 bool MapCanvasEntities::floatEntity(const QPointF &position)
 {
     if (this->demand_point_attachment_moving)
@@ -663,9 +677,8 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
 
 bool MapCanvasEntities::anchorMarker(const QPointF &position, bool commit_to_model)
 {
-    // Only shared creation-preview state can change in the globe until
-    // terrain/elevation-aware hydraulic commits exist. No move or new node
-    // may pass through this preview-only branch.
+    // The shared placement path supports terrain-aware node creation on the
+    // globe. Link completion and existing-entity movement remain guarded.
     if (!commit_to_model && !this->placement->isCreating())
         return false;
     if (commit_to_model && anchorPipeVertexMove(position))
@@ -734,6 +747,10 @@ bool MapCanvasEntities::anchorMarker(const QPointF &position, bool commit_to_mod
     reference.uuid = createHydraulicPointEntity(reference.type, coordinate);
     if (reference.uuid.isNull())
     {
+        // A missing globe DEM sample is not a completed creation. Keep the
+        // shared placement tool armed; preserve 2D's original failure path.
+        if (this->projection && !this->projection->supportsMercatorHitBox())
+            return true;
         this->placement->stop();
         return false;
     }
@@ -757,14 +774,29 @@ QUuid MapCanvasEntities::createHydraulicPointEntity(InfrastructureEntity entity,
     if (!this->hydraulic_data)
         return QUuid();
 
+    // In Globe mode these are the same hydraulic creation operations as 2D,
+    // with a terrain sample supplied atomically at construction time.
+    // Missing DEM data must never turn into a zero elevation.
+    std::optional<double> terrain_elevation_m;
+    if (this->projection && !this->projection->supportsMercatorHitBox()
+        && (entity == InfrastructureEntity::Junction || entity == InfrastructureEntity::Tank
+            || entity == InfrastructureEntity::Reservoir))
+    {
+        if (!this->terrain_elevation_resolver)
+            return QUuid();
+        terrain_elevation_m = this->terrain_elevation_resolver(coordinate);
+        if (!terrain_elevation_m.has_value() || !std::isfinite(terrain_elevation_m.value()))
+            return QUuid();
+    }
+
     switch (entity)
     {
     case InfrastructureEntity::Junction:
-        return this->hydraulic_data->addJunction(coordinate);
+        return this->hydraulic_data->addJunction(coordinate, terrain_elevation_m);
     case InfrastructureEntity::Reservoir:
-        return this->hydraulic_data->addReservoir(coordinate);
+        return this->hydraulic_data->addReservoir(coordinate, terrain_elevation_m);
     case InfrastructureEntity::Tank:
-        return this->hydraulic_data->addTank(coordinate);
+        return this->hydraulic_data->addTank(coordinate, terrain_elevation_m);
     case InfrastructureEntity::DemandPoint:
         return this->hydraulic_data->addDemandPoint(coordinate);
     default:

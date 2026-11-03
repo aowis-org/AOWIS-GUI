@@ -10,6 +10,7 @@
 #include <QSet>
 #include <QUuid>
 
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -44,6 +45,11 @@ public:
     ~MapCanvasEntities() override;
 
     void setProjection(std::unique_ptr<MapCanvasProjection> projection);
+    // The globe surface provides a real cached DEM sample, never a fabricated
+    // zero height. This callback is used only for committing 3D node creation.
+    using TerrainElevationResolver =
+        std::function<std::optional<double>(const CoordinateWGS84 &)>;
+    void setTerrainElevationResolver(TerrainElevationResolver resolver);
     void loadNetwork(const NetworkHydraulic &network);
     void startEntityPositioning(InfrastructureEntity entity);
     void stopEntityPositioning();
@@ -52,6 +58,9 @@ public:
     // Floating *creation* is preview-only. Moving existing entities changes
     // live geometry and must not be entered by the 3D input bridge yet.
     bool creatingPreviewActive() const;
+    // Only these tools can commit in 3D-00D2A. Other placement state remains
+    // preview-only until the same editor receives terrain-safe link/move rules.
+    bool creatingGlobeNode() const;
     bool floatEntity(const QPointF &position);
     // The same placement path can stage a 3D link preview without committing
     // a hydraulic entity. The 2D editor retains its default commit behavior.
@@ -134,6 +143,7 @@ private:
 
     MapModel *map_model = nullptr;
     std::unique_ptr<MapCanvasProjection> projection;
+    TerrainElevationResolver terrain_elevation_resolver;
     HydraulicData *hydraulic_data = nullptr;
     QPointer<MapCanvasWidget> map_canvas;
     MapEntityPixmapRenderer pixmap_renderer;

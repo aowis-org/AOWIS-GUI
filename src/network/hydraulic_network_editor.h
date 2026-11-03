@@ -53,9 +53,12 @@ public:
     std::optional<HydraulicLinkPump> pump(const QUuid &uuid) const;
     std::optional<HydraulicLinkValve> valve(const QUuid &uuid) const;
 
-    QUuid addJunction(const CoordinateWGS84 &coordinate);
-    QUuid addReservoir(const CoordinateWGS84 &coordinate);
-    QUuid addTank(const CoordinateWGS84 &coordinate);
+    QUuid addJunction(const CoordinateWGS84 &coordinate,
+                  std::optional<double> terrain_elevation_m = std::nullopt);
+    QUuid addReservoir(const CoordinateWGS84 &coordinate,
+                  std::optional<double> terrain_elevation_m = std::nullopt);
+    QUuid addTank(const CoordinateWGS84 &coordinate,
+                  std::optional<double> terrain_elevation_m = std::nullopt);
     QUuid addDemandPoint(const CoordinateWGS84 &coordinate);
 
     QUuid addPipe(const QUuid &node_uuid_from, const QUuid &node_uuid_to,

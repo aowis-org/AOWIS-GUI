@@ -257,34 +257,61 @@ std::optional<HydraulicLinkValve> HydraulicNetworkEditor::valve(const QUuid &uui
     return *valve;
 }
 
-QUuid HydraulicNetworkEditor::addJunction(const CoordinateWGS84 &coordinate)
+QUuid HydraulicNetworkEditor::addJunction(const CoordinateWGS84 &coordinate,
+                                      std::optional<double> terrain_elevation_m)
 {
     HydraulicNodeJunction junction;
     junction.uuid = createUuidV7();
     junction.id = nextNodeId(QStringLiteral("J"));
     junction.coordinate_wgs84 = coordinate;
+    if (terrain_elevation_m.has_value())
+    {
+        if (!std::isfinite(terrain_elevation_m.value()))
+            return QUuid();
+        junction.elevation_input_type = HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+        junction.terrain_elevation_m = terrain_elevation_m.value();
+        junction.elevation_offset_m = 0.0;
+    }
     junction.metadata.date_added = QDate::currentDate();
     this->network.nodes_junctions.append(junction);
     return junction.uuid;
 }
 
-QUuid HydraulicNetworkEditor::addReservoir(const CoordinateWGS84 &coordinate)
+QUuid HydraulicNetworkEditor::addReservoir(const CoordinateWGS84 &coordinate,
+                                      std::optional<double> terrain_elevation_m)
 {
     HydraulicNodeReservoir reservoir;
     reservoir.uuid = createUuidV7();
     reservoir.id = nextNodeId(QStringLiteral("R"));
     reservoir.coordinate_wgs84 = coordinate;
+    if (terrain_elevation_m.has_value())
+    {
+        if (!std::isfinite(terrain_elevation_m.value()))
+            return QUuid();
+        reservoir.head_input_type = HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+        reservoir.terrain_elevation_m = terrain_elevation_m.value();
+        reservoir.hydraulic_head_offset_m = 0.0;
+    }
     reservoir.metadata.date_added = QDate::currentDate();
     this->network.nodes_reservoirs.append(reservoir);
     return reservoir.uuid;
 }
 
-QUuid HydraulicNetworkEditor::addTank(const CoordinateWGS84 &coordinate)
+QUuid HydraulicNetworkEditor::addTank(const CoordinateWGS84 &coordinate,
+                                      std::optional<double> terrain_elevation_m)
 {
     HydraulicNodeTank tank;
     tank.uuid = createUuidV7();
     tank.id = nextNodeId(QStringLiteral("T"));
     tank.coordinate_wgs84 = coordinate;
+    if (terrain_elevation_m.has_value())
+    {
+        if (!std::isfinite(terrain_elevation_m.value()))
+            return QUuid();
+        tank.elevation_input_type = HydraulicNodeTankElevationInputType::TerrainElevationAndOffset;
+        tank.terrain_elevation_m = terrain_elevation_m.value();
+        tank.bottom_offset_m = 0.0;
+    }
     tank.metadata.date_added = QDate::currentDate();
     this->network.nodes_tanks.append(tank);
     return tank.uuid;
