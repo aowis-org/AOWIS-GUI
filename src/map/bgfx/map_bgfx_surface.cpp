@@ -8,6 +8,7 @@
 #include "map/bgfx/map_bgfx_2d_picking.h"
 #include "map/bgfx/map_bgfx_layer_visibility.h"
 #include "map/core/map_scale_distance.h"
+#include "map/render/map_globe_vertical_transform.h"
 #include "map/render/map_render_diagnostics.h"
 #include "map/core/map_scale_renderer.h"
 #include "config/shortcut_registry.h"
@@ -1417,16 +1418,16 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
     const double vertical_exaggeration = this->map_model->view3dVerticalExaggeration();
     this->globe_overlay_height_cache.synchronize(
         this->globe_surface->surfaceRevision(), vertical_exaggeration);
-    const GlobeProjector projector =
-        [this, view_projection, origin, ray_start_height_m,
-         vertical_exaggeration, eye_x, eye_y, eye_z, viewport](
-            double longitude_deg, double latitude_deg, QPointF *screen_position,
-            double *distance_m) -> bool
+    // One camera transform for terrain and network projections. Keep these
+    // callbacks frame-local; they capture the camera and render origin by value.
+    const std::function<bool(double, double, double, QPointF *, double *)> project_at_height =
+        [view_projection, origin, eye_x, eye_y, eye_z, viewport](
+            double longitude_deg, double latitude_deg, double height_m,
+            QPointF *screen_position, double *distance_m) -> bool
     {
-        if (!std::isfinite(longitude_deg) || !std::isfinite(latitude_deg))
+        if (!std::isfinite(longitude_deg) || !std::isfinite(latitude_deg)
+            || !std::isfinite(height_m) || screen_position == nullptr)
             return false;
-        const MapGlobeSurfacePreparation &preparation = this->globe_surface->preparation();
-        const MapGlobeTerrainNavigation &navigation = this->terrain_navigation;
         // Beyond the horizon: the eye lies below the point's tangent plane
         // (geodetic up), so the globe hides it. Tested on the ellipsoid
         // first, before any relief lookup (a peak just past the horizon is
@@ -1436,10 +1437,45 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
         const double up_x = std::cos(latitude_rad) * std::cos(longitude_rad);
         const double up_y = std::cos(latitude_rad) * std::sin(longitude_rad);
         const double up_z = std::sin(latitude_rad);
-        GeoWgs84Ellipsoid::EcefPositionD point =
+        const GeoWgs84Ellipsoid::EcefPositionD surface_point =
             GeoWgs84Ellipsoid::geodeticToEcefD(longitude_deg, latitude_deg, 0.0);
-        if ((eye_x - point.x) * up_x + (eye_y - point.y) * up_y + (eye_z - point.z) * up_z < 0.0)
+        if ((eye_x - surface_point.x) * up_x + (eye_y - surface_point.y) * up_y
+            + (eye_z - surface_point.z) * up_z < 0.0)
             return false;
+        const GeoWgs84Ellipsoid::EcefPositionD point =
+            GeoWgs84Ellipsoid::geodeticToEcefD(longitude_deg, latitude_deg, height_m);
+        // Relative to the render origin before the float conversion
+        // (precision at Earth scale).
+        const QVector4D clip = view_projection * QVector4D(float(point.x - origin.x),
+                                                           float(point.y - origin.y),
+                                                           float(point.z - origin.z), 1.0f);
+        if (!(clip.w() > 1e-6f))
+            return false;
+        const double ndc_x = double(clip.x()) / double(clip.w());
+        const double ndc_y = double(clip.y()) / double(clip.w());
+        // Far off screen (grazing views): no use to a line, only float trouble.
+        if (!(std::abs(ndc_x) < 1.0e4) || !(std::abs(ndc_y) < 1.0e4))
+            return false;
+        *screen_position = QPointF((ndc_x + 1.0) * double(viewport.width()) / 2.0,
+                                   (1.0 - ndc_y) * double(viewport.height()) / 2.0);
+        if (distance_m != nullptr)
+        {
+            const double dx = point.x - eye_x;
+            const double dy = point.y - eye_y;
+            const double dz = point.z - eye_z;
+            *distance_m = std::sqrt(dx * dx + dy * dy + dz * dz);
+        }
+        return true;
+    };
+    const GlobeProjector projector =
+        [this, ray_start_height_m, vertical_exaggeration, project_at_height](
+            double longitude_deg, double latitude_deg,
+            QPointF *screen_position, double *distance_m) -> bool
+    {
+        if (!std::isfinite(longitude_deg) || !std::isfinite(latitude_deg))
+            return false;
+        const MapGlobeSurfacePreparation &preparation = this->globe_surface->preparation();
+        const MapGlobeTerrainNavigation &navigation = this->terrain_navigation;
         // On the surface as drawn: the relief (vertical exaggeration
         // included) of the drawn tile under the coordinate, the ellipsoid
         // where none is drawn (off screen, flat tiles).
@@ -1482,30 +1518,23 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
             *sampled_height_m = elevation_m * vertical_exaggeration;
             return std::isfinite(*sampled_height_m);
         });
-        if (height_known)
-            point = GeoWgs84Ellipsoid::geodeticToEcefD(longitude_deg, latitude_deg, height_m);
-        // Relative to the render origin before the float conversion
-        // (precision at Earth scale).
-        const QVector4D clip = view_projection * QVector4D(float(point.x - origin.x),
-                                                           float(point.y - origin.y),
-                                                           float(point.z - origin.z), 1.0f);
-        if (!(clip.w() > 1e-6f))
+        if (!height_known)
+            height_m = 0.0; // the drawn surface is the ellipsoid without relief
+        return project_at_height(longitude_deg, latitude_deg, height_m,
+                                 screen_position, distance_m);
+    };
+    const MapGlobeVerticalTransform vertical_transform(
+        vertical_exaggeration, this->map_model->view3dNetworkGroundOffsetM());
+    const GlobeElevatedProjector elevated_projector =
+        [project_at_height, vertical_transform](double longitude_deg, double latitude_deg,
+                                                double elevation_m, QPointF *screen_position,
+                                                double *distance_m) -> bool
+    {
+        if (!std::isfinite(elevation_m))
             return false;
-        const double ndc_x = double(clip.x()) / double(clip.w());
-        const double ndc_y = double(clip.y()) / double(clip.w());
-        // Far off screen (grazing views): no use to a line, only float trouble.
-        if (!(std::abs(ndc_x) < 1.0e4) || !(std::abs(ndc_y) < 1.0e4))
-            return false;
-        *screen_position = QPointF((ndc_x + 1.0) * double(viewport.width()) / 2.0,
-                                   (1.0 - ndc_y) * double(viewport.height()) / 2.0);
-        if (distance_m != nullptr)
-        {
-            const double dx = point.x - eye_x;
-            const double dy = point.y - eye_y;
-            const double dz = point.z - eye_z;
-            *distance_m = std::sqrt(dx * dx + dy * dy + dz * dz);
-        }
-        return true;
+        return project_at_height(longitude_deg, latitude_deg,
+                                 vertical_transform.networkHeightM(elevation_m),
+                                 screen_position, distance_m);
     };
     // The editor uses the precise same projection that drew the sprite hit
     // rectangles. Keep a value-capturing copy, never frame-local references.
@@ -1547,7 +1576,7 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
     const std::uint64_t unavailable_reuses_before = this->globe_overlay_height_cache.unavailableReuses();
     const std::uint64_t evictions_before = this->globe_overlay_height_cache.evictionCount();
     this->globe_overlay_builder(&this->overlay_canvas, &this->overlay_text_cache,
-                                projector, logical, frustum);
+                                projector, elevated_projector, logical, frustum);
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::GlobeTerrainHeightCacheHit,
                               quint64(this->globe_overlay_height_cache.hits() - cache_hits_before));
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::GlobeTerrainHeightSample,

@@ -1060,6 +1060,137 @@ void testGlobeEditorIcons()
         "camera-stable icon geometry reuses the retained spatial index");
 }
 
+// Height-aware globe icons and the shared highlighted/moving editor state
+// must use the *same* hydraulic network heights. Reservoir hydraulic head
+// and demand points are not physical structure heights.
+void testGlobeHydraulicElevationAnchors()
+{
+    Harness harness;
+    Scene s = scene();
+    s.snapshot.nodes.clear();
+    s.snapshot.links.clear();
+    s.snapshot.geometry_revision = 31;
+    NetworkRenderNode tank;
+    tank.uuid = QUuid::createUuid();
+    tank.entity_type = InfrastructureEntity::Tank;
+    tank.coordinate_wgs84 = coordinate(9.0001, 47.0);
+    tank.elevation_m = 120.0;
+    s.snapshot.nodes.append(tank);
+    NetworkRenderNode reservoir;
+    reservoir.uuid = QUuid::createUuid();
+    reservoir.entity_type = InfrastructureEntity::Reservoir;
+    reservoir.coordinate_wgs84 = coordinate(9.0003, 47.0);
+    reservoir.elevation_m = 600.0; // hydraulic head, NOT the visible structure height
+    s.snapshot.nodes.append(reservoir);
+    NetworkRenderNode demand;
+    demand.uuid = QUuid::createUuid();
+    demand.entity_type = InfrastructureEntity::DemandPoint;
+    demand.coordinate_wgs84 = coordinate(8.9999, 47.0);
+    demand.elevation_m = 999.0; // deliberately bogus: never use model height
+    s.snapshot.nodes.append(demand);
+    NetworkRenderLink pump;
+    pump.uuid = QUuid::createUuid();
+    pump.entity_type = InfrastructureEntity::Pump;
+    pump.vertices_wgs84.append(coordinate(9.00115, 47.0));
+    pump.vertices_wgs84.append(coordinate(9.00125, 47.0));
+    pump.elevations_m.append(100.0);
+    pump.elevations_m.append(200.0);
+    s.snapshot.links.append(pump);
+
+    const MapBgfxEditorOverlay::GlobeProjector terrain = [](
+        double longitude, double latitude, QPointF *screen, double *distance)
+    {
+        *screen = QPointF(400.0 + (longitude - 9.0) * 1.0e5,
+                          300.0 - (latitude - 47.0) * 1.0e5);
+        if (distance != nullptr)
+            *distance = 100.0;
+        return true;
+    };
+    const MapBgfxEditorOverlay::GlobeElevatedProjector elevated = [](
+        double longitude, double latitude, double elevation_m, QPointF *screen,
+        double *distance)
+    {
+        *screen = QPointF(400.0 + (longitude - 9.0) * 1.0e5,
+                          300.0 - (latitude - 47.0) * 1.0e5 - elevation_m);
+        if (distance != nullptr)
+            *distance = 100.0;
+        return true;
+    };
+    const MapCanvasGlobeProjection projection(
+        [](const QPointF &, const QSize &) -> std::optional<CoordinateWGS84>
+        {
+            return std::nullopt;
+        },
+        [&terrain](const CoordinateWGS84 &world, const QSize &)
+            -> std::optional<QPointF>
+        {
+            QPointF screen;
+            if (!terrain(world.longitude_deg, world.latitude_deg, &screen, nullptr))
+                return std::nullopt;
+            return screen;
+        });
+    const std::function<void()> build = [&harness, &s, &terrain, &elevated, &projection]()
+    {
+        harness.overlay.buildGlobe(&harness.canvas, &harness.cache, s.viewport,
+                                   terrain, &s.snapshot, EntityWidth,
+                                   QSizeF(ViewportWidth, ViewportHeight), {},
+                                   &s.state, &projection, elevated);
+    };
+    build();
+    req(hasSpriteCorner(harness.canvas, harness.cache, 410.0, 180.0 - IconHeight),
+        "3D tank sprite uses bottom hydraulic elevation, not terrain surface");
+    req(hasSpriteCorner(harness.canvas, harness.cache, 430.0, 300.0 - IconHeight),
+        "3D reservoir sprite stays on terrain despite its hydraulic head");
+    req(hasSpriteCorner(harness.canvas, harness.cache, 390.0, 300.0 - IconHeight),
+        "3D demand point stays terrain-draped");
+    req(hasSpriteCorner(harness.canvas, harness.cache, 520.0 - EntityWidth / 2.0,
+                        150.0 - IconHeight / 2.0),
+        "3D pump sprite uses interpolated endpoint hydraulic elevation");
+    const std::optional<InfrastructureEntityReference> tank_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(415.0, 170.0));
+    req(tank_hit.has_value() && tank_hit->uuid == tank.uuid,
+        "3D sprite picking follows elevated tank rather than stale terrain hit rectangle");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(415.0, 285.0)).has_value(),
+        "3D elevated tank cannot be picked at its old terrain position");
+
+    s.state.selected_marker_uuids.append(tank.uuid);
+    s.state.selected_marker_uuids.append(pump.uuid);
+    build();
+    req(hasSpriteCorner(harness.canvas, harness.cache,
+                        410.0 - 9.0, 180.0 - IconHeight - 9.0),
+        "selected elevated tank highlight aligns with its ordinary sprite");
+    req(hasSpriteCorner(harness.canvas, harness.cache,
+                        520.0 - EntityWidth / 2.0 - 9.0,
+                        150.0 - IconHeight / 2.0 - 9.0),
+        "selected elevated pump highlight aligns with its ordinary sprite");
+
+    s.state.selected_marker_uuids.clear();
+    s.state.move.active = true;
+    MapEditorDynamicMarkerVisualState moving;
+    moving.uuid = tank.uuid;
+    moving.entity = InfrastructureEntity::Tank;
+    moving.coordinate_wgs84 = coordinate(9.0005, 47.0);
+    s.state.move.markers.append(moving);
+    build();
+    req(hasSpriteCorner(harness.canvas, harness.cache, 450.0, 180.0 - IconHeight),
+        "shared 3D tank move preview preserves its model height");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(415.0, 170.0)).has_value(),
+        "3D move clears stale icon picking at the original tank position");
+    s.state.move = MapEditorMoveVisualState();
+
+    // Elevation changes must invalidate the retained index just like an
+    // ordinary geometry edit; no stale icon anchors or hit rectangles.
+    s.snapshot.nodes[0].elevation_m = 150.0;
+    ++s.snapshot.geometry_revision;
+    build();
+    const std::optional<InfrastructureEntityReference> new_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(415.0, 145.0));
+    req(new_hit.has_value() && new_hit->uuid == tank.uuid,
+        "3D icons and hit rectangles update after a model elevation edit");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(415.0, 175.0)).has_value(),
+        "previous elevated tank hit rectangle is discarded after an elevation edit");
+}
+
 // Attachments run per frame for every demand point: culled, clipped, and
 // without handles where the line is too short to show one.
 void testAttachmentCost()
@@ -1189,6 +1320,7 @@ int main(int argc, char **argv)
     testTerrainAndGlobeTileSelection();
     testGlobeSharedRectangleSelection();
     testGlobeEditorIcons();
+    testGlobeHydraulicElevationAnchors();
     testGlobeSharedEditorVisuals();
     testAttachmentCost();
     testPanReuse();

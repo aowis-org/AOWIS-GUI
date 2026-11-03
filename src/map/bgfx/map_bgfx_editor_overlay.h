@@ -18,6 +18,7 @@
 #include <QVector>
 
 #include <functional>
+#include <limits>
 #include <optional>
 
 class MapCanvasProjection;
@@ -111,6 +112,10 @@ public:
     // hydraulic editing itself is not enabled by this rendering hook.
     using GlobeProjector = std::function<bool(double longitude_deg, double latitude_deg,
                                               QPointF *screen_position, double *distance_m)>;
+    using GlobeElevatedProjector = std::function<bool(double longitude_deg, double latitude_deg,
+                                                      double elevation_m,
+                                                      QPointF *screen_position,
+                                                      double *distance_m)>;
     void buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
                     const MapEditorViewportRenderState &viewport_state,
                     const GlobeProjector &projector,
@@ -118,7 +123,8 @@ public:
                     int icon_width = 0, const QSizeF &viewport_size = QSizeF(),
                     const MapBgfxGlobeIconIndex::Frustum &frustum = {},
                     const MapEditorVisualState *editor_state = nullptr,
-                    const MapCanvasProjection *editor_projection = nullptr);
+                    const MapCanvasProjection *editor_projection = nullptr,
+                    const GlobeElevatedProjector &elevated_projector = {});
     // The rectangles are recorded while painting the actual 3D Editor sprites.
     // Query them before the globe network geometry hit-test so clicking an
     // icon (including through terrain) selects the entity the user sees.
@@ -255,6 +261,8 @@ private:
         QUuid uuid;
         InfrastructureEntity entity = InfrastructureEntity::Unknown;
         bool bottom_anchored = false;
+        // NaN: use the rendered terrain surface (reservoirs/demand points).
+        double elevation_m = std::numeric_limits<double>::quiet_NaN();
     };
     struct GlobeIconHitArea
     {
@@ -266,12 +274,14 @@ private:
     void globeEditorVisuals(const NetworkRenderSnapshot &snapshot,
                             const MapEditorVisualState &state,
                             const MapCanvasProjection &projection,
+                            const GlobeElevatedProjector &elevated_projector,
                             const QSizeF &viewport_size, int icon_width);
     void globeNetworkIcons(const NetworkRenderSnapshot &snapshot,
                            const GlobeProjector &projector, int icon_width,
                            const QSizeF &viewport_size,
                            const MapBgfxGlobeIconIndex::Frustum &frustum,
-                           const MapEditorVisualState *editor_state);
+                           const MapEditorVisualState *editor_state,
+                           const GlobeElevatedProjector &elevated_projector);
     MapBgfxGlobeIconIndex globe_icon_index;
     QVector<GlobeIconAnchor> globe_icon_anchors;
     // Screen-space hit rectangles follow the actual far-to-near painter order.

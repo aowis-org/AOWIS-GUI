@@ -236,12 +236,21 @@ public:
     // painter ordering of transparent icons in the 3D editor overlay.
     using GlobeProjector = std::function<bool(double longitude_deg, double latitude_deg,
                                               QPointF *screen_position, double *distance_m)>;
+    // Network elevations are hydraulic metres, transformed into the same
+    // globe-space height used by the retained 3D network (including its lift).
+    // The surface projector above remains terrain-draped for map selections,
+    // demand points, reservoirs and intermediate pipe bends.
+    using GlobeElevatedProjector = std::function<bool(double longitude_deg, double latitude_deg,
+                                                      double elevation_m,
+                                                      QPointF *screen_position,
+                                                      double *distance_m)>;
     // Called every globe frame after the terrain and the network and before
     // the HUD; draws into the overlay's canvas and atlas (the 2D builder's,
     // the two never run in the same frame), submitted untranslated.
     using GlobeOverlayBuilder = std::function<void(MapBgfxHudCanvas *canvas,
                                                    MapBgfxHudTextCache *cache,
                                                    const GlobeProjector &projector,
+                                                   const GlobeElevatedProjector &elevated_projector,
                                                    const QSizeF &viewport,
                                                    const MapBgfxGlobeIconIndex::Frustum &frustum)>;
     void setGlobeOverlayBuilder(GlobeOverlayBuilder builder);

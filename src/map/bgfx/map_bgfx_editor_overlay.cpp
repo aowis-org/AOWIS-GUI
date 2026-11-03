@@ -94,6 +94,15 @@ CoordinateWGS84 deviceLinkCenter(const QList<CoordinateWGS84> &vertices)
     return center;
 }
 
+double deviceLinkElevationM(const NetworkRenderLink &link)
+{
+    if (link.vertices_wgs84.size() > 2 && link.elevations_m.size() > 1)
+        return link.elevations_m.at(1);
+    if (link.elevations_m.size() >= 2)
+        return 0.5 * (link.elevations_m.first() + link.elevations_m.last());
+    return std::numeric_limits<double>::quiet_NaN();
+}
+
 MapBgfx2d::WorldPoint world(const CoordinateWGS84 &coordinate)
 {
     return MapBgfx2d::worldFromWgs84(coordinate.longitude_deg, coordinate.latitude_deg);
@@ -768,7 +777,8 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const QSizeF &viewport_size,
                                       const MapBgfxGlobeIconIndex::Frustum &frustum,
                                       const MapEditorVisualState *editor_state,
-                                      const MapCanvasProjection *editor_projection)
+                                      const MapCanvasProjection *editor_projection,
+                                      const GlobeElevatedProjector &elevated_projector)
 {
     canvas->clear();
     this->globe_icon_hit_areas.clear();
@@ -792,7 +802,8 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
         synchronizeGlobeIcons(*snapshot);
     const std::function<void()> build = [this, &viewport_state, &projector, snapshot, icon_width,
-                                         &viewport_size, &frustum, editor_state, editor_projection]()
+                                         &viewport_size, &frustum, editor_state,
+                                         editor_projection, &elevated_projector]()
     {
         // The atlas can be reset and this frame rebuilt: never retain hit
         // areas from sprites discarded by the rebuild.
@@ -806,11 +817,11 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
             rectangleSelection();
         if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
             globeNetworkIcons(*snapshot, projector, icon_width, viewport_size,
-                              frustum, editor_state);
+                              frustum, editor_state, elevated_projector);
         if (snapshot != nullptr && editor_state != nullptr && editor_projection != nullptr
             && !viewport_size.isEmpty())
             globeEditorVisuals(*snapshot, *editor_state, *editor_projection,
-                               viewport_size, icon_width);
+                               elevated_projector, viewport_size, icon_width);
     };
     build();
     // The atlas may evict while the first icon sizes are created. As with
@@ -831,7 +842,8 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
 // here: the 2D editor owns all of those when they are enabled in 3D later.
 void MapBgfxEditorOverlay::globeEditorVisuals(
     const NetworkRenderSnapshot &snapshot, const MapEditorVisualState &state,
-    const MapCanvasProjection &projection, const QSizeF &viewport_size, int icon_width)
+    const MapCanvasProjection &projection, const GlobeElevatedProjector &elevated_projector,
+    const QSizeF &viewport_size, int icon_width)
 {
     const QSize viewport(qMax(1, qRound(viewport_size.width())),
                          qMax(1, qRound(viewport_size.height())));
@@ -845,6 +857,19 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
             return std::nullopt;
         return MapBgfxHudPoint{projected->x(), projected->y()};
     };
+    const std::function<std::optional<MapBgfxHudPoint>(
+        const CoordinateWGS84 &, double)> elevated_point =
+        [&point, &elevated_projector](const CoordinateWGS84 &coordinate, double elevation_m)
+        -> std::optional<MapBgfxHudPoint>
+    {
+        if (!elevated_projector || !std::isfinite(elevation_m))
+            return point(coordinate); // tests/older callers without a height projector
+        QPointF projected;
+        if (!elevated_projector(coordinate.longitude_deg, coordinate.latitude_deg,
+                                elevation_m, &projected, nullptr))
+            return std::nullopt;
+        return MapBgfxHudPoint{projected.x(), projected.y()};
+    };
     const std::function<const NetworkRenderNode *(const QUuid &)> node =
         [&snapshot](const QUuid &uuid) -> const NetworkRenderNode *
     {
@@ -855,11 +880,22 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         }
         return nullptr;
     };
+    const std::function<std::optional<MapBgfxHudPoint>(const NetworkRenderNode &)> node_position =
+        [&point, &elevated_point](const NetworkRenderNode &found)
+        -> std::optional<MapBgfxHudPoint>
+    {
+        // Reservoir head is a hydraulic boundary value, not a physical
+        // location. Demand points do not have an elevation in the Model.
+        if (found.entity_type == InfrastructureEntity::Reservoir
+            || found.entity_type == InfrastructureEntity::DemandPoint)
+            return point(found.coordinate_wgs84);
+        return elevated_point(found.coordinate_wgs84, found.elevation_m);
+    };
     const std::function<std::optional<MapBgfxHudPoint>(const QUuid &)> node_point =
-        [&node, &point](const QUuid &uuid) -> std::optional<MapBgfxHudPoint>
+        [&node, &node_position](const QUuid &uuid) -> std::optional<MapBgfxHudPoint>
     {
         const NetworkRenderNode *found = node(uuid);
-        return found != nullptr ? point(found->coordinate_wgs84) : std::nullopt;
+        return found != nullptr ? node_position(*found) : std::nullopt;
     };
     const std::function<QVector<MapBgfxHudPoint>(const QList<CoordinateWGS84> &)> line =
         [&point](const QList<CoordinateWGS84> &coordinates)
@@ -871,6 +907,29 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
             const std::optional<MapBgfxHudPoint> projected = point(coordinate);
             if (!projected.has_value())
                 return QVector<MapBgfxHudPoint>(); // never connect across the horizon
+            result.append(projected.value());
+        }
+        return result;
+    };
+
+    // Project existing pipe endpoints at hydraulic height, pipe bends on
+    // the drawn terrain. Device links use their rendered network elevations.
+    const std::function<QVector<MapBgfxHudPoint>(const NetworkRenderLink &)> network_line =
+        [&point, &elevated_point](const NetworkRenderLink &link)
+    {
+        QVector<MapBgfxHudPoint> result;
+        result.reserve(link.vertices_wgs84.size());
+        for (qsizetype index = 0; index < link.vertices_wgs84.size(); ++index)
+        {
+            const CoordinateWGS84 &coordinate = link.vertices_wgs84.at(index);
+            const bool bend = link.entity_type == InfrastructureEntity::Pipe
+                && index > 0 && index + 1 < link.vertices_wgs84.size();
+            const std::optional<MapBgfxHudPoint> projected =
+                !bend && index < link.elevations_m.size()
+                    ? elevated_point(coordinate, link.elevations_m.at(index))
+                    : point(coordinate);
+            if (!projected.has_value())
+                return QVector<MapBgfxHudPoint>();
             result.append(projected.value());
         }
         return result;
@@ -931,7 +990,7 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         {
             if (link.uuid != uuid || link.entity_type != InfrastructureEntity::Pipe)
                 continue;
-            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            const QVector<MapBgfxHudPoint> vertices = network_line(link);
             polyline(vertices, LineWidthPx, SelectedColor);
             for (qsizetype index = 1; index + 1 < vertices.size(); ++index)
                 this->canvas->fillCircle(vertices.at(index).x, vertices.at(index).y,
@@ -960,7 +1019,7 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         const NetworkRenderNode *selected = node(uuid);
         if (selected != nullptr)
         {
-            const std::optional<MapBgfxHudPoint> center = point(selected->coordinate_wgs84);
+            const std::optional<MapBgfxHudPoint> center = node_position(*selected);
             if (center.has_value() && isPointEntity(selected->entity_type))
                 bottomAnchoredIcon(center.value(), selected->entity_type, QString(),
                                    icon_width, Highlight::Selected, true);
@@ -971,10 +1030,17 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
             if (link.uuid != uuid || !isDeviceLink(link.entity_type)
                 || link.vertices_wgs84.size() < 2)
                 continue;
-            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            const QVector<MapBgfxHudPoint> vertices = network_line(link);
             if (vertices.size() >= 2)
             {
-                const MapBgfxHudPoint center = midpoint(vertices.first(), vertices.last());
+                // Use the same geographic anchor as the ordinary (unselected)
+                // device icon, so highlighting does not jump on a tilted globe.
+                const std::optional<MapBgfxHudPoint> center_position =
+                    elevated_point(deviceLinkCenter(link.vertices_wgs84),
+                                   deviceLinkElevationM(link));
+                if (!center_position.has_value())
+                    continue;
+                const MapBgfxHudPoint center = center_position.value();
                 polyline(QVector<MapBgfxHudPoint>{vertices.first(), center, vertices.last()},
                          LineWidthPx, SelectedColor);
                 centeredIcon(center, link.entity_type, QString(), icon_width,
@@ -991,7 +1057,21 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
     {
         for (const MapEditorDynamicLinkVisualState &link : state.move.links)
         {
-            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            const NetworkRenderLink *original = nullptr;
+            for (const NetworkRenderLink &candidate : snapshot.links)
+            {
+                if (candidate.uuid == link.uuid)
+                {
+                    original = &candidate;
+                    break;
+                }
+            }
+            NetworkRenderLink moved_link;
+            moved_link.entity_type = link.entity;
+            moved_link.vertices_wgs84 = link.vertices_wgs84;
+            if (original != nullptr)
+                moved_link.elevations_m = original->elevations_m;
+            const QVector<MapBgfxHudPoint> vertices = network_line(moved_link);
             if (vertices.size() != link.vertices_wgs84.size() || vertices.size() < 2)
                 continue;
             if (link.entity == InfrastructureEntity::Pipe)
@@ -1013,7 +1093,12 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         }
         for (const MapEditorDynamicMarkerVisualState &marker : state.move.markers)
         {
-            const std::optional<MapBgfxHudPoint> position = point(marker.coordinate_wgs84);
+            const NetworkRenderNode *original = node(marker.uuid);
+            const std::optional<MapBgfxHudPoint> position =
+                original != nullptr && original->entity_type != InfrastructureEntity::Reservoir
+                    && original->entity_type != InfrastructureEntity::DemandPoint
+                    ? elevated_point(marker.coordinate_wgs84, original->elevation_m)
+                    : point(marker.coordinate_wgs84);
             if (!position.has_value() || !isPointEntity(marker.entity))
                 continue;
             this->canvas->fillCircle(position->x, position->y, MarkerDotRadiusPx, BlackColor);
@@ -1094,7 +1179,7 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
 
     const NetworkRenderNode *target = node(placement.connection_target_uuid);
     const std::optional<MapBgfxHudPoint> target_point =
-        target != nullptr ? point(target->coordinate_wgs84) : std::nullopt;
+        target != nullptr ? node_position(*target) : std::nullopt;
     // The shared input state supplies one geographic pointer coordinate;
     // do not interpret a stale 2D screen point as a globe position.
     const std::optional<MapBgfxHudPoint> pointer =
@@ -1172,9 +1257,9 @@ void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &sn
     anchors.reserve(snapshot.nodes.size() + snapshot.links.size());
     positions.reserve(std::size_t(snapshot.nodes.size() + snapshot.links.size()));
     const std::function<void(const CoordinateWGS84 &, const QUuid &,
-                             InfrastructureEntity, bool)> append =
+                             InfrastructureEntity, bool, double)> append =
         [&anchors, &positions](const CoordinateWGS84 &coordinate, const QUuid &uuid,
-                               InfrastructureEntity entity, bool bottom)
+                               InfrastructureEntity entity, bool bottom, double elevation_m)
     {
         if (!finite(coordinate) || coordinate.latitude_deg < -90.0
             || coordinate.latitude_deg > 90.0)
@@ -1182,19 +1267,24 @@ void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &sn
         const GeoWgs84Ellipsoid::EcefPositionD ecef =
             GeoWgs84Ellipsoid::geodeticToEcefD(coordinate.longitude_deg,
                                                 coordinate.latitude_deg, 0.0);
-        anchors.append(GlobeIconAnchor{coordinate, uuid, entity, bottom});
+        anchors.append(GlobeIconAnchor{coordinate, uuid, entity, bottom, elevation_m});
         positions.push_back({ecef.x, ecef.y, ecef.z});
     };
     for (const NetworkRenderNode &node : snapshot.nodes)
     {
         if (node.entity_type != InfrastructureEntity::Junction
             && isPointEntity(node.entity_type))
-            append(node.coordinate_wgs84, node.uuid, node.entity_type, true);
+            append(node.coordinate_wgs84, node.uuid, node.entity_type, true,
+                   node.entity_type == InfrastructureEntity::Tank ? node.elevation_m
+                       : std::numeric_limits<double>::quiet_NaN());
     }
     for (const NetworkRenderLink &link : snapshot.links)
     {
         if (isDeviceLink(link.entity_type) && link.vertices_wgs84.size() >= 2)
-            append(deviceLinkCenter(link.vertices_wgs84), link.uuid, link.entity_type, false);
+        {
+            append(deviceLinkCenter(link.vertices_wgs84), link.uuid,
+                   link.entity_type, false, deviceLinkElevationM(link));
+        }
     }
     this->globe_icon_index.rebuild(positions);
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::GlobeEditorIconIndexBuild);
@@ -1209,7 +1299,8 @@ void MapBgfxEditorOverlay::globeNetworkIcons(const NetworkRenderSnapshot &snapsh
                                              const GlobeProjector &projector, int icon_width,
                                              const QSizeF &viewport_size,
                                              const MapBgfxGlobeIconIndex::Frustum &frustum,
-                                             const MapEditorVisualState *editor_state)
+                                             const MapEditorVisualState *editor_state,
+                                             const GlobeElevatedProjector &elevated_projector)
 {
     // The camera frustum prunes kd-tree branches *before* the terrain-aware
     // projector would query an expensive drawn-surface height. A worst-case
@@ -1269,8 +1360,13 @@ void MapBgfxEditorOverlay::globeNetworkIcons(const NetworkRenderSnapshot &snapsh
                 continue; // prevent a duplicate icon at its previous position
             QPointF point;
             double distance_m = 0.0;
-            if (!projector(anchor.coordinate.longitude_deg, anchor.coordinate.latitude_deg,
-                           &point, &distance_m) || !visible(point))
+            const bool projected = std::isfinite(anchor.elevation_m) && elevated_projector
+                ? elevated_projector(anchor.coordinate.longitude_deg,
+                                     anchor.coordinate.latitude_deg,
+                                     anchor.elevation_m, &point, &distance_m)
+                : projector(anchor.coordinate.longitude_deg, anchor.coordinate.latitude_deg,
+                            &point, &distance_m);
+            if (!projected || !visible(point))
                 continue;
             icons.append({point, anchor.entity, distance_m, anchor.bottom_anchored, index});
         }

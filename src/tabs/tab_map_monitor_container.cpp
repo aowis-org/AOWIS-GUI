@@ -1666,7 +1666,9 @@ void MapMonitorContainer::activateMonitorSurface()
     }
     surface->setGlobeOverlayBuilder(
         [this](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
-               const MapBgfxSurface::GlobeProjector &projector, const QSizeF &viewport,
+               const MapBgfxSurface::GlobeProjector &projector,
+               const MapBgfxSurface::GlobeElevatedProjector &elevated_projector,
+               const QSizeF &viewport,
                const MapBgfxGlobeIconIndex::Frustum &frustum)
         {
             const NetworkRenderSnapshot *snapshot =
@@ -1679,7 +1681,7 @@ void MapMonitorContainer::activateMonitorSurface()
                 * this->monitor_globe_icon_size_percent / 100.0));
             this->monitor_globe_icon_overlay->buildGlobe(
                 canvas, cache, MapEditorViewportRenderState(), projector,
-                snapshot, width, viewport, frustum);
+                snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector);
         });
     // Suppress only the generic globe icons, not the 2D symbols or the
     // monitor's network colours, legend, simulation values and flow arrows.
