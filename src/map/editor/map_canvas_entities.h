@@ -63,6 +63,10 @@ public:
     MapEditorVisualState visualState() const;
     int iconSizePercent() const;
 
+    // Common selection entry point for 2D marker/pipe hits and 3D renderer
+    // hits. The renderer identifies a candidate; only this editor selects it.
+    bool selectEntityAt(const QPointF &position);
+    bool isEntityAt(const QPointF &position) const;
     bool selectMarkerAt(const QPointF &position);
     bool isMarkerAt(const QPointF &position) const;
     bool showMarkerContextMenuAt(const QPointF &position, const QPoint &global_position);

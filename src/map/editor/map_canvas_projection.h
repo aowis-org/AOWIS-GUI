@@ -2,6 +2,7 @@
 #define MAP_CANVAS_PROJECTION_H
 
 #include "map/core/map_model.h"
+#include "map/core/map_models.h"
 
 #include <QPointF>
 #include <QSize>
@@ -29,6 +30,12 @@ public:
     // The 2D Mercator hit-box optimization relies on a rectangular geographic
     // window. A globe projection must use a different broadphase (or none).
     virtual bool supportsMercatorHitBox() const { return false; }
+
+    // Optional renderer-backed hit test for projections whose drawn entity
+    // positions are not represented by flat map hit boxes. The shared editor
+    // still owns selection and the hydraulic inspector update.
+    virtual std::optional<InfrastructureEntityReference> hitEntity(
+        const QPointF &, const QSize &) const { return std::nullopt; }
 };
 
 // The default adapter delegates EXACTLY to the existing 2D MapModel methods.
@@ -73,10 +80,14 @@ public:
         const QPointF &, const QSize &)>;
     using WorldToScreen = std::function<std::optional<QPointF>(
         const CoordinateWGS84 &, const QSize &)>;
+    using ScreenToEntity = std::function<std::optional<InfrastructureEntityReference>(
+        const QPointF &, const QSize &)>;
 
-    MapCanvasGlobeProjection(ScreenToWorld screen_to_world, WorldToScreen world_to_screen)
+    MapCanvasGlobeProjection(ScreenToWorld screen_to_world, WorldToScreen world_to_screen,
+                             ScreenToEntity screen_to_entity = ScreenToEntity())
         : screen_to_world(std::move(screen_to_world)),
-          world_to_screen(std::move(world_to_screen)) {}
+          world_to_screen(std::move(world_to_screen)),
+          screen_to_entity(std::move(screen_to_entity)) {}
 
     std::optional<CoordinateWGS84> coordinateFromScreen(
         const QPointF &screen_position, const QSize &viewport) const override
@@ -108,9 +119,27 @@ public:
         return result;
     }
 
+    std::optional<InfrastructureEntityReference> hitEntity(
+        const QPointF &screen_position, const QSize &viewport) const override
+    {
+        if (!this->screen_to_entity || viewport.isEmpty()
+            || !std::isfinite(screen_position.x()) || !std::isfinite(screen_position.y())
+            || screen_position.x() < 0.0 || screen_position.y() < 0.0
+            || screen_position.x() >= viewport.width()
+            || screen_position.y() >= viewport.height())
+            return std::nullopt;
+        const std::optional<InfrastructureEntityReference> hit =
+            this->screen_to_entity(screen_position, viewport);
+        if (!hit.has_value() || hit->uuid.isNull()
+            || hit->type == InfrastructureEntity::Unknown)
+            return std::nullopt;
+        return hit;
+    }
+
 private:
     ScreenToWorld screen_to_world;
     WorldToScreen world_to_screen;
+    ScreenToEntity screen_to_entity;
 };
 
 #endif // MAP_CANVAS_PROJECTION_H

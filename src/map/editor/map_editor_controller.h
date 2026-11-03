@@ -50,10 +50,10 @@ public:
     explicit MapEditorController(MapModel *map_model, MapCanvasEntities *map_canvas_entities,
                                  QObject *parent = nullptr);
 
-    // Globe mode (the editor's 3D view): only the tile-cache selections
-    // work there (right drag over the globe, the tiles between its two
-    // corners); network editing, hover and entity picking are 2D only.
-    // Without a resolver the ellipsoid is picked.
+    // Globe mode shares MapCanvasEntities selection and hover with 2D.
+    // Right-drag cache tile selection remains globe-specific; hydraulic
+    // creation and movement are not enabled until elevation-safe editing.
+    // Without a terrain resolver the ellipsoid is picked.
     void setGlobeCoordinateResolver(ScreenCoordinateResolver resolver);
     // What the tile selection is for (Tile Cache: map tiles, Terrain Cache:
     // terrain tiles); the overlay draws it green or brown, and terrain

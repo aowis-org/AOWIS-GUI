@@ -265,20 +265,18 @@ bool MapEditorController::mousePress(const QPointF &position, const QPoint &glob
 {
     if (!this->map_model || !this->map_canvas_entities || viewport_size.isEmpty())
         return false;
-    if (globeMode())
-        return globeMousePress(position, button, viewport_size);
-
     const bool entity_interaction_enabled = !this->rectangle_selection_active ||
                                             this->rectangle_selection_interacts_with_entities;
 
     if (entity_interaction_enabled && button == Qt::LeftButton && !this->rectangle_dragging &&
-        (this->map_canvas_entities->selectMarkerAt(position) ||
-         this->map_canvas_entities->selectDeviceLinkAt(position) ||
-         this->map_canvas_entities->selectPipeAt(position)))
+        this->map_canvas_entities->selectEntityAt(position))
     {
         emit signalStateChanged();
         return true;
     }
+
+    if (globeMode())
+        return globeMousePress(position, button, viewport_size);
 
     if (button != Qt::RightButton)
         return false;
@@ -323,7 +321,17 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
     if (!this->map_model || !this->map_canvas_entities || viewport_size.isEmpty())
         return false;
     if (globeMode())
-        return globeMouseMove(position, viewport_size);
+    {
+        if (this->rectangle_dragging)
+            return globeMouseMove(position, viewport_size);
+        if (allow_entity_interaction &&
+            (!this->rectangle_selection_active || this->rectangle_selection_interacts_with_entities)
+            && this->map_canvas_entities->isEntityAt(position))
+            setCursorShape(Qt::PointingHandCursor);
+        else
+            setCursorShape(std::nullopt);
+        return false;
+    }
 
     if (this->rectangle_selection_active && this->rectangle_dragging)
     {
@@ -365,9 +373,7 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
     }
 
     const bool handled = this->map_canvas_entities->floatEntity(position);
-    if (this->map_canvas_entities->isMarkerAt(position) ||
-        this->map_canvas_entities->isDeviceLinkAt(position) ||
-        this->map_canvas_entities->isPipeAt(position))
+    if (this->map_canvas_entities->isEntityAt(position))
     {
         setCursorShape(Qt::PointingHandCursor);
     }

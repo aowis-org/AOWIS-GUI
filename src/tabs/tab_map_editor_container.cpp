@@ -11,6 +11,7 @@
 #include "map/bgfx/map_bgfx_pan_reuse.h"
 #include "map/bgfx/map_bgfx_surface.h"
 #include "map/editor/map_canvas_projection.h"
+#include "map/editor/map_canvas_entities.h"
 #include "tabs/tab_map_monitor_container.h"
 #include "tabs/map_workspace_mode.h"
 #include "map/render/map_entity_pixmap_renderer.h"
@@ -455,11 +456,57 @@ void MapEditorContainer::setupBgfxEditor()
     // The editor overlay draws its pixmaps in both 2D and globe modes.
     // The 2D and the globe overlay share the surface's overlay canvas: the
     // 2D builder must not reuse (pan) a canvas the globe frames rebuilt.
-    connect(this->map_model, &MapModel::viewModeChanged, this, [this](MapViewMode)
+    const std::function<void(MapViewMode)> update_editor_projection = [this](MapViewMode mode)
     {
+        MapCanvasEntities *entities = this->map_canvas->mapCanvasEntities();
+        if (mode != MapViewMode::Globe)
+        {
+            entities->setProjection(std::make_unique<MapCanvasFlatProjection>(this->map_model));
+            return;
+        }
+        // One editor state machine: only the camera/terrain ray and renderer
+        // hit candidate differ. No edit operation is implemented here.
+        entities->setProjection(std::make_unique<MapCanvasGlobeProjection>(
+            [this](const QPointF &point, const QSize &)
+                -> std::optional<CoordinateWGS84>
+            {
+                CoordinateWGS84 coordinate;
+                if (this->bgfx_surface == nullptr
+                    || !this->bgfx_surface->terrainCoordinateAtScreen(
+                        point, &coordinate, true))
+                    return std::nullopt;
+                return coordinate;
+            },
+            [](const CoordinateWGS84 &, const QSize &)
+                -> std::optional<QPointF>
+            {
+                // World-to-screen interaction projection is introduced with
+                // terrain-aware editing in 3D-00D. Read-only picking works
+                // through the renderer in this step; never use Mercator here.
+                return std::nullopt;
+            },
+            [this](const QPointF &point, const QSize &)
+                -> std::optional<InfrastructureEntityReference>
+            {
+                if (!this->shared_editor_mode || this->bgfx_surface == nullptr)
+                    return std::nullopt;
+                const MapRenderHit hit = this->bgfx_surface->hitTest(point);
+                if (!hit.isValid() || hit.uuid.isNull())
+                    return std::nullopt;
+                InfrastructureEntityReference reference;
+                reference.type = hit.entity_type;
+                reference.uuid = hit.uuid;
+                return reference;
+            }));
+    };
+    connect(this->map_model, &MapModel::viewModeChanged, this,
+            [this, update_editor_projection](MapViewMode mode)
+    {
+        update_editor_projection(mode);
         applyRenderSurfaceEditorSymbology();
         this->bgfx_visual_state_dirty = true;
     });
+    update_editor_projection(this->map_model->viewMode());
     // Set editor opacity only while editor is active.
     connect(this->map_menu, &MapEditorMenuWidget::signalSlideOpacityChanged,
             surface, [this, surface](int opacity) { if (this->shared_editor_mode) surface->setBackgroundOpacity(opacity); });

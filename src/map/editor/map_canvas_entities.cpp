@@ -1413,6 +1413,68 @@ MapEditorVisualState MapCanvasEntities::visualState() const
     return state;
 }
 
+bool MapCanvasEntities::selectEntityAt(const QPointF &position)
+{
+    if (!this->placement->isIdle() || this->demand_point_attachment_selecting
+        || this->demand_point_attachment_moving)
+        return false;
+
+    if (this->projection && !this->projection->supportsMercatorHitBox())
+    {
+        if (!this->map_canvas)
+            return false;
+        const std::optional<InfrastructureEntityReference> hit =
+            this->projection->hitEntity(position, this->map_canvas->size());
+        if (!hit.has_value())
+            return false;
+        if (hit->type == InfrastructureEntity::Pipe)
+        {
+            if (QApplication::keyboardModifiers().testFlag(Qt::ShiftModifier))
+            {
+                if (!this->pipes->geometryByUuid(hit->uuid).has_value())
+                    return false;
+                this->selection->togglePipe(hit->uuid);
+                emit signalEntityMarkerSelected(this->selection->hasSelection());
+                updateCanvas();
+            }
+            else
+            {
+                if (!this->pipes->geometryByUuid(hit->uuid).has_value())
+                    return false;
+                selectPipe(hit->uuid);
+            }
+            return true;
+        }
+        const std::optional<MapEntityMarker> marker = markerByUuid(hit->uuid);
+        if (!marker.has_value() || marker->entity.type != hit->type)
+            return false;
+        selectMarker(hit->uuid);
+        return true;
+    }
+    return selectMarkerAt(position) || selectDeviceLinkAt(position) || selectPipeAt(position);
+}
+
+bool MapCanvasEntities::isEntityAt(const QPointF &position) const
+{
+    if (!this->placement->isIdle() || this->demand_point_attachment_selecting
+        || this->demand_point_attachment_moving)
+        return false;
+    if (this->projection && !this->projection->supportsMercatorHitBox())
+    {
+        if (!this->map_canvas)
+            return false;
+        const std::optional<InfrastructureEntityReference> hit =
+            this->projection->hitEntity(position, this->map_canvas->size());
+        if (!hit.has_value())
+            return false;
+        if (hit->type == InfrastructureEntity::Pipe)
+            return this->pipes->geometryByUuid(hit->uuid).has_value();
+        const std::optional<MapEntityMarker> marker = markerByUuid(hit->uuid);
+        return marker.has_value() && marker->entity.type == hit->type;
+    }
+    return isMarkerAt(position) || isDeviceLinkAt(position) || isPipeAt(position);
+}
+
 bool MapCanvasEntities::selectMarkerAt(const QPointF &position)
 {
     if (!this->placement->isIdle() || this->demand_point_attachment_selecting ||

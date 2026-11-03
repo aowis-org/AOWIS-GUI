@@ -108,6 +108,56 @@ void testNoFalseRejectionWhenProjectionMisses()
     test_harness.expectTrue(missing.contains(coordinate(-165.0, 80.0)),
                             "missing projection cannot incorrectly cull a hit");
 }
+void testGlobeEntityHitCallback()
+{
+    const QSize viewport(800, 600);
+    int hits = 0;
+    MapCanvasGlobeProjection projection(
+        [](const QPointF &, const QSize &) -> std::optional<CoordinateWGS84>
+        {
+            return coordinate(10.0, 20.0);
+        },
+        [](const CoordinateWGS84 &, const QSize &) -> std::optional<QPointF>
+        {
+            return std::nullopt;
+        },
+        [&hits](const QPointF &, const QSize &)
+            -> std::optional<InfrastructureEntityReference>
+        {
+            ++hits;
+            InfrastructureEntityReference ref;
+            ref.type = InfrastructureEntity::Pipe;
+            ref.uuid = QUuid(QStringLiteral("{145c49c0-aa74-432c-93aa-412fc397472a}"));
+            return ref;
+        });
+    const std::optional<InfrastructureEntityReference> hit = projection.hitEntity(
+        QPointF(100.0, 200.0), viewport);
+    test_harness.expectTrue(hit.has_value() && hit->type == InfrastructureEntity::Pipe,
+                            "3D hit returned as shared editor entity reference");
+    test_harness.expectTrue(hits == 1, "hit callback invoked for valid screen position");
+    test_harness.expectTrue(!projection.hitEntity(QPointF(-1.0, 0.0), viewport).has_value(),
+                            "outside viewport cannot select an entity");
+    test_harness.expectTrue(!projection.hitEntity(QPointF(800.0, 0.0), viewport).has_value(),
+                            "right border is outside the viewport");
+    test_harness.expectTrue(!projection.hitEntity(QPointF(10.0, 20.0), QSize()).has_value(),
+                            "zero-sized viewport cannot pick an entity");
+    test_harness.expectTrue(hits == 1, "invalid positions never call renderer hit test");
+
+    MapCanvasGlobeProjection invalid(
+        [](const QPointF &, const QSize &) -> std::optional<CoordinateWGS84>
+        { return std::nullopt; },
+        [](const CoordinateWGS84 &, const QSize &) -> std::optional<QPointF>
+        { return std::nullopt; },
+        [](const QPointF &, const QSize &) -> std::optional<InfrastructureEntityReference>
+        {
+            InfrastructureEntityReference ref;
+            ref.type = InfrastructureEntity::Pipe;
+            return ref; // invalid UUID must not select any pipe
+        });
+    test_harness.expectTrue(!invalid.hitEntity(QPointF(10.0, 20.0), viewport).has_value(),
+                            "invalid UUID is rejected by the shared projection");
+}
+
 void testGlobeCallbackProjection()
 {
     int screen_calls = 0;
@@ -176,5 +226,6 @@ int main()
     test_harness.runCase("2D geographic hit box", testMercatorHitBox);
     test_harness.runCase("miss and globe broadphase", testNoFalseRejectionWhenProjectionMisses);
     test_harness.runCase("globe projection callbacks", testGlobeCallbackProjection);
+    test_harness.runCase("globe renderer hit adapter", testGlobeEntityHitCallback);
     return test_harness.finish();
 }
