@@ -18,6 +18,8 @@
 
 #include <functional>
 
+class MapCanvasProjection;
+
 // Map editor on bgfx (roadmap Phase 2): everything the former QPainter editor
 // (MapEditorRenderer, removed) drew on top of the GPU network in its
 // render-surface mode, rebuilt per frame into a
@@ -102,8 +104,9 @@ public:
     // Globe mode: use the same full-colour editor entity icons as 2D,
     // projected onto the terrain-aware globe, plus the tile-cache selection.
     // Icons are drawn far-to-near using the projector camera distance, not
-    // insertion order. Editing interactions remain 2D-only; the retained
-    // network geometry stays in the persistent globe renderer.
+    // insertion order. The optional shared editor state supplies exactly the
+    // same placement/selection previews as 2D, using the globe projection;
+    // hydraulic editing itself is not enabled by this rendering hook.
     using GlobeProjector = std::function<bool(double longitude_deg, double latitude_deg,
                                               QPointF *screen_position, double *distance_m)>;
     void buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
@@ -111,7 +114,9 @@ public:
                     const GlobeProjector &projector,
                     const NetworkRenderSnapshot *snapshot = nullptr,
                     int icon_width = 0, const QSizeF &viewport_size = QSizeF(),
-                    const MapBgfxGlobeIconIndex::Frustum &frustum = {});
+                    const MapBgfxGlobeIconIndex::Frustum &frustum = {},
+                    const MapEditorVisualState *editor_state = nullptr,
+                    const MapCanvasProjection *editor_projection = nullptr);
     // Globe tile selection lattice: at most this many cells per axis (each
     // lattice point is one projection, relief lookup included), at most
     // this many cells per tile (relief detail along the frame and grid).
@@ -244,6 +249,10 @@ private:
     };
     // Built on a network geometry revision only; never on camera movement.
     void synchronizeGlobeIcons(const NetworkRenderSnapshot &snapshot);
+    void globeEditorVisuals(const NetworkRenderSnapshot &snapshot,
+                            const MapEditorVisualState &state,
+                            const MapCanvasProjection &projection,
+                            const QSizeF &viewport_size, int icon_width);
     void globeNetworkIcons(const NetworkRenderSnapshot &snapshot,
                            const GlobeProjector &projector, int icon_width,
                            const QSizeF &viewport_size,

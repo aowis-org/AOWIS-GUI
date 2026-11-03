@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
+#include "map/editor/map_canvas_projection.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
@@ -656,6 +657,109 @@ void testTerrainAndGlobeTileSelection()
         "globe map tile selection frame is green");
 }
 
+// 3D-00B: the same editor visual state is projected over the globe. This
+// tests rendering only; no separate globe placement/controller is involved.
+void testGlobeSharedEditorVisuals()
+{
+    Harness harness;
+    Scene s = scene();
+    const MapBgfxEditorOverlay::GlobeProjector projector = [](
+        double longitude, double latitude, QPointF *screen, double *distance)
+    {
+        *screen = QPointF(400.0 + (longitude - 9.0) * 1.0e5,
+                          300.0 - (latitude - 47.0) * 1.0e5);
+        if (distance != nullptr)
+            *distance = 100.0;
+        return true;
+    };
+    const MapCanvasGlobeProjection projection(
+        [](const QPointF &screen, const QSize &) -> std::optional<CoordinateWGS84>
+        {
+            return coordinate(9.0 + (screen.x() - 400.0) / 1.0e5,
+                              47.0 - (screen.y() - 300.0) / 1.0e5);
+        },
+        [&projector](const CoordinateWGS84 &world, const QSize &)
+            -> std::optional<QPointF>
+        {
+            QPointF screen;
+            if (!projector(world.longitude_deg, world.latitude_deg, &screen, nullptr))
+                return std::nullopt;
+            return screen;
+        });
+    const std::function<void()> build = [&harness, &s, &projector, &projection]()
+    {
+        harness.overlay.buildGlobe(&harness.canvas, &harness.cache, s.viewport,
+                                   projector, &s.snapshot, EntityWidth,
+                                   QSizeF(ViewportWidth, ViewportHeight), {},
+                                   &s.state, &projection);
+    };
+
+    s.state.selected_pipe_uuids.append(s.pipe);
+    s.state.selected_marker_uuids.append(s.junction_a);
+    build();
+    req(hasColor(harness.canvas, MapBgfxEditorOverlay::SelectedColor),
+        "shared selected pipe and its bend dots are drawn on the globe");
+    req(harness.probe.count(Highlight::Selected) == 1,
+        "3D selected junction uses the same highlighted Editor icon");
+
+    s.state.placement.creating = true;
+    s.state.placement.entity = InfrastructureEntity::Pipe;
+    s.state.placement.pipe_start_node_uuid = s.junction_a;
+    s.state.placement.pipe_intermediate_vertices.append(coordinate(9.0, 47.0002));
+    s.state.placement.mouse_position = QPointF(10.0, 10.0); // deliberately wrong 2D pointer
+    s.state.placement.mouse_coordinate_wgs84 = coordinate(9.0004, 47.0001);
+    s.state.placement.mouse_coordinate_wgs84_valid = true;
+    build();
+    req(hasColorNear(harness.canvas, MapBgfxEditorOverlay::PreviewColor, 440.0, 290.0, 2.0),
+        "3D pipe preview uses the shared geographic pointer instead of 2D pixels");
+    req(hasColorNear(harness.canvas, MapBgfxEditorOverlay::PreviewColor, 400.0, 280.0, 4.5),
+        "intermediate 3D pipe bend has the shared preview marker");
+
+    s.state.placement.connection_target_uuid = s.junction_b;
+    build();
+    req(hasColorNear(harness.canvas, MapBgfxEditorOverlay::PreviewColor, 450.0 + 9.0, 300.0, 1.0),
+        "snapped 3D target uses the same ring as 2D");
+    req(!hasColorNear(harness.canvas, MapBgfxEditorOverlay::PreviewColor, 440.0, 290.0, 2.0),
+        "snapped 3D pipe preview stops at target rather than the cursor");
+
+    s.state.placement = MapEditorPlacementVisualState();
+    s.state.placement.creating = true;
+    s.state.placement.entity = InfrastructureEntity::Tank;
+    s.state.placement.floating_marker_visible = true;
+    s.state.placement.floating_width = 30;
+    s.state.placement.mouse_coordinate_wgs84 = coordinate(9.0, 47.0);
+    s.state.placement.mouse_coordinate_wgs84_valid = true;
+    build();
+    req(hasSpriteCorner(harness.canvas, harness.cache, 400.0, 300.0 - IconHeight),
+        "shared floating Tank sprite is bottom-anchored on the 3D terrain");
+    bool floating_tank = false;
+    for (const IconCall &call : harness.probe.calls)
+        floating_tank = floating_tank || (call.entity == InfrastructureEntity::Tank
+                                         && call.width == 30);
+    req(floating_tank, "3D floating sprite uses exactly the 2D Editor icon provider");
+
+    s.state.placement = MapEditorPlacementVisualState();
+    s.state.placement.creating = true;
+    s.state.placement.entity = InfrastructureEntity::Pump;
+    s.state.placement.device_link_start_node_uuid = s.junction_a;
+    s.state.placement.floating_marker_visible = true;
+    s.state.placement.floating_width = EntityWidth;
+    s.state.placement.mouse_coordinate_wgs84 = coordinate(9.0005, 47.0);
+    s.state.placement.mouse_coordinate_wgs84_valid = true;
+    build();
+    req(hasColor(harness.canvas, MapBgfxEditorOverlay::PreviewColor),
+        "3D pump placement uses the shared link preview");
+    req(hasSpriteCorner(harness.canvas, harness.cache,
+                        400.0 - EntityWidth / 2.0, 300.0 - IconHeight / 2.0),
+        "3D pump floating icon is centered on the preview midpoint");
+
+    s.state.placement.mouse_coordinate_wgs84_valid = false;
+    s.state.placement.connection_target_uuid = QUuid();
+    build();
+    req(!hasColor(harness.canvas, MapBgfxEditorOverlay::PreviewColor),
+        "invalid 3D cursor position does not draw a fabricated link preview");
+}
+
 // The 3D editor projects its full-colour 2D sprites onto the globe. It must
 // not fall back to the monitor's generic star atlas, and off-horizon entities
 // must not create HUD sprites.
@@ -932,6 +1036,7 @@ int main(int argc, char **argv)
     testFramesAndAttachments();
     testTerrainAndGlobeTileSelection();
     testGlobeEditorIcons();
+    testGlobeSharedEditorVisuals();
     testAttachmentCost();
     testPanReuse();
     testAntimeridian();

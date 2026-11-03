@@ -10,6 +10,7 @@
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
 #include "map/bgfx/map_bgfx_surface.h"
+#include "map/editor/map_canvas_projection.h"
 #include "tabs/tab_map_monitor_container.h"
 #include "tabs/map_workspace_mode.h"
 #include "map/render/map_entity_pixmap_renderer.h"
@@ -617,8 +618,38 @@ void MapEditorContainer::setupBgfxEditor()
                 * this->map_canvas->mapCanvasEntities()->iconSizePercent() / 100.0));
             const NetworkRenderSnapshot *snapshot = this->map_menu->isEditNetworkSectionActive()
                 ? &this->hydraulic_data->networkRenderSnapshot() : nullptr;
+            if (snapshot != nullptr && this->bgfx_visual_state_dirty)
+            {
+                this->bgfx_visual_state = this->map_canvas->visualState();
+                this->bgfx_visual_state_dirty = false;
+            }
+            // Frame-local adapter around the SAME drawn-surface projector
+            // used for static globe icons. No parallel 3D placement state.
+            // Its callbacks cannot escape this render invocation.
+            const MapCanvasGlobeProjection globe_projection(
+                [this](const QPointF &screen_position, const QSize &)
+                    -> std::optional<CoordinateWGS84>
+                {
+                    CoordinateWGS84 coordinate;
+                    if (this->bgfx_surface == nullptr
+                        || !this->bgfx_surface->terrainCoordinateAtScreen(
+                            screen_position, &coordinate, true))
+                        return std::nullopt;
+                    return coordinate;
+                },
+                [&projector](const CoordinateWGS84 &coordinate, const QSize &)
+                    -> std::optional<QPointF>
+                {
+                    QPointF projected;
+                    if (!projector(coordinate.longitude_deg, coordinate.latitude_deg,
+                                   &projected, nullptr))
+                        return std::nullopt;
+                    return projected;
+                });
             overlay->buildGlobe(canvas, cache, viewport_state, projector,
-                                snapshot, width, viewport, frustum);
+                                snapshot, width, viewport, frustum,
+                                snapshot != nullptr ? &this->bgfx_visual_state : nullptr,
+                                &globe_projection);
         };
     connect(this->map_canvas, &MapCanvasWidget::signalRenderUpdateRequested, this, [this]()
     {

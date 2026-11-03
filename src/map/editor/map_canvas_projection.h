@@ -6,7 +6,10 @@
 #include <QPointF>
 #include <QSize>
 
+#include <cmath>
+#include <functional>
 #include <optional>
+#include <utility>
 
 // Coordinate conversion shared by the hydraulic editor's interaction helpers.
 // A globe ray can miss the terrain or a world point can be behind the camera;
@@ -57,6 +60,57 @@ public:
 
 private:
     MapModel *map_model = nullptr;
+};
+
+// Globe projection adapter for the SAME editor tools. The owning map surface
+// supplies its current terrain-aware pick and drawn-surface projector; neither
+// callback is retained by the editor overlay beyond the current frame.
+// A missed ray or a point behind the globe is not a valid edit position.
+class MapCanvasGlobeProjection final : public MapCanvasProjection
+{
+public:
+    using ScreenToWorld = std::function<std::optional<CoordinateWGS84>(
+        const QPointF &, const QSize &)>;
+    using WorldToScreen = std::function<std::optional<QPointF>(
+        const CoordinateWGS84 &, const QSize &)>;
+
+    MapCanvasGlobeProjection(ScreenToWorld screen_to_world, WorldToScreen world_to_screen)
+        : screen_to_world(std::move(screen_to_world)),
+          world_to_screen(std::move(world_to_screen)) {}
+
+    std::optional<CoordinateWGS84> coordinateFromScreen(
+        const QPointF &screen_position, const QSize &viewport) const override
+    {
+        if (!this->screen_to_world || viewport.isEmpty()
+            || !std::isfinite(screen_position.x()) || !std::isfinite(screen_position.y()))
+            return std::nullopt;
+        const std::optional<CoordinateWGS84> result =
+            this->screen_to_world(screen_position, viewport);
+        if (!result.has_value() || !std::isfinite(result->longitude_deg)
+            || !std::isfinite(result->latitude_deg)
+            || result->latitude_deg < -90.0 || result->latitude_deg > 90.0)
+            return std::nullopt;
+        return result;
+    }
+
+    std::optional<QPointF> screenFromCoordinate(
+        const CoordinateWGS84 &coordinate, const QSize &viewport,
+        double /*wrap_reference_lon*/) const override
+    {
+        if (!this->world_to_screen || viewport.isEmpty()
+            || !std::isfinite(coordinate.longitude_deg)
+            || !std::isfinite(coordinate.latitude_deg)
+            || coordinate.latitude_deg < -90.0 || coordinate.latitude_deg > 90.0)
+            return std::nullopt;
+        const std::optional<QPointF> result = this->world_to_screen(coordinate, viewport);
+        if (!result.has_value() || !std::isfinite(result->x()) || !std::isfinite(result->y()))
+            return std::nullopt;
+        return result;
+    }
+
+private:
+    ScreenToWorld screen_to_world;
+    WorldToScreen world_to_screen;
 };
 
 #endif // MAP_CANVAS_PROJECTION_H

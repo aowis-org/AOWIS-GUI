@@ -108,6 +108,66 @@ void testNoFalseRejectionWhenProjectionMisses()
     test_harness.expectTrue(missing.contains(coordinate(-165.0, 80.0)),
                             "missing projection cannot incorrectly cull a hit");
 }
+void testGlobeCallbackProjection()
+{
+    int screen_calls = 0;
+    int world_calls = 0;
+    bool ray_misses = false;
+    MapCanvasGlobeProjection globe(
+        [&screen_calls, &ray_misses](const QPointF &point, const QSize &)
+            -> std::optional<CoordinateWGS84>
+        {
+            ++screen_calls;
+            if (ray_misses)
+                return std::nullopt;
+            return coordinate(9.0 + (point.x() - 400.0) / 10000.0,
+                              47.0 - (point.y() - 300.0) / 10000.0);
+        },
+        [&world_calls, &ray_misses](const CoordinateWGS84 &world, const QSize &)
+            -> std::optional<QPointF>
+        {
+            ++world_calls;
+            if (ray_misses)
+                return std::nullopt;
+            return QPointF(400.0 + (world.longitude_deg - 9.0) * 10000.0,
+                           300.0 - (world.latitude_deg - 47.0) * 10000.0);
+        });
+    const QSize viewport(800, 600);
+    test_harness.expectTrue(!globe.supportsMercatorHitBox(),
+                            "globe never enables the Mercator geographic hit box");
+    const std::optional<QPointF> projected = globe.screenFromCoordinate(
+        coordinate(9.01, 47.02), viewport, 180.0);
+    test_harness.expectTrue(projected.has_value(), "project the drawn-surface coordinate");
+    if (projected.has_value())
+    {
+        const std::optional<CoordinateWGS84> unprojected = globe.coordinateFromScreen(
+            projected.value(), viewport);
+        test_harness.expectTrue(unprojected.has_value(), "unproject the globe screen point");
+        if (unprojected.has_value())
+        {
+            test_harness.expectNear(unprojected->longitude_deg, 9.01, 1e-10,
+                                    "globe longitude round trip");
+            test_harness.expectNear(unprojected->latitude_deg, 47.02, 1e-10,
+                                    "globe latitude round trip");
+        }
+    }
+    test_harness.expectTrue(screen_calls == 1 && world_calls == 1,
+                            "globe delegates to the injected projection callbacks");
+    ray_misses = true;
+    test_harness.expectTrue(!globe.coordinateFromScreen(QPointF(0, 0), viewport).has_value(),
+                            "terrain ray miss has no invented coordinate");
+    test_harness.expectTrue(!globe.screenFromCoordinate(
+        coordinate(9.0, 47.0), viewport, 9.0).has_value(),
+        "off-horizon world projection has no invented screen point");
+    const int calls_before = screen_calls + world_calls;
+    test_harness.expectTrue(!globe.coordinateFromScreen(
+        QPointF(0, 0), QSize()).has_value(), "empty viewport is rejected");
+    test_harness.expectTrue(!globe.screenFromCoordinate(
+        coordinate(9.0, 95.0), viewport, 0.0).has_value(),
+        "invalid latitude is rejected before callback");
+    test_harness.expectTrue(screen_calls + world_calls == calls_before,
+                            "invalid globe projections never invoke callbacks");
+}
 }
 
 int main()
@@ -115,5 +175,6 @@ int main()
     test_harness.runCase("screen/world contract", testWorldScreenRoundTrip);
     test_harness.runCase("2D geographic hit box", testMercatorHitBox);
     test_harness.runCase("miss and globe broadphase", testNoFalseRejectionWhenProjectionMisses);
+    test_harness.runCase("globe projection callbacks", testGlobeCallbackProjection);
     return test_harness.finish();
 }

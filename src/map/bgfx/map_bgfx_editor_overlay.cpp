@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
+#include "map/editor/map_canvas_projection.h"
 
 #include "network/infrastructure_entity_traits.h"
 #include "geo/geo_wgs84_ellipsoid.h"
@@ -750,26 +751,41 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const GlobeProjector &projector,
                                       const NetworkRenderSnapshot *snapshot, int icon_width,
                                       const QSizeF &viewport_size,
-                                      const MapBgfxGlobeIconIndex::Frustum &frustum)
+                                      const MapBgfxGlobeIconIndex::Frustum &frustum,
+                                      const MapEditorVisualState *editor_state,
+                                      const MapCanvasProjection *editor_projection)
 {
     canvas->clear();
     if (!projector || (!viewport_state.tile_selection_visible
                        && (snapshot == nullptr || icon_width <= 0)))
         return;
 
+    // The common icon and pen helpers use the viewport from Inputs. Keep
+    // this frame-local: a render callback may capture a short-lived globe
+    // camera projector and must NEVER escape this build.
+    Inputs globe_inputs;
+    globe_inputs.viewport = viewport_size;
+    globe_inputs.snapshot = snapshot;
+    globe_inputs.visual_state = editor_state;
+    globe_inputs.viewport_state = &viewport_state;
+    this->inputs = &globe_inputs;
     this->canvas = canvas;
     this->cache = cache;
     cache->beginFrame();
     if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
         synchronizeGlobeIcons(*snapshot);
     const std::function<void()> build = [this, &viewport_state, &projector, snapshot, icon_width,
-                                         &viewport_size, &frustum]()
+                                         &viewport_size, &frustum, editor_state, editor_projection]()
     {
         this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
         if (viewport_state.tile_selection_visible)
             globeTileSelection(viewport_state, projector);
         if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
             globeNetworkIcons(*snapshot, projector, icon_width, viewport_size, frustum);
+        if (snapshot != nullptr && editor_state != nullptr && editor_projection != nullptr
+            && !viewport_size.isEmpty())
+            globeEditorVisuals(*snapshot, *editor_state, *editor_projection,
+                               viewport_size, icon_width);
     };
     build();
     // The atlas may evict while the first icon sizes are created. As with
@@ -782,6 +798,171 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     }
     this->canvas = nullptr;
     this->cache = nullptr;
+    this->inputs = nullptr;
+}
+
+// Rendering-only bridge from the 2D editor's MapEditorVisualState to the
+// drawn globe. There is no 3D placement tool, drag state or model mutation
+// here: the 2D editor owns all of those when they are enabled in 3D later.
+void MapBgfxEditorOverlay::globeEditorVisuals(
+    const NetworkRenderSnapshot &snapshot, const MapEditorVisualState &state,
+    const MapCanvasProjection &projection, const QSizeF &viewport_size, int icon_width)
+{
+    const QSize viewport(qMax(1, qRound(viewport_size.width())),
+                         qMax(1, qRound(viewport_size.height())));
+    const std::function<std::optional<MapBgfxHudPoint>(const CoordinateWGS84 &)> point =
+        [&projection, &viewport, &state](const CoordinateWGS84 &coordinate)
+        -> std::optional<MapBgfxHudPoint>
+    {
+        const std::optional<QPointF> projected = projection.screenFromCoordinate(
+            coordinate, viewport, state.wrap_reference_longitude);
+        if (!projected.has_value())
+            return std::nullopt;
+        return MapBgfxHudPoint{projected->x(), projected->y()};
+    };
+    const std::function<const NetworkRenderNode *(const QUuid &)> node =
+        [&snapshot](const QUuid &uuid) -> const NetworkRenderNode *
+    {
+        for (const NetworkRenderNode &candidate : snapshot.nodes)
+        {
+            if (candidate.uuid == uuid)
+                return &candidate;
+        }
+        return nullptr;
+    };
+    const std::function<std::optional<MapBgfxHudPoint>(const QUuid &)> node_point =
+        [&node, &point](const QUuid &uuid) -> std::optional<MapBgfxHudPoint>
+    {
+        const NetworkRenderNode *found = node(uuid);
+        return found != nullptr ? point(found->coordinate_wgs84) : std::nullopt;
+    };
+    const std::function<QVector<MapBgfxHudPoint>(const QList<CoordinateWGS84> &)> line =
+        [&point](const QList<CoordinateWGS84> &coordinates)
+    {
+        QVector<MapBgfxHudPoint> result;
+        result.reserve(coordinates.size());
+        for (const CoordinateWGS84 &coordinate : coordinates)
+        {
+            const std::optional<MapBgfxHudPoint> projected = point(coordinate);
+            if (!projected.has_value())
+                return QVector<MapBgfxHudPoint>(); // never connect across the horizon
+            result.append(projected.value());
+        }
+        return result;
+    };
+
+    // The same blue selected-link stroke and pipe-vertex dots as the flat view.
+    for (const QUuid &uuid : state.selected_pipe_uuids)
+    {
+        for (const NetworkRenderLink &link : snapshot.links)
+        {
+            if (link.uuid != uuid || link.entity_type != InfrastructureEntity::Pipe)
+                continue;
+            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            polyline(vertices, LineWidthPx, SelectedColor);
+            for (qsizetype index = 1; index + 1 < vertices.size(); ++index)
+                this->canvas->fillCircle(vertices.at(index).x, vertices.at(index).y,
+                                         PipeVertexRadiusPx, SelectedColor);
+            break;
+        }
+    }
+
+    // Selected entities keep the identical icon assets and highlight style.
+    for (const QUuid &uuid : state.selected_marker_uuids)
+    {
+        const NetworkRenderNode *selected = node(uuid);
+        if (selected != nullptr)
+        {
+            const std::optional<MapBgfxHudPoint> center = point(selected->coordinate_wgs84);
+            if (center.has_value() && isPointEntity(selected->entity_type))
+                bottomAnchoredIcon(center.value(), selected->entity_type, QString(),
+                                   icon_width, Highlight::Selected, true);
+            continue;
+        }
+        for (const NetworkRenderLink &link : snapshot.links)
+        {
+            if (link.uuid != uuid || !isDeviceLink(link.entity_type)
+                || link.vertices_wgs84.size() < 2)
+                continue;
+            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            if (vertices.size() >= 2)
+            {
+                const MapBgfxHudPoint center = midpoint(vertices.first(), vertices.last());
+                polyline(QVector<MapBgfxHudPoint>{vertices.first(), center, vertices.last()},
+                         LineWidthPx, SelectedColor);
+                centeredIcon(center, link.entity_type, QString(), icon_width,
+                             Highlight::Selected);
+            }
+            break;
+        }
+    }
+
+    const MapEditorPlacementVisualState &placement = state.placement;
+    if (!placement.creating)
+        return;
+
+    const NetworkRenderNode *target = node(placement.connection_target_uuid);
+    const std::optional<MapBgfxHudPoint> target_point =
+        target != nullptr ? point(target->coordinate_wgs84) : std::nullopt;
+    // The shared input state supplies one geographic pointer coordinate;
+    // do not interpret a stale 2D screen point as a globe position.
+    const std::optional<MapBgfxHudPoint> pointer =
+        placement.mouse_coordinate_wgs84_valid
+            ? point(placement.mouse_coordinate_wgs84)
+            : std::nullopt;
+    if (!target_point.has_value() && !pointer.has_value())
+        return;
+    const MapBgfxHudPoint end = target_point.has_value() ? target_point.value() : pointer.value();
+
+    if (placement.entity == InfrastructureEntity::Pipe
+        && !placement.pipe_start_node_uuid.isNull())
+    {
+        const std::optional<MapBgfxHudPoint> start = node_point(placement.pipe_start_node_uuid);
+        if (start.has_value())
+        {
+            QVector<MapBgfxHudPoint> vertices;
+            vertices.append(start.value());
+            const QVector<MapBgfxHudPoint> bends = line(placement.pipe_intermediate_vertices);
+            if (bends.size() == placement.pipe_intermediate_vertices.size())
+            {
+                for (const MapBgfxHudPoint &bend : bends)
+                {
+                    vertices.append(bend);
+                    this->canvas->fillCircle(bend.x, bend.y, PipeVertexRadiusPx, PreviewColor);
+                }
+                vertices.append(end);
+                polyline(vertices, LineWidthPx, PreviewColor);
+            }
+        }
+    }
+    else if (isDeviceLink(placement.entity)
+             && !placement.device_link_start_node_uuid.isNull())
+    {
+        const std::optional<MapBgfxHudPoint> start =
+            node_point(placement.device_link_start_node_uuid);
+        if (start.has_value())
+        {
+            const MapBgfxHudPoint center = midpoint(start.value(), end);
+            polyline(QVector<MapBgfxHudPoint>{start.value(), center, end},
+                     LineWidthPx, PreviewColor);
+            if (placement.floating_marker_visible)
+                centeredIcon(center, placement.entity, QString(),
+                             placement.floating_width, Highlight::None);
+        }
+    }
+    else if (placement.floating_marker_visible
+             && placement.entity != InfrastructureEntity::Unknown)
+    {
+        bottomAnchoredIcon(end, placement.entity, QString(),
+                           placement.floating_width, Highlight::None, false);
+    }
+
+    if (target_point.has_value() && target != nullptr)
+    {
+        this->canvas->fillCircle(end.x, end.y, ConnectionTargetRadiusPx, PreviewColor);
+        bottomAnchoredIcon(end, target->entity_type, QString(), icon_width,
+                           Highlight::None, true);
+    }
 }
 
 void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &snapshot)
