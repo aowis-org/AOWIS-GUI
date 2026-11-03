@@ -258,6 +258,74 @@ void testTerrainAwareNodeMovementIsAtomic()
         "zero-metre DEM is valid and preserves the node offset");
 }
 
+void test3dSelectedGroupGeometryIsAtomic()
+{
+    HydraulicData data;
+    const QUuid relative = data.addJunction(coordinate(50.0, 8.0), 110.0);
+    const QUuid absolute = data.addTank(coordinate(50.1, 8.1));
+    const QUuid demand = data.addDemandPoint(coordinate(50.05, 8.05));
+    QList<CoordinateWGS84> original_bends;
+    original_bends.append(coordinate(50.04, 8.04));
+    const QUuid pipe = data.addPipe(relative, absolute, original_bends);
+    test_harness.expectTrue(!relative.isNull() && !absolute.isNull() &&
+                            !demand.isNull() && !pipe.isNull(),
+        "selected-group fixture contains nodes, demand point and a bent pipe");
+    test_harness.expectTrue(data.setJunctionElevationOffsetM(relative, 6.5) &&
+                            data.setTankBottomElevationM(absolute, 175.0),
+        "group fixture has a terrain offset and fixed tank bottom height");
+
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+
+    HydraulicGeometryBatch moved;
+    moved.node_coordinates.insert(relative, coordinate(51.0, 9.0));
+    moved.node_terrain_elevations_m.insert(relative, 133.0);
+    moved.node_coordinates.insert(absolute, coordinate(51.1, 9.1));
+    moved.demand_point_coordinates.insert(demand, coordinate(51.05, 9.05));
+    QList<CoordinateWGS84> moved_bends;
+    moved_bends.append(coordinate(51.04, 9.04));
+    moved.pipe_vertices.insert(pipe, moved_bends);
+    test_harness.expectTrue(data.applyGeometryBatch(moved) && events.size() == 1,
+        "entire selected-group geometry commits in one logical edit");
+
+    const std::optional<HydraulicNodeJunction> junction_after = data.junction(relative);
+    const std::optional<HydraulicNodeTank> tank_after = data.tank(absolute);
+    const std::optional<HydraulicDemandPoint> demand_after = data.demandPoint(demand);
+    const std::optional<HydraulicLinkPipe> pipe_after = data.pipe(pipe);
+    test_harness.expectTrue(junction_after.has_value() &&
+        junction_after->coordinate_wgs84.longitude_deg == 9.0 &&
+        junction_after->terrain_elevation_m == 133.0 &&
+        junction_after->elevation_offset_m == 6.5 &&
+        tank_after.has_value() && tank_after->coordinate_wgs84.longitude_deg == 9.1 &&
+        tank_after->bottom_elevation_m == 175.0 &&
+        demand_after.has_value() && demand_after->coordinate_wgs84.longitude_deg == 9.05 &&
+        pipe_after.has_value() && pipe_after->vertices.size() == 1 &&
+        pipe_after->vertices.first().coordinate_wgs84.longitude_deg == 9.04,
+        "group move preserves absolute height and offset while translating geometry");
+    if (events.size() == 1)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> event = decoded(events.first());
+        test_harness.expectTrue(event.has_value() && event->edits.size() == 4,
+            "group transaction captures both nodes, the demand point and the bent pipe");
+    }
+
+    HydraulicGeometryBatch invalid;
+    invalid.node_coordinates.insert(relative, coordinate(52.0, 10.0));
+    invalid.node_terrain_elevations_m.insert(relative,
+        std::numeric_limits<double>::quiet_NaN());
+    invalid.node_coordinates.insert(absolute, coordinate(52.1, 10.1));
+    invalid.demand_point_coordinates.insert(demand, coordinate(52.05, 10.05));
+    invalid.pipe_vertices.insert(pipe, original_bends);
+    test_harness.expectTrue(!data.applyGeometryBatch(invalid) && events.size() == 1 &&
+        data.junction(relative)->coordinate_wgs84.longitude_deg == 9.0 &&
+        data.tank(absolute)->coordinate_wgs84.longitude_deg == 9.1 &&
+        data.demandPoint(demand)->coordinate_wgs84.longitude_deg == 9.05 &&
+        data.pipe(pipe)->vertices.first().coordinate_wgs84.longitude_deg == 9.04,
+        "invalid DEM for one selected node prevents ALL group geometry writes");
+}
+
 void testCaptureOnlyTouchedEntities()
 {
     NetworkHydraulic network;
@@ -2320,6 +2388,8 @@ int main(int argc, char **argv)
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);
+    test_harness.runCase("Atomic selected-group 3D movement",
+                         test3dSelectedGroupGeometryIsAtomic);
     test_harness.runCase("3D link creation preserves hydraulic heights",
                          test3dSharedLinkCreationKeepsHydraulicElevations);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);

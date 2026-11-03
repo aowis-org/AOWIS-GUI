@@ -119,7 +119,8 @@ private:
     void applyExternalSelection(InfrastructureEntity entity_type, const QUuid &uuid);
     void startMarkerMove(const QUuid &uuid,
                          std::optional<QPointF> pointer_position = std::nullopt);
-    void startSelectedMarkerMove(const QUuid &uuid);
+    void startSelectedMarkerMove(const QUuid &uuid,
+                                 std::optional<QPointF> pointer_position = std::nullopt);
     void startPipeVertexMove(const QUuid &pipe_uuid, int vertex_index);
     void convertPipeVertexToJunction(const QUuid &pipe_uuid, int vertex_index);
     QUuid convertPipeVertexToJunctionInternal(const QUuid &pipe_uuid, int vertex_index);

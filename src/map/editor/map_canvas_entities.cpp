@@ -60,6 +60,47 @@ MapCanvasPipes::PipePositionHit demandAttachmentPipeHit(
     return hit;
 }
 
+// Both individual and selected-group moves must apply the same elevation-mode
+// rule. A missing node is an error, distinct from an absolute-height node.
+std::optional<bool> nodeUsesTerrainElevation(const HydraulicData *hydraulic_data,
+                                             const MapEntityMarker &marker)
+{
+    if (!hydraulic_data)
+        return std::nullopt;
+    switch (marker.entity.type)
+    {
+    case InfrastructureEntity::Junction:
+    {
+        const std::optional<HydraulicNodeJunction> node =
+            hydraulic_data->junction(marker.entity.uuid);
+        if (!node.has_value())
+            return std::nullopt;
+        return node->elevation_input_type ==
+               HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+    }
+    case InfrastructureEntity::Reservoir:
+    {
+        const std::optional<HydraulicNodeReservoir> node =
+            hydraulic_data->reservoir(marker.entity.uuid);
+        if (!node.has_value())
+            return std::nullopt;
+        return node->head_input_type ==
+               HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+    }
+    case InfrastructureEntity::Tank:
+    {
+        const std::optional<HydraulicNodeTank> node =
+            hydraulic_data->tank(marker.entity.uuid);
+        if (!node.has_value())
+            return std::nullopt;
+        return node->elevation_input_type ==
+               HydraulicNodeTankElevationInputType::TerrainElevationAndOffset;
+    }
+    default:
+        return std::nullopt;
+    }
+}
+
 }
 
 MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraulic_data,
@@ -903,35 +944,11 @@ bool MapCanvasEntities::synchronizeMarkerCoordinate(const QUuid &uuid)
             // The existing hydraulic node retains its elevation input mode.
             // A terrain-relative node changes only the DEM component; an
             // absolute node changes coordinates without touching its height.
-            bool terrain_relative = false;
-            if (marker->entity.type == InfrastructureEntity::Junction)
-            {
-                const std::optional<HydraulicNodeJunction> node =
-                    this->hydraulic_data->junction(marker->entity.uuid);
-                if (!node.has_value())
-                    return false;
-                terrain_relative = node->elevation_input_type ==
-                    HydraulicNodeElevationInputType::TerrainElevationAndOffset;
-            }
-            else if (marker->entity.type == InfrastructureEntity::Reservoir)
-            {
-                const std::optional<HydraulicNodeReservoir> node =
-                    this->hydraulic_data->reservoir(marker->entity.uuid);
-                if (!node.has_value())
-                    return false;
-                terrain_relative = node->head_input_type ==
-                    HydraulicNodeElevationInputType::TerrainElevationAndOffset;
-            }
-            else
-            {
-                const std::optional<HydraulicNodeTank> node =
-                    this->hydraulic_data->tank(marker->entity.uuid);
-                if (!node.has_value())
-                    return false;
-                terrain_relative = node->elevation_input_type ==
-                    HydraulicNodeTankElevationInputType::TerrainElevationAndOffset;
-            }
-            if (terrain_relative)
+            const std::optional<bool> terrain_relative =
+                nodeUsesTerrainElevation(this->hydraulic_data, marker.value());
+            if (!terrain_relative.has_value())
+                return false;
+            if (terrain_relative.value())
             {
                 if (!this->terrain_elevation_resolver)
                     return false;
@@ -978,7 +995,29 @@ bool MapCanvasEntities::synchronizeSelectedGeometry()
             return false;
 
         if (InfrastructureEntityTraits::isHydraulicConnectionNode(marker->entity.type))
+        {
             batch.node_coordinates.insert(marker->entity.uuid, marker->coord_wgs84);
+            if (this->projection && !this->projection->supportsMercatorHitBox())
+            {
+                const std::optional<bool> terrain_relative =
+                    nodeUsesTerrainElevation(this->hydraulic_data, marker.value());
+                if (!terrain_relative.has_value())
+                    return false;
+                if (terrain_relative.value())
+                {
+                    if (!this->terrain_elevation_resolver)
+                        return false;
+                    const std::optional<double> elevation =
+                        this->terrain_elevation_resolver(marker->coord_wgs84);
+                    // Every selected node must have its own valid DEM sample.
+                    // Do not commit ANY of the batch if one is missing.
+                    if (!elevation.has_value() || !std::isfinite(elevation.value()))
+                        return false;
+                    batch.node_terrain_elevations_m.insert(
+                        marker->entity.uuid, elevation.value());
+                }
+            }
+        }
         else if (marker->entity.type == InfrastructureEntity::DemandPoint)
             batch.demand_point_coordinates.insert(marker->entity.uuid, marker->coord_wgs84);
         else if (marker->entity.type == InfrastructureEntity::Pump)
@@ -1617,8 +1656,11 @@ bool MapCanvasEntities::showMarkerContextMenuAt(const QPointF &position,
         if (!this->map_canvas)
             return false;
         entity = this->projection->hitEntity(position, this->map_canvas->size());
-        // 3D-00D2B: only node moves have terrain-safe commit rules so far.
-        if (!entity.has_value() || !InfrastructureEntityTraits::isHydraulicConnectionNode(entity->type))
+        // Demand points are ground-draped and have no independent elevation
+        // property. Both they and connection nodes use the shared move path.
+        if (!entity.has_value() ||
+            (!InfrastructureEntityTraits::isHydraulicConnectionNode(entity->type) &&
+             entity->type != InfrastructureEntity::DemandPoint))
             return false;
     }
     else
@@ -1718,7 +1760,8 @@ void MapCanvasEntities::startMarkerMove(const QUuid &uuid,
     if (!marker.has_value())
         return;
     if (this->projection && !this->projection->supportsMercatorHitBox() &&
-        !InfrastructureEntityTraits::isHydraulicConnectionNode(marker->entity.type))
+        !InfrastructureEntityTraits::isHydraulicConnectionNode(marker->entity.type) &&
+        marker->entity.type != InfrastructureEntity::DemandPoint)
         return;
 
     stopEntityPositioning();
@@ -1749,19 +1792,21 @@ void MapCanvasEntities::startMarkerMove(const QUuid &uuid,
     updateCanvas();
 }
 
-void MapCanvasEntities::startSelectedMarkerMove(const QUuid &uuid)
+void MapCanvasEntities::startSelectedMarkerMove(
+    const QUuid &uuid, std::optional<QPointF> pointer_position)
 {
-    // Group moves require per-node terrain samples; do not use the 2D batch
-    // commit path on the globe until those samples are supplied together.
-    if (this->projection && !this->projection->supportsMercatorHitBox())
-        return;
     if (!this->selection->isMarkerSelected(uuid) ||
         this->selection->selectedMarkerCount() < 2)
     {
         return;
     }
 
-    startMarkerMove(uuid);
+    // Preserve the original globe right-click position when the menu closes.
+    // Keep 2D's original cursor-based starting behavior unchanged.
+    const std::optional<QPointF> start_position =
+        this->projection && !this->projection->supportsMercatorHitBox()
+            ? pointer_position : std::nullopt;
+    startMarkerMove(uuid, start_position);
     if (!this->placement->isMoving() || this->placement->floatingUuid() != uuid)
         return;
 
@@ -2294,7 +2339,6 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
         demand_point->attachment.type != HydraulicDemandPointAttachmentType::None;
 
     const bool multiple_entities_selected =
-        (!this->projection || this->projection->supportsMercatorHitBox()) &&
         this->selection->isMarkerSelected(uuid) && this->selection->selectedMarkerCount() > 1;
 #ifdef Q_OS_WASM
     WasmPopupMenu *menu = new WasmPopupMenu(this->map_canvas);
@@ -2306,9 +2350,10 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
         {
             startMarkerMove(uuid, pointer_position);
         });
-        menu->addAction(QStringLiteral("Move selected entities"), [this, uuid]
+        menu->addAction(QStringLiteral("Move selected entities"),
+                        [this, uuid, pointer_position]
         {
-            startSelectedMarkerMove(uuid);
+            startSelectedMarkerMove(uuid, pointer_position);
         });
     }
     else
@@ -2423,9 +2468,10 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
         {
             startMarkerMove(uuid, pointer_position);
         });
-        connect(action_move_selected, &QAction::triggered, this, [this, uuid]()
+        connect(action_move_selected, &QAction::triggered, this,
+                [this, uuid, pointer_position]()
         {
-            startSelectedMarkerMove(uuid);
+            startSelectedMarkerMove(uuid, pointer_position);
         });
     }
     else
