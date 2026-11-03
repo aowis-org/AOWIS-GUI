@@ -131,6 +131,20 @@ lossless storage and repository invariants remain strict.
    missing/inconsistent cursors. Extend large-project and history tests
    without papering over incomplete reads with empty results.
 
+**INT-02 implementation checkpoint (2026-11-03):** The GUI now durably stores
+one immutable Commit intent per repository/project/branch, including UUIDv7,
+full POST body, expected draft generation and HEAD, target endpoint, and SHA-256
+request checksum. QSaveFile plus directory sync protects the record before
+any POST. The HEAD inspector offers **Reconcile Commit** and automatically
+probes previously pending records when the HEAD is loaded. A verified missing
+ledger result permits only an exact same-UUID/body replay. A confirmed
+succeeded/rejected outcome is persisted before UI acknowledgement, while
+unknown/pending status blocks new operations. Added a local record-corruption
+regression plus HTTP fault scenarios for lost POST/status replies, restart,
+exact replay and server-side rejection. **Compiled Qt and real-process crash
+acceptance remain outstanding**; browser persistence also requires a
+separate platform-specific durability check.
+
 ### Finish local persistence and usable editing (INT-04 → INT-07)
 
 * **Validity policy:** keep canonical codec/record validation and DB graph

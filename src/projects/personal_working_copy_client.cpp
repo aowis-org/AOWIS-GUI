@@ -2,6 +2,7 @@
 #include "projects/personal_working_copy_client.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
+#include "projects/personal_commit_intent_store.h"
 #include "config/gui_configuration.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
@@ -595,21 +596,154 @@ void PersonalWorkingCopyClient::acquireLease(
     });
 }
 
+QString PersonalWorkingCopyClient::recordedCommitState(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_id, QString *error)
+{
+    PersonalCommitIntentStore store;
+    PersonalCommitIntent intent;
+    const PersonalCommitIntentStore::ReadResult result =
+        store.read(target.repository_id, project_id, branch_id, intent, error);
+    return result == PersonalCommitIntentStore::ReadResult::Found ? intent.state : QString();
+}
+
+bool PersonalWorkingCopyClient::acknowledgeRecordedCommit(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_id, QString *error)
+{
+    PersonalCommitIntentStore store;
+    PersonalCommitIntent intent;
+    if (store.read(target.repository_id, project_id, branch_id, intent, error)
+        != PersonalCommitIntentStore::ReadResult::Found)
+        return false;
+    return store.acknowledge(intent, error);
+}
+
+void PersonalWorkingCopyClient::reconcileRecordedCommit(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_id, CommitCompletion completion)
+{
+    PersonalCommitIntentStore store;
+    PersonalCommitIntent intent;
+    QString disk_error;
+    if (store.read(target.repository_id, project_id, branch_id, intent, &disk_error)
+        != PersonalCommitIntentStore::ReadResult::Found) {
+        completion({}, disk_error.isEmpty()
+            ? QStringLiteral("No recorded Commit exists for this branch.") : disk_error);
+        return;
+    }
+    if (intent.endpoint != target.endpoint) {
+        completion({}, QStringLiteral("Commit %1 belongs to a different endpoint; select its original "
+                                      "personal database before reconciliation.").arg(intent.operation_id));
+        return;
+    }
+    if (intent.state == QStringLiteral("succeeded")) {
+        completion(intent.revision, {});
+        return;
+    }
+    if (intent.state == QStringLiteral("rejected")) {
+        completion({}, QStringLiteral("Commit %1 was rejected: %2")
+            .arg(intent.operation_id, intent.reason));
+        return;
+    }
+    request(target, "GET", QStringLiteral("/local-commits/") + intent.operation_id, {},
+            [this, target, intent, completion = std::move(completion)](
+                const QJsonObject &status, const QString &lookup_error) mutable
+    {
+        const std::function<void(const QJsonObject &, const QString &)> finish = [intent, completion = std::move(completion)](
+            const QJsonObject &result, const QString &error) mutable
+        {
+            PersonalCommitIntentStore pending;
+            const QString state = result.value(QStringLiteral("state")).toString();
+            const QString revision = result.value(QStringLiteral("revision")).toString();
+            const QString reason = result.value(QStringLiteral("reason")).toString();
+            if (!error.isEmpty()) {
+                completion({}, QStringLiteral("Commit %1 outcome unknown: %2. "
+                    "The saved operation is retained; retry reconciliation, not a new Commit.")
+                    .arg(intent.operation_id, error));
+                return;
+            }
+            if (state == QStringLiteral("pending")) {
+                completion({}, QStringLiteral("Commit %1 is still pending on DVMDB; "
+                    "the saved operation remains locked.").arg(intent.operation_id));
+                return;
+            }
+            if (state != QStringLiteral("succeeded") && state != QStringLiteral("rejected")) {
+                completion({}, QStringLiteral("Commit %1 returned an unknown status; "
+                    "the operation remains locked.").arg(intent.operation_id));
+                return;
+            }
+            QString disk_error;
+            if (!pending.resolve(intent, state, revision, reason, &disk_error)) {
+                completion({}, QStringLiteral("Commit %1 outcome could not be persisted: %2")
+                    .arg(intent.operation_id, disk_error));
+                return;
+            }
+            if (state == QStringLiteral("succeeded")) completion(revision, {});
+            else completion({}, QStringLiteral("Commit %1 was rejected: %2")
+                .arg(intent.operation_id, reason));
+        };
+        // A confirmed 404 means that DVMDB never recorded this operation.
+        // Replay precisely the persisted body and UUID, never synthesize a new ID.
+        if (lookup_error.endsWith(QStringLiteral("(not_found)"))) {
+            request(target, "POST", QStringLiteral("/local-commits"), intent.body,
+                [this, target, intent, finish](const QJsonObject &reply,
+                                               const QString &post_error) mutable
+            {
+                if (post_error.isEmpty() && reply.value(QStringLiteral("state")).toString()
+                    == QStringLiteral("succeeded")) { finish(reply, {}); return; }
+                request(target, "GET", QStringLiteral("/local-commits/") + intent.operation_id,
+                        {}, [finish, post_error](const QJsonObject &resolved,
+                                                  const QString &status_error) mutable {
+                    // A definitive rejection with an authoritative missing
+                    // ledger entry is terminal. Otherwise keep the intent:
+                    // a 503/timeout must never be treated as a rejection.
+                    if (status_error.endsWith(QStringLiteral("(not_found)"))
+                        && (post_error.endsWith(QStringLiteral("(conflict)"))
+                            || post_error.endsWith(QStringLiteral("(invalid_request)"))
+                            || post_error.endsWith(QStringLiteral("(not_found)")))) {
+                        finish(QJsonObject{{QStringLiteral("state"), QStringLiteral("rejected")},
+                            {QStringLiteral("reason"), post_error}}, {});
+                        return;
+                    }
+                    finish(resolved, status_error.isEmpty() ? QString()
+                        : post_error.isEmpty() ? status_error
+                                               : post_error + QStringLiteral("; status: ") + status_error);
+                });
+            });
+            return;
+        }
+        finish(status, lookup_error);
+    });
+}
+
 void PersonalWorkingCopyClient::commitSavedDraft(
     const PersonalRepositoryTarget &target, const PersonalWorkingCopyInfo &draft,
     const QString &session_id, const PersonalWorkingCopyLease &lease,
     const QString &message, CommitCompletion completion)
 {
-    if (!DvmdbIdentity::isUuidV7(draft.id) || !DvmdbIdentity::isUuidV7(session_id)
-        || !DvmdbIdentity::isUuidV7(lease.token) || !decimal(lease.generation)
-        || !draft.dirty || draft.changes.isEmpty() || message.trimmed().isEmpty()
-        || message.toUtf8().size() > 65536 || !decimal(draft.generation)
-        || draft.generation != lease.generation) {
+    if (!DvmdbIdentity::isUuidV7(draft.id) || !DvmdbIdentity::isUuidV7(draft.project_id)
+        || !DvmdbIdentity::isUuidV7(draft.branch_id)
+        || !DvmdbIdentity::isUuidV7(session_id) || !DvmdbIdentity::isUuidV7(lease.token)
+        || !decimal(lease.generation) || !draft.dirty || draft.changes.isEmpty()
+        || message.trimmed().isEmpty() || message.toUtf8().size() > 65536
+        || !decimal(draft.generation) || draft.generation != lease.generation) {
         completion({}, QStringLiteral("Commit requires an unchanged, dirty saved draft and a nonempty message."));
         return;
     }
+    PersonalCommitIntentStore store;
+    PersonalCommitIntent prior;
+    QString prior_error;
+    const PersonalCommitIntentStore::ReadResult prior_state = store.read(
+        target.repository_id, draft.project_id, draft.branch_id, prior, &prior_error);
+    if (prior_state != PersonalCommitIntentStore::ReadResult::Missing) {
+        completion({}, prior_state == PersonalCommitIntentStore::ReadResult::Error
+            ? prior_error : QStringLiteral("Commit %1 is already recorded (%2). "
+                "Reconcile or acknowledge it before starting another Commit.")
+                .arg(prior.operation_id, prior.state));
+        return;
+    }
     const QString operation_id = DvmdbIdentity::newUuidV7();
-    const QString author_id = commitAuthorId();
     const QJsonObject body{
         {QStringLiteral("operationId"), operation_id},
         {QStringLiteral("draftId"), draft.id},
@@ -618,37 +752,45 @@ void PersonalWorkingCopyClient::commitSavedDraft(
         {QStringLiteral("expectedGeneration"), draft.generation},
         {QStringLiteral("expectedHead"), draft.base_revision.isEmpty()
             ? QJsonValue(QJsonValue::Null) : QJsonValue(draft.base_revision)},
-        {QStringLiteral("author"), QJsonObject{{QStringLiteral("id"), author_id},
+        {QStringLiteral("author"), QJsonObject{{QStringLiteral("id"), commitAuthorId()},
                                                {QStringLiteral("name"), commitAuthorName()}}},
         {QStringLiteral("message"), message}};
+    PersonalCommitIntent intent;
+    intent.repository_id = target.repository_id;
+    intent.project_id = draft.project_id;
+    intent.branch_id = draft.branch_id;
+    intent.endpoint = target.endpoint;
+    intent.operation_id = operation_id;
+    intent.body = body;
+    QString disk_error;
+    if (!store.create(intent, &disk_error)) {
+        completion({}, QStringLiteral("Commit not sent: %1").arg(disk_error));
+        return;
+    }
+    // The durable intent is on disk before the first write to DVMDB.
     request(target, "POST", QStringLiteral("/local-commits"), body,
-            [this, target, operation_id, completion = std::move(completion)](
+            [this, target, intent, completion = std::move(completion)](
                 const QJsonObject &response, const QString &error) mutable
     {
-        if (error.isEmpty() && response.value(QStringLiteral("state")).toString()
-            == QStringLiteral("succeeded")) {
-            const QString revision = response.value(QStringLiteral("revision")).toString();
-            if (DvmdbIdentity::isUuidV7(revision)) { completion(revision, {}); return; }
+        const QString state = response.value(QStringLiteral("state")).toString();
+        const QString revision = response.value(QStringLiteral("revision")).toString();
+        if (error.isEmpty() && state == QStringLiteral("succeeded")
+            && DvmdbIdentity::isUuidV7(revision)) {
+            PersonalCommitIntentStore store;
+            QString disk_error;
+            if (!store.resolve(intent, state, revision, {}, &disk_error))
+                completion({}, QStringLiteral("Commit %1 succeeded, but its result could not be "
+                    "persisted locally: %2").arg(intent.operation_id, disk_error));
+            else completion(revision, {});
+            return;
         }
-        // A dropped acknowledgement may follow a successful durable Commit.
-        // Never create another operation ID or blindly retry the POST.
-        request(target, "GET", QStringLiteral("/local-commits/") + operation_id, {},
-                [completion = std::move(completion), error, operation_id](const QJsonObject &status,
-                                                             const QString &lookup_error) mutable
-        {
-            const QString state = status.value(QStringLiteral("state")).toString();
-            const QString revision = status.value(QStringLiteral("revision")).toString();
-            if (lookup_error.isEmpty() && state == QStringLiteral("succeeded")
-                && DvmdbIdentity::isUuidV7(revision)) {
-                completion(revision, {});
-                return;
-            }
-            completion({}, lookup_error.isEmpty()
-                ? (state == QStringLiteral("pending")
-                    ? QStringLiteral("Commit %1 is still pending; refresh before retrying.")
-                        .arg(operation_id)
-                    : status.value(QStringLiteral("reason")).toString())
-                : (error.isEmpty() ? lookup_error : error + QStringLiteral("; status: ") + lookup_error));
+        // Even a rejected POST can have a durable server-side ledger entry.
+        // Resolve from the authoritative status endpoint, using the same UUID.
+        reconcileRecordedCommit(target, intent.project_id, intent.branch_id,
+            [completion = std::move(completion), error](const QString &resolved,
+                                                         const QString &status_error) mutable {
+            completion(resolved, status_error.isEmpty() ? QString()
+                : error.isEmpty() ? status_error : error + QStringLiteral("; ") + status_error);
         });
     });
 }

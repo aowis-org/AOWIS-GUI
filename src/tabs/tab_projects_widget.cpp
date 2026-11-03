@@ -2493,12 +2493,63 @@ void ProjectsWidget::updateButtons()
         busy, preview && project != nullptr, valid);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
         busy, ready && project != nullptr, backed, preview && currentBranch() != nullptr, valid);
+    QString saved_commit_state;
+    if (this->selection_kind == SelectionKind::Head && backed && project != nullptr) {
+        const ProjectPreviewBranch *current_branch = currentBranch();
+        const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+        if (current_branch != nullptr && target.repository_id == project->repository_id) {
+            QString state_error;
+            saved_commit_state = PersonalWorkingCopyClient::recordedCommitState(
+                target, project->backend_id,
+                current_branch->id.mid(project->id.size() + 1), &state_error);
+            if (!state_error.isEmpty()) saved_commit_state = QStringLiteral("error");
+        }
+    }
     this->revision_inspector->update(creating && (this->selection_kind == SelectionKind::Revision
                                                   || this->selection_kind == SelectionKind::Head),
         busy, ready && project != nullptr, valid,
         this->selection_kind == SelectionKind::Head, backed,
         inspectedRevisionBranch() != nullptr,
-        !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty());
+        !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty()
+            || !saved_commit_state.isEmpty());
+    this->revision_inspector->commit_head->setText(saved_commit_state.isEmpty()
+        ? tr("Commit") : tr("Reconcile Commit"));
+    this->revision_inspector->commit_head->setToolTip(saved_commit_state.isEmpty()
+        ? tr("Commit the saved private draft as an immutable revision")
+        : tr("Recover the previous Commit operation before another Commit is allowed"));
+    if (!saved_commit_state.isEmpty() && this->selection_kind == SelectionKind::Head) {
+        this->revision_overview->status->setText(saved_commit_state == QStringLiteral("pending")
+            ? tr("Status: Previous Commit pending — reconcile before continuing")
+            : saved_commit_state == QStringLiteral("succeeded")
+                ? tr("Status: Commit confirmed — acknowledge result")
+                : saved_commit_state == QStringLiteral("rejected")
+                    ? tr("Status: Commit rejected — acknowledge result")
+                    : tr("Status: Local Commit record unreadable — new Commit blocked"));
+    }
+    if (saved_commit_state == QStringLiteral("pending") && project != nullptr
+        && this->selection_kind == SelectionKind::Head) {
+        const ProjectPreviewBranch *selected_branch = currentBranch();
+        const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+        if (selected_branch != nullptr && target.repository_id == project->repository_id) {
+            const QString project_id = project->backend_id;
+            const QString branch_id = selected_branch->id.mid(project->id.size() + 1);
+            const QString key = target.repository_id + QLatin1Char(':') + project_id
+                + QLatin1Char(':') + branch_id;
+            if (!this->probed_commit_intents.contains(key)) {
+                this->probed_commit_intents.insert(key);
+                QTimer::singleShot(0, this, [this, target, project_id, branch_id] {
+                    PersonalWorkingCopyClient *recovery = new PersonalWorkingCopyClient(this);
+                    recovery->reconcileRecordedCommit(target, project_id, branch_id,
+                        [this, recovery](const QString &, const QString &error) {
+                        if (!error.isEmpty())
+                            qDebug() << "Background Commit status probe:" << error;
+                        recovery->deleteLater();
+                        updateButtons();
+                    });
+                });
+            }
+        }
+    }
     this->revision_overview->setCommitExplanationVisible(
         this->selection_kind == SelectionKind::Head && !creating);
     const bool selected_network = this->selection_kind == SelectionKind::Head
@@ -4564,6 +4615,52 @@ void ProjectsWidget::commitSelectedHead()
             tr("A real, database-backed private HEAD and saved working copy are required."));
         return;
     }
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable
+        || target.repository_id != project->repository_id) {
+        QMessageBox::warning(this, tr("Private working copy required"),
+            tr("Checkout the branch into your personal database and select its HEAD before committing."));
+        return;
+    }
+    const QString backend_branch_id = branch->id.mid(project->id.size() + 1);
+    const QString backend_project_id = project->backend_id;
+    QString disk_error;
+    const QString saved_state = PersonalWorkingCopyClient::recordedCommitState(
+        target, backend_project_id, backend_branch_id, &disk_error);
+    if (!disk_error.isEmpty()) {
+        QMessageBox::warning(this, tr("Commit recovery blocked"), disk_error);
+        return;
+    }
+    if (!saved_state.isEmpty()) {
+        // This can run after a GUI restart without a saved message, writer
+        // lease or currently dirty draft. Never generate a second operation.
+        PersonalWorkingCopyClient *recovery = new PersonalWorkingCopyClient(this);
+        const QString source_id = this->server_id;
+        recovery->reconcileRecordedCommit(target, backend_project_id, backend_branch_id,
+            [this, recovery, target, backend_project_id, backend_branch_id, source_id]
+            (const QString &revision, const QString &error) {
+            QString state_error;
+            const QString state = PersonalWorkingCopyClient::recordedCommitState(
+                target, backend_project_id, backend_branch_id, &state_error);
+            if (state == QStringLiteral("succeeded") && !revision.isEmpty()) {
+                if (this->server_id == source_id) loadSource(source_id);
+                QMessageBox::information(this, tr("Commit recovered"),
+                    tr("Confirmed immutable revision %1.").arg(revision));
+            } else {
+                QMessageBox::warning(this, tr("Commit recovery"),
+                    !state_error.isEmpty() ? state_error : error);
+            }
+            if (state == QStringLiteral("succeeded") || state == QStringLiteral("rejected")) {
+                QString acknowledgement_error;
+                if (!PersonalWorkingCopyClient::acknowledgeRecordedCommit(
+                        target, backend_project_id, backend_branch_id, &acknowledgement_error))
+                    QMessageBox::warning(this, tr("Commit recovery not cleared"), acknowledgement_error);
+            }
+            recovery->deleteLater();
+            updateButtons();
+        });
+        return;
+    }
     const QString message = this->revision_overview->commit_message->toPlainText();
     if (message.trimmed().isEmpty() || message.toUtf8().size() > 65536) {
         QMessageBox::warning(this, tr("Commit message required"),
@@ -4575,13 +4672,6 @@ void ProjectsWidget::commitSelectedHead()
         || this->revision_overview->description->toPlainText().trimmed() != branch->description) {
         QMessageBox::information(this, tr("Branch metadata still pending"),
             tr("Finish editing the branch metadata and allow the automatic save to complete before committing HEAD."));
-        return;
-    }
-    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
-    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable
-        || target.repository_id != project->repository_id) {
-        QMessageBox::warning(this, tr("Private working copy required"),
-            tr("Checkout the branch into your personal database and select its HEAD before committing."));
         return;
     }
     const QString branch_id = branch->id.mid(project->id.size() + 1);
@@ -4648,6 +4738,7 @@ void ProjectsWidget::commitSelectedHead()
                         // its lease then expires on its own (120 s).
                         client->deleteLater();
                         QMessageBox::warning(this, tr("Commit not confirmed"), commit_error);
+                        updateButtons();
                         return;
                     }
                     // Give the draft back at once, before the modal message:
@@ -4663,6 +4754,10 @@ void ProjectsWidget::commitSelectedHead()
                     if (this->server_id == source_id) loadSource(source_id);
                     QMessageBox::information(this, tr("Committed"),
                         tr("Created immutable revision %1.").arg(revision));
+                    QString acknowledgement_error;
+                    if (!PersonalWorkingCopyClient::acknowledgeRecordedCommit(
+                            target, draft.project_id, draft.branch_id, &acknowledgement_error))
+                        QMessageBox::warning(this, tr("Commit recovery not cleared"), acknowledgement_error);
                 });
             });
         });

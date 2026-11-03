@@ -246,6 +246,8 @@ qt_add_executable(aowis-server-gui
     src/projects/project_source_writer.cpp
     src/projects/project_source_writer.h
     src/projects/personal_working_copy_client.cpp
+    src/projects/personal_commit_intent_store.cpp
+    src/projects/personal_commit_intent_store.h
     src/projects/personal_working_copy_client.h
     src/tabs/personal_working_copy_dialog.cpp
     src/tabs/personal_working_copy_dialog.h
@@ -732,10 +734,24 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-personal-repository-settings PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # INT-02: durable branch-scoped Commit intents survive process death.
+    add_executable(aowis-personal-commit-intent-store-tests
+        tests/personal_commit_intent_store_test.cpp
+        src/projects/personal_commit_intent_store.cpp
+        src/projects/personal_commit_intent_store.h)
+    target_include_directories(aowis-personal-commit-intent-store-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-personal-commit-intent-store-tests PRIVATE Qt6::Core)
+    add_test(NAME aowis-personal-commit-intent-store
+        COMMAND aowis-personal-commit-intent-store-tests)
+    set_tests_properties(aowis-personal-commit-intent-store PROPERTIES LABELS "aowis")
+
     # VC-04: personal DVMDB draft creation/recovery, never source-profile writes.
     add_executable(aowis-personal-working-copy-client-tests
         tests/personal_working_copy_client_test.cpp
         src/projects/personal_working_copy_client.cpp
+        src/projects/personal_commit_intent_store.cpp
+        src/projects/personal_commit_intent_store.h
         src/projects/personal_working_copy_client.h
         src/projects/personal_edit_queue.cpp
         src/projects/personal_edit_queue.h
@@ -771,6 +787,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h
         src/projects/personal_working_copy_client.cpp
+        src/projects/personal_commit_intent_store.cpp
+        src/projects/personal_commit_intent_store.h
         src/projects/personal_working_copy_client.h
         src/projects/personal_edit_queue.cpp
         src/projects/personal_edit_queue.h
@@ -808,6 +826,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h
         src/projects/personal_working_copy_client.cpp
+        src/projects/personal_commit_intent_store.cpp
+        src/projects/personal_commit_intent_store.h
         src/projects/personal_working_copy_client.h
         src/projects/personal_edit_queue.cpp
         src/projects/personal_edit_queue.h

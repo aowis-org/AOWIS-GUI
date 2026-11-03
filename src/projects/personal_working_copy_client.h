@@ -101,6 +101,17 @@ public:
     // Commit an exact saved draft using a private DVMDB's durable, UUID-keyed
     // local-commit coordinator; an uncertain reply is reconciled by operation ID.
     using CommitCompletion = std::function<void(const QString &revision, const QString &error)>;
+    // Empty means no recorded operation; an error means corrupt/unreadable
+    // local state and MUST block a fresh operation.
+    static QString recordedCommitState(const PersonalRepositoryTarget &target,
+                                       const QString &project_id, const QString &branch_id,
+                                       QString *error = nullptr);
+    void reconcileRecordedCommit(const PersonalRepositoryTarget &target,
+                                 const QString &project_id, const QString &branch_id,
+                                 CommitCompletion completion);
+    static bool acknowledgeRecordedCommit(const PersonalRepositoryTarget &target,
+                                          const QString &project_id, const QString &branch_id,
+                                          QString *error = nullptr);
     void commitSavedDraft(const PersonalRepositoryTarget &target,
                           const PersonalWorkingCopyInfo &draft, const QString &session_id,
                           const PersonalWorkingCopyLease &lease, const QString &message,

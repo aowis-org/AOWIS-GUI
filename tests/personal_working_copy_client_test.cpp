@@ -1,5 +1,6 @@
 #include "projects/model_codec_compatibility.h"
 #include "projects/personal_working_copy_client.h"
+#include "projects/personal_commit_intent_store.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_draft_edit_session.h"
@@ -12,6 +13,8 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QHostAddress>
+#include <QHash>
+#include <QSet>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -103,6 +106,15 @@ public:
     int network_import_count = 0;
     QJsonObject last_network_import;
     bool drop_next_save_acknowledgement = false;
+    bool drop_next_commit_acknowledgement = false;
+    bool fail_next_commit_status_lookup = false;
+    bool drop_before_commit_record = false;
+    bool reject_next_commit = false;
+    bool reject_next_unrecorded_commit = false;
+    QSet<QString> unrecorded_rejections;
+    int commit_post_count = 0;
+    QHash<QString, QJsonObject> commit_ledger;
+    QHash<QString, QJsonObject> commit_requests;
 
     QByteArray bundlePayload() const
     {
@@ -210,6 +222,75 @@ public:
                             this->incompatible_codec ? QString(64, QLatin1Char('0'))
                                                      : ModelCodecCompatibility::fingerprint());
                         document.insert(QStringLiteral("role"), this->role);
+                    }
+                    else if (request_line.startsWith("POST /dvmdb/v1/local-commits "))
+                    {
+                        ++this->commit_post_count;
+                        const QString id = request_body.value(QStringLiteral("operationId")).toString();
+                        if (this->reject_next_unrecorded_commit)
+                        {
+                            this->unrecorded_rejections.insert(id);
+                            this->reject_next_unrecorded_commit = false;
+                        }
+                        if (this->unrecorded_rejections.contains(id))
+                        {
+                            status = 409;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("conflict"), QStringLiteral("stale writer")));
+                        }
+                        else if (!this->drop_before_commit_record)
+                        {
+                            if (this->commit_ledger.contains(id))
+                            {
+                                if (this->commit_requests.value(id) != request_body)
+                                {
+                                    status = 409;
+                                    document.insert(QStringLiteral("error"), dvmdbError(
+                                        QStringLiteral("conflict"), QStringLiteral("operation body changed")));
+                                }
+                                else document = this->commit_ledger.value(id);
+                            }
+                            else
+                            {
+                                document = QJsonObject{{QStringLiteral("operationId"), id},
+                                    {QStringLiteral("state"), this->reject_next_commit
+                                        ? QStringLiteral("rejected") : QStringLiteral("succeeded")},
+                                    {QStringLiteral("revision"), this->reject_next_commit
+                                        ? QJsonValue(QJsonValue::Null) : QJsonValue(head_id)},
+                                    {QStringLiteral("reason"), this->reject_next_commit
+                                        ? QStringLiteral("conflict") : QString()}};
+                                this->commit_ledger.insert(id, document);
+                                this->commit_requests.insert(id, request_body);
+                                if (this->reject_next_commit) status = 409;
+                                this->reject_next_commit = false;
+                            }
+                        }
+                        else this->drop_before_commit_record = false;
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/local-commits/"))
+                    {
+                        if (this->fail_next_commit_status_lookup)
+                        {
+                            // A dropped GET connection may be transparently retried by Qt.
+                            // Return 503 to deterministically exercise an unresolved outcome.
+                            this->fail_next_commit_status_lookup = false;
+                            status = 503;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("service_unavailable"),
+                                QStringLiteral("Commit status temporarily unavailable")));
+                        }
+                        else
+                        {
+                            const QByteArray path = request_line.split(' ').value(1);
+                            const QString id = QString::fromLatin1(path.mid(path.lastIndexOf('/') + 1));
+                            if (this->commit_ledger.contains(id)) document = this->commit_ledger.value(id);
+                            else
+                            {
+                                status = 404;
+                                document.insert(QStringLiteral("error"), dvmdbError(
+                                    QStringLiteral("not_found"), QStringLiteral("local Commit operation not found")));
+                            }
+                        }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies "))
                     {
@@ -477,6 +558,13 @@ public:
                         socket->disconnectFromHost();
                         return;
                     }
+                    if (request_line.startsWith("POST /dvmdb/v1/local-commits ") &&
+                        this->drop_next_commit_acknowledgement)
+                    {
+                        this->drop_next_commit_acknowledgement = false;
+                        socket->disconnectFromHost();
+                        return;
+                    }
                     const QByteArray payload = binary_response ? bundlePayload() :
                         QJsonDocument(document).toJson(QJsonDocument::Compact);
                     const QByteArray contentType = binary_response ?
@@ -665,10 +753,122 @@ bool testDraftEditSession(QCoreApplication &application)
                  "restarted writer failed to stop");
 }
 
+bool testDurableCommitRecovery(QCoreApplication &application)
+{
+    Stub server;
+    if (!check(server.listen(), "cannot listen for Commit recovery tests")) return false;
+    const QString project = DvmdbIdentity::newUuidV7();
+    const QString branch = DvmdbIdentity::newUuidV7();
+    PersonalWorkingCopyInfo draft;
+    draft.id = DvmdbIdentity::newUuidV7();
+    draft.project_id = project;
+    draft.branch_id = branch;
+    draft.generation = QStringLiteral("1");
+    draft.dirty = true;
+    draft.changes.append({entity_id, false, 1, {}, QByteArray("data")});
+    PersonalWorkingCopyLease lease;
+    lease.token = lease_token;
+    lease.generation = draft.generation;
+    const QString session = DvmdbIdentity::newUuidV7();
+    PersonalWorkingCopyClient first;
+    QString revision;
+    QString error;
+    bool done = false;
+    const PersonalRepositoryTarget target = server.target();
+    QString state_error;
+    if (!check(PersonalWorkingCopyClient::recordedCommitState(target, project, branch,
+                                                               &state_error).isEmpty() &&
+               state_error.isEmpty(), "new recovery fixture already has a saved Commit")) return false;
+    server.drop_next_commit_acknowledgement = true;
+    // Force status lookup failure after the lost POST acknowledgement. A dropped
+    // GET could be automatically retried and resolved by QNetworkAccessManager,
+    // which is also correct but would not exercise the pending-intent path.
+    server.fail_next_commit_status_lookup = true;
+    first.commitSavedDraft(target, draft, session, lease, QStringLiteral("broken network baseline"),
+        [&](const QString &value, const QString &failure) {
+            revision = value; error = failure; done = true;
+        });
+    if (!check(until(application, [&] { return done; }) && !error.isEmpty()
+               && revision.isEmpty() && server.commit_post_count == 1
+               && PersonalWorkingCopyClient::recordedCommitState(target, project, branch)
+                  == QStringLiteral("pending"),
+               "lost POST response and unavailable status did not preserve pending local intent")) return false;
+    done = false;
+    first.commitSavedDraft(target, draft, session, lease, QStringLiteral("different message"),
+        [&](const QString &, const QString &failure) { error = failure; done = true; });
+    if (!check(done && !error.isEmpty() && server.commit_post_count == 1,
+               "a second Commit was sent despite a pending operation")) return false;
+    // Destroy the request client and reconcile using a fresh one (GUI restart).
+    PersonalWorkingCopyClient restarted;
+    done = false;
+    restarted.reconcileRecordedCommit(target, project, branch,
+        [&](const QString &value, const QString &failure) {
+            revision = value; error = failure; done = true;
+        });
+    if (!check(until(application, [&] { return done; }) && error.isEmpty()
+               && revision == head_id && server.commit_post_count == 1
+               && PersonalWorkingCopyClient::recordedCommitState(target, project, branch)
+                   == QStringLiteral("succeeded"),
+               "restart did not reconcile the same server-side revision")) return false;
+    if (!check(PersonalWorkingCopyClient::acknowledgeRecordedCommit(target, project, branch,
+                                                                     &state_error),
+               "cannot acknowledge confirmed recovered Commit")) return false;
+
+    // When the first POST never reached durable ledger, GET returns a proven
+    // 404; only the exact saved request may be replayed, with the same UUID.
+    server.drop_before_commit_record = true;
+    server.drop_next_commit_acknowledgement = true;
+    done = false;
+    first.commitSavedDraft(target, draft, session, lease, QStringLiteral("retry exact request"),
+        [&](const QString &value, const QString &failure) {
+            revision = value; error = failure; done = true;
+        });
+    if (!check(until(application, [&] { return done; }) && error.isEmpty()
+               && revision == head_id && server.commit_post_count == 3
+               && server.commit_ledger.size() == 2,
+               "lost before-ledger POST did not retry original operation UUID")) return false;
+    if (!check(PersonalWorkingCopyClient::acknowledgeRecordedCommit(target, project, branch,
+                                                                     &state_error),
+               "cannot acknowledge exact replay")) return false;
+
+    server.reject_next_commit = true;
+    done = false;
+    first.commitSavedDraft(target, draft, session, lease, QStringLiteral("reject this request"),
+        [&](const QString &value, const QString &failure) {
+            revision = value; error = failure; done = true;
+        });
+    if (!check(until(application, [&] { return done; }) && !error.isEmpty()
+               && revision.isEmpty() && server.commit_post_count == 4
+               && PersonalWorkingCopyClient::recordedCommitState(target, project, branch)
+                   == QStringLiteral("rejected"),
+               "rejected operation not durably resolved")) return false;
+    if (!check(PersonalWorkingCopyClient::acknowledgeRecordedCommit(target, project, branch,
+                                                                     &state_error),
+               "cannot acknowledge rejected Commit")) return false;
+    // A 409 before creation of the server ledger followed by confirmed 404
+    // is a terminal rejection, not an eternally pending operation.
+    server.reject_next_unrecorded_commit = true;
+    done = false;
+    first.commitSavedDraft(target, draft, session, lease, QStringLiteral("invalid lease"),
+        [&](const QString &value, const QString &failure) {
+            revision = value; error = failure; done = true;
+        });
+    if (!check(until(application, [&] { return done; }) && !error.isEmpty()
+               && revision.isEmpty() && server.commit_post_count == 6
+               && PersonalWorkingCopyClient::recordedCommitState(target, project, branch)
+                   == QStringLiteral("rejected"),
+               "pre-ledger HTTP 409 left an unresolved Commit intent")) return false;
+    if (!check(PersonalWorkingCopyClient::acknowledgeRecordedCommit(target, project, branch,
+                                                                     &state_error),
+               "cannot acknowledge pre-ledger rejection")) return false;
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     if (!testDraftEditSession(application)) return 1;
+    if (!testDurableCommitRecovery(application)) return 1;
     Stub stub;
     if (!check(stub.listen(), "could not start private DVMDB fixture")) return 1;
     PersonalWorkingCopyClient client;

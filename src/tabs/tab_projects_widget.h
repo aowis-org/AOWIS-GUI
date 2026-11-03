@@ -7,6 +7,7 @@
 
 #include <QHash>
 #include <QPair>
+#include <QSet>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -283,6 +284,7 @@ private:
     int personal_designation_request = 0;
     int source_creation_request = 0;
     QHash<QString, QString> head_commit_drafts; // Per-branch edits retained when switching Inspector.
+    QSet<QString> probed_commit_intents; // Avoid repeated automatic status probes per branch.
     QTimer *revision_autosave_timer = nullptr;
     bool revision_rename_confirmation_pending = false;
     bool updating_ui = false;
