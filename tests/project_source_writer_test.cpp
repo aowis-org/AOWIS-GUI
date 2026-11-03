@@ -1,5 +1,6 @@
 #include "projects/project_source_writer.h"
 #include "projects/dvmdb_identity.h"
+#include "projects/model_codec_compatibility.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -39,6 +40,12 @@ int main(int argc, char **argv)
     QTcpServer server;
     if (!require(server.listen(QHostAddress::LocalHost, 0), "cannot listen on loopback")) return 1;
     QStringList requested_paths;
+    QStringList pinned_headers;
+    int identity_lookups = 0;
+    const QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-0000000000ac");
+    QString observed_id = repository_id;
+    QString observed_role = QStringLiteral("shared");
+    QString observed_fingerprint = ModelCodecCompatibility::fingerprint();
     QList<QJsonObject> request_bodies;
     const QString root_revision = QStringLiteral("018f84c0-0000-7000-8000-000000000001");
     const QString branch_revision = QStringLiteral("018f84c0-0000-7000-8000-000000000002");
@@ -51,8 +58,9 @@ int main(int argc, char **argv)
             QTcpSocket *socket = server.nextPendingConnection();
             const std::shared_ptr<QByteArray> buffer = std::make_shared<QByteArray>();
             QObject::connect(socket, &QTcpSocket::readyRead, socket,
-                [socket, buffer, &requested_paths, &request_bodies, branch_revision,
-                 project_identity]
+                [socket, buffer, &requested_paths, &request_bodies, &pinned_headers,
+                 &identity_lookups, &observed_id, &observed_role, &observed_fingerprint,
+                 branch_revision, project_identity]
             {
                 buffer->append(socket->readAll());
                 const qsizetype marker = buffer->indexOf("\r\n\r\n");
@@ -62,11 +70,30 @@ int main(int argc, char **argv)
                 for (const QByteArray &line : header.split('\n'))
                     if (line.trimmed().toLower().startsWith("content-length:"))
                         length = line.mid(line.indexOf(':') + 1).trimmed().toLongLong();
-                if (length <= 0 || buffer->size() < marker + 4 + length) return;
+                if (buffer->size() < marker + 4 + length) return;
                 const QByteArray request_line = header.split('\n').first().trimmed();
                 const QByteArray path = request_line.split(' ').value(1);
                 const QByteArray method = request_line.split(' ').value(0);
+                if (method == "GET" && path == "/dvmdb/v1/repository/tracking")
+                {
+                    ++identity_lookups;
+                    const QByteArray payload = QJsonDocument(QJsonObject{
+                        {QStringLiteral("repositoryId"), observed_id},
+                        {QStringLiteral("role"), observed_role},
+                        {QStringLiteral("modelCodecFingerprint"), observed_fingerprint}})
+                        .toJson(QJsonDocument::Compact);
+                    socket->write(QByteArray("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                        "Connection: close\r\nContent-Length: ") + QByteArray::number(payload.size())
+                        + "\r\n\r\n" + payload);
+                    socket->disconnectFromHost();
+                    return;
+                }
                 requested_paths.append(QString::fromUtf8(path));
+                QByteArray pinned;
+                for (const QByteArray &line : header.split('\n'))
+                    if (line.trimmed().toLower().startsWith("x-aowis-expected-repository-id:"))
+                        pinned = line.mid(line.indexOf(':') + 1).trimmed();
+                pinned_headers.append(QString::fromLatin1(pinned));
                 const QJsonDocument json = QJsonDocument::fromJson(buffer->mid(marker + 4, length));
                 request_bodies.append(json.object());
                 QByteArray payload;
@@ -111,7 +138,7 @@ int main(int argc, char **argv)
     });
 
     ProjectServerProfile profile;
-    profile.id = QStringLiteral("test");
+    profile.id = repository_id;
     profile.connection_type = QStringLiteral("remote");
     profile.endpoint = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
     profile.auth_mode = QStringLiteral("None");
@@ -131,6 +158,9 @@ int main(int argc, char **argv)
     if (!require(!writer.isBusy() && failure.isEmpty() && DvmdbIdentity::isUuidV7(created)
                  && request_bodies.first().value(QStringLiteral("id")).toString() == created,
                  "project POST did not use and return a caller-chosen UUIDv7")) return 1;
+    if (!require(identity_lookups == 1 && pinned_headers.size() == 1
+                 && pinned_headers.first() == repository_id,
+                 "create project was not preflighted and pinned to repository UUID")) return 1;
     if (!require(requested_paths.size() == 1 && requested_paths.first() == QStringLiteral("/dvmdb/v1/projects")
                  && request_bodies.first().value(QStringLiteral("name")) == QStringLiteral("Water Project")
                  && request_bodies.first().value(QStringLiteral("unborn")).isBool()
@@ -265,6 +295,44 @@ int main(int argc, char **argv)
                  request_bodies.last().value(QStringLiteral("name"))
                      == QStringLiteral("Renamed Water Project"),
                  "project name PATCH did not preserve its UUID or optimistic name check")) return 1;
+
+    // Every metadata mutation must refuse a replaced endpoint before sending
+    // a write; the same guard also rejects mismatched roles and codecs.
+    const int before_identity_rejection = requested_paths.size();
+    observed_id = QStringLiteral("018f84c0-0000-7000-8000-0000000000ad");
+    done = false;
+    writer.createProject(profile, QStringLiteral("Wrong endpoint"),
+                         [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.contains("identity changed")
+                 && requested_paths.size() == before_identity_rejection,
+                 "writer sent a write to a replaced repository")) return 1;
+    observed_id = repository_id;
+    observed_role = QStringLiteral("private");
+    done = false;
+    writer.renameProject(profile, project_identity, QStringLiteral("Renamed Water Project"),
+                         QStringLiteral("Should not happen"),
+                         [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.contains("role")
+                 && requested_paths.size() == before_identity_rejection,
+                 "writer sent a write to a repository with the wrong role")) return 1;
+    observed_role = QStringLiteral("shared");
+    observed_fingerprint = QStringLiteral("incorrect");
+    done = false;
+    writer.createUnbornBranch(profile, project_identity, QStringLiteral("No codec"), {}, {},
+                              [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.contains("codec")
+                 && requested_paths.size() == before_identity_rejection,
+                 "writer sent a write to a repository with the wrong MODEL codec")) return 1;
+    observed_fingerprint = ModelCodecCompatibility::fingerprint();
+    const ProjectServerProfile verified_profile = profile;
+    profile.pending = true;
+    done = false;
+    writer.createProject(profile, QStringLiteral("Pending"),
+                         [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(done && failure.contains("verified")
+                 && requested_paths.size() == before_identity_rejection,
+                 "unverified profile was allowed to mutate a repository")) return 1;
+    profile = verified_profile;
 
     const int requests_before_auth_rejection = requested_paths.size();
     profile.auth_mode = QStringLiteral("API token");

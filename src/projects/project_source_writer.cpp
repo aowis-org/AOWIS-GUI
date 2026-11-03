@@ -1,5 +1,6 @@
 #include "projects/project_source_writer.h"
 #include "projects/dvmdb_identity.h"
+#include "projects/model_codec_compatibility.h"
 
 #include <QDir>
 #include <QJsonDocument>
@@ -31,6 +32,8 @@ QString segment(const QString &part)
 
 QString validateProfile(const ProjectServerProfile &profile)
 {
+    if (profile.pending || !DvmdbIdentity::isUuidV7(profile.id))
+        return QObject::tr("Select a verified database with a UUIDv7 repository identity.");
     if (profile.connection_type == QStringLiteral("local"))
     {
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
@@ -57,6 +60,85 @@ QString validateProfile(const ProjectServerProfile &profile)
 ProjectSourceWriter::ProjectSourceWriter(QObject *parent)
     : QObject(parent), manager(this)
 {
+}
+
+// Preflight the *selected* repository and then let the server enforce the
+// same identity on the mutation itself. This prevents replacement of the
+// endpoint between the two HTTP requests from silently redirecting a write.
+void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
+                                     const QString &endpoint, const QByteArray &method,
+                                     const QString &path, const QJsonObject &body,
+                                     std::function<void(QNetworkReply *)> completed)
+{
+    QString root = endpoint.trimmed();
+    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
+    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
+    QNetworkRequest verify(QUrl(root + QStringLiteral("/repository/tracking")));
+    verify.setRawHeader("Accept", "application/json");
+    verify.setTransferTimeout(8000);
+    verify.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                        QNetworkRequest::ManualRedirectPolicy);
+    this->reply = this->manager.get(verify);
+    QNetworkReply *identity = this->reply;
+    const QPointer<QNetworkReply> deadline(identity);
+    QTimer::singleShot(10000, this, [deadline] { if (deadline) deadline->abort(); });
+    connect(identity, &QNetworkReply::finished, this,
+            [this, identity, root, profile, method, path, body, completed = std::move(completed)]() mutable
+    {
+        if (this->reply == identity) this->reply.clear();
+        const int status = identity->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray payload = identity->readAll();
+        const bool transport_ok = status == 200 && identity->error() == QNetworkReply::NoError;
+        identity->deleteLater();
+        if (!transport_ok || payload.size() > 1024 * 1024)
+        {
+            finish({}, tr("DVMDB repository identity could not be verified. No write was sent."));
+            return;
+        }
+        const QJsonDocument document = QJsonDocument::fromJson(payload);
+        if (!document.isObject())
+        {
+            finish({}, tr("DVMDB repository identity reply is malformed. No write was sent."));
+            return;
+        }
+        const QJsonObject repository = document.object();
+        const QString codec_error = ModelCodecCompatibility::error(repository);
+        if (!codec_error.isEmpty())
+        {
+            finish({}, codec_error);
+            return;
+        }
+        if (repository.value(QStringLiteral("repositoryId")).toString() != profile.id)
+        {
+            finish({}, tr("Repository identity changed. No metadata write was sent."));
+            return;
+        }
+        const QString expected_role = profile.personal ? QStringLiteral("private")
+                                                       : QStringLiteral("shared");
+        if (repository.value(QStringLiteral("role")).toString() != expected_role)
+        {
+            finish({}, tr("DVMDB repository role does not match the selected database. No write was sent."));
+            return;
+        }
+        QNetworkRequest call(QUrl(root + path));
+        call.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+        call.setRawHeader("Accept", "application/json");
+        call.setRawHeader("X-AOWIS-Expected-Repository-Id", profile.id.toUtf8());
+        call.setTransferTimeout(12000);
+        call.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                          QNetworkRequest::ManualRedirectPolicy);
+        const QByteArray data = QJsonDocument(body).toJson(QJsonDocument::Compact);
+        this->reply = method == "PATCH" ? this->manager.sendCustomRequest(call, "PATCH", data)
+                                        : this->manager.post(call, data);
+        QNetworkReply *pending = this->reply;
+        const QPointer<QNetworkReply> write_deadline(pending);
+        QTimer::singleShot(15000, this, [write_deadline] {
+            if (write_deadline) write_deadline->abort();
+        });
+        connect(pending, &QNetworkReply::finished, this, [pending, completed = std::move(completed)]() mutable {
+            completed(pending);
+        });
+    });
 }
 
 bool ProjectSourceWriter::isBusy() const
@@ -126,26 +208,13 @@ void ProjectSourceWriter::renameProject(const ProjectServerProfile &profile,
         return;
 #endif
     }
-    QString root = request_profile.endpoint.trimmed();
-    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
-    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
-    QNetworkRequest request(QUrl(root + QStringLiteral("/projects/") + segment(project_id)));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    request.setRawHeader("Accept", "application/json");
-    request.setTransferTimeout(12000);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::ManualRedirectPolicy);
+    const QString path = QStringLiteral("/projects/") + segment(project_id);
     const QJsonObject body{{QStringLiteral("expectedName"), expected_name},
                            {QStringLiteral("name"), name}};
     this->busy = true;
     this->completion = std::move(completion);
-    this->reply = this->manager.sendCustomRequest(request, "PATCH",
-        QJsonDocument(body).toJson(QJsonDocument::Compact));
-    QNetworkReply *pending = this->reply;
-    const QPointer<QNetworkReply> deadline(pending);
-    QTimer::singleShot(15000, this, [deadline] { if (deadline) deadline->abort(); });
-    connect(pending, &QNetworkReply::finished, this,
-            [this, pending, project_id, name]
+    sendPinned(profile, request_profile.endpoint, "PATCH", path, body,
+               [this, project_id, name](QNetworkReply *pending)
     {
         if (this->reply == pending) this->reply.clear();
         pending->deleteLater();
@@ -236,24 +305,10 @@ void ProjectSourceWriter::patchProperties(const ProjectServerProfile &profile,
         return;
 #endif
     }
-    QString root = request_profile.endpoint.trimmed();
-    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
-    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
-    QNetworkRequest request(QUrl(root + path));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    request.setRawHeader("Accept", "application/json");
-    request.setTransferTimeout(12000);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::ManualRedirectPolicy);
     this->busy = true;
     this->completion = std::move(completion);
-    this->reply = this->manager.sendCustomRequest(request, "PATCH",
-        QJsonDocument(body).toJson(QJsonDocument::Compact));
-    QNetworkReply *pending = this->reply;
-    const QPointer<QNetworkReply> deadline(pending);
-    QTimer::singleShot(15000, this, [deadline] { if (deadline) deadline->abort(); });
-    connect(pending, &QNetworkReply::finished, this,
-            [this, pending, expected_response_key, expected_value]
+    sendPinned(profile, request_profile.endpoint, "PATCH", path, body,
+               [this, expected_response_key, expected_value](QNetworkReply *pending)
     {
         if (this->reply == pending) this->reply.clear();
         const QByteArray bytes = pending->readAll();
@@ -367,9 +422,6 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
     this->busy = true;
     this->completion = std::move(completion);
 
-    QString root = request_profile.endpoint.trimmed();
-    while (root.endsWith(QLatin1Char('/'))) root.chop(1);
-    if (!root.endsWith(QStringLiteral("/dvmdb/v1"))) root += QStringLiteral("/dvmdb/v1");
     QString path = QStringLiteral("/projects");
     QJsonObject body{{QStringLiteral("id"), created_id}, {QStringLiteral("name"), name}};
     if (operation == Operation::Project)
@@ -388,19 +440,8 @@ void ProjectSourceWriter::start(const ProjectServerProfile &profile, Operation o
             if (!from_revision.isEmpty()) body.insert(QStringLiteral("revision"), from_revision);
         }
     }
-    QNetworkRequest request(QUrl(root + path));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-    request.setRawHeader("Accept", "application/json");
-    request.setTransferTimeout(12000);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
-    this->reply = this->manager.post(request, QJsonDocument(body).toJson(QJsonDocument::Compact));
-    QNetworkReply *pending = this->reply;
-    const QPointer<QNetworkReply> deadline(pending);
-    QTimer::singleShot(15000, this, [deadline]
-    {
-        if (deadline) deadline->abort();
-    });
-    connect(pending, &QNetworkReply::finished, this, [this, pending, operation, name, created_id, tags, description]
+    sendPinned(profile, request_profile.endpoint, "POST", path, body,
+               [this, operation, name, created_id, tags, description](QNetworkReply *pending)
     {
         if (this->reply == pending) this->reply.clear();
         pending->deleteLater();

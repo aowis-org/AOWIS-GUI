@@ -54,6 +54,9 @@ private:
                const QString &from_revision, const QStringList &tags,
                const QString &description, Completion completion);
     void finish(const QString &id, const QString &error);
+    void sendPinned(const ProjectServerProfile &profile, const QString &endpoint,
+                    const QByteArray &method, const QString &path, const QJsonObject &body,
+                    std::function<void(QNetworkReply *)> completed);
     void patchProperties(const ProjectServerProfile &profile, const QString &path,
                          const QJsonObject &body, const QString &expected_response_key,
                          const QString &expected_value, Completion completion);
