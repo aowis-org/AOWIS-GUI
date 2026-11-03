@@ -16,6 +16,7 @@
 #include "map/core/map_models.h"
 
 class MapCanvasWidget;
+class MapCanvasProjection;
 
 class MapCanvasMarkers : public QObject
 {
@@ -26,6 +27,7 @@ public:
                               MapEntityPixmapRenderer *pixmap_renderer,
                               QObject *parent = nullptr);
 
+    void setProjection(MapCanvasProjection *projection);
     void setWrapReferenceLongitude(double longitude);
     void setIconSizePercent(int size_percent);
 
@@ -61,6 +63,7 @@ private:
     void rebuildUuidIndex();
 
     MapModel *map_model = nullptr;
+    MapCanvasProjection *projection = nullptr;
     QPointer<MapCanvasWidget> map_canvas;
     MapEntityPixmapRenderer *pixmap_renderer = nullptr;
     double wrap_reference_lon = 0.0;

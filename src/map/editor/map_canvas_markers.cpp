@@ -1,4 +1,5 @@
 #include "map/editor/map_canvas_markers.h"
+#include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_hit_box.h"
 #include "map/editor/map_canvas_widget.h"
 
@@ -6,6 +7,8 @@
 #include "network/infrastructure_entity_traits.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <QtMath>
 
 namespace
@@ -25,6 +28,11 @@ MapCanvasMarkers::MapCanvasMarkers(MapModel *map_model, MapCanvasWidget *map_can
     this->marker_width = entityWidth();
 }
 
+void MapCanvasMarkers::setProjection(MapCanvasProjection *projection)
+{
+    this->projection = projection;
+}
+
 void MapCanvasMarkers::setWrapReferenceLongitude(double longitude)
 {
     this->wrap_reference_lon = GeoWebMercator::normalizeLongitude(longitude);
@@ -37,8 +45,10 @@ void MapCanvasMarkers::setIconSizePercent(int size_percent)
 
 QPointF MapCanvasMarkers::screenFromWgs84(const CoordinateWGS84 &coordinate) const
 {
-    return this->map_model->screenFromWgs84(
+    const std::optional<QPointF> position = this->projection->screenFromCoordinate(
         coordinate, this->map_canvas->size(), this->wrap_reference_lon);
+    return position.value_or(QPointF(std::numeric_limits<double>::quiet_NaN(),
+                                    std::numeric_limits<double>::quiet_NaN()));
 }
 
 const QList<MapEntityMarker> &MapCanvasMarkers::markers() const
@@ -194,13 +204,15 @@ std::optional<InfrastructureEntityReference> MapCanvasMarkers::markerAt(
     // projection or pixmap lookup.
     const double reach = marker_dot_hit_radius + 4.0 * double(std::max(1, this->marker_width));
     const MapCanvasHitBox box = MapCanvasHitBox::around(
-        *this->map_model, position, reach, this->map_canvas->size());
+        *this->projection, position, reach, this->map_canvas->size());
     for (int i = this->list_markers.size() - 1; i >= 0; i--)
     {
         const MapEntityMarker &marker = this->list_markers[i];
         if (!box.contains(marker.coord_wgs84))
             continue;
         const QPointF dot_center = markerAnchorPosition(marker);
+        if (!std::isfinite(dot_center.x()) || !std::isfinite(dot_center.y()))
+            continue;
         if (dotHit(position, dot_center) ||
             this->pixmap_renderer->hitTest(marker.path_pixmap, this->marker_width,
                                            markerRect(marker), position))

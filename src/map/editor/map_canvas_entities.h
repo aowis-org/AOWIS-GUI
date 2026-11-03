@@ -10,6 +10,7 @@
 #include <QSet>
 #include <QUuid>
 
+#include <memory>
 #include <optional>
 
 #include "common/_enums_structs.h"
@@ -18,6 +19,7 @@
 #include "map/render/map_entity_pixmap_renderer.h"
 #include "map/core/map_models.h"
 
+class MapCanvasProjection;
 class MapCanvasDeviceLinks;
 class MapCanvasMarkers;
 class MapCanvasPipes;
@@ -39,7 +41,9 @@ class MapCanvasEntities : public QObject
 public:
     explicit MapCanvasEntities(MapModel *map_model, HydraulicData *hydraulic_data,
                                MapCanvasWidget *map_canvas);
+    ~MapCanvasEntities() override;
 
+    void setProjection(std::unique_ptr<MapCanvasProjection> projection);
     void loadNetwork(const NetworkHydraulic &network);
     void startEntityPositioning(InfrastructureEntity entity);
     void stopEntityPositioning();
@@ -120,6 +124,7 @@ private:
     void updateCanvas();
 
     MapModel *map_model = nullptr;
+    std::unique_ptr<MapCanvasProjection> projection;
     HydraulicData *hydraulic_data = nullptr;
     QPointer<MapCanvasWidget> map_canvas;
     MapEntityPixmapRenderer pixmap_renderer;

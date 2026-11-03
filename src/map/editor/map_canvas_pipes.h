@@ -16,6 +16,7 @@
 
 class MapCanvasMarkers;
 class MapCanvasWidget;
+class MapCanvasProjection;
 
 class MapCanvasPipes : public QObject
 {
@@ -50,6 +51,7 @@ public:
     explicit MapCanvasPipes(MapModel *map_model, MapCanvasWidget *map_canvas,
                             QObject *parent = nullptr);
 
+    void setProjection(MapCanvasProjection *projection);
     void setWrapReferenceLongitude(double longitude);
 
     void clear();
@@ -150,6 +152,7 @@ private:
     void updateCanvas();
 
     MapModel *map_model = nullptr;
+    MapCanvasProjection *projection = nullptr;
     QPointer<MapCanvasWidget> map_canvas;
     double wrap_reference_lon = 0.0;
     QList<PipeCanvasItem> list_pipes;

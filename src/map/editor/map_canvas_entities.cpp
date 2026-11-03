@@ -3,6 +3,7 @@
 #include "map/editor/map_canvas_markers.h"
 #include "map/editor/map_canvas_pipes.h"
 #include "map/editor/map_canvas_placement.h"
+#include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_selection.h"
 #include "map/editor/map_canvas_widget.h"
 
@@ -23,6 +24,8 @@
 
 #include <cmath>
 #include <functional>
+#include <memory>
+#include <utility>
 
 #include <QtMath>
 
@@ -55,6 +58,11 @@ MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraul
         this->map_model, this->map_canvas, this->point_markers,
         this->device_links, this->pipes, this);
     this->placement = new MapCanvasPlacement(this->map_canvas, this);
+
+    this->projection = std::make_unique<MapCanvasFlatProjection>(this->map_model);
+    this->point_markers->setProjection(this->projection.get());
+    this->device_links->setProjection(this->projection.get());
+    this->pipes->setProjection(this->projection.get());
 
     setWrapReferenceLongitude(this->map_model->centerLon());
 
@@ -145,6 +153,23 @@ MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraul
         });
         loadNetwork(this->hydraulic_data->networkHydraulic());
     }
+}
+
+MapCanvasEntities::~MapCanvasEntities() = default;
+
+void MapCanvasEntities::setProjection(std::unique_ptr<MapCanvasProjection> projection)
+{
+    if (!projection)
+        return;
+
+    // End in-flight interactions before changing how their coordinates are
+    // interpreted. The same selection/placement machinery stays in use.
+    stopEntityPositioning();
+    this->projection = std::move(projection);
+    this->point_markers->setProjection(this->projection.get());
+    this->device_links->setProjection(this->projection.get());
+    this->pipes->setProjection(this->projection.get());
+    updateCanvas();
 }
 
 void MapCanvasEntities::onNodeChanged(InfrastructureEntity entity_type, const QUuid &uuid)
@@ -554,10 +579,13 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
         if (!this->demand_point_attachment_preview_valid &&
             this->map_model && this->map_canvas && !this->map_canvas->size().isEmpty())
         {
-            this->demand_point_attachment_preview_coordinate =
-                this->map_model->wgs84FromScreen(
-                    position.toPoint(), this->map_canvas->size());
-            this->demand_point_attachment_preview_valid = true;
+            const std::optional<CoordinateWGS84> coordinate =
+                this->projection->coordinateFromScreen(position, this->map_canvas->size());
+            if (coordinate.has_value())
+            {
+                this->demand_point_attachment_preview_coordinate = coordinate.value();
+                this->demand_point_attachment_preview_valid = true;
+            }
         }
 
         updateCanvas();
@@ -567,9 +595,14 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
     if (this->placement->isMoving())
         this->placement->setMoveCursor(true);
 
-    const CoordinateWGS84 mouse_coordinate = this->map_model->wgs84FromScreen(
-        position.toPoint(), this->map_canvas->size());
-    this->placement->updateMousePosition(position, mouse_coordinate);
+    const std::optional<CoordinateWGS84> mouse_coordinate =
+        this->projection->coordinateFromScreen(position, this->map_canvas->size());
+    if (!mouse_coordinate.has_value())
+    {
+        updateCanvas();
+        return true;
+    }
+    this->placement->updateMousePosition(position, mouse_coordinate.value());
 
     if (this->placement->movingSelected())
     {
@@ -603,9 +636,11 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
         bool moved = this->device_links->updateMove(moving_uuid, position);
         if (!moved)
         {
-            const CoordinateWGS84 coordinate = this->map_model->wgs84FromScreen(
-                position.toPoint(), this->map_canvas->size());
-            moved = this->point_markers->setCoordinate(moving_uuid, coordinate);
+            const std::optional<CoordinateWGS84> coordinate =
+                this->projection->coordinateFromScreen(position, this->map_canvas->size());
+            if (!coordinate.has_value())
+                return true;
+            moved = this->point_markers->setCoordinate(moving_uuid, coordinate.value());
         }
 
         if (!moved)
@@ -629,11 +664,13 @@ bool MapCanvasEntities::anchorMarker(const QPointF &position)
 
     if (this->placement->movingSelected())
     {
-        const CoordinateWGS84 coordinate = this->map_model->wgs84FromScreen(
-            position.toPoint(), this->map_canvas->size());
+        const std::optional<CoordinateWGS84> coordinate =
+            this->projection->coordinateFromScreen(position, this->map_canvas->size());
+        if (!coordinate.has_value())
+            return true;
         const CoordinateWGS84 from_coordinate = this->placement->mouseCoordinateValid()
-            ? this->placement->mouseCoordinate() : coordinate;
-        this->selection->moveSelected(from_coordinate, coordinate,
+            ? this->placement->mouseCoordinate() : coordinate.value();
+        this->selection->moveSelected(from_coordinate, coordinate.value(),
                                       this->move_translated_pipe_uuids);
         const bool synchronized = synchronizeSelectedGeometry();
         if (!synchronized)
@@ -653,8 +690,11 @@ bool MapCanvasEntities::anchorMarker(const QPointF &position)
             return anchorPipe(position);
     }
 
-    const CoordinateWGS84 coordinate = this->map_model->wgs84FromScreen(
-        position.toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> projected_coordinate =
+        this->projection->coordinateFromScreen(position, this->map_canvas->size());
+    if (!projected_coordinate.has_value())
+        return true;
+    const CoordinateWGS84 coordinate = projected_coordinate.value();
 
     if (this->placement->isMoving())
     {
@@ -1085,9 +1125,11 @@ bool MapCanvasEntities::anchorPipe(const QPointF &position)
         return true;
     }
 
-    const CoordinateWGS84 intermediate_vertex = this->map_model->wgs84FromScreen(
-        position.toPoint(), this->map_canvas->size());
-    this->pipes->appendIntermediateVertex(intermediate_vertex);
+    const std::optional<CoordinateWGS84> intermediate_vertex =
+        this->projection->coordinateFromScreen(position, this->map_canvas->size());
+    if (!intermediate_vertex.has_value())
+        return true;
+    this->pipes->appendIntermediateVertex(intermediate_vertex.value());
     updateCanvas();
     return true;
 }
@@ -1230,9 +1272,13 @@ MapEditorVisualState MapCanvasEntities::visualState() const
     state.placement.mouse_position = this->placement->mousePosition();
     if (this->map_model && this->map_canvas && !this->map_canvas->size().isEmpty())
     {
-        state.placement.mouse_coordinate_wgs84 = this->map_model->wgs84FromScreen(
-            this->placement->mousePosition().toPoint(), this->map_canvas->size());
-        state.placement.mouse_coordinate_wgs84_valid = true;
+        const std::optional<CoordinateWGS84> coordinate = this->projection->coordinateFromScreen(
+            this->placement->mousePosition(), this->map_canvas->size());
+        if (coordinate.has_value())
+        {
+            state.placement.mouse_coordinate_wgs84 = coordinate.value();
+            state.placement.mouse_coordinate_wgs84_valid = true;
+        }
     }
 
     state.move.active = this->placement->isMoving();
@@ -1494,12 +1540,14 @@ void MapCanvasEntities::startMarkerMove(const QUuid &uuid)
 
     stopEntityPositioning();
     const QPointF mouse_position = this->map_canvas->mapFromGlobal(QCursor::pos());
+    const std::optional<CoordinateWGS84> mouse_coordinate =
+        this->projection->coordinateFromScreen(mouse_position, this->map_canvas->size());
+    if (!mouse_coordinate.has_value())
+        return;
     captureMarkerMoveSnapshot(uuid);
-    const CoordinateWGS84 mouse_coordinate = this->map_model->wgs84FromScreen(
-        mouse_position.toPoint(), this->map_canvas->size());
     if (!this->placement->startMove(
             marker->entity.type, uuid, marker->path_pixmap,
-            this->point_markers->entityWidth(), mouse_position, mouse_coordinate))
+            this->point_markers->entityWidth(), mouse_position, mouse_coordinate.value()))
     {
         clearMoveSnapshot();
     }
@@ -1644,10 +1692,12 @@ bool MapCanvasEntities::demandPointAttachmentHandleAt(
         if (!coordinate.has_value())
             return std::nullopt;
 
-        const QPointF handle_position = this->map_model->screenFromWgs84(
+        const std::optional<QPointF> handle_position = this->projection->screenFromCoordinate(
             coordinate.value(), this->map_canvas->size(), this->wrap_reference_longitude);
-        const double delta_x = position.x() - handle_position.x();
-        const double delta_y = position.y() - handle_position.y();
+        if (!handle_position.has_value())
+            return std::nullopt;
+        const double delta_x = position.x() - handle_position->x();
+        const double delta_y = position.y() - handle_position->y();
         return delta_x * delta_x + delta_y * delta_y;
     };
 
@@ -1952,15 +2002,18 @@ void MapCanvasEntities::convertDemandPointAttachmentToJunction(const QUuid &dema
         return;
     }
 
-    const QPointF attachment_screen = this->map_model->screenFromWgs84(
+    const std::optional<QPointF> attachment_screen = this->projection->screenFromCoordinate(
         attachment_coordinate.value(), this->map_canvas->size(), this->wrap_reference_longitude);
+    if (!attachment_screen.has_value())
+        return;
     const MapCanvasPipes::PipePositionHit position_hit = this->pipes->nearestPositionOnPipe(
-        demand_point->attachment.pipe_uuid, attachment_screen, *this->point_markers);
+        demand_point->attachment.pipe_uuid, attachment_screen.value(), *this->point_markers);
     if (!position_hit.isValid())
         return;
 
     int vertex_index = -1;
-    const MapCanvasPipes::PipeVertexHit existing_vertex = this->pipes->pipeVertexAt(attachment_screen);
+    const MapCanvasPipes::PipeVertexHit existing_vertex =
+        this->pipes->pipeVertexAt(attachment_screen.value());
     if (existing_vertex.isValid() && existing_vertex.pipe_uuid == demand_point->attachment.pipe_uuid)
     {
         const std::optional<CoordinateWGS84> existing_coordinate =
@@ -2327,10 +2380,16 @@ void MapCanvasEntities::startPipeVertexMove(const QUuid &pipe_uuid, int vertex_i
     selectPipe(pipe_uuid);
     prepareMoveVisualState();
     const QPointF mouse_position = this->map_canvas->mapFromGlobal(QCursor::pos());
-    const CoordinateWGS84 mouse_coordinate = this->map_model->wgs84FromScreen(
-        mouse_position.toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> mouse_coordinate =
+        this->projection->coordinateFromScreen(mouse_position, this->map_canvas->size());
+    if (!mouse_coordinate.has_value())
+    {
+        this->pipes->cancelPipeVertexMove();
+        clearMoveSnapshot();
+        return;
+    }
     this->placement->startVirtualMove(
-        InfrastructureEntity::Pipe, mouse_position, mouse_coordinate);
+        InfrastructureEntity::Pipe, mouse_position, mouse_coordinate.value());
 }
 
 void MapCanvasEntities::convertPipeVertexToJunction(const QUuid &pipe_uuid,

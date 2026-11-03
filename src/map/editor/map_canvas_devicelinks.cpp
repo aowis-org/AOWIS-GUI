@@ -1,4 +1,5 @@
 #include "map/editor/map_canvas_devicelinks.h"
+#include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_markers.h"
 #include "map/editor/map_canvas_widget.h"
 
@@ -6,6 +7,8 @@
 #include "network/infrastructure_entity_traits.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace
 {
@@ -51,6 +54,11 @@ MapCanvasDeviceLinks::MapCanvasDeviceLinks(MapModel *map_model,
     this->pixmap_renderer = pixmap_renderer;
 }
 
+void MapCanvasDeviceLinks::setProjection(MapCanvasProjection *projection)
+{
+    this->projection = projection;
+}
+
 void MapCanvasDeviceLinks::setWrapReferenceLongitude(double longitude)
 {
     this->wrap_reference_lon = GeoWebMercator::normalizeLongitude(longitude);
@@ -58,8 +66,10 @@ void MapCanvasDeviceLinks::setWrapReferenceLongitude(double longitude)
 
 QPointF MapCanvasDeviceLinks::screenFromWgs84(const CoordinateWGS84 &coordinate) const
 {
-    return this->map_model->screenFromWgs84(
+    const std::optional<QPointF> position = this->projection->screenFromCoordinate(
         coordinate, this->map_canvas->size(), this->wrap_reference_lon);
+    return position.value_or(QPointF(std::numeric_limits<double>::quiet_NaN(),
+                                    std::numeric_limits<double>::quiet_NaN()));
 }
 
 void MapCanvasDeviceLinks::clear()
@@ -169,12 +179,18 @@ std::optional<DeviceLinkGeometry> MapCanvasDeviceLinks::completionGeometry(
 
     const QPointF start_point = screenFromWgs84(start_marker->coord_wgs84);
     const QPointF end_point = screenFromWgs84(end_marker->coord_wgs84);
+    if (!std::isfinite(start_point.x()) || !std::isfinite(start_point.y()) ||
+        !std::isfinite(end_point.x()) || !std::isfinite(end_point.y()))
+        return std::nullopt;
 
     DeviceLinkGeometry geometry;
     geometry.start_node = start_marker->entity;
     geometry.end_node = end_marker->entity;
-    geometry.center_coordinate = this->map_model->wgs84FromScreen(
-        ((start_point + end_point) / 2.0).toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> center = this->projection->coordinateFromScreen(
+        (start_point + end_point) / 2.0, this->map_canvas->size());
+    if (!center.has_value())
+        return std::nullopt;
+    geometry.center_coordinate = center.value();
     return geometry;
 }
 
@@ -186,8 +202,11 @@ bool MapCanvasDeviceLinks::updateMove(const QUuid &uuid, const QPointF &screen_p
     if (iterator == this->device_link_indices_by_uuid.cend())
         return false;
 
-    this->list_device_links[iterator.value()].geometry.center_coordinate =
-        this->map_model->wgs84FromScreen(screen_position.toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> coordinate = this->projection->coordinateFromScreen(
+        screen_position, this->map_canvas->size());
+    if (!coordinate.has_value())
+        return false;
+    this->list_device_links[iterator.value()].geometry.center_coordinate = coordinate.value();
     updateCanvas();
     return true;
 }
@@ -316,6 +335,9 @@ std::optional<InfrastructureEntityReference> MapCanvasDeviceLinks::markerAt(
         marker.entity = device_link.entity;
         marker.coord_wgs84 = device_link.geometry.center_coordinate;
         marker.path_pixmap = device_link.path_pixmap;
+        const QPointF center = markerCenterPosition(marker);
+        if (!std::isfinite(center.x()) || !std::isfinite(center.y()))
+            continue;
         if (this->pixmap_renderer->hitTest(marker.path_pixmap, this->device_marker_width,
                                            markerRect(marker), position))
         {
@@ -344,6 +366,12 @@ std::optional<InfrastructureEntityReference> MapCanvasDeviceLinks::linkAt(
         const QPointF start_point = screenFromWgs84(start_marker->coord_wgs84);
         const QPointF center_point = screenFromWgs84(device_link.geometry.center_coordinate);
         const QPointF end_point = screenFromWgs84(end_marker->coord_wgs84);
+        if (!std::isfinite(start_point.x()) || !std::isfinite(start_point.y()) ||
+            !std::isfinite(center_point.x()) || !std::isfinite(center_point.y()) ||
+            !std::isfinite(end_point.x()) || !std::isfinite(end_point.y()))
+        {
+            continue;
+        }
         const double distance_squared = qMin(
             distanceSquaredToSegment(position, start_point, center_point),
             distanceSquaredToSegment(position, center_point, end_point));

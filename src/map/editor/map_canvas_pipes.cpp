@@ -1,4 +1,5 @@
 #include "map/editor/map_canvas_pipes.h"
+#include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_markers.h"
 #include "map/editor/map_canvas_hit_box.h"
 #include "map/editor/map_canvas_widget.h"
@@ -94,6 +95,11 @@ MapCanvasPipes::MapCanvasPipes(MapModel *map_model, MapCanvasWidget *map_canvas,
 {
 }
 
+void MapCanvasPipes::setProjection(MapCanvasProjection *projection)
+{
+    this->projection = projection;
+}
+
 void MapCanvasPipes::setWrapReferenceLongitude(double longitude)
 {
     this->wrap_reference_lon = GeoWebMercator::normalizeLongitude(longitude);
@@ -101,8 +107,10 @@ void MapCanvasPipes::setWrapReferenceLongitude(double longitude)
 
 QPointF MapCanvasPipes::screenFromWgs84(const CoordinateWGS84 &coordinate) const
 {
-    return this->map_model->screenFromWgs84(
+    const std::optional<QPointF> position = this->projection->screenFromCoordinate(
         coordinate, this->map_canvas->size(), this->wrap_reference_lon);
+    return position.value_or(QPointF(std::numeric_limits<double>::quiet_NaN(),
+                                    std::numeric_limits<double>::quiet_NaN()));
 }
 
 void MapCanvasPipes::clear()
@@ -344,6 +352,8 @@ MapCanvasPipes::PipeVertexHit MapCanvasPipes::pipeVertexAt(const QPointF &positi
         for (int i = 0; i < pipe.geometry.intermediate_vertices.size(); i++)
         {
             const QPointF vertex_point = screenFromWgs84(pipe.geometry.intermediate_vertices[i]);
+            if (!std::isfinite(vertex_point.x()) || !std::isfinite(vertex_point.y()))
+                continue;
             const double distance_x = position.x() - vertex_point.x();
             const double distance_y = position.y() - vertex_point.y();
             const double distance_squared = distance_x * distance_x + distance_y * distance_y;
@@ -372,7 +382,7 @@ MapCanvasPipes::PipeSegmentHit MapCanvasPipes::pipeSegmentAt(
     // Pipes whose map bounds miss the hit box are skipped before any
     // vertex is projected (every pointer move tests every pipe).
     const MapCanvasHitBox box = MapCanvasHitBox::around(
-        *this->map_model, position, link_hit_distance + 1.0, this->map_canvas->size());
+        *this->projection, position, link_hit_distance + 1.0, this->map_canvas->size());
 
     for (const PipeCanvasItem &pipe : this->list_pipes)
     {
@@ -388,6 +398,12 @@ MapCanvasPipes::PipeSegmentHit MapCanvasPipes::pipeSegmentAt(
         for (int i = 0; i < pipe.geometry.intermediate_vertices.size(); i++)
         {
             const QPointF vertex_point = screenFromWgs84(pipe.geometry.intermediate_vertices[i]);
+            if (!std::isfinite(vertex_point.x()) || !std::isfinite(vertex_point.y()) ||
+                !std::isfinite(previous_point.x()) || !std::isfinite(previous_point.y()))
+            {
+                previous_point = vertex_point;
+                continue;
+            }
             const double segment_min_x = qMin(previous_point.x(), vertex_point.x());
             const double segment_max_x = qMax(previous_point.x(), vertex_point.x());
             const double segment_min_y = qMin(previous_point.y(), vertex_point.y());
@@ -414,6 +430,11 @@ MapCanvasPipes::PipeSegmentHit MapCanvasPipes::pipeSegmentAt(
         }
 
         const QPointF end_point = screenFromWgs84(end_marker->coord_wgs84);
+        if (!std::isfinite(previous_point.x()) || !std::isfinite(previous_point.y()) ||
+            !std::isfinite(end_point.x()) || !std::isfinite(end_point.y()))
+        {
+            continue;
+        }
         const double segment_min_x = qMin(previous_point.x(), end_point.x());
         const double segment_max_x = qMax(previous_point.x(), end_point.x());
         const double segment_min_y = qMin(previous_point.y(), end_point.y());
@@ -488,6 +509,12 @@ MapCanvasPipes::PipePositionHit MapCanvasPipes::nearestPositionOnPipeInternal(
     {
         const QPointF segment_start = screenFromWgs84(coordinates.at(i));
         const QPointF segment_end = screenFromWgs84(coordinates.at(i + 1));
+        if (!std::isfinite(segment_start.x()) || !std::isfinite(segment_start.y()) ||
+            !std::isfinite(segment_end.x()) || !std::isfinite(segment_end.y()))
+        {
+            accumulated_length_m += segment_lengths_m.at(i);
+            continue;
+        }
         const QPointF nearest_point = nearestPointOnSegment(position, segment_start, segment_end);
         const double distance_x = position.x() - nearest_point.x();
         const double distance_y = position.y() - nearest_point.y();
@@ -729,10 +756,12 @@ bool MapCanvasPipes::showContextMenuAt(const QPointF &position,
     if (!segment_hit.isValid())
         return false;
 
-    const CoordinateWGS84 coordinate = this->map_model->wgs84FromScreen(
-        segment_hit.nearest_point.toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> coordinate = this->projection->coordinateFromScreen(
+        segment_hit.nearest_point, this->map_canvas->size());
+    if (!coordinate.has_value())
+        return false;
     emit pipeSelectionRequested(segment_hit.pipe_uuid);
-    emit pipeVertexAddRequested(segment_hit.pipe_uuid, segment_hit.insert_index, coordinate);
+    emit pipeVertexAddRequested(segment_hit.pipe_uuid, segment_hit.insert_index, coordinate.value());
     return true;
 }
 
@@ -866,8 +895,11 @@ bool MapCanvasPipes::updatePipeVertexMove(const QPointF &screen_position)
         return false;
     }
 
-    pipe->geometry.intermediate_vertices[this->pipe_vertex_move_index] =
-        this->map_model->wgs84FromScreen(screen_position.toPoint(), this->map_canvas->size());
+    const std::optional<CoordinateWGS84> coordinate = this->projection->coordinateFromScreen(
+        screen_position, this->map_canvas->size());
+    if (!coordinate.has_value())
+        return false;
+    pipe->geometry.intermediate_vertices[this->pipe_vertex_move_index] = coordinate.value();
     updateCanvas();
     return true;
 }

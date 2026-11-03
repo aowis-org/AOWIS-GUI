@@ -18,6 +18,7 @@
 
 class MapCanvasMarkers;
 class MapCanvasWidget;
+class MapCanvasProjection;
 
 class MapCanvasDeviceLinks : public QObject
 {
@@ -40,6 +41,7 @@ public:
                                   MapEntityPixmapRenderer *pixmap_renderer,
                                   QObject *parent = nullptr);
 
+    void setProjection(MapCanvasProjection *projection);
     void setWrapReferenceLongitude(double longitude);
 
     void clear();
@@ -95,6 +97,7 @@ private:
     void updateCanvas();
 
     MapModel *map_model = nullptr;
+    MapCanvasProjection *projection = nullptr;
     QPointer<MapCanvasWidget> map_canvas;
     MapEntityPixmapRenderer *pixmap_renderer = nullptr;
     double wrap_reference_lon = 0.0;

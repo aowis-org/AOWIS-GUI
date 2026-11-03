@@ -327,6 +327,7 @@ qt_add_executable(aowis-server-gui
     src/map/editor/map_canvas_hit_box.h
     src/map/editor/map_canvas_pipes.cpp
     src/map/editor/map_canvas_pipes.h
+    src/map/editor/map_canvas_projection.h
     src/map/editor/map_canvas_placement.cpp
     src/map/editor/map_canvas_placement.h
     src/map/editor/map_canvas_selection.cpp
@@ -986,6 +987,20 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-bgfx-editor-overlay COMMAND aowis-bgfx-editor-overlay-tests)
     set_tests_properties(aowis-bgfx-editor-overlay PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # 3D-00A: the same editor helpers must accept one screen/world
+    # projection, retaining the 2D hit-box fast path but never applying it
+    # to a globe or to a missing projection result.
+    add_executable(aowis-map-canvas-projection-tests
+        tests/map_canvas_projection_test.cpp
+        src/geo/geo_web_mercator.cpp)
+    target_include_directories(aowis-map-canvas-projection-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_link_libraries(aowis-map-canvas-projection-tests PRIVATE
+        Qt6::Core Qt6::Gui AOWIS::ServerModel)
+    add_test(NAME aowis-map-canvas-projection COMMAND aowis-map-canvas-projection-tests)
+    set_tests_properties(aowis-map-canvas-projection PROPERTIES LABELS "aowis")
 
     # Stage 9: 100k-anchor ECEF spatial visibility benchmark and regression.
     # Uses only the standard library, so it also compiles in standalone CI.
