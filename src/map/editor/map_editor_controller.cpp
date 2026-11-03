@@ -195,10 +195,19 @@ bool MapEditorController::rectangleDragging() const
 
 QRect MapEditorController::currentSelectionRect(const QSize &viewport_size) const
 {
-    // Globe drags have no screen rectangle (the live tile selection is the
-    // feedback).
-    if (!this->map_model || viewport_size.isEmpty() || globeMode())
+    if (!this->map_model || viewport_size.isEmpty())
         return QRect();
+    // The shared rectangle selector works in screen pixels in either view.
+    // Keep the globe bounds in screen space: two terrain ray hits cannot
+    // describe a rectangle containing elevated or underground entities.
+    if (globeMode())
+    {
+        if (!this->rectangle_selection_interacts_with_entities)
+            return QRect();
+        return QRect(this->globe_drag_press_position.toPoint(),
+                     this->globe_drag_current_position.toPoint()).normalized()
+            .intersected(QRect(QPoint(0, 0), viewport_size));
+    }
 
     const QPoint rectangle_start_pos = this->map_model->screenFromWgs84(
         this->rectangle_start_wgs84, viewport_size).toPoint();
@@ -548,14 +557,27 @@ bool MapEditorController::globeMousePress(const QPointF &position,
             || this->map_canvas_entities->showPipeContextMenuAt(position, global_position))
             return true;
     }
-    // Only the cache sections' tile selection; everything else (left drag
-    // pans, middle / Ctrl orbits) belongs to the globe navigation.
-    if (button != Qt::RightButton || !this->rectangle_selection_active
-        || this->rectangle_selection_interacts_with_entities)
-    {
+    if (button != Qt::RightButton || !this->rectangle_selection_active)
         return false;
+
+    if (this->rectangle_selection_interacts_with_entities)
+    {
+        // Exactly the 2D Select tool's right-drag rectangle, in screen
+        // pixels. This does not require a terrain ray: buried/elevated
+        // hydraulic entities remain selectable through the globe surface.
+        // Creation and Move confirmations were already handled above.
+        if (this->map_canvas_entities->positioningActive())
+            return false;
+        this->globe_drag_press_position = position;
+        this->globe_drag_current_position = position;
+        this->globe_drag_moved = false;
+        this->rectangle_dragging = true;
+        this->cursor_shape = Qt::CrossCursor;
+        emit signalStateChanged();
+        return true;
     }
 
+    // Cache tile selection retains its independent geographic corners.
     CoordinateWGS84 coordinate;
     if (!globeCoordinateAt(position, viewport_size, &coordinate))
         return false;
@@ -575,13 +597,29 @@ bool MapEditorController::globeMouseMove(const QPointF &position, const QSize &v
 {
     if (!this->rectangle_selection_active || !this->rectangle_dragging)
     {
-        // Globe tile-selection drags are separate from editor previews.
+        // Globe cache/entity-selection drags are separate from editor previews.
         setCursorShape(std::nullopt);
         return false;
     }
 
     if (QLineF(position, this->globe_drag_press_position).length() > 3.0)
         this->globe_drag_moved = true;
+    if (this->rectangle_selection_interacts_with_entities)
+    {
+        this->globe_drag_current_position = position;
+        if (this->globe_drag_moved)
+        {
+            const QRect rect = currentSelectionRect(viewport_size);
+#ifdef Q_OS_WASM
+            scheduleRectangleSelectionUpdate(rect);
+#else
+            this->map_canvas_entities->onRectangleSelect(rect, RectangleSelectMode::Replace);
+#endif
+        }
+        this->cursor_shape = Qt::CrossCursor;
+        emit signalStateChanged();
+        return true;
+    }
     // Over space (past the globe's edge) the last corner on the globe holds.
     CoordinateWGS84 coordinate;
     if (globeCoordinateAt(position, viewport_size, &coordinate))
@@ -599,6 +637,33 @@ bool MapEditorController::globeMouseRelease(const QPointF &position, Qt::MouseBu
 {
     if (button != Qt::RightButton || !this->rectangle_selection_active || !this->rectangle_dragging)
         return false;
+
+    if (this->rectangle_selection_interacts_with_entities)
+    {
+        this->globe_drag_current_position = position;
+        if (QLineF(position, this->globe_drag_press_position).length() > 3.0)
+            this->globe_drag_moved = true;
+        const QRect selected_rect = currentSelectionRect(viewport_size);
+        if (this->is_rectangle_selection_oneshot)
+            this->rectangle_selection_active = false;
+        this->rectangle_dragging = false;
+        this->cursor_shape.reset();
+#ifdef Q_OS_WASM
+        this->rectangle_selection_timer->stop();
+        this->rectangle_selection_update_pending = false;
+#endif
+        if (this->globe_drag_moved && !selected_rect.isEmpty())
+        {
+            this->map_canvas_entities->onRectangleSelect(
+                selected_rect, RectangleSelectMode::Replace);
+        }
+        else
+        {
+            emit signalRectangleSelectionCanceled();
+        }
+        emit signalStateChanged();
+        return true;
+    }
 
     CoordinateWGS84 coordinate;
     if (globeCoordinateAt(position, viewport_size, &coordinate))

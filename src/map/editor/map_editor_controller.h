@@ -147,6 +147,7 @@ private:
     // Globe drag: where it was pressed (a click without motion selects
     // nothing, as an empty 2D rectangle).
     QPointF globe_drag_press_position;
+    QPointF globe_drag_current_position;
     bool globe_drag_moved = false;
     std::optional<Qt::CursorShape> cursor_shape;
 #ifdef Q_OS_WASM

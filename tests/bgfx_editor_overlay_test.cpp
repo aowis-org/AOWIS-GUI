@@ -657,6 +657,51 @@ void testTerrainAndGlobeTileSelection()
         "globe map tile selection frame is green");
 }
 
+// The 3D Select tool draws the exact same screen-space rectangle as 2D,
+// independent of the terrain projector. Unlike cache selection, this frame
+// must not require a DEM hit or even a network icon to be present.
+void testGlobeSharedRectangleSelection()
+{
+    Harness harness;
+    MapEditorViewportRenderState viewport;
+    viewport.rectangle_selection_visible = true;
+    viewport.rectangle_selection = QRect(120, 90, 240, 160);
+    const MapBgfxEditorOverlay::GlobeProjector projector = [](
+        double, double, QPointF *, double *) { return false; };
+    constexpr quint32 RectangleEdgeColor = 0xb456d7ffu;
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache, viewport, projector);
+    req(hasColor(harness.canvas, RectangleEdgeColor),
+        "globe entity rectangle uses the same blue frame as 2D even when terrain misses");
+    const int frame_vertices = harness.canvas.vertices().size();
+    req(frame_vertices > 50,
+        "globe selection rectangle produces a visible gradient and outline without network geometry");
+    for (const MapBgfxHudVertex &vertex : harness.canvas.vertices())
+    {
+        if (vertex.x < 50.0 || vertex.x > 430.0 || vertex.y < 20.0 || vertex.y > 320.0)
+        {
+            req(false, "globe rectangle frame remains within its screen-space bounds");
+            break;
+        }
+    }
+
+    viewport.rectangle_selection_visible = false;
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache, viewport, projector);
+    req(harness.canvas.vertices().isEmpty(),
+        "globe rectangle is cleared when the shared drag finishes");
+
+    // A terrain-cache selection is still governed by its independent tile
+    // geometry, not by the new entity rectangle flag.
+    viewport.tile_selection_visible = true;
+    viewport.tile_selection_zoom = 10;
+    viewport.tile_x_min = 530;
+    viewport.tile_x_max = 530;
+    viewport.tile_y_min = 370;
+    viewport.tile_y_max = 370;
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache, viewport, projector);
+    req(!hasColor(harness.canvas, RectangleEdgeColor),
+        "globe cache selection cannot accidentally draw the hydraulic rectangle");
+}
+
 // 3D-00B: the same editor visual state is projected over the globe. This
 // tests rendering only; no separate globe placement/controller is involved.
 void testGlobeSharedEditorVisuals()
@@ -1142,6 +1187,7 @@ int main(int argc, char **argv)
     testDiagnostics();
     testFramesAndAttachments();
     testTerrainAndGlobeTileSelection();
+    testGlobeSharedRectangleSelection();
     testGlobeEditorIcons();
     testGlobeSharedEditorVisuals();
     testAttachmentCost();

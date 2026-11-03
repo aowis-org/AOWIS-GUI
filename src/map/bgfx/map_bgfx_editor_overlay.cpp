@@ -773,6 +773,7 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     canvas->clear();
     this->globe_icon_hit_areas.clear();
     if (!projector || (!viewport_state.tile_selection_visible
+                       && !viewport_state.rectangle_selection_visible
                        && (snapshot == nullptr || icon_width <= 0)))
         return;
 
@@ -799,6 +800,10 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
         this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
         if (viewport_state.tile_selection_visible)
             globeTileSelection(viewport_state, projector);
+        // Same screen-space blue selection frame as the 2D Editor. The
+        // frame itself must not be terrain-occluded or require DEM data.
+        if (viewport_state.rectangle_selection_visible)
+            rectangleSelection();
         if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
             globeNetworkIcons(*snapshot, projector, icon_width, viewport_size,
                               frustum, editor_state);

@@ -177,16 +177,17 @@ MapEditorViewportRenderState MapCanvasWidget::viewportRenderState() const
         }
     }
 
-    // The screen rubber band is 2D only (a globe drag selects the tiles
-    // between its two ground corners, shown live as the tile selection).
+    // The Select tool uses the same screen-space rubber band in 2D and 3D.
+    // Cache-tile selection on the globe still uses geographic tile outlines.
     state.rectangle_selection_visible =
-        this->map_model->viewMode() != MapViewMode::Globe &&
         this->editor_controller->rectangleSelectionActive() &&
-        this->editor_controller->rectangleDragging();
+        this->editor_controller->rectangleDragging() &&
+        !this->editor_controller->currentSelectionRect(size()).isEmpty();
     if (state.rectangle_selection_visible)
     {
         state.rectangle_selection = this->editor_controller->currentSelectionRect(size());
-        if (!state.rectangle_selection.isEmpty())
+        if (!state.rectangle_selection.isEmpty() &&
+            this->map_model->viewMode() != MapViewMode::Globe)
         {
             state.rectangle_selection_north_west = this->map_model->wgs84FromScreen(
                 state.rectangle_selection.topLeft(), size());
