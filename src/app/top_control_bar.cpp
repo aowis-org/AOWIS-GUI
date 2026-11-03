@@ -808,7 +808,8 @@ void TopControlBar::addProjectControls()
     history_button->setIcon(QIcon(QStringLiteral(":/icon/history.png")));
     history_button->setIconSize(QSize(20, 20));
     history_button->setFixedSize(27, 25);
-    history_button->setToolTip(tr("Open revision history in Projects"));
+    history_button->setObjectName(QStringLiteral("toolbarHistoryButton"));
+    history_button->setToolTip(tr("Open History dock"));
     connect(history_button, &QToolButton::clicked,
             this, &TopControlBar::signalProjectHistoryRequested);
     actions->addWidget(history_button);

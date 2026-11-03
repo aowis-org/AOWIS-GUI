@@ -19,7 +19,7 @@ an acceptance gate complete. Latest snapshot reviewed: 2026-11-03.
 | Order | Remaining work | Required result |
 |---|---|---|
 | **1** | Finish hydraulic Save acceptance | All 18 collections and persistent root fields round-trip through real HTTP and Standalone, including server + GUI restart, interrupted Save and exact canonical equality |
-| **2** | Agree on History architecture; implement initial History dock | One left dock opened by the existing History action; show actual data and make unsupported navigation visibly disabled |
+| **2** | Complete History architecture; qualify initial read-only History dock | Existing History action opens left dock; future navigation requires a persistent controller |
 | **3** | Build persistent History/Undo/Redo | Navigate edits and Commit checkpoints without modifying immutable revisions or silently losing work; see the dedicated roadmap |
 | **4** | Complete network import/replacement | Explicit new/replace/selected-entity operations, atomicity, target identity, queued-edit protection and recovery |
 | **5** | Qualify local editing lifecycle | Unborn HEAD → checkout → edit → Save → Commit → branch → reopen, including wrong-target/recovery and multiple sessions |
@@ -59,16 +59,19 @@ exists. Those belong to the [History roadmap](history-roadmap.md).
 
 ### 2–3 — Action history and History dock
 
-The proposed design is a **left History dock** opened by the existing toolbar
-"Open revision history in Projects" action. It shows one continuous timeline
-for the selected branch, meaningful editing actions, a current-state cursor,
-Undo/Redo controls and visually distinctive immutable Commit markers.
-The user must be able to move backward and forward across those markers
-**without moving or rewriting a committed HEAD or revision**. Historical
-state navigation changes only the private working candidate and is itself
-durable. Details, staged UI delivery, and the unresolved durability/merge
-questions are in [history-roadmap.md](history-roadmap.md). This subsystem
-must be implemented before calling the editor's Undo/Redo support complete.
+The initial **read-only left History dock** exists and opens from the toolbar
+without switching out of the editor. It shows available first-parent Commit
+markers and the current private draft's acknowledged/pending events. The
+current-state marker is informational; **Undo, Redo and jumping to entries are
+disabled** because they lack a persistent action-history controller.
+
+The remaining work is an authoritative, durable timeline across Commit
+checkpoints, including logical action grouping, MODEL inversion, persistent
+history storage separate from the bounded draft journal, a navigable cursor,
+redo invalidation and recovery. Navigation must never move or rewrite an
+immutable revision or committed HEAD. See the coordinated
+[History roadmap](history-roadmap.md). The UI dock alone does not complete
+history support.
 
 ### 4 — Network creation, import and replacement
 

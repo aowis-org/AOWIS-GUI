@@ -15,6 +15,7 @@ workflow see [quickstart](dvmdb-quickstart.md); for graph semantics see
 | Revisions (left) | Immutable committed revisions; absent for a branch with no commits |
 | Graph (center) | Server and project cards, **immutable revision cards** and **writable HEAD cards**; no independent branch cards |
 | Inspector (right) | Context-sensitive Overview and management tabs for Database, Project, Branch, HEAD or Revision |
+| History dock (main window, left) | Read-only commit checkpoints and current-draft events; opens from the toolbar without leaving the editor. Undo/Redo is not yet functional |
 
 The personal database has a crown in the navigator and a gold server card in
 the graph. A visibility checkbox is a graph/list filter, **not** a
@@ -158,12 +159,14 @@ revision previews. The branch dropdown always has a **[none]** placeholder:
   must not replace the in-memory model.
 
 **History action (current):** The toolbar's **Open revision history in
-Projects** control invokes `ProjectsWidget::showRevisionHistory()`: it
-navigates to the Projects page, selects the committed HEAD where possible,
-and focuses the revision tree/Inspector. This is **not** a History dock, and
-it does not support Undo/Redo. The agreed future left-dock timeline, with
-Commit markers and cross-Commit Undo/Redo, is specified only in the
-[History roadmap](history-roadmap.md).
+Projects** button opens the **History** dock on the left of the current
+workspace, even while editing the hydraulic network. It shows the selected
+branch's first-parent committed revision markers, current-state marker and,
+when the private editor is active, the saved and pending draft MODEL events.
+No persisted edit actions preceding a Commit can be recovered from the
+current API. Undo, Redo and jump-to-entry are therefore disabled; these are
+future features specified in the [History roadmap](history-roadmap.md).
+The separate Projects revision graph continues to display the actual DAG.
 
 The toolbar status area now indicates **No network**, **Opening…**,
 **Saving · N pending**, **Autosaved**, **Read-only**, or **Open failed**.

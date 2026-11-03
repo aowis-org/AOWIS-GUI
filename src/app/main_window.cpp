@@ -1,4 +1,5 @@
 #include "app/main_window.h"
+#include "app/history_dock.h"
 #include "tabs/tab_map_workspace.h"
 #include "tabs/tab_projects_widget.h"
 #include "config/gui_configuration.h"
@@ -10,6 +11,7 @@
 #include "projects/dvmdb_identity.h"
 
 #include <aowis/model/serialization/model_codec.h>
+#include <aowis/model/edit/model_edit_transaction.h>
 
 #include <QDir>
 #include <QStandardPaths>
@@ -20,6 +22,7 @@
 #include <qapplication.h>
 
 #include <limits>
+#include <functional>
 #include <optional>
 #include <utility>
 
@@ -103,6 +106,9 @@ MainWindow::MainWindow(QWidget *parent)
     addDockWidget(Qt::RightDockWidgetArea, this->dock_entity_inspector);
     addDockWidget(Qt::RightDockWidgetArea, this->dock_entity_map_legend);
     addDockWidget(Qt::RightDockWidgetArea, this->dock_map_editor_guide);
+    this->history_dock = new HistoryDock(this);
+    addDockWidget(Qt::LeftDockWidgetArea, this->history_dock);
+    this->history_dock->hide();
     addToolBar(Qt::TopToolBarArea, this->top_control_bar);
 
     const QList<QDockWidget *> right_docks = findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly);
@@ -281,6 +287,7 @@ MainWindow::MainWindow(QWidget *parent)
             restoreOpenedNetworkSelection();
         }
         this->network_open_pending = false;
+        refreshHistoryDock();
         this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
             ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
             : tr("Autosaved"));
@@ -289,6 +296,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->personal_edit_session, &PersonalDraftEditSession::pendingCountChanged,
             this, [this](int count)
     {
+        refreshHistoryDock();
         if (this->personal_edit_active && !this->personal_edit_blocked)
         {
             this->personal_edit_stop_button->setText(tr("Stop private editing (%1 pending)").arg(count));
@@ -299,6 +307,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->personal_edit_session, &PersonalDraftEditSession::saveConfirmed,
             this, [this](const QString &, bool)
     {
+        refreshHistoryDock();
         if (this->personal_edit_active && !this->personal_edit_blocked)
         {
             this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
@@ -313,6 +322,7 @@ MainWindow::MainWindow(QWidget *parent)
             this, [this](const QString &error)
     {
         this->personal_edit_active = false;
+        refreshHistoryDock();
         this->personal_edit_blocked = false;
         this->personal_edit_stop_button->hide();
         this->personal_edit_stop_button->setText(tr("Stop private editing"));
@@ -609,8 +619,16 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->top_control_bar, &TopControlBar::signalProjectHistoryRequested,
             this, [this]
     {
-        this->main_navigation->setCurrentIndex(0);
-        this->projects_workspace->showRevisionHistory();
+        // History is a dock in the *active* workspace, not a command to
+        // leave the hydraulic editor or to select a different revision.
+        refreshHistoryDock();
+        this->history_dock->show();
+        this->history_dock->raise();
+    });
+    connect(this->projects_workspace, &ProjectsWidget::projectContextChanged,
+            this, [this](const QStringList &, const QString &, const QStringList &, const QString &)
+    {
+        refreshHistoryDock();
     });
     // Restore an optional bundled-preview selection; real sources load automatically.
     this->projects_workspace->selectProjectByName(QStringLiteral("Sample North Network"));
@@ -922,6 +940,8 @@ void MainWindow::setMapFullscreen(bool fullscreen)
         this->top_control_bar->hide();
         this->footer->statusBar()->hide();
         this->main_navigation->setNavigationBarVisible(false);
+        this->map_fullscreen_history_visible = this->history_dock->isVisible();
+        this->history_dock->hide();
         // The right dock area's own hide (it keeps docks that want to show
         // up, e.g. the inspector on a selection, hidden meanwhile).
         this->map_fullscreen_hid_right_docks = !this->right_dock_area_hidden;
@@ -952,6 +972,9 @@ void MainWindow::setMapFullscreen(bool fullscreen)
         this->top_control_bar->setVisible(this->map_fullscreen_toolbar_visible);
         this->footer->statusBar()->setVisible(this->map_fullscreen_status_bar_visible);
         this->main_navigation->setNavigationBarVisible(true);
+        if (this->map_fullscreen_history_visible)
+            this->history_dock->show();
+        this->map_fullscreen_history_visible = false;
         if (this->map_fullscreen_hid_right_docks && this->right_dock_area_hidden)
             toggleRightDockArea();
         this->map_fullscreen_hid_right_docks = false;
@@ -1003,6 +1026,64 @@ void MainWindow::applyMapFullscreenToMode()
     // The shared viewport page, not its currently selected tool panel,
     // must release the sidebar's layout width in map fullscreen.
     this->map_workspace->setMapFullscreen(this->map_fullscreen_active);
+}
+
+void MainWindow::refreshHistoryDock()
+{
+    if (this->history_dock == nullptr || this->projects_workspace == nullptr)
+        return;
+    // Editing follows the exact opened project/branch, even if the user is
+    // browsing a different revision in Projects. Without a private editor,
+    // follow the Projects selection instead.
+    const bool opened = this->personal_edit_active && !this->opened_project_id.isEmpty();
+    const HistoryDockContext context = this->projects_workspace->historyContext(
+        opened ? this->opened_project_id : QString(),
+        opened ? this->opened_branch_id : QString());
+    QList<HistoryDockEntry> actions;
+    if (this->personal_edit_active && this->personal_edit_session != nullptr)
+    {
+        const std::function<void(const QList<QByteArray> &, HistoryDockEntry::Kind)> appendEvents =
+            [&actions, this](const QList<QByteArray> &frames,
+                                                    HistoryDockEntry::Kind kind)
+        {
+            for (const QByteArray &frame : frames)
+            {
+                const std::optional<aowis::model::ModelEditTransaction> transaction =
+                    aowis::model::ModelEditTransactionCodec::decode(frame);
+                HistoryDockEntry entry;
+                entry.kind = kind;
+                if (transaction.has_value())
+                {
+                    entry.title = transaction->description.trimmed();
+                    if (entry.title.isEmpty())
+                    {
+                        entry.title = transaction->operation;
+                        entry.title.replace(QLatin1Char('.'), QLatin1Char(' '));
+                    }
+                    if (entry.title.isEmpty()) entry.title = tr("Hydraulic edit");
+                    entry.identity = transaction->transactionId.toString(QUuid::WithoutBraces);
+                    entry.details = tr("%1\n%2 entity edit(s)\nEvent %3")
+                        .arg(transaction->operation)
+                        .arg(transaction->edits.size())
+                        .arg(entry.identity);
+                }
+                else
+                {
+                    entry.title = tr("Unrecognized stored edit");
+                    entry.details = tr("This event could not be decoded for display.");
+                }
+                if (kind == HistoryDockEntry::Kind::PendingAction)
+                    entry.title += tr(" (pending Save)");
+                actions.append(entry);
+            }
+        };
+        appendEvents(this->personal_edit_session->savedHistoryEvents(),
+                     HistoryDockEntry::Kind::SavedAction);
+        appendEvents(this->personal_edit_session->pendingHistoryEvents(),
+                     HistoryDockEntry::Kind::PendingAction);
+    }
+    this->history_dock->setTimeline(context, actions, this->personal_edit_active,
+                                    this->personal_edit_blocked);
 }
 
 void MainWindow::toggleRightDockArea()
@@ -1298,6 +1379,7 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
     if (!this->personal_edit_active || this->personal_edit_blocked)
         return;
     this->personal_edit_blocked = true;
+    refreshHistoryDock();
     this->hydraulic_data->setLogicalEditCaptureEnabled(false);
     this->personal_edit_guard->stop();
     this->personal_edit_stop_button->setEnabled(true);

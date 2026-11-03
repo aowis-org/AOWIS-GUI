@@ -38,6 +38,8 @@ public:
     int pendingCount() const;
     QString currentGeneration() const;
     const NetworkHydraulic &visibleNetwork() const;
+    QList<QByteArray> savedHistoryEvents() const;
+    QList<QByteArray> pendingHistoryEvents() const;
 
 signals:
     void ready();
@@ -58,6 +60,7 @@ private:
     bool leaseIsExpiring() const;
 
     PersonalWorkingCopyClient client_;
+    QList<QByteArray> saved_history_events_;
     PersonalDraftEditStage stage_;
     QTimer renew_timer_;
     PersonalRepositoryTarget target_;

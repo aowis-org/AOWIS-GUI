@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config/project_server_profile_storage.h"
+#include "app/history_dock.h"
 #include "tabs/project_revision_graph.h"
 #include "projects/project_source_reader.h"
 #include "projects/project_source_writer.h"
@@ -112,6 +113,10 @@ public slots:
     void selectBranchByName(const QString &name);
     void showRevisionHistory();
     void importNetworkIntoSelectedHead(NetworkHydraulic network);
+
+public:
+    HistoryDockContext historyContext(const QString &project_id = QString(),
+                                      const QString &branch_id = QString()) const;
 
 signals:
     void networkOpenRequested(const QString &project_id, const QString &branch_id,

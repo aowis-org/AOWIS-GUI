@@ -29,18 +29,19 @@ end-to-end workflow.
 
 **Save** updates the private draft; **Commit** creates an immutable revision and
 advances only the local branch; **Publish** is a different, not-yet-complete
-workflow. The current GUI has **no general Undo/Redo or navigable action-history
-dock**. The History toolbar item currently navigates to the Projects revision
-tree; it does not undo edits or open a history panel.
+workflow. The current GUI has **no general Undo/Redo or navigable action history**.
+The toolbar History action now opens a **read-only left History dock**, showing
+committed revision checkpoints and available private draft events. Undo/Redo
+and jumping to historical states remain unimplemented.
 
 ## Work that is not yet implemented or accepted
 
 - [Remaining GUI ↔ DVMDB integration roadmap](dvmdb-integration-roadmap.md)
   — full external HTTP/Standalone acceptance, import/replacement, local
   workflow hardening, whole-project Clone/Fetch, Publish and Merge.
-- [History and Undo/Redo roadmap](history-roadmap.md) — planned left History
-  dock, durable action navigation, and Undo/Redo **across Commit markers**;
-  none of this should be described as working today.
+- [History and Undo/Redo roadmap](history-roadmap.md) — implemented read-only left History
+  dock, and future durable action navigation and Undo/Redo **across Commit
+  markers**; only the read-only dock is implemented today.
 - [DVMDB backend roadmap](../../AOWIS-SERVER-DVMDB/docs/roadmap.md) — the
   server-side work and acceptance dependencies.
 

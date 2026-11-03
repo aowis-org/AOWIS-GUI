@@ -187,8 +187,8 @@ fail when a ray misses the world; a failed projection is not a valid edit.
 Model changes use the existing `HydraulicData` operations and edit transactions.
 A completed action uses the same canonical MODEL capture and private-draft
 Save mechanisms as the corresponding 2D action. **The general Undo/Redo
-subsystem does not yet exist.** Its planned left History dock and ability
-to navigate across Commit checkpoints are described in the
+subsystem does not yet exist.** The read-only left History dock is available;
+navigation across Commit checkpoints is future work described in the
 [History roadmap](history-roadmap.md). The source contains focused
 unit/regression coverage for those components, but a successful component test
 is **not** proof of an end-to-end interactive save/reopen session, or of the

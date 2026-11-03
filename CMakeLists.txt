@@ -159,6 +159,8 @@ qt_add_executable(aowis-server-gui
     src/app/builtin_examples.h
     src/app/footer_statusbar.cpp
     src/app/footer_statusbar.h
+    src/app/history_dock.cpp
+    src/app/history_dock.h
     src/app/main.cpp
     src/app/main_window.cpp
     src/app/main_window.h
@@ -1480,6 +1482,16 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         Qt6::Core AOWIS::ServerModel)
     add_test(NAME aowis-personal-edit-queue COMMAND aowis-personal-edit-queue-tests)
     set_tests_properties(aowis-personal-edit-queue PROPERTIES LABELS "aowis")
+
+    add_executable(aowis-history-dock-tests
+        tests/history_dock_test.cpp
+        src/app/history_dock.cpp
+        src/app/history_dock.h
+    )
+    target_include_directories(aowis-history-dock-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-history-dock-tests PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-history-dock COMMAND aowis-history-dock-tests)
+    set_tests_properties(aowis-history-dock PROPERTIES LABELS "aowis")
 
     add_executable(aowis-hydraulic-edit-transaction-tests
         tests/hydraulic_edit_transaction_test.cpp

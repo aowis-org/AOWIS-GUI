@@ -112,9 +112,10 @@ is forbidden; making a branch does not rewrite the original snapshot.
   don't blindly retry a state-changing request with a new identity.
 - Standalone and browser/WASM full end-to-end acceptance remain separate
   validation tasks.
-- The existing **History** toolbar action focuses Projects revision navigation;
-  a left History dock, action-list cursor, and Undo/Redo (including crossing
-  Commit markers) are **planned**, not current functionality. See the
+- The **History** toolbar action opens the read-only left History dock without
+  leaving the editor. It can display Commit checkpoints and currently
+  available draft events. An action-list cursor and Undo/Redo (including
+  crossing Commit markers) are **planned**, not current functionality. See the
   [History roadmap](history-roadmap.md).
 
 See [network import semantics](network-open-import-replacement.md),

@@ -75,6 +75,7 @@
 class QShortcut;
 class MapWorkspaceWidget;
 class ProjectsWidget;
+class HistoryDock;
 
 class MainWindow : public QMainWindow
 {
@@ -104,6 +105,7 @@ private:
     // restores the previous state; the window leaving full screen ends it.
     bool map_fullscreen_entered_window_fullscreen = false;
     bool map_fullscreen_hid_right_docks = false;
+    bool map_fullscreen_history_visible = false;
     bool map_fullscreen_toolbar_visible = true;
     bool map_fullscreen_status_bar_visible = true;
     void toggleRightDockArea();
@@ -170,7 +172,9 @@ private:
     MapWorkspaceWidget *map_workspace = nullptr;
     int map_workspace_page_index = -1;
     ProjectsWidget *projects_workspace = nullptr;
+    HistoryDock *history_dock = nullptr;
     void updateActiveMapPanels();
+    void refreshHistoryDock();
     MapMonitorContainer *map_monitor;
     MapEditorContainer *map_editor;
     EnergyWidget *energy;

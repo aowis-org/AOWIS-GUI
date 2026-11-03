@@ -2682,6 +2682,52 @@ void ProjectsWidget::requestNetworkOpen(const ProjectPreviewData &project,
         working_name, project.repository_id != target.repository_id);
 }
 
+HistoryDockContext ProjectsWidget::historyContext(const QString &project_id,
+                                                  const QString &branch_id) const
+{
+    HistoryDockContext context;
+    const QString selected_project = project_id.isEmpty() ? this->project_id : project_id;
+    const QString selected_branch = branch_id.isEmpty() ? this->branch_id : branch_id;
+    const ProjectPreviewData *project = nullptr;
+    for (const ProjectPreviewData &candidate : this->projects)
+        if (candidate.id == selected_project) { project = &candidate; break; }
+    if (project == nullptr) return context;
+    context.project = projectContextLabel(*project, this->servers);
+
+    const ProjectPreviewBranch *branch = nullptr;
+    for (const ProjectPreviewBranch &candidate : project->branches)
+        if (candidate.id == selected_branch) { branch = &candidate; break; }
+    if (branch == nullptr && selected_branch.isEmpty() && project->branches.size() == 1)
+        branch = &project->branches.first();
+    if (branch == nullptr) return context;
+    context.branch = branch->name;
+
+    QHash<QString, const ProjectPreviewRevision *> revisions;
+    for (const ProjectPreviewRevision &revision : project->revisions)
+        revisions.insert(revision.id, &revision);
+    QSet<QString> seen;
+    QString revision_id = branch->head;
+    while (!revision_id.isEmpty())
+    {
+        if (seen.contains(revision_id)) { context.incomplete_ancestry = true; break; }
+        seen.insert(revision_id);
+        const ProjectPreviewRevision *revision = revisions.value(revision_id, nullptr);
+        if (revision == nullptr) { context.incomplete_ancestry = true; break; }
+        HistoryDockEntry entry;
+        entry.kind = HistoryDockEntry::Kind::Commit;
+        entry.title = revision->message.trimmed().isEmpty()
+            ? tr("Commit %1").arg(DvmdbIdentity::shortLabel(revision->id))
+            : revision->message.simplified();
+        entry.identity = revision->id;
+        entry.details = tr("Immutable revision: %1").arg(revision->id);
+        if (revision->parents.size() > 1)
+            entry.details += tr("\nMerge commit: additional parent history is visible in Projects.");
+        context.commits.prepend(entry);
+        revision_id = revision->parents.isEmpty() ? QString() : revision->parents.first();
+    }
+    return context;
+}
+
 void ProjectsWidget::showRevisionHistory()
 {
     if (this->selection_kind != SelectionKind::Revision)

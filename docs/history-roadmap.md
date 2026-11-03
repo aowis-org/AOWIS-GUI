@@ -1,11 +1,14 @@
 # History dock and cross-Commit Undo/Redo — implementation roadmap
 
-**Status: design direction agreed; subsystem not implemented.** This page
-specifies the requested future product, not current GUI behavior.
-`TopControlBar::signalProjectHistoryRequested()` currently calls
-`ProjectsWidget::showRevisionHistory()`, which navigates to the Projects
-revision tree/Inspector. There is **no History dock**, universal Undo/Redo
-controller, persistent edit-history cursor or jump-to-action implementation.
+**Status: HIST-UI view implemented; action-navigation subsystem not implemented.**
+The toolbar's **Open revision history in Projects** button now opens a closable
+**History** dock on the left of the current workspace without leaving the
+hydraulic editor. Its read-only list displays first-parent commit checkpoints
+from the loaded Projects revision DAG and, for an active private editor,
+accepted/pending MODEL events from the current draft's bounded journal and
+local queue. It marks the current working state and warns about missing
+individual pre-Commit actions. Its Undo, Redo and jump controls are disabled:
+there is **no** persistent edit-history cursor or inverse-event engine.
 See the corresponding [DVMDB history roadmap](../../AOWIS-SERVER-DVMDB/docs/history-roadmap.md).
 
 ## Intended user experience
@@ -73,7 +76,7 @@ reference to an immutable snapshot and an action-history checkpoint.
   do **not** exist. A specialized geometry helper named `undoPipeSplit()`
   is not a general history system.
 
-## Implementation stages (all future work)
+## Implementation status and remaining stages
 
 ### HIST-00 — Design persistent semantics first
 
@@ -86,15 +89,17 @@ release should distinguish their informational markers from model Undo.
 Do not pretend current draft events or immutable revisions contain action
 history that was never recorded.
 
-### HIST-UI — Add the left dock without faking engine support
+### HIST-UI — Read-only History dock (implemented)
 
-Create a closable/dockable **History** panel integrated with the main window.
-Connect the existing toolbar action to open/focus it. Initially show the
-current project/branch and actual available **committed revision markers**,
-plus clearly labeled pending/current-state information. Undo/Redo and
-jump controls must remain disabled until backed by authoritative history.
-Do not replace the Projects revision graph: it remains the DAG inspector.
-This UI stage can be delivered independently while the backend is built.
+The left `HistoryDock` opens and focuses from the toolbar. It displays the
+current project/branch, first-parent committed revision checkpoints and the
+active private draft's accepted/pending events. It changes context with
+project/branch selection and the active editing session; pending events never
+masquerade as committed actions. Undo, Redo and jump remain disabled, so the
+panel cannot corrupt a working copy by pretending to navigate history.
+Widget regression tests cover reopen, markers, missing commits and disabled
+controls. DVMDB's existing journal is **not** a permanent cross-Commit action
+store, and the historical revisions still belong in the Projects DAG.
 
 ### HIST-01 — Canonical forward/inverse operations
 
@@ -154,7 +159,7 @@ revision hashes/ancestry never change.
 - The precise choice for navigating a merge: the first-parent narrative is
   the default, but switching to a merged-in path requires explicit context.
 
-**Delivery order:** finish the latest mixed-event Save regression, document
-HIST-00 semantics, implement the modest HIST-UI dock, then build durable
-HIST-01/02/03 behavior before advertising Undo/Redo as functional. The
+**Delivery order:** finish mixed-event Save acceptance, settle HIST-00
+semantics, then build durable HIST-01/02/03 behavior before enabling the
+read-only dock's Undo/Redo or action navigation controls. The
 broader GUI integration roadmap can continue in parallel.

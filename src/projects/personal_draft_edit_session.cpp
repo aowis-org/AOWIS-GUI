@@ -54,6 +54,7 @@ void PersonalDraftEditSession::start(
         emit blocked(QStringLiteral("A verified private repository, draft, network and queue root are required."));
         return;
     }
+    this->saved_history_events_.clear();
     this->target_ = target;
     this->draft_id_ = draft_id;
     this->network_id_ = network_id;
@@ -73,6 +74,9 @@ void PersonalDraftEditSession::start(
         }
         const QByteArray journal_tail = draft.events.isEmpty()
             ? QByteArray() : draft.events.last().encoded;
+        this->saved_history_events_.clear();
+        for (const PersonalWorkingCopyEvent &event : draft.events)
+            this->saved_history_events_.append(event.encoded);
         this->session_id_ = draft.session_id;
         this->generation_ = draft.generation;
         this->client_.loadDraftNetwork(this->target_, this->draft_id_, this->network_id_,
@@ -215,6 +219,7 @@ void PersonalDraftEditSession::flush()
             return;
         }
         this->generation_ = result.generation;
+        this->saved_history_events_.append(oldest);
         emit saveConfirmed(this->generation_, recovered);
         emit pendingCountChanged(this->stage_.pendingCount());
         if (this->state_ == State::Blocked && !this->stop_requested_)
@@ -329,6 +334,7 @@ void PersonalDraftEditSession::releaseAndClose()
 void PersonalDraftEditSession::resetLocal()
 {
     this->stage_.close();
+    this->saved_history_events_.clear();
     this->target_ = PersonalRepositoryTarget{};
     this->draft_id_.clear();
     this->network_id_.clear();
@@ -368,4 +374,17 @@ QString PersonalDraftEditSession::currentGeneration() const
 const NetworkHydraulic &PersonalDraftEditSession::visibleNetwork() const
 {
     return this->stage_.visibleNetwork();
+}
+
+QList<QByteArray> PersonalDraftEditSession::savedHistoryEvents() const
+{
+    return this->saved_history_events_;
+}
+
+QList<QByteArray> PersonalDraftEditSession::pendingHistoryEvents() const
+{
+    QList<QByteArray> events;
+    for (const PersonalEditQueue::Entry &entry : this->stage_.queue().pending())
+        events.append(entry.encoded_transaction);
+    return events;
 }
