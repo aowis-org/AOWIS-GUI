@@ -115,8 +115,8 @@ private:
     // ellipsoid); false over space.
     bool globeCoordinateAt(const QPointF &position, const QSize &viewport_size,
                            CoordinateWGS84 *coordinate) const;
-    bool globeMousePress(const QPointF &position, Qt::MouseButton button,
-                         const QSize &viewport_size);
+    bool globeMousePress(const QPointF &position, const QPoint &global_position,
+                         Qt::MouseButton button, const QSize &viewport_size);
     bool globeMouseMove(const QPointF &position, const QSize &viewport_size);
     bool globeMouseRelease(const QPointF &position, Qt::MouseButton button,
                            const QSize &viewport_size);

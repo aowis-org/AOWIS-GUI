@@ -800,7 +800,8 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
         if (viewport_state.tile_selection_visible)
             globeTileSelection(viewport_state, projector);
         if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
-            globeNetworkIcons(*snapshot, projector, icon_width, viewport_size, frustum);
+            globeNetworkIcons(*snapshot, projector, icon_width, viewport_size,
+                              frustum, editor_state);
         if (snapshot != nullptr && editor_state != nullptr && editor_projection != nullptr
             && !viewport_size.isEmpty())
             globeEditorVisuals(*snapshot, *editor_state, *editor_projection,
@@ -873,6 +874,20 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
     // The same blue selected-link stroke and pipe-vertex dots as the flat view.
     for (const QUuid &uuid : state.selected_pipe_uuids)
     {
+        bool moving = false;
+        if (state.move.active)
+        {
+            for (const MapEditorDynamicLinkVisualState &link : state.move.links)
+            {
+                if (link.uuid == uuid)
+                {
+                    moving = true;
+                    break;
+                }
+            }
+        }
+        if (moving)
+            continue;
         for (const NetworkRenderLink &link : snapshot.links)
         {
             if (link.uuid != uuid || link.entity_type != InfrastructureEntity::Pipe)
@@ -889,6 +904,20 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
     // Selected entities keep the identical icon assets and highlight style.
     for (const QUuid &uuid : state.selected_marker_uuids)
     {
+        bool moving = false;
+        if (state.move.active)
+        {
+            for (const MapEditorDynamicMarkerVisualState &marker : state.move.markers)
+            {
+                if (marker.uuid == uuid)
+                {
+                    moving = true;
+                    break;
+                }
+            }
+        }
+        if (moving)
+            continue; // the shared dynamic preview draws it at the new position
         const NetworkRenderNode *selected = node(uuid);
         if (selected != nullptr)
         {
@@ -913,6 +942,46 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
                              Highlight::Selected);
             }
             break;
+        }
+    }
+
+    // The SAME dynamic move preview that the 2D editor renders: a proposed
+    // marker position and its connected links, before the hydraulic model is
+    // committed. Globe input does not own a second movement state.
+    if (state.move.active)
+    {
+        for (const MapEditorDynamicLinkVisualState &link : state.move.links)
+        {
+            const QVector<MapBgfxHudPoint> vertices = line(link.vertices_wgs84);
+            if (vertices.size() != link.vertices_wgs84.size() || vertices.size() < 2)
+                continue;
+            if (link.entity == InfrastructureEntity::Pipe)
+            {
+                const quint32 color = state.selected_pipe_uuids.contains(link.uuid)
+                    ? SelectedColor : BlackColor;
+                polyline(vertices, LineWidthPx, color);
+                for (qsizetype index = 1; index + 1 < vertices.size(); ++index)
+                    this->canvas->fillCircle(vertices.at(index).x, vertices.at(index).y,
+                                             PipeVertexRadiusPx, color);
+            }
+            else if (isDeviceLink(link.entity) && vertices.size() >= 3)
+            {
+                const bool selected = state.selected_marker_uuids.contains(link.uuid);
+                polyline(vertices, LineWidthPx, selected ? SelectedColor : DeviceLinkColor);
+                centeredIcon(vertices.at(1), link.entity, QString(), icon_width,
+                             selected ? Highlight::Selected : Highlight::None);
+            }
+        }
+        for (const MapEditorDynamicMarkerVisualState &marker : state.move.markers)
+        {
+            const std::optional<MapBgfxHudPoint> position = point(marker.coordinate_wgs84);
+            if (!position.has_value() || !isPointEntity(marker.entity))
+                continue;
+            this->canvas->fillCircle(position->x, position->y, MarkerDotRadiusPx, BlackColor);
+            bottomAnchoredIcon(position.value(), marker.entity, marker.pixmap_path,
+                               icon_width,
+                               state.selected_marker_uuids.contains(marker.uuid)
+                                   ? Highlight::Selected : Highlight::None, false);
         }
     }
 
@@ -1036,7 +1105,8 @@ void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &sn
 void MapBgfxEditorOverlay::globeNetworkIcons(const NetworkRenderSnapshot &snapshot,
                                              const GlobeProjector &projector, int icon_width,
                                              const QSizeF &viewport_size,
-                                             const MapBgfxGlobeIconIndex::Frustum &frustum)
+                                             const MapBgfxGlobeIconIndex::Frustum &frustum,
+                                             const MapEditorVisualState *editor_state)
 {
     // The camera frustum prunes kd-tree branches *before* the terrain-aware
     // projector would query an expensive drawn-surface height. A worst-case
@@ -1080,6 +1150,20 @@ void MapBgfxEditorOverlay::globeNetworkIcons(const NetworkRenderSnapshot &snapsh
         for (std::size_t index : candidates)
         {
             const GlobeIconAnchor &anchor = this->globe_icon_anchors.at(qsizetype(index));
+            bool moving = false;
+            if (editor_state != nullptr && editor_state->move.active)
+            {
+                for (const MapEditorDynamicMarkerVisualState &marker : editor_state->move.markers)
+                {
+                    if (marker.uuid == anchor.uuid)
+                    {
+                        moving = true;
+                        break;
+                    }
+                }
+            }
+            if (moving)
+                continue; // prevent a duplicate icon at its previous position
             QPointF point;
             double distance_m = 0.0;
             if (!projector(anchor.coordinate.longitude_deg, anchor.coordinate.latitude_deg,

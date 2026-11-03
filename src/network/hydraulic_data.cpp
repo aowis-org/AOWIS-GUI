@@ -4223,8 +4223,11 @@ bool HydraulicData::applyGeometryBatch(const HydraulicGeometryBatch &batch)
         }
     }
 
+    // Rebuild the resolved node/link heights when terrain changes. The fast
+    // incremental snapshot path updates coordinates, not link elevations.
     const bool snapshot_was_current =
-        this->network_render_snapshot.geometry_revision == this->geometry_revision;
+        this->network_render_snapshot.geometry_revision == this->geometry_revision &&
+        batch.node_terrain_elevations_m.isEmpty();
     const HydraulicGeometryBatchResult result = this->network_editor.applyGeometryBatch(batch);
     if (!result.successful)
         return false;

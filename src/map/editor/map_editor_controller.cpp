@@ -25,8 +25,8 @@ MapEditorController::MapEditorController(MapModel *map_model, MapCanvasEntities 
     }
 
     // An interaction never spans a view switch: the old camera's projection
-    // cannot safely drive the new one. 3D may preview a tool, but must not
-    // commit network changes until terrain-safe editing is implemented.
+    // cannot safely drive the new one. The shared entity editor owns edits
+    // in either projection; the globe only translates input coordinates.
     if (this->map_model)
     {
         connect(this->map_model, &MapModel::viewModeChanged, this, [this](MapViewMode view_mode)
@@ -277,7 +277,7 @@ bool MapEditorController::mousePress(const QPointF &position, const QPoint &glob
     }
 
     if (globeMode())
-        return globeMousePress(position, button, viewport_size);
+        return globeMousePress(position, global_position, button, viewport_size);
 
     if (button != Qt::RightButton)
         return false;
@@ -325,11 +325,11 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
     {
         if (this->rectangle_dragging)
             return globeMouseMove(position, viewport_size);
-        // Use the EXACT 2D placement state machine for a live globe preview.
-        // Creating only: floatEntity() in move mode changes model geometry.
-        // Link-start/bend choices remain previews; terrain-aware nodes are
-        // committed by the shared right-click creation handler.
-        if (this->map_canvas_entities->creatingPreviewActive()
+        // Use the exact shared placement state for both creation and moves.
+        // Float updates marker previews only; the hydraulic edit is recorded
+        // by the shared anchorMarker() when placement is confirmed.
+        if ((this->map_canvas_entities->creatingPreviewActive() ||
+             this->map_canvas_entities->isMoveActive())
             && (!this->rectangle_selection_active
                 || this->rectangle_selection_interacts_with_entities))
         {
@@ -503,19 +503,31 @@ bool MapEditorController::globeCoordinateAt(const QPointF &position, const QSize
     return this->map_model->globeCoordinateAtScreen(position.toPoint(), viewport_size, coordinate);
 }
 
-bool MapEditorController::globeMousePress(const QPointF &position, Qt::MouseButton button,
-                                          const QSize &viewport_size)
+bool MapEditorController::globeMousePress(const QPointF &position,
+                                          const QPoint &global_position,
+                                          Qt::MouseButton button, const QSize &viewport_size)
 {
-    if (button == Qt::RightButton && this->map_canvas_entities
-        && this->map_canvas_entities->creatingPreviewActive()
-        && (!this->rectangle_selection_active || this->rectangle_selection_interacts_with_entities))
+    const bool entity_interaction_enabled = !this->rectangle_selection_active ||
+                                            this->rectangle_selection_interacts_with_entities;
+    if (button == Qt::RightButton && this->map_canvas_entities &&
+        entity_interaction_enabled)
     {
-        // Node placement now commits through the SAME shared editor path as
-        // 2D, but only if the globe DEM resolver supplies a valid elevation.
-        // Pipe/device previews are still read-only in this increment.
-        this->map_canvas_entities->floatEntity(position);
-        return this->map_canvas_entities->anchorMarker(
-            position, this->map_canvas_entities->creatingGlobeNode());
+        if (this->map_canvas_entities->isMoveActive())
+        {
+            // Same confirm action as 2D; terrain height and coordinate are
+            // committed together by MapCanvasEntities.
+            this->map_canvas_entities->floatEntity(position);
+            return this->map_canvas_entities->anchorMarker(position);
+        }
+        if (this->map_canvas_entities->creatingPreviewActive())
+        {
+            // Link previews remain read-only in this increment.
+            this->map_canvas_entities->floatEntity(position);
+            return this->map_canvas_entities->anchorMarker(
+                position, this->map_canvas_entities->creatingGlobeNode());
+        }
+        if (this->map_canvas_entities->showMarkerContextMenuAt(position, global_position))
+            return true;
     }
     // Only the cache sections' tile selection; everything else (left drag
     // pans, middle / Ctrl orbits) belongs to the globe navigation.

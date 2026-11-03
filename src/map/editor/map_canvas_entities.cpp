@@ -891,8 +891,54 @@ bool MapCanvasEntities::synchronizeMarkerCoordinate(const QUuid &uuid)
     case InfrastructureEntity::Junction:
     case InfrastructureEntity::Reservoir:
     case InfrastructureEntity::Tank:
+    {
         batch.node_coordinates.insert(marker->entity.uuid, marker->coord_wgs84);
+        if (this->projection && !this->projection->supportsMercatorHitBox())
+        {
+            // The existing hydraulic node retains its elevation input mode.
+            // A terrain-relative node changes only the DEM component; an
+            // absolute node changes coordinates without touching its height.
+            bool terrain_relative = false;
+            if (marker->entity.type == InfrastructureEntity::Junction)
+            {
+                const std::optional<HydraulicNodeJunction> node =
+                    this->hydraulic_data->junction(marker->entity.uuid);
+                if (!node.has_value())
+                    return false;
+                terrain_relative = node->elevation_input_type ==
+                    HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+            }
+            else if (marker->entity.type == InfrastructureEntity::Reservoir)
+            {
+                const std::optional<HydraulicNodeReservoir> node =
+                    this->hydraulic_data->reservoir(marker->entity.uuid);
+                if (!node.has_value())
+                    return false;
+                terrain_relative = node->head_input_type ==
+                    HydraulicNodeElevationInputType::TerrainElevationAndOffset;
+            }
+            else
+            {
+                const std::optional<HydraulicNodeTank> node =
+                    this->hydraulic_data->tank(marker->entity.uuid);
+                if (!node.has_value())
+                    return false;
+                terrain_relative = node->elevation_input_type ==
+                    HydraulicNodeTankElevationInputType::TerrainElevationAndOffset;
+            }
+            if (terrain_relative)
+            {
+                if (!this->terrain_elevation_resolver)
+                    return false;
+                const std::optional<double> elevation =
+                    this->terrain_elevation_resolver(marker->coord_wgs84);
+                if (!elevation.has_value() || !std::isfinite(elevation.value()))
+                    return false;
+                batch.node_terrain_elevations_m.insert(marker->entity.uuid, elevation.value());
+            }
+        }
         break;
+    }
     case InfrastructureEntity::DemandPoint:
         batch.demand_point_coordinates.insert(marker->entity.uuid, marker->coord_wgs84);
         break;
@@ -1562,13 +1608,26 @@ bool MapCanvasEntities::showMarkerContextMenuAt(const QPointF &position,
         this->demand_point_attachment_moving)
         return false;
 
-    std::optional<InfrastructureEntityReference> entity = this->point_markers->markerAt(position);
-    if (!entity.has_value())
-        entity = this->device_links->markerAt(position);
-    if (!entity.has_value())
+    std::optional<InfrastructureEntityReference> entity;
+    if (this->projection && !this->projection->supportsMercatorHitBox())
+    {
+        if (!this->map_canvas)
+            return false;
+        entity = this->projection->hitEntity(position, this->map_canvas->size());
+        // 3D-00D2B: only node moves have terrain-safe commit rules so far.
+        if (!entity.has_value() || !InfrastructureEntityTraits::isHydraulicConnectionNode(entity->type))
+            return false;
+    }
+    else
+    {
+        entity = this->point_markers->markerAt(position);
+        if (!entity.has_value())
+            entity = this->device_links->markerAt(position);
+    }
+    if (!entity.has_value() || !markerByUuid(entity->uuid).has_value())
         return false;
 
-    showMarkerContextMenu(entity->uuid, global_position);
+    showMarkerContextMenu(entity->uuid, global_position, position);
     return true;
 }
 
@@ -1649,16 +1708,28 @@ void MapCanvasEntities::applyExternalSelection(
     updateCanvas();
 }
 
-void MapCanvasEntities::startMarkerMove(const QUuid &uuid)
+void MapCanvasEntities::startMarkerMove(const QUuid &uuid,
+                                        std::optional<QPointF> pointer_position)
 {
     const std::optional<MapEntityMarker> marker = markerByUuid(uuid);
     if (!marker.has_value())
         return;
+    if (this->projection && !this->projection->supportsMercatorHitBox() &&
+        !InfrastructureEntityTraits::isHydraulicConnectionNode(marker->entity.type))
+        return;
 
     stopEntityPositioning();
-    const QPointF mouse_position = this->map_canvas->mapFromGlobal(QCursor::pos());
-    const std::optional<CoordinateWGS84> mouse_coordinate =
+    const QPointF mouse_position = pointer_position.has_value()
+        ? pointer_position.value() : QPointF(this->map_canvas->mapFromGlobal(QCursor::pos()));
+    std::optional<CoordinateWGS84> mouse_coordinate =
         this->projection->coordinateFromScreen(mouse_position, this->map_canvas->size());
+    if (!mouse_coordinate.has_value() && this->projection &&
+        !this->projection->supportsMercatorHitBox())
+    {
+        // A sprite can be picked through terrain even where the terrain
+        // ray misses. Its actual model coordinate is the safe start anchor.
+        mouse_coordinate = marker->coord_wgs84;
+    }
     if (!mouse_coordinate.has_value())
         return;
     captureMarkerMoveSnapshot(uuid);
@@ -1677,6 +1748,10 @@ void MapCanvasEntities::startMarkerMove(const QUuid &uuid)
 
 void MapCanvasEntities::startSelectedMarkerMove(const QUuid &uuid)
 {
+    // Group moves require per-node terrain samples; do not use the 2D batch
+    // commit path on the globe until those samples are supplied together.
+    if (this->projection && !this->projection->supportsMercatorHitBox())
+        return;
     if (!this->selection->isMarkerSelected(uuid) ||
         this->selection->selectedMarkerCount() < 2)
     {
@@ -2180,7 +2255,8 @@ void MapCanvasEntities::convertDemandPointAttachmentToJunction(const QUuid &dema
 }
 
 void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
-                                              const QPoint &global_position)
+                                              const QPoint &global_position,
+                                              const QPointF &pointer_position)
 {
     const std::optional<MapEntityMarker> context_marker = markerByUuid(uuid);
     if (!context_marker.has_value())
@@ -2193,17 +2269,18 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     const bool demand_point_attached = demand_point.has_value() &&
         demand_point->attachment.type != HydraulicDemandPointAttachmentType::None;
 
-    const bool multiple_entities_selected = this->selection->isMarkerSelected(uuid) &&
-                                            this->selection->selectedMarkerCount() > 1;
+    const bool multiple_entities_selected =
+        (!this->projection || this->projection->supportsMercatorHitBox()) &&
+        this->selection->isMarkerSelected(uuid) && this->selection->selectedMarkerCount() > 1;
 #ifdef Q_OS_WASM
     WasmPopupMenu *menu = new WasmPopupMenu(this->map_canvas);
     menu->setDeleteOnClose(true);
 
     if (multiple_entities_selected)
     {
-        menu->addAction(QStringLiteral("Move this entity"), [this, uuid]
+        menu->addAction(QStringLiteral("Move this entity"), [this, uuid, pointer_position]
         {
-            startMarkerMove(uuid);
+            startMarkerMove(uuid, pointer_position);
         });
         menu->addAction(QStringLiteral("Move selected entities"), [this, uuid]
         {
@@ -2212,9 +2289,9 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     }
     else
     {
-        menu->addAction(QStringLiteral("Move"), [this, uuid]
+        menu->addAction(QStringLiteral("Move"), [this, uuid, pointer_position]
         {
-            startMarkerMove(uuid);
+            startMarkerMove(uuid, pointer_position);
         });
     }
 
@@ -2318,9 +2395,9 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     {
         QAction *action_move_this = menu->addAction("Move this entity");
         QAction *action_move_selected = menu->addAction("Move selected entities");
-        connect(action_move_this, &QAction::triggered, this, [this, uuid]()
+        connect(action_move_this, &QAction::triggered, this, [this, uuid, pointer_position]()
         {
-            startMarkerMove(uuid);
+            startMarkerMove(uuid, pointer_position);
         });
         connect(action_move_selected, &QAction::triggered, this, [this, uuid]()
         {
@@ -2330,9 +2407,9 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     else
     {
         QAction *action_move = menu->addAction("Move");
-        connect(action_move, &QAction::triggered, this, [this, uuid]()
+        connect(action_move, &QAction::triggered, this, [this, uuid, pointer_position]()
         {
-            startMarkerMove(uuid);
+            startMarkerMove(uuid, pointer_position);
         });
     }
 

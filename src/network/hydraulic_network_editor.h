@@ -18,6 +18,9 @@
 struct HydraulicGeometryBatch
 {
     QHash<QUuid, CoordinateWGS84> node_coordinates;
+    // Only terrain-relative nodes receive a new terrain component. Absolute
+    // elevations and every offset remain unchanged.
+    QHash<QUuid, double> node_terrain_elevations_m;
     QHash<QUuid, CoordinateWGS84> demand_point_coordinates;
     QHash<QUuid, QList<CoordinateWGS84>> pipe_vertices;
     QHash<QUuid, CoordinateWGS84> pump_center_coordinates;
@@ -25,7 +28,8 @@ struct HydraulicGeometryBatch
 
     bool isEmpty() const
     {
-        return this->node_coordinates.isEmpty() && this->demand_point_coordinates.isEmpty() &&
+        return this->node_coordinates.isEmpty() && this->node_terrain_elevations_m.isEmpty() &&
+               this->demand_point_coordinates.isEmpty() &&
                this->pipe_vertices.isEmpty() &&
                this->pump_center_coordinates.isEmpty() &&
                this->valve_center_coordinates.isEmpty();

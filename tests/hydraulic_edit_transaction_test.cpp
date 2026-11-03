@@ -96,6 +96,105 @@ void testTerrainRelativeNodeCreationIsAtomic()
         "existing 2D junction creation retains its original elevation mode");
 }
 
+void testTerrainAwareNodeMovementIsAtomic()
+{
+    HydraulicData data;
+    const QUuid junction_uuid = data.addJunction(coordinate(50.0, 8.0), 100.0);
+    const QUuid tank_uuid = data.addTank(coordinate(50.1, 8.1), 120.0);
+    const QUuid reservoir_uuid = data.addReservoir(coordinate(50.2, 8.2), 140.0);
+    const QUuid fixed_uuid = data.addJunction(coordinate(50.3, 8.3));
+    const QUuid pipe_uuid = data.addPipe(junction_uuid, fixed_uuid, {});
+    const std::optional<HydraulicLinkPipe> original_pipe = data.pipe(pipe_uuid);
+    test_harness.expectTrue(!pipe_uuid.isNull() && original_pipe.has_value(),
+        "connected pipe exists before the 3D node move");
+    test_harness.expectTrue(!junction_uuid.isNull() && !tank_uuid.isNull() &&
+        !reservoir_uuid.isNull() && !fixed_uuid.isNull(),
+        "created terrain-relative and absolute nodes for move tests");
+
+    test_harness.expectTrue(data.setJunctionElevationOffsetM(junction_uuid, 3.5) &&
+        data.setTankBottomOffsetM(tank_uuid, 8.0) &&
+        data.setReservoirHeadOffsetM(reservoir_uuid, 12.0) &&
+        data.setJunctionElevationM(fixed_uuid, 175.0),
+        "established offsets and absolute elevation before moving");
+
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+
+    HydraulicGeometryBatch batch;
+    batch.node_coordinates.insert(junction_uuid, coordinate(51.0, 9.0));
+    batch.node_terrain_elevations_m.insert(junction_uuid, 160.0);
+    batch.node_coordinates.insert(tank_uuid, coordinate(51.1, 9.1));
+    batch.node_terrain_elevations_m.insert(tank_uuid, 180.0);
+    batch.node_coordinates.insert(reservoir_uuid, coordinate(51.2, 9.2));
+    batch.node_terrain_elevations_m.insert(reservoir_uuid, 200.0);
+    batch.node_coordinates.insert(fixed_uuid, coordinate(51.3, 9.3));
+    test_harness.expectTrue(data.applyGeometryBatch(batch),
+        "one hydraulic geometry batch updates coordinates and sampled terrain");
+
+    const std::optional<HydraulicNodeJunction> junction = data.junction(junction_uuid);
+    const std::optional<HydraulicNodeTank> tank = data.tank(tank_uuid);
+    const std::optional<HydraulicNodeReservoir> reservoir = data.reservoir(reservoir_uuid);
+    const std::optional<HydraulicNodeJunction> fixed = data.junction(fixed_uuid);
+    test_harness.expectTrue(junction.has_value() &&
+        junction->coordinate_wgs84.longitude_deg == 9.0 &&
+        junction->terrain_elevation_m == 160.0 && junction->elevation_offset_m == 3.5 &&
+        junction->elevation_input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset,
+        "junction follows new terrain but preserves offset and input mode");
+    test_harness.expectTrue(tank.has_value() &&
+        tank->coordinate_wgs84.longitude_deg == 9.1 &&
+        tank->terrain_elevation_m == 180.0 && tank->bottom_offset_m == 8.0,
+        "tank follows new terrain but preserves bottom offset");
+    test_harness.expectTrue(reservoir.has_value() &&
+        reservoir->coordinate_wgs84.longitude_deg == 9.2 &&
+        reservoir->terrain_elevation_m == 200.0 && reservoir->hydraulic_head_offset_m == 12.0,
+        "reservoir terrain component follows move without changing head offset");
+    test_harness.expectTrue(fixed.has_value() &&
+        fixed->coordinate_wgs84.longitude_deg == 9.3 &&
+        fixed->elevation_input_type == HydraulicNodeElevationInputType::TotalElevation &&
+        fixed->elevation_m == 175.0,
+        "absolute elevation remains locked during horizontal movement");
+    const std::optional<HydraulicLinkPipe> moved_pipe = data.pipe(pipe_uuid);
+    test_harness.expectTrue(original_pipe.has_value() && moved_pipe.has_value() &&
+        original_pipe->length_calculated_m != moved_pipe->length_calculated_m,
+        "a node move recalculates its connected pipe length");
+    test_harness.expectTrue(events.size() == 1,
+        "a multi-node geometry and terrain move emits exactly one edit transaction");
+    if (events.size() == 1)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> event = decoded(events.first());
+        test_harness.expectTrue(event.has_value() && event->edits.size() == 5,
+            "one transaction captures four nodes and the connected pipe");
+    }
+
+    HydraulicGeometryBatch invalid;
+    invalid.node_coordinates.insert(junction_uuid, coordinate(52.0, 10.0));
+    invalid.node_terrain_elevations_m.insert(junction_uuid,
+        std::numeric_limits<double>::quiet_NaN());
+    test_harness.expectTrue(!data.applyGeometryBatch(invalid) &&
+        data.junction(junction_uuid)->coordinate_wgs84.longitude_deg == 9.0 &&
+        data.junction(junction_uuid)->terrain_elevation_m == 160.0 && events.size() == 1,
+        "invalid DEM height aborts the entire move without any partial changes");
+
+    HydraulicGeometryBatch wrong_mode;
+    wrong_mode.node_coordinates.insert(fixed_uuid, coordinate(52.3, 10.3));
+    wrong_mode.node_terrain_elevations_m.insert(fixed_uuid, 195.0);
+    test_harness.expectTrue(!data.applyGeometryBatch(wrong_mode) &&
+        data.junction(fixed_uuid)->elevation_m == 175.0 &&
+        data.junction(fixed_uuid)->coordinate_wgs84.longitude_deg == 9.3 &&
+        events.size() == 1,
+        "DEM edits cannot silently alter an absolute-elevation node");
+
+    HydraulicGeometryBatch zero_terrain;
+    zero_terrain.node_coordinates.insert(junction_uuid, coordinate(53.0, 11.0));
+    zero_terrain.node_terrain_elevations_m.insert(junction_uuid, 0.0);
+    test_harness.expectTrue(data.applyGeometryBatch(zero_terrain) &&
+        data.junction(junction_uuid)->terrain_elevation_m == 0.0 &&
+        data.junction(junction_uuid)->elevation_offset_m == 3.5 && events.size() == 2,
+        "zero-metre DEM is valid and preserves the node offset");
+}
+
 void testCaptureOnlyTouchedEntities()
 {
     NetworkHydraulic network;
@@ -2157,6 +2256,7 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
+    test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
     test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);

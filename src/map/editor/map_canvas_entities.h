@@ -122,7 +122,8 @@ private:
     void selectMarker(const QUuid &uuid);
     void selectPipe(const QUuid &pipe_uuid);
     void applyExternalSelection(InfrastructureEntity entity_type, const QUuid &uuid);
-    void startMarkerMove(const QUuid &uuid);
+    void startMarkerMove(const QUuid &uuid,
+                         std::optional<QPointF> pointer_position = std::nullopt);
     void startSelectedMarkerMove(const QUuid &uuid);
     void startPipeVertexMove(const QUuid &pipe_uuid, int vertex_index);
     void convertPipeVertexToJunction(const QUuid &pipe_uuid, int vertex_index);
@@ -137,7 +138,8 @@ private:
     std::optional<CoordinateWGS84> demandPointAttachmentCoordinate(
         const HydraulicDemandPoint &demand_point) const;
     bool demandPointAttachmentHandleAt(const QPointF &position, QUuid *demand_point_uuid) const;
-    void showMarkerContextMenu(const QUuid &uuid, const QPoint &global_position);
+    void showMarkerContextMenu(const QUuid &uuid, const QPoint &global_position,
+                               const QPointF &pointer_position);
     void repaintCanvas();
     void updateCanvas();
 

@@ -1839,9 +1839,42 @@ HydraulicGeometryBatchResult HydraulicNetworkEditor::applyGeometryBatch(
     for (const HydraulicLinkValve &valve : this->network.links_valves)
         available_valve_uuids.insert(valve.uuid);
 
-    for (auto iterator = batch.node_coordinates.cbegin(); iterator != batch.node_coordinates.cend(); ++iterator)
+    for (QHash<QUuid, CoordinateWGS84>::const_iterator iterator =
+             batch.node_coordinates.cbegin(); iterator != batch.node_coordinates.cend(); ++iterator)
     {
         if (!available_node_uuids.contains(iterator.key()))
+            return result;
+    }
+
+    // Validate the entire edit BEFORE changing any geometry. In particular,
+    // a bad DEM sample must never leave coordinates changed but elevations old.
+    QSet<QUuid> terrain_relative_nodes;
+    if (!batch.node_terrain_elevations_m.isEmpty())
+    {
+        // Ordinary flat-map geometry edits must not pay for scanning every
+        // hydraulic node just to validate a terrain field they do not use.
+        for (const HydraulicNodeJunction &node : this->network.nodes_junctions)
+        {
+            if (node.elevation_input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset)
+                terrain_relative_nodes.insert(node.uuid);
+        }
+        for (const HydraulicNodeReservoir &node : this->network.nodes_reservoirs)
+        {
+            if (node.head_input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset)
+                terrain_relative_nodes.insert(node.uuid);
+        }
+        for (const HydraulicNodeTank &node : this->network.nodes_tanks)
+        {
+            if (node.elevation_input_type == HydraulicNodeTankElevationInputType::TerrainElevationAndOffset)
+                terrain_relative_nodes.insert(node.uuid);
+        }
+    }
+    for (QHash<QUuid, double>::const_iterator iterator =
+             batch.node_terrain_elevations_m.cbegin();
+         iterator != batch.node_terrain_elevations_m.cend(); ++iterator)
+    {
+        if (!terrain_relative_nodes.contains(iterator.key()) || !std::isfinite(iterator.value())
+            || !batch.node_coordinates.contains(iterator.key()))
             return result;
     }
     for (QHash<QUuid, CoordinateWGS84>::const_iterator iterator =
@@ -1871,21 +1904,36 @@ HydraulicGeometryBatchResult HydraulicNetworkEditor::applyGeometryBatch(
 
     for (HydraulicNodeJunction &node : this->network.nodes_junctions)
     {
-        const auto iterator = batch.node_coordinates.constFind(node.uuid);
-        if (iterator != batch.node_coordinates.cend())
-            node.coordinate_wgs84 = iterator.value();
+        const QHash<QUuid, CoordinateWGS84>::const_iterator coordinate =
+            batch.node_coordinates.constFind(node.uuid);
+        if (coordinate != batch.node_coordinates.cend())
+            node.coordinate_wgs84 = coordinate.value();
+        const QHash<QUuid, double>::const_iterator terrain =
+            batch.node_terrain_elevations_m.constFind(node.uuid);
+        if (terrain != batch.node_terrain_elevations_m.cend())
+            node.terrain_elevation_m = terrain.value();
     }
     for (HydraulicNodeReservoir &node : this->network.nodes_reservoirs)
     {
-        const auto iterator = batch.node_coordinates.constFind(node.uuid);
-        if (iterator != batch.node_coordinates.cend())
-            node.coordinate_wgs84 = iterator.value();
+        const QHash<QUuid, CoordinateWGS84>::const_iterator coordinate =
+            batch.node_coordinates.constFind(node.uuid);
+        if (coordinate != batch.node_coordinates.cend())
+            node.coordinate_wgs84 = coordinate.value();
+        const QHash<QUuid, double>::const_iterator terrain =
+            batch.node_terrain_elevations_m.constFind(node.uuid);
+        if (terrain != batch.node_terrain_elevations_m.cend())
+            node.terrain_elevation_m = terrain.value();
     }
     for (HydraulicNodeTank &node : this->network.nodes_tanks)
     {
-        const auto iterator = batch.node_coordinates.constFind(node.uuid);
-        if (iterator != batch.node_coordinates.cend())
-            node.coordinate_wgs84 = iterator.value();
+        const QHash<QUuid, CoordinateWGS84>::const_iterator coordinate =
+            batch.node_coordinates.constFind(node.uuid);
+        if (coordinate != batch.node_coordinates.cend())
+            node.coordinate_wgs84 = coordinate.value();
+        const QHash<QUuid, double>::const_iterator terrain =
+            batch.node_terrain_elevations_m.constFind(node.uuid);
+        if (terrain != batch.node_terrain_elevations_m.cend())
+            node.terrain_elevation_m = terrain.value();
     }
 
     for (HydraulicDemandPoint &demand_point : this->network.demand_points)

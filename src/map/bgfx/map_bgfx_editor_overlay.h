@@ -270,7 +270,8 @@ private:
     void globeNetworkIcons(const NetworkRenderSnapshot &snapshot,
                            const GlobeProjector &projector, int icon_width,
                            const QSizeF &viewport_size,
-                           const MapBgfxGlobeIconIndex::Frustum &frustum);
+                           const MapBgfxGlobeIconIndex::Frustum &frustum,
+                           const MapEditorVisualState *editor_state);
     MapBgfxGlobeIconIndex globe_icon_index;
     QVector<GlobeIconAnchor> globe_icon_anchors;
     // Screen-space hit rectangles follow the actual far-to-near painter order.
