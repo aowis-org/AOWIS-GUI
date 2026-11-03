@@ -20,6 +20,8 @@
 #include <QJsonArray>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QThread>
 #include <QTemporaryDir>
 #include <QUuid>
@@ -83,6 +85,9 @@ public:
     bool source_has_origin = false;
     QJsonObject last_provision;
     int listing_count = 0;
+    QList<QJsonObject> listing_records;
+    QStringList listing_paths;
+    int listing_fault = 0; // 1: bad cursor, 2: repeat page, 3: missing cursor, 4: wrong project
     int creating_count = 0;
     int open_count = 0;
     QJsonObject last_create;
@@ -292,11 +297,48 @@ public:
                             }
                         }
                     }
-                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies "))
+                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies?"))
                     {
                         ++this->listing_count;
-                        document.insert(QStringLiteral("workingCopies"), QJsonArray{
-                            this->draftRecord(QString())});
+                        const QString path = QString::fromLatin1(request_line.split(' ').value(1));
+                        this->listing_paths.append(path);
+                        const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
+                        const QString after = query.queryItemValue(QStringLiteral("after"));
+                        const QString project_filter = query.queryItemValue(QStringLiteral("projectId"));
+                        const int limit = query.queryItemValue(QStringLiteral("limit")).toInt();
+                        QJsonArray records;
+                        bool has_more = false;
+                        if (this->listing_records.isEmpty())
+                            records.append(this->draftRecord(QString()));
+                        else
+                        {
+                            for (const QJsonObject &draft : this->listing_records)
+                            {
+                                if (this->listing_fault != 2 &&
+                                    draft.value(QStringLiteral("id")).toString() <= after) continue;
+                                if (!project_filter.isEmpty() &&
+                                    draft.value(QStringLiteral("projectId")).toString() != project_filter)
+                                    continue;
+                                if (records.size() == limit) { has_more = true; break; }
+                                records.append(draft);
+                            }
+                        }
+                        if (this->listing_fault == 4 && !project_filter.isEmpty() && !records.isEmpty())
+                        {
+                            QJsonObject wrong = records.first().toObject();
+                            wrong.insert(QStringLiteral("projectId"), different_repository);
+                            records.replace(0, wrong);
+                        }
+                        const QString last = records.isEmpty() ? QString()
+                            : records.last().toObject().value(QStringLiteral("id")).toString();
+                        const QString cursor = has_more ? last : QString();
+                        document.insert(QStringLiteral("workingCopies"), records);
+                        if (this->listing_fault != 3)
+                            document.insert(QStringLiteral("nextCursor"),
+                                this->listing_fault == 1 && has_more
+                                    ? QJsonValue(draft_id)
+                                    : cursor.isEmpty() ? QJsonValue(QJsonValue::Null)
+                                                       : QJsonValue(cursor));
                     }
                     else if (request_line.startsWith("POST /dvmdb/v1/working-copies "))
                     {
@@ -1032,6 +1074,80 @@ int main(int argc, char **argv)
                && stub.listing_count == 2,
                "embedded personal target did not use the verified draft transport")) return 1;
 
+    // INT-03: listing is complete, not just the first default 100 entries.
+    // The server also filters by project UUID before paginating, so drafts
+    // for another project cannot conceal a competing draft for this HEAD.
+    const QString another_project = different_repository;
+    for (int index = 0; index < 280; ++index)
+    {
+        QJsonObject item = stub.draftRecord(QString());
+        item.insert(QStringLiteral("id"),
+            QStringLiteral("019a47b1-2043-7af9-8d1c-2670%1")
+                .arg(index, 8, 16, QLatin1Char('0')));
+        item.insert(QStringLiteral("projectId"),
+            index % 11 == 0 ? another_project : project_id);
+        stub.listing_records.append(item);
+    }
+    const int before_paged = stub.listing_count;
+    done = false;
+    client.list(stub.target(), project_id,
+        [&](const QList<PersonalWorkingCopyInfo> &drafts, const QString &failure)
+    {
+        listed = drafts;
+        error = failure;
+        done = true;
+    });
+    if (!check(until(application, [&] { return done; }) && error.isEmpty()
+               && listed.size() == 254 && stub.listing_count == before_paged + 3
+               && listed.first().project_id == project_id
+               && listed.last().id == stub.listing_records.last().value(QStringLiteral("id")).toString()
+               && stub.listing_paths.last().contains(QStringLiteral("projectId="))
+               && stub.listing_paths.last().contains(QStringLiteral("&after=")),
+               "project-scoped paginated list omitted working copies beyond the first page")) return 1;
+    const int before_all = stub.listing_count;
+    done = false;
+    client.list(stub.target(),
+        [&](const QList<PersonalWorkingCopyInfo> &drafts, const QString &failure)
+    {
+        listed = drafts;
+        error = failure;
+        done = true;
+    });
+    if (!check(until(application, [&] { return done; }) && error.isEmpty()
+               && listed.size() == 280 && stub.listing_count == before_all + 3,
+               "unfiltered paginated list lost drafts from another project")) return 1;
+    // Failure must be atomic: malformed pages must never return the already
+    // received drafts as a complete list to callers that could Commit them.
+    for (int fault = 1; fault <= 4; ++fault)
+    {
+        stub.listing_fault = fault;
+        done = false;
+        client.list(stub.target(), project_id,
+            [&](const QList<PersonalWorkingCopyInfo> &drafts, const QString &failure)
+        {
+            listed = drafts;
+            error = failure;
+            done = true;
+        });
+        if (!check(until(application, [&] { return done; })
+                   && !error.isEmpty() && listed.isEmpty(),
+                   "malformed draft page was accepted or returned a partial list")) return 1;
+    }
+    stub.listing_fault = 0;
+    const int before_invalid_project = stub.listing_count;
+    done = false;
+    client.list(stub.target(), QStringLiteral("not-a-uuid"),
+        [&](const QList<PersonalWorkingCopyInfo> &drafts, const QString &failure)
+    {
+        listed = drafts;
+        error = failure;
+        done = true;
+    });
+    if (!check(done && !error.isEmpty() && listed.isEmpty()
+               && stub.listing_count == before_invalid_project,
+               "invalid project filter reached DVMDB")) return 1;
+    stub.listing_records.clear();
+
     done = false;
     PersonalWorkingCopyInfo created;
     client.create(stub.target(), project_id, branch_id, {},
@@ -1613,14 +1729,16 @@ int main(int argc, char **argv)
                "identity change was not rejected before a draft write")) return 1;
     stub.identity = repository_id;
     stub.role = QStringLiteral("shared");
+    const int listings_before_shared_role = stub.listing_count;
     done = false;
     client.list(stub.target(), [&](const QList<PersonalWorkingCopyInfo> &, const QString &failure)
     {
         error = failure;
         done = true;
     });
-    if (!check(until(application, [&] { return done; }) && !error.isEmpty()
-               && stub.listing_count == 2,
+    if (!check(until(application, [&] { return done; })
+               && error.contains(QStringLiteral("private role"))
+               && stub.listing_count == listings_before_shared_role,
                "shared repository role was not rejected before draft access")) return 1;
     return 0;
 }

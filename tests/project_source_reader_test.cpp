@@ -94,6 +94,8 @@ int main(int argc, char **argv)
     bool invalid_unborn_digest = false;
     bool invalid_repository_id = false;
     bool invalid_codec_fingerprint = false;
+    bool large_catalogue = false;
+    bool many_branches = false;
     QObject::connect(&server, &QTcpServer::newConnection, &server, [&]
     {
         while (server.hasPendingConnections())
@@ -105,7 +107,8 @@ int main(int argc, char **argv)
                  &corrupt_branch_id, &corrupt_origin_id, &corrupt_fork_id, &change_pinned_fork,
                  &unreachable_fork,
                  &unborn_project, &first_commit_project,
-                 &invalid_unborn_digest, &invalid_repository_id, &invalid_codec_fingerprint, repository_id,
+                 &invalid_unborn_digest, &invalid_repository_id, &invalid_codec_fingerprint,
+                 &large_catalogue, &many_branches, repository_id,
                  project_id, a, b, c, d, e, branch_main,
                  branch_feature, branch_alias, branch_history, record, head]
             {
@@ -122,9 +125,51 @@ int main(int argc, char **argv)
                             ? QString(64, QLatin1Char('0'))
                             : ModelCodecCompatibility::fingerprint()}}).toJson();
                 else if (path == "/dvmdb/v1/projects")
-                    body = QJsonDocument(QJsonObject{{QStringLiteral("projects"), QJsonArray{
-                        QJsonObject{{QStringLiteral("id"), project_id},
-                                    {QStringLiteral("name"), QStringLiteral("Waterworks")}}}}}).toJson();
+                {
+                    QJsonArray projects;
+                    if (large_catalogue)
+                    {
+                        for (int index = 0; index < 105; ++index)
+                            projects.append(QJsonObject{
+                                {QStringLiteral("id"), QStringLiteral("018f84c0-0000-7000-8000-%1")
+                                    .arg(index, 12, 16, QLatin1Char('0'))},
+                                {QStringLiteral("name"), QStringLiteral("Waterworks %1").arg(index)}});
+                    }
+                    else projects.append(QJsonObject{{QStringLiteral("id"), project_id},
+                                    {QStringLiteral("name"), QStringLiteral("Waterworks")}});
+                    body = QJsonDocument(QJsonObject{{QStringLiteral("projects"), projects}}).toJson();
+                }
+                else if (large_catalogue && path.startsWith("/dvmdb/v1/projects/") &&
+                         path.contains("/revision-graph?limit=256"))
+                {
+                    const QString requested = QString::fromLatin1(path.split('/').value(4));
+                    const QJsonObject unborn{
+                        {QStringLiteral("branch"), QStringLiteral("main")},
+                        {QStringLiteral("branchId"), QStringLiteral("018f84c0-0000-7000-8001-%1")
+                            .arg(requested.right(12))},
+                        {QStringLiteral("revision"), QJsonValue(QJsonValue::Null)},
+                        {QStringLiteral("recordHash"), QJsonValue(QJsonValue::Null)}};
+                    body = QJsonDocument(QJsonObject{{QStringLiteral("heads"), QJsonArray{unborn}},
+                        {QStringLiteral("revisions"), QJsonArray{}},
+                        {QStringLiteral("complete"), true},
+                        {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}}).toJson();
+                }
+                else if (many_branches && path.startsWith(
+                    QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256").arg(project_id).toLatin1()))
+                {
+                    QJsonArray heads;
+                    for (int index = 0; index < 151; ++index)
+                        heads.append(QJsonObject{
+                            {QStringLiteral("branch"), QStringLiteral("branch-%1").arg(index)},
+                            {QStringLiteral("branchId"), QStringLiteral("018f84c0-0000-7000-8000-%1")
+                                .arg(index + 2048, 12, 16, QLatin1Char('0'))},
+                            {QStringLiteral("revision"), QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("recordHash"), QJsonValue(QJsonValue::Null)}});
+                    body = QJsonDocument(QJsonObject{{QStringLiteral("heads"), heads},
+                        {QStringLiteral("revisions"), QJsonArray{}},
+                        {QStringLiteral("complete"), true},
+                        {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}}).toJson();
+                }
                 else if (path.startsWith(QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
                                             .arg(project_id).toUtf8()))
                 {
@@ -341,6 +386,26 @@ int main(int argc, char **argv)
         "unborn branch accepted a non-null record digest")) return 1;
     invalid_unborn_digest = false;
     unborn_project = false;
+
+    // INT-03: a catalogue larger than the old hard limit of 100 projects
+    // must be delivered completely, not silently truncated or rejected.
+    large_catalogue = true;
+    requests.clear();
+    if (!require(load() && failure.isEmpty() && received.projects.size() == 105
+        && received.projects.first().graph_complete
+        && received.projects.last().graph_complete
+        && received.projects.last().branches.size() == 1
+        && requests.size() == 107,
+        "large multi-project catalogue was hidden or only partly loaded")) return 1;
+    large_catalogue = false;
+    // Likewise, >150 branch HEADs must survive the snapshot graph reader.
+    many_branches = true;
+    if (!require(load() && failure.isEmpty() && received.projects.size() == 1
+        && received.projects.first().graph_complete
+        && received.projects.first().branches.size() == 151
+        && received.projects.first().revisions.isEmpty(),
+        "large branch catalogue was rejected by obsolete GUI cap")) return 1;
+    many_branches = false;
 
     if (!require(DvmdbIdentity::isUuidV7(a)
         && !DvmdbIdentity::isUuidV7(QStringLiteral("018f84c0-0000-4000-8000-000000000001"))

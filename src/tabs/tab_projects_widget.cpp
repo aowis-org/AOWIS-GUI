@@ -3146,7 +3146,7 @@ void ProjectsWidget::refreshNetworkSummary()
         return;
     }
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
-    client->list(target, [this, client, target, epoch, project_id, branch_name, branch_uuid]
+    client->list(target, project_id, [this, client, target, epoch, project_id, branch_name, branch_uuid]
         (const QList<PersonalWorkingCopyInfo> &drafts, const QString &error) {
         if (this->network_read_epoch != epoch) { client->deleteLater(); return; }
         if (!error.isEmpty()) {
@@ -3521,7 +3521,7 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
                         });
                 });
         };
-    client->list(target,
+    client->list(target, project_uuid,
         [this, client, target, epoch, project_uuid, branch_uuid, source_repository,
          source_endpoint, project_name, use_draft, failed]
         (const QList<PersonalWorkingCopyInfo> &drafts, const QString &list_error) {
@@ -4679,7 +4679,7 @@ void ProjectsWidget::commitSelectedHead()
     const QString source_id = this->server_id;
     const QString selected_branch = branch->id;
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
-    client->list(target, [this, client, target, project_id, branch_id, source_id,
+    client->list(target, project_id, [this, client, target, project_id, branch_id, source_id,
                           selected_branch, message](const QList<PersonalWorkingCopyInfo> &drafts,
                                                      const QString &error) {
         if (!error.isEmpty()) {

@@ -102,7 +102,7 @@ lossless storage and repository invariants remain strict.
 | **INT-00** | P0 | Align GUI, MODEL and DVMDB semantics: hydraulically invalid but representable work is savable, committable and mergeable; audit existing strict validation | Invalid model can be reopened unchanged; invalid record bytes still fail |
 | **INT-01** | P0 | Pin `ProjectSourceWriter` metadata mutations to expected repository UUID/fingerprint (private draft client already checks identity) | Wrong/replaced endpoint and uncertain PATCH cannot silently edit wrong repo |
 | **INT-02** | P0 | Persist Commit operation UUIDv7 + immutable body/target **before** POST; on restart reconcile `/local-commits/{id}` (or exact same-ID replay when provably not recorded) before another Commit | Lost POST/status responses, GUI exit and retry yield one revision |
-| **INT-03** | P0 | Follow `GET /working-copies` `nextCursor` (currently only first page); filter by `projectId`, bound loops; scale catalogue/graph reads | 101/250+ drafts, 100+ projects and many branches not silently hidden |
+| **INT-03** | P0 | Follow `GET /working-copies` `nextCursor` across all pages; filter by `projectId`, bound loops; scale catalogue/graph reads | 101/250+ drafts, 100+ projects and many branches not silently hidden |
 | **INT-04** | P1 | GUI can open/display/edit/export a representable model with dangling hydraulic refs; diagnostics separate from version-control buttons | Broken hydraulic model round-trips without auto-repair or disabled Commit |
 | **INT-05** | P1 | Finish 18/18 **mutation-path** audit, persistent root metadata (HC-03..05), queued autosave, undo/redo | Canonical full-model equality after GUI and DVMDB restart over HTTP and Standalone |
 | **INT-06** | P1 | Preserve first import; design and implement explicit new, replace and selected-entity import paths, with dirty-queue protection | Stale/ambiguous/error imports never discard an existing network or queue |
@@ -126,10 +126,11 @@ lossless storage and repository invariants remain strict.
    target/body/digest before dispatch; resume by *same* ID on next startup.
    Show `Pending / Confirmed / Rejected / Unreachable` in the HEAD Inspector;
    block a competing new operation while unresolved.
-3. The same client `list()` currently reads one draft page, although DVMDB
-   exposes `nextCursor`, `after`, `projectId`. Traverse all pages and detect
-   missing/inconsistent cursors. Extend large-project and history tests
-   without papering over incomplete reads with empty results.
+3. The same client `list()` previously read only one draft page. It now
+   traverses `nextCursor`/`after`, uses `projectId` for project-scoped callers,
+   rejects missing/non-advancing/duplicate cursors, and publishes results
+   only after a complete scan. The catalogue reader's old 100-project and
+   150-branch caps are raised; tests exercise large project and HEAD sets.
 
 **INT-02 implementation checkpoint (2026-11-03):** The GUI now durably stores
 one immutable Commit intent per repository/project/branch, including UUIDv7,
@@ -144,6 +145,17 @@ regression plus HTTP fault scenarios for lost POST/status replies, restart,
 exact replay and server-side rejection. **Compiled Qt and real-process crash
 acceptance remain outstanding**; browser persistence also requires a
 separate platform-specific durability check.
+
+**INT-03 implementation checkpoint (2026-11-03):** The private working-copy
+client now follows the DVMDB UUID-ordered cursor contract, verifies every page,
+and returns no partial draft list on error. Project/branch UI call sites pass
+server-side `projectId` filters, so hundreds of unrelated drafts do not hide
+competing drafts or unpublished HEAD candidates. Regression fixtures cover 280
+drafts across projects, 105 projects, 151 branches, invalid cursors, duplicate
+records, missing cursor fields and cross-project results. Catalogue traversal
+remains bounded; HTTP/Standalone runtime acceptance is outstanding. This is
+pagination over a live catalogue, not an atomic snapshot: concurrent draft
+creation/deletion is subject to DVMDB's documented list semantics.
 
 ### Finish local persistence and usable editing (INT-04 → INT-07)
 

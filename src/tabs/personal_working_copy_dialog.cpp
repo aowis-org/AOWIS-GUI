@@ -193,7 +193,7 @@ void PersonalWorkingCopyDialog::refresh()
     this->preview_network.reset();
     setBusy(true);
     setOperationStatus(tr("Reading personal DVMDB drafts…"));
-    this->client.list(this->target, [this](const QList<PersonalWorkingCopyInfo> &items,
+    this->client.list(this->target, this->project_id, [this](const QList<PersonalWorkingCopyInfo> &items,
                                            const QString &error)
     {
         setBusy(false);

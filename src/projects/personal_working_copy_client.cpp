@@ -22,6 +22,7 @@
 #include <QNetworkRequest>
 #include <QRandomGenerator>
 #include <QSettings>
+#include <QTimer>
 #include <QUuid>
 #include <QUrl>
 
@@ -475,31 +476,98 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
     });
 }
 
+namespace
+{
+constexpr int working_copy_page_size = 100;
+constexpr int working_copy_max_pages = 1000;
+constexpr int working_copy_max_drafts = working_copy_page_size * working_copy_max_pages;
+}
+
 void PersonalWorkingCopyClient::list(const PersonalRepositoryTarget &target,
                                      ListCompletion completion)
 {
-    request(target, "GET", QStringLiteral("/working-copies"), {},
-            [completion = std::move(completion)](const QJsonObject &body,
-                                                 const QString &error)
+    list(target, {}, std::move(completion));
+}
+
+void PersonalWorkingCopyClient::list(const PersonalRepositoryTarget &target,
+                                     const QString &project_id, ListCompletion completion)
+{
+    if (!project_id.isEmpty() && !DvmdbIdentity::isUuidV7(project_id))
+    {
+        completion({}, QStringLiteral("Invalid working-copy project UUIDv7."));
+        return;
+    }
+    listPage(target, project_id, {}, 0, {}, std::move(completion));
+}
+
+void PersonalWorkingCopyClient::listPage(const PersonalRepositoryTarget &target,
+                                         const QString &project_id, const QString &after,
+                                         int page_count, QList<PersonalWorkingCopyInfo> collected,
+                                         ListCompletion completion)
+{
+    if (page_count >= working_copy_max_pages)
+    {
+        completion({}, QStringLiteral("Working-copy discovery exceeded the safe page limit."));
+        return;
+    }
+    QString path = QStringLiteral("/working-copies?limit=%1").arg(working_copy_page_size);
+    if (!project_id.isEmpty()) path += QStringLiteral("&projectId=") + project_id;
+    if (!after.isEmpty()) path += QStringLiteral("&after=") + after;
+    request(target, "GET", path, {},
+            [this, target, project_id, after, page_count, collected = std::move(collected),
+             completion = std::move(completion)](const QJsonObject &body,
+                                                  const QString &error) mutable
     {
         if (!error.isEmpty()) { completion({}, error); return; }
-        if (!body.value(QStringLiteral("workingCopies")).isArray())
+        const QJsonValue records = body.value(QStringLiteral("workingCopies"));
+        const QJsonValue cursor = body.value(QStringLiteral("nextCursor"));
+        if (!records.isArray() || records.toArray().size() > working_copy_page_size ||
+            (!cursor.isNull() && !cursor.isString()))
         {
-            completion({}, QStringLiteral("Invalid draft-list response."));
+            completion({}, QStringLiteral("Invalid paginated working-copy response."));
             return;
         }
-        QList<PersonalWorkingCopyInfo> result;
-        for (const QJsonValue &value : body.value(QStringLiteral("workingCopies")).toArray())
+        QString last_id = after;
+        for (const QJsonValue &value : records.toArray())
         {
             PersonalWorkingCopyInfo draft;
-            if (!value.isObject() || !parseDraft(value.toObject(), draft))
+            if (!value.isObject() || !parseDraft(value.toObject(), draft) ||
+                (!project_id.isEmpty() && draft.project_id != project_id) ||
+                (!last_id.isEmpty() && draft.id <= last_id))
             {
-                completion({}, QStringLiteral("Invalid draft metadata in list."));
+                completion({}, QStringLiteral("Invalid, repeated, or out-of-order draft metadata."));
                 return;
             }
-            result.append(draft);
+            last_id = draft.id;
+            collected.append(std::move(draft));
+            if (collected.size() > working_copy_max_drafts)
+            {
+                completion({}, QStringLiteral("Working-copy discovery exceeds the safe draft limit."));
+                return;
+            }
         }
-        completion(result, QString());
+        if (cursor.isNull())
+        {
+            completion(collected, QString());
+            return;
+        }
+        const QString next = cursor.toString();
+        // DVMDB's cursor is exactly the final UUID in the previous page.
+        // Reject missing progress, a forged offset, and false completion.
+        if (records.toArray().isEmpty() || !DvmdbIdentity::isUuidV7(next) ||
+            next != last_id || collected.size() == working_copy_max_drafts)
+        {
+            completion({}, QStringLiteral("DVMDB working-copy cursor did not advance correctly."));
+            return;
+        }
+        // Queue the next request instead of deepening the network callback stack.
+        QTimer::singleShot(0, this,
+            [this, target, project_id, next, page_count, collected = std::move(collected),
+             completion = std::move(completion)]() mutable
+        {
+            listPage(target, project_id, next, page_count + 1,
+                     std::move(collected), std::move(completion));
+        });
     });
 }
 

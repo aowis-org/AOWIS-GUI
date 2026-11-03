@@ -24,8 +24,8 @@
 namespace
 {
 constexpr int graph_page_size = 256;
-constexpr int maximum_projects = 100;
-constexpr int maximum_branches = 150;
+constexpr int maximum_projects = 10000;
+constexpr int maximum_branches = 25000;
 constexpr int maximum_revisions_per_project = 25000;
 constexpr int maximum_total_revisions = 60000;
 constexpr int maximum_json_bytes = 4 * 1024 * 1024;

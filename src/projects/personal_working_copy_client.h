@@ -87,7 +87,11 @@ public:
 
     explicit PersonalWorkingCopyClient(QObject *parent = nullptr);
 
+    // Read *all* pages before publishing the list. Project-scoped calls are
+    // filtered by DVMDB, not merely by the Inspector after retrieval.
     void list(const PersonalRepositoryTarget &target, ListCompletion completion);
+    void list(const PersonalRepositoryTarget &target, const QString &project_id,
+              ListCompletion completion);
     // The branch is addressed by UUIDv7 (DG-01). The client chooses the new
     // draft's UUIDv7, so a resent request returns the same draft.
     void create(const PersonalRepositoryTarget &target, const QString &project_id,
@@ -234,5 +238,8 @@ private:
     void request(const PersonalRepositoryTarget &target, const QByteArray &method,
                  const QString &path, const QJsonObject &body, Response completion);
     static bool parseDraft(const QJsonObject &object, PersonalWorkingCopyInfo &draft);
+    void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
+                  const QString &after, int page_count,
+                  QList<PersonalWorkingCopyInfo> collected, ListCompletion completion);
     QNetworkAccessManager manager;
 };
