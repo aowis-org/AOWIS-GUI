@@ -1306,6 +1306,24 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-map-globe-demand-drape PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # Intermediate pipe bends follow the drawn globe terrain without changing
+    # hydraulic endpoint elevations or rebuilding on unchanged terrain samples.
+    add_executable(aowis-map-globe-pipe-bend-drape-tests
+        tests/map_globe_pipe_bend_drape_test.cpp
+        src/map/render/map_globe_network_scene.cpp
+        src/map/render/map_icon_atlas.cpp
+        src/map/render/map_node_declutter.cpp
+        src/geo/geo_wgs84_ellipsoid.cpp)
+    target_include_directories(aowis-map-globe-pipe-bend-drape-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
+    target_link_libraries(aowis-map-globe-pipe-bend-drape-tests PRIVATE
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC)
+    add_test(NAME aowis-map-globe-pipe-bend-drape
+        COMMAND aowis-map-globe-pipe-bend-drape-tests)
+    set_tests_properties(aowis-map-globe-pipe-bend-drape PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # End-to-end Qt presentation binding across an editor, a virtualized table,
     # map HUD/legend formatters and simulation readouts. This is headless
     # cross-surface coverage, not a GPU/solver production renderer benchmark.

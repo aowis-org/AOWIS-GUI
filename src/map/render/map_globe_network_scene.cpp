@@ -436,6 +436,28 @@ bool MapGlobeNetworkScene::refreshDemandPointHeights()
     return moved;
 }
 
+bool MapGlobeNetworkScene::refreshDrapedPipeBendHeights()
+{
+    if (!this->surface_height_resolver || this->draped_pipe_bends.isEmpty())
+        return false;
+
+    // LOD changes and camera movement can notify us without changing the
+    // actual surface beneath any pipe bend. Avoid rebuilding GPU buffers on
+    // those notifications. A real change needs new connected segments.
+    constexpr double HeightToleranceM = 0.05;
+    for (const DrapedPipeBend &bend : this->draped_pipe_bends)
+    {
+        double surface_height_m = 0.0;
+        drapedHeightM(bend.coordinate, &surface_height_m);
+        if (std::abs(surface_height_m - bend.surface_height_m) >= HeightToleranceM)
+        {
+            rebuildNetworkGeometry();
+            return true;
+        }
+    }
+    return false;
+}
+
 bool MapGlobeNetworkScene::setRenderOriginEcef(
     const GeoWgs84Ellipsoid::EcefPositionD &origin_ecef)
 {
@@ -701,6 +723,7 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
     this->link_paths.clear();
     this->underground_link_vertices.clear();
     this->draped_demand_points.clear();
+    this->draped_pipe_bends.clear();
     this->entity_keys_by_uuid.clear();
     this->link_vertex_indices_by_entity.clear();
     this->node_vertex_indices_by_entity.clear();
@@ -863,7 +886,7 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
         bool have_previous = false;
         QVector3D previous;
         CoordinateWGS84 previous_coordinate;
-        double previous_elevation_m = 0.0;
+        double previous_render_height_m = 0.0;
         for (qsizetype vertex_index = 0;
              vertex_index < link.vertices_wgs84.size(); ++vertex_index)
         {
@@ -894,7 +917,19 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
             const double elevation_m =
                 std::isfinite(raw_elevation_m)
                 ? raw_elevation_m : this->fallback_elevation_m;
-            const QVector3D current = ecefPosition(coordinate, elevation_m);
+            double render_height_m = this->vertical_transform.networkHeightM(elevation_m);
+            // Intermediate pipe bends have only geographic coordinates in the
+            // hydraulic model. Their visual height follows the drawn terrain
+            // like demand points; the real endpoint elevations stay intact.
+            if (link.entity_type == InfrastructureEntity::Pipe && vertex_index > 0
+                && vertex_index + 1 < link.vertices_wgs84.size()
+                && this->surface_height_resolver)
+            {
+                double surface_height_m = 0.0;
+                render_height_m = drapedHeightM(coordinate, &surface_height_m);
+                this->draped_pipe_bends.append({coordinate, surface_height_m});
+            }
+            const QVector3D current = ecefPositionAtHeight(coordinate, render_height_m);
 
             if (have_previous)
             {
@@ -918,10 +953,10 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
                                 previous_coordinate, geodesic_span.initial_azimuth_deg,
                                 geodesic_span.distance_m * ratio, &sample_coordinate))
                         {
-                            const double sample_elevation_m = previous_elevation_m
-                                + (elevation_m - previous_elevation_m) * ratio;
-                            segment_end = ecefPosition(
-                                sample_coordinate, sample_elevation_m);
+                            const double sample_height_m = previous_render_height_m
+                                + (render_height_m - previous_render_height_m) * ratio;
+                            segment_end = ecefPositionAtHeight(
+                                sample_coordinate, sample_height_m);
                         }
                         else
                         {
@@ -943,7 +978,7 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
 
             previous = current;
             previous_coordinate = coordinate;
-            previous_elevation_m = elevation_m;
+            previous_render_height_m = render_height_m;
             have_previous = true;
         }
 
@@ -1086,8 +1121,19 @@ void MapGlobeNetworkScene::rebuildUndergroundXRayGeometry()
             const double raw_elevation_m = vertex_index < link.elevations_m.size()
                 ? link.elevations_m.at(vertex_index)
                 : this->fallback_elevation_m;
-            const double elevation_m = std::isfinite(raw_elevation_m)
+            double elevation_m = std::isfinite(raw_elevation_m)
                 ? raw_elevation_m : this->fallback_elevation_m;
+            if (link.entity_type == InfrastructureEntity::Pipe && vertex_index > 0
+                && vertex_index + 1 < link.vertices_wgs84.size()
+                && this->surface_height_resolver)
+            {
+                double surface_height_m = 0.0;
+                const double render_height_m = drapedHeightM(coordinate, &surface_height_m);
+                // X-Ray must classify the same terrain-draped centerline as
+                // the normal renderer, not the unrelated model interpolation.
+                elevation_m = (render_height_m - this->vertical_transform.networkLiftM())
+                    / this->vertical_transform.verticalExaggeration();
+            }
             const QVector3D current = ecefPosition(coordinate, elevation_m);
 
             if (have_previous)

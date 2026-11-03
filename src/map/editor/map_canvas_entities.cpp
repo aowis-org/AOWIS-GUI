@@ -2569,7 +2569,30 @@ void MapCanvasEntities::startPipeVertexMove(const QUuid &pipe_uuid, int vertex_i
     capturePipeMoveSnapshot(pipe_uuid);
     selectPipe(pipe_uuid);
     prepareMoveVisualState();
-    const QPointF mouse_position = this->map_canvas->mapFromGlobal(QCursor::pos());
+    QPointF mouse_position = this->map_canvas->mapFromGlobal(QCursor::pos());
+    if (!this->projection->supportsMercatorHitBox())
+    {
+        // A popup may close after the cursor has left the globe. Start the
+        // existing shared virtual-move from the selected bend itself instead
+        // of treating the post-menu cursor as a new geographic coordinate.
+        const std::optional<CoordinateWGS84> bend_coordinate =
+            this->pipes->pipeVertexCoordinate(pipe_uuid, vertex_index);
+        if (!bend_coordinate.has_value())
+        {
+            this->pipes->cancelPipeVertexMove();
+            clearMoveSnapshot();
+            return;
+        }
+        const std::optional<QPointF> bend_screen = this->projection->screenFromCoordinate(
+            bend_coordinate.value(), this->map_canvas->size(), this->wrap_reference_longitude);
+        if (!bend_screen.has_value())
+        {
+            this->pipes->cancelPipeVertexMove();
+            clearMoveSnapshot();
+            return;
+        }
+        mouse_position = bend_screen.value();
+    }
     const std::optional<CoordinateWGS84> mouse_coordinate =
         this->projection->coordinateFromScreen(mouse_position, this->map_canvas->size());
     if (!mouse_coordinate.has_value())

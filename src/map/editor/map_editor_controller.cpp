@@ -527,7 +527,8 @@ bool MapEditorController::globeMousePress(const QPointF &position,
             this->map_canvas_entities->floatEntity(position);
             return this->map_canvas_entities->anchorMarker(position);
         }
-        if (this->map_canvas_entities->showMarkerContextMenuAt(position, global_position))
+        if (this->map_canvas_entities->showMarkerContextMenuAt(position, global_position)
+            || this->map_canvas_entities->showPipeContextMenuAt(position, global_position))
             return true;
     }
     // Only the cache sections' tile selection; everything else (left drag

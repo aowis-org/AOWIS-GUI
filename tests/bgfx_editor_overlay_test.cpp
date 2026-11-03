@@ -694,6 +694,10 @@ void testGlobeSharedEditorVisuals()
                                    &s.state, &projection);
     };
 
+    build();
+    req(hasColorNear(harness.canvas, MapBgfxEditorOverlay::BlackColor, 400.0, 280.0, 4.5),
+        "unselected 3D pipe bend has the same black dot as the 2D editor");
+
     s.state.selected_pipe_uuids.append(s.pipe);
     s.state.selected_marker_uuids.append(s.junction_a);
     build();

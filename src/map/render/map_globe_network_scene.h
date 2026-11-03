@@ -113,19 +113,21 @@ public:
     // always queries live repository state, so there's no need to re-set it
     // as terrain tiles load in.
     void setTerrainElevationResolver(TerrainElevationResolver resolver);
-    // Demand points have no elevation (they are not part of the EPANET
-    // model): with this resolver they are draped on the drawn terrain, the
-    // network lift above it (MapGlobeVerticalTransform::networkLiftM()), and
-    // their attachment lines run from there to the junction / pipe at its
-    // own elevation. Without one they stay at the network's fallback
-    // elevation. Set once by the renderer backend; the next geometry build
-    // uses it.
+    // Demand points and intermediate pipe bends have no independent
+    // physical elevation in the model. With this resolver they follow the
+    // drawn terrain plus network lift. Junction/pipe endpoint elevations
+    // remain hydraulic-model values. Set once by the renderer backend;
+    // terrain revisions refresh draped geometry as necessary.
     void setSurfaceHeightResolver(SurfaceHeightResolver resolver);
     // The drawn terrain changed (window rebuilt, terrain meshes applied):
     // samples the surface under every demand point again and moves the ones
     // whose height changed (markers, icons, attachment lines, highlights) in
     // place, without a network rebuild. True when any vertex moved.
     bool refreshDemandPointHeights();
+    // Pipe bend coordinates are geographic only in the hydraulic model.
+    // Follow the drawn surface when terrain tiles/LOD change, but rebuild
+    // only if a sampled bend height actually changed (not every terrain tick).
+    bool refreshDrapedPipeBendHeights();
     // While true, rebuildNetworkGeometry() also walks each link in short
     // subdivisions, compares each subdivision's own implied elevation
     // against the resolver's terrain sample at the same point, and
@@ -328,6 +330,12 @@ private:
         int icon_marker_index = -1;
     };
     QVector<DrapedDemandPoint> draped_demand_points;
+    struct DrapedPipeBend
+    {
+        CoordinateWGS84 coordinate;
+        double surface_height_m = 0.0;
+    };
+    QVector<DrapedPipeBend> draped_pipe_bends;
     bool underground_xray_enabled = false;
     bool use_3d_icon_models = false;
     bool node_decluttering_enabled = true;

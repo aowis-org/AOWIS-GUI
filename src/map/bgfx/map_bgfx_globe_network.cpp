@@ -636,14 +636,15 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
         markDirty(AllStreams);
     if (!this->network_scene.hasGeometry())
         return result;
-    // The terrain changed this frame (window, meshes): the demand points
-    // follow it before they are drawn, so they never sink into or float
-    // above the surface on screen. A geometry rebuild above sampled the
-    // current surface already.
+    // Terrain LOD/window changes: bends only rebuild the network if their
+    // sampled heights actually changed. Otherwise demand points update in
+    // place as before. Never rebuild every frame just because tiles streamed.
     if (this->draped_surface_revision != this->terrain_surface_revision)
     {
         this->draped_surface_revision = this->terrain_surface_revision;
-        if (this->network_scene.refreshDemandPointHeights())
+        if (this->network_scene.refreshDrapedPipeBendHeights())
+            markDirty(AllStreams);
+        else if (this->network_scene.refreshDemandPointHeights())
             markDirty(GeometryStream | IconStream | HighlightStream);
     }
     // Pixel-sized chevrons (and pixel-sized 3D models) in metres at the

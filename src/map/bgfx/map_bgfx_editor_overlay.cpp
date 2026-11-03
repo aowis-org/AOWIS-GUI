@@ -871,6 +871,40 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         return result;
     };
 
+    // The 2D editor shows black bend dots for ALL pipes, not only selected
+    // ones. Reuse the same visual-state selection colours on the globe.
+    // Moving links are rendered by the shared dynamic preview below.
+    for (const NetworkRenderLink &link : snapshot.links)
+    {
+        if (link.entity_type != InfrastructureEntity::Pipe
+            || link.vertices_wgs84.size() < 3
+            || state.selected_pipe_uuids.contains(link.uuid))
+            continue;
+        bool moving = false;
+        if (state.move.active)
+        {
+            for (const MapEditorDynamicLinkVisualState &dynamic_link : state.move.links)
+            {
+                if (dynamic_link.uuid == link.uuid)
+                {
+                    moving = true;
+                    break;
+                }
+            }
+        }
+        if (moving)
+            continue;
+        for (qsizetype index = 1; index + 1 < link.vertices_wgs84.size(); ++index)
+        {
+            const std::optional<MapBgfxHudPoint> bend = point(link.vertices_wgs84.at(index));
+            if (bend.has_value() && onScreen(bend->x - PipeVertexRadiusPx,
+                                              bend->y - PipeVertexRadiusPx,
+                                              2.0 * PipeVertexRadiusPx,
+                                              2.0 * PipeVertexRadiusPx))
+                this->canvas->fillCircle(bend->x, bend->y, PipeVertexRadiusPx, BlackColor);
+        }
+    }
+
     // The same blue selected-link stroke and pipe-vertex dots as the flat view.
     for (const QUuid &uuid : state.selected_pipe_uuids)
     {
