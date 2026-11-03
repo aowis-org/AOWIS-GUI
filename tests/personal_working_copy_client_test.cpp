@@ -8,6 +8,7 @@
 #include "network/hydraulic_edit_transaction_capture.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/edit/hydraulic_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QCoreApplication>
@@ -1709,6 +1710,49 @@ int main(int argc, char **argv)
     if (!check(done && error.isEmpty() &&
                !stub.last_event_save.contains(QStringLiteral("membership")),
                "update-only event batch sent a membership field")) return 1;
+
+    // A single MODEL event is allowed to change both the network metadata
+    // and a typed member. Neither the GUI nor DVMDB accepts native manifest
+    // bytes from the client; the body carries only the member record and its
+    // membership intent.
+    NetworkHydraulic rootBefore;
+    rootBefore.uuid = network_uuid;
+    rootBefore.id = QStringLiteral("Network");
+    NetworkHydraulic rootAfter = rootBefore;
+    rootAfter.title_line_1 = QStringLiteral("Updated with member");
+    const QUuid mixed_junction_uuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    aowis::model::ModelEditTransaction mixed = creation;
+    mixed.transactionId = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    mixed.edits.first().entityId = mixed_junction_uuid;
+    mixed.edits.append(aowis::model::ModelEntityEdit{
+        network_uuid, QString::fromLatin1(aowis::model::hydraulicRootEditType),
+        aowis::model::hydraulicRootImage(rootBefore),
+        aowis::model::hydraulicRootImage(rootAfter)});
+    const QByteArray mixed_bytes = aowis::model::ModelEditTransactionCodec::encode(mixed);
+    if (!check(!mixed_bytes.isEmpty(), "could not encode mixed root/member event")) return 1;
+    PersonalWorkingCopyChange mixed_record = created_record;
+    mixed_record.uuid = mixed_junction_uuid.toString(QUuid::WithoutBraces);
+    HydraulicDraftMembershipEdit mixed_insertion = insertion;
+    mixed_insertion.entity_id = mixed_junction_uuid;
+    const int before_mixed_save = stub.event_save_count;
+    aowis::model::ModelEditTransaction unjournaled = mixed;
+    unjournaled.transactionId = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    unjournaled.edits.removeFirst(); // only the root event remains
+    error = saveBatch({mixed_record},
+        {aowis::model::ModelEditTransactionCodec::encode(unjournaled)}, {});
+    if (!check(done && error.contains(QStringLiteral("no matching MODEL entity edit")) &&
+               stub.event_save_count == before_mixed_save,
+               "root-only event smuggled an unjournaled typed record")) return 1;
+    error = saveBatch({mixed_record}, {mixed_bytes}, {mixed_insertion});
+    const QJsonArray mixed_records = stub.last_event_save.value(QStringLiteral("changes")).toArray();
+    const QJsonArray mixed_membership = stub.last_event_save.value(QStringLiteral("membership")).toArray();
+    const QJsonArray mixed_events = stub.last_event_save.value(QStringLiteral("events")).toArray();
+    if (!check(done && error.isEmpty() &&
+               stub.event_save_count == before_mixed_save + 1 &&
+               mixed_records.size() == 1 && mixed_membership.size() == 1 &&
+               mixed_events.size() == 1 &&
+               mixed_events.first().toString() == QString::fromLatin1(mixed_bytes.toBase64()),
+               "mixed root/member event was not sent as one atomic DVMDB request")) return 1;
 
     done = false;
     client.releaseLease(stub.target(), draft_id, head_id, lease.token,

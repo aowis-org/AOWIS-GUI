@@ -191,11 +191,14 @@ event acknowledgement and another reopen. This complements existing
 per-collection CRUD and widget tests; it does **not** itself exercise real
 DVMDB HTTP, embedded Standalone, user-interface undo/redo, or process restart.
 DVMDB adds an immutable-Commit/reopen/compaction check of the same full-network
-canonical equality, including nondefault root metadata. The current REST
-contract accepts network-root and membership/record edits in **separate**
-events, not one combined event; this is a remaining atomic mixed-edit gap.
-Do not mark INT-05 accepted until full HTTP/Standalone and mutation-path
-qualification pass and this boundary is explicitly resolved.
+canonical equality, including nondefault root metadata. The following mixed
+transaction implementation permits root metadata plus typed entity and
+membership changes **in one event**: one fenced Save, server-owned manifest
+materialization, one journal entry, and exact idempotent replay. Added tests
+exercise GUI queue restart and DVMDB HTTP save/replay/stale-image rejection;
+these are not yet recorded as passing on the target Qt environment.
+Do not mark INT-05 accepted until full external HTTP/Standalone process
+round-trips, mutation-path and undo/redo qualification have passed.
 
 ### Collaboration and synchronization (INT-08 → INT-10)
 

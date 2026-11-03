@@ -2553,6 +2553,89 @@ void testInt05CompleteNetworkQueueRoundTrip()
         "INT-05 final reopen has exact full-network canonical equality");
 }
 
+void testMixedNetworkRootAndEntityQueueRoundTrip()
+{
+    NetworkHydraulic base;
+    base.uuid = createUuidV7();
+    base.id = QStringLiteral("Mixed-Network");
+    base.title_line_1 = QStringLiteral("Before");
+    NetworkHydraulic updated = base;
+    updated.title_line_1 = QStringLiteral("After");
+    updated.duration_s = 7200;
+
+    HydraulicNodeJunction junction;
+    junction.uuid = createUuidV7();
+    junction.id = QStringLiteral("NewJunction");
+    junction.elevation_m = 17;
+    aowis::model::ModelEditTransaction transaction;
+    transaction.transactionId = createUuidV7();
+    transaction.operation = QStringLiteral("hydraulic.network.mixed");
+    transaction.edits.append(aowis::model::ModelEntityEdit{
+        base.uuid, QString::fromLatin1(aowis::model::hydraulicRootEditType),
+        aowis::model::hydraulicRootImage(base),
+        aowis::model::hydraulicRootImage(updated)});
+    transaction.edits.append(aowis::model::ModelEntityEdit{
+        junction.uuid, QStringLiteral("HydraulicNodeJunction"), std::nullopt,
+        aowis::model::ModelCodec<HydraulicNodeJunction>::encode(junction)});
+    QString error;
+    const QByteArray frame = aowis::model::ModelEditTransactionCodec::encode(transaction, &error);
+    test_harness.expectTrue(!frame.isEmpty() && error.isEmpty(),
+        "INT-05 mixed root/entity operation encodes as one MODEL event");
+    if (frame.isEmpty()) return;
+    NetworkHydraulic expected = updated;
+    expected.nodes_junctions.append(junction);
+    NetworkHydraulic next = base;
+    QList<PersonalWorkingCopyChange> records;
+    QList<HydraulicDraftMembershipEdit> membership;
+    test_harness.expectTrue(HydraulicDraftEventAdapter::prepareWithMembership(
+        frame, next, records, membership, &error) &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(next) ==
+            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected) &&
+        records.size() == 1 && membership.size() == 1 &&
+        membership.first().network_id == base.uuid &&
+        membership.first().entity_id == junction.uuid &&
+        membership.first().inserted,
+        "INT-05 mixed event stages one typed record and one membership intent");
+    if (records.size() != 1 || membership.size() != 1) return;
+    // The event is durable as a single queue entry, not two separately
+    // acknowledged edits that might be split by a crash or Commit.
+    QTemporaryDir directory;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    PersonalDraftEditStage stage;
+    const bool queued = directory.isValid() &&
+        stage.open(directory.path(), repository, draft, base, {}, &error) &&
+        stage.append(frame, &error) && stage.pendingCount() == 1;
+    test_harness.expectTrue(queued, "INT-05 mixed event entered one durable queue entry");
+    if (!queued) return;
+    stage.close();
+
+    PersonalDraftEditStage reopened;
+    const bool replayed = reopened.open(directory.path(), repository, draft, base, {}, &error);
+    test_harness.expectTrue(replayed && reopened.pendingCount() == 1 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.visibleNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        "INT-05 mixed event is exactly replayed after queue restart");
+    if (!replayed) return;
+    NetworkHydraulic prepared;
+    QList<PersonalWorkingCopyChange> queuedRecords;
+    QList<HydraulicDraftMembershipEdit> queuedMembership;
+    test_harness.expectTrue(reopened.prepareOldest(prepared, queuedRecords,
+        queuedMembership, &error) && queuedRecords.size() == 1 &&
+        queuedMembership.size() == 1 && reopened.acknowledgeOldest(frame, &error) &&
+        reopened.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.persistedNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        "INT-05 mixed root/entity queue acknowledgement is atomic");
+    reopened.close();
+    PersonalDraftEditStage finalOpen;
+    test_harness.expectTrue(finalOpen.open(directory.path(), repository, draft,
+        expected, {}, &error) && finalOpen.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(finalOpen.visibleNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        "INT-05 mixed root/entity event survives final reopen");
+}
+
 void testNetworkRootMetadataCaptureAndReplay()
 {
     NetworkHydraulic base;
@@ -2644,6 +2727,7 @@ int main(int argc, char **argv)
                          testUnsolvableNetworkDraftSurvivesRestart);
     test_harness.runCase("INT-05 complete network queue round-trip",
                          testInt05CompleteNetworkQueueRoundTrip);
+    test_harness.runCase("INT-05 mixed root and member event", testMixedNetworkRootAndEntityQueueRoundTrip);
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);

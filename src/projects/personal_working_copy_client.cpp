@@ -168,18 +168,18 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
         intents.insert(intent.entity_id, &intent);
     }
     QSet<QUuid> described;
+    QSet<QString> eventRecords;
     for (const aowis::model::ModelEditTransaction &event : events)
     {
         for (const aowis::model::ModelEntityEdit &edit : event.edits)
         {
             if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
             {
-                if (events.size() != 1 || event.edits.size() != 1 ||
-                    !changes.isEmpty() || !membership.isEmpty() ||
+                if (events.size() != 1 ||
                     !edit.before.has_value() || !edit.after.has_value() ||
                     !aowis::model::decodeHydraulicRootImage(*edit.before) ||
                     !aowis::model::decodeHydraulicRootImage(*edit.after))
-                    return QStringLiteral("Invalid metadata-only network-root event batch.");
+                    return QStringLiteral("Invalid network-root edit in event batch.");
                 continue;
             }
             // All normal entity edits must have matching native candidates,
@@ -195,6 +195,7 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
                 }
             if (!recordMatched)
                 return QStringLiteral("MODEL event is missing its typed candidate record.");
+            eventRecords.insert(edit.entityId.toString(QUuid::WithoutBraces));
             const bool created = !edit.before.has_value() && edit.after.has_value();
             const bool removed = edit.before.has_value() && !edit.after.has_value();
             const HydraulicDraftMembershipEdit *intent = intents.value(edit.entityId, nullptr);
@@ -229,6 +230,11 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
     }
     if (described.size() != intents.size())
         return QStringLiteral("Membership intent without a matching creation or removal event.");
+    // Do not permit a root-only event to carry unrelated candidate model
+    // records. DVMDB derives the root and chunk writes from logical events.
+    for (const PersonalWorkingCopyChange &change : changes)
+        if (!eventRecords.contains(change.uuid))
+            return QStringLiteral("Candidate record has no matching MODEL entity edit.");
     return {};
 }
 
@@ -1322,8 +1328,7 @@ void PersonalWorkingCopyClient::flushOldestQueuedEvent(
     {
         if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
         {
-            if (event->edits.size() != 1 || !changes.isEmpty() ||
-                !edit.before.has_value() || !edit.after.has_value())
+            if (!edit.before.has_value() || !edit.after.has_value())
             {
                 completion({}, false, QStringLiteral("Invalid network-root event batch."));
                 return;
