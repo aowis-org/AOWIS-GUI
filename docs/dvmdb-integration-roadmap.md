@@ -99,11 +99,11 @@ lossless storage and repository invariants remain strict.
 
 | ID | Priority | GUI deliverable and current starting point | Acceptance / handoff |
 |---|---|---|---|
-| **INT-00** | P0 | Align GUI, MODEL and DVMDB semantics: hydraulically invalid but representable work is savable, committable and mergeable; audit existing strict validation | Invalid model can be reopened unchanged; invalid record bytes still fail |
+| **INT-00** | P0 | Audit the boundary between storage integrity, model references and hydraulic/solver diagnostics | Structurally consistent unsupplied/disconnected models survive; undecided dangling-reference policy is documented |
 | **INT-01** | P0 | Pin `ProjectSourceWriter` metadata mutations to expected repository UUID/fingerprint (private draft client already checks identity) | Wrong/replaced endpoint and uncertain PATCH cannot silently edit wrong repo |
 | **INT-02** | P0 | Persist Commit operation UUIDv7 + immutable body/target **before** POST; on restart reconcile `/local-commits/{id}` (or exact same-ID replay when provably not recorded) before another Commit | Lost POST/status responses, GUI exit and retry yield one revision |
 | **INT-03** | P0 | Follow `GET /working-copies` `nextCursor` across all pages; filter by `projectId`, bound loops; scale catalogue/graph reads | 101/250+ drafts, 100+ projects and many branches not silently hidden |
-| **INT-04** | P1 | GUI can open/display/edit/export a representable model with dangling hydraulic refs; diagnostics separate from version-control buttons | Broken hydraulic model round-trips without auto-repair or disabled Commit |
+| **INT-04** | P1 | Verify that hydraulically unsolvable but referentially consistent models remain editable and durable; keep dangling-reference policy separate | Unsupplied/disconnected network passes editor capture and durable queue restart; backend Commit baseline covered by INT-00 |
 | **INT-05** | P1 | Finish 18/18 **mutation-path** audit, persistent root metadata (HC-03..05), queued autosave, undo/redo | Canonical full-model equality after GUI and DVMDB restart over HTTP and Standalone |
 | **INT-06** | P1 | Preserve first import; design and implement explicit new, replace and selected-entity import paths, with dirty-queue protection | Stale/ambiguous/error imports never discard an existing network or queue |
 | **INT-07** | P1 | Complete HEAD/branch/Revision inspector workflow, Commit status, unborn UX, selected network open/export and local history | One real create→edit→save→Commit→branch→reopen session; Inspector tests green |
@@ -159,12 +159,14 @@ creation/deletion is subject to DVMDB's documented list semantics.
 
 ### Finish local persistence and usable editing (INT-04 → INT-07)
 
-* **Validity policy:** keep canonical codec/record validation and DB graph
-  invariants, but do not make hydraulic connectivity, missing model references
-  or solver feasibility a Save/Commit/Publish/Merge precondition. Audit
-  serializer/GUI load paths that currently refuse such a model. Offer an
-  independent validation command and report errors/warnings by draft
-  generation or immutable revision UUID. Never silently fix or omit an entity.
+* **Validity policy:** keep canonical codec/record validation, model-reference
+  consistency and DB graph invariants as currently enforced. Do **not** make
+  missing water sources, disconnected topology or solver feasibility a
+  Save/Commit/Publish/Merge precondition. Missing or wrong-type hydraulic
+  references are a **separate, undecided** model-policy question; do not
+  remove those guards as part of INT-04. Offer independent hydraulic
+  diagnostic reports keyed by saved draft generation or revision UUID.
+  Never silently fix or omit an entity.
 * **Mutation capture:** inventory every edit surface for all 18 collections
   and persistent `NetworkHydraulic` root fields (time, quality, report,
   options, network identity, MSX, map backdrop). Distinguish UI-only state

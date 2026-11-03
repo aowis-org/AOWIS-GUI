@@ -2243,6 +2243,120 @@ void testRuleAndMapLabelCrud()
         "HC02 rule/map-label create/update/delete replays to exact canonical network");
 }
 
+
+// INT-04: A disconnected, unsupplied (non-simulatable) engineering network is
+// still a legitimate private working-copy candidate. No hydraulic solver
+// validation may become a precondition for event capture, durable queueing or
+// canonical replay. Referential identity/canonical bytes remain strict.
+void testUnsolvableNetworkDraftSurvivesRestart()
+{
+    NetworkHydraulic baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("INT-04 unsupplied draft");
+    HydraulicNetworkEditor seed(baseline);
+    const QUuid first = seed.addJunction(coordinate(50.0, 8.0));
+    const QUuid second = seed.addJunction(coordinate(50.1, 8.1));
+    const QUuid isolated = seed.addJunction(coordinate(50.2, 8.2));
+    const QUuid link = seed.addPipe(first, second, {});
+    test_harness.expectTrue(!first.isNull() && !second.isNull() &&
+                            !isolated.isNull() && !link.isNull() &&
+                            baseline.nodes_reservoirs.isEmpty() &&
+                            baseline.nodes_tanks.isEmpty() &&
+                            baseline.nodes_junctions.size() == 3 &&
+                            baseline.links_pipes.size() == 1,
+                            "INT-04 baseline has an isolated node and no supply source");
+    if (first.isNull() || second.isNull() || isolated.isNull() || link.isNull())
+        return;
+
+    HydraulicData data;
+    data.replaceNetworkHydraulic(baseline, {});
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+                     &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    data.setLogicalEditCaptureEnabled(true);
+    const bool renamed = data.setNodeId(isolated, QStringLiteral("Disconnected J"));
+    const bool resized = data.setPipeDiameterMm(link, 235.0);
+    NetworkHydraulic metadata =
+        aowis::model::hydraulicRootMetadata(data.networkHydraulic());
+    metadata.title_line_1 = QStringLiteral("Unsupplied network metadata edit");
+    const bool changed_root = data.setNetworkRootMetadata(metadata);
+    test_harness.expectTrue(renamed && resized && changed_root && events.size() == 3 &&
+                            data.logicalEditCaptureEnabled(),
+                            "INT-04 unsupplied network captures entity and root metadata edits");
+    if (!renamed || !resized || !changed_root || events.size() != 3)
+        return;
+
+    QTemporaryDir directory;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    PersonalDraftEditStage stage;
+    QString error;
+    bool queued = directory.isValid() &&
+        stage.open(directory.path(), repository, draft, baseline, {}, &error);
+    for (const QByteArray &event : events)
+    {
+        if (!queued)
+            break;
+        queued = stage.append(event, &error);
+    }
+    const QByteArray queue_message =
+        (QStringLiteral("INT-04 unsupplied candidate queues successfully: ") + error).toUtf8();
+    test_harness.expectTrue(queued && stage.pendingCount() == 3,
+                            queue_message.constData());
+    if (!queued)
+        return;
+    stage.close();
+
+    PersonalDraftEditStage resumed;
+    const bool resumed_ok = resumed.open(directory.path(), repository, draft,
+                                         baseline, {}, &error);
+    const QByteArray resume_message =
+        (QStringLiteral("INT-04 unsupplied draft reopens: ") + error).toUtf8();
+    test_harness.expectTrue(resumed_ok && resumed.pendingCount() == 3 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(resumed.visibleNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+        resume_message.constData());
+    if (!resumed_ok)
+        return;
+
+    bool acknowledged = true;
+    for (int index = 0; index < events.size(); ++index)
+    {
+        NetworkHydraulic next;
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        if (!resumed.prepareOldest(next, records, membership, &error) ||
+            !membership.isEmpty() || records.size() != (index == 2 ? 0 : 1) ||
+            !resumed.acknowledgeOldest(events.at(index), &error))
+        {
+            acknowledged = false;
+            break;
+        }
+    }
+    const QByteArray ack_message =
+        (QStringLiteral("INT-04 canonical unsupplied edits replay and acknowledge: ") + error).toUtf8();
+    test_harness.expectTrue(acknowledged && resumed.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(resumed.persistedNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+        ack_message.constData());
+    if (!acknowledged)
+        return;
+    const NetworkHydraulic persisted = resumed.persistedNetwork();
+    resumed.close();
+
+    PersonalDraftEditStage final_restart;
+    const bool final_open = final_restart.open(directory.path(), repository, draft,
+                                               persisted, {}, &error);
+    test_harness.expectTrue(final_open && final_restart.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(final_restart.visibleNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+        final_restart.visibleNetwork().nodes_reservoirs.isEmpty() &&
+        final_restart.visibleNetwork().nodes_tanks.isEmpty() &&
+        final_restart.visibleNetwork().nodes_junctions.size() == 3 &&
+        final_restart.visibleNetwork().links_pipes.size() == 1,
+        "INT-04 unsupplied/disconnected model survives a second canonical restart");
+}
+
 void testDraftStageRejectsOutOfOrderReplay()
 {
     QTemporaryDir root;
@@ -2385,6 +2499,8 @@ void testNetworkRootMetadataCaptureAndReplay()
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    test_harness.runCase("INT-04 unsupplied network draft survives restart",
+                         testUnsolvableNetworkDraftSurvivesRestart);
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);
