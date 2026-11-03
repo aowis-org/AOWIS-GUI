@@ -63,7 +63,7 @@ decision. The backend's corresponding independent notes are at
 
 No login UI, credential storage, ACL editor, permission-aware graph filtering,
 authenticated publishing, audit UI, OAuth/TLS work or penetration-test release
-gate is introduced by VC-00–VC-11. These may require a separate AOWIS-wide
+gate is introduced by the current GUI/DVMDB integration roadmap. These may require a separate AOWIS-wide
 design and new roadmap **only when explicitly requested**. Do not block graph,
 private working-copy, commit, fetch, publish or merge implementation on an
 unapproved security subsystem.

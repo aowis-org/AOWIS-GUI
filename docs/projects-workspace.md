@@ -98,10 +98,10 @@ or inconsistent edits block the session rather than pretending to save.
 |---|---|---|
 | Open HEAD | Load saved private working state and open Distribution Editor | Implemented; requires selected usable private draft |
 | Open Revision | Read-only Monitor, or create a branch based on that immutable revision for full editing | Implemented entry point; end-to-end platform coverage remains to be verified |
-| Save / autosave | Durably record supported edited entities in private draft; no immutable revision | Implemented for captured operations; root-metadata coverage remains limited |
+| Save / autosave | Durably record MODEL events in private draft; no immutable revision | Implemented for entity and root metadata events, including mixed transactions; full end-to-end acceptance outstanding |
 | Commit | Require a nonblank commit message, commit saved modified draft, advance only personal committed HEAD | Implemented via DVMDB Local Commit API; still requires valid saved draft/lease |
 | Publish | Conditionally advance shared history, separately from personal Commit | **Not implemented as complete GUI workflow** |
-| Fetch/Clone | Transfer a specific remote branch into personal working repository | Advanced branch-level checkout exists; whole-project workflow not complete |
+| Fetch/Clone | Transfer a specific remote branch into personal working repository | Branch-level checkout exists; full-project Clone and Fetch tracking workflow incomplete |
 | Merge/reconcile | Resolve divergent committed histories without losing drafts | Complete end-to-end UI not available |
 
 After Commit the saved draft overlay can be empty, but the network still
@@ -157,9 +157,17 @@ revision previews. The branch dropdown always has a **[none]** placeholder:
   installed only after its own verified session is ready. A failed switch
   must not replace the in-memory model.
 
+**History action (current):** The toolbar's **Open revision history in
+Projects** control invokes `ProjectsWidget::showRevisionHistory()`: it
+navigates to the Projects page, selects the committed HEAD where possible,
+and focuses the revision tree/Inspector. This is **not** a History dock, and
+it does not support Undo/Redo. The agreed future left-dock timeline, with
+Commit markers and cross-Commit Undo/Redo, is specified only in the
+[History roadmap](history-roadmap.md).
+
 The toolbar status area now indicates **No network**, **Opening…**,
 **Saving · N pending**, **Autosaved**, **Read-only**, or **Open failed**.
-It is not a manual Save control. The future Commit action remains separate
+It is not a manual Save control. The Commit action remains separate
 from draft autosave. In the graph, a personal server keeps its left-side
 server cylinder and displays **♛ before its name** on a golden card.
 

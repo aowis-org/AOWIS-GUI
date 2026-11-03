@@ -1,60 +1,32 @@
-# Hydraulic network load, first import, replacement and merge
+# Open, import and export hydraulic networks
 
-**Current contract reviewed 2026-11-02.** Earlier design notes described
-all private-draft imports as undecided. A **narrow safe first-import path is
-now implemented**; replacement and merge remain separate unfinished work.
+This page describes the currently exposed operations. Unimplemented
+replacement and selective import belong in the
+[remaining integration roadmap](dvmdb-integration-roadmap.md).
 
-## Different operations
-
-| Operation | Current behavior |
+| Action | Current behavior |
 |---|---|
-| Open selected HEAD | Reads its verified saved private draft (base plus overlay); edits use fenced autosave |
-| Open immutable revision | Reads the exact committed snapshot in Monitor; offers creation of a new branch for writable editing |
-| First import into untouched unborn HEAD | Supported: selected private draft, EPANET `.inp`/`.ejsdb`, backend fenced import, no prior network |
-| Export selected HEAD | Reads one verified saved draft network at an exact generation, not the global editor |
-| Export selected revision | Reads exactly the pinned committed revision |
-| Replace an already saved network | **Not implemented** as an atomic draft operation |
-| Merge imported entities into a network | **Not implemented**; needs topology, identity, and reference/conflict policy |
+| **Open HEAD** | Resolve exact project/branch/private draft, load committed base plus saved overlay, then open fenced Distribution Editor |
+| **Open immutable Revision** | Read pinned snapshot in Distribution Monitor or explicitly create a branch for editing; never modify a revision in place |
+| **First import** | Import EPANET `.inp` or `.ejsdb` into an **untouched, empty unborn private HEAD**, using a fenced server operation |
+| **Export HEAD** | Export the selected saved draft network and verified generation, not an unrelated in-memory editor model |
+| **Export Revision** | Export the explicitly selected immutable revision/network |
 
-The **Import network** action is disabled unless the GUI can establish an
-eligible untouched unborn draft. DVMDB also enforces this independently and
-returns a conflict if the target is populated or stale. An unborn branch is
-not automatically empty, and a HEAD based on a commit may be empty without
-being an untouched unborn draft. Do not enable first import merely because
-its six entity counts are zero.
+An unborn HEAD is not necessarily empty. A saved network may exist without
+any immutable Commit. A network containing zero entities may still have a
+root, settings and libraries. Deleting the last visible object is **not**
+equivalent to deleting the network root. The Project/HEAD Inspector does not
+have a **Delete network** button.
 
-A network with no entities may still have a persistent network root and
-other hydraulic configuration. Selecting all elements and deleting them in
-the editor does **not** necessarily remove that root. **No explicit Delete
-network button belongs in the Inspector.**
+First import is a narrowly defined, server-enforced operation. The GUI
+should enable it only when the selected private draft is eligible;
+a populated, previously edited or stale draft must not be overwritten.
+`HydraulicData::replaceNetworkHydraulic()` replaces **only the in-memory
+network** and must not be used to imply a persistent replacement operation.
 
-## Persistence boundary
-
-`HydraulicData::replaceNetworkHydraulic()` replaces the in-memory model and
-resets capture; it is useful for verified loading, but by itself it is not a
-transaction-safe persistent replacement. A private editor session has an
-exact project/branch/draft identity, durable queued events, writer lease,
-fencing token and generation. Do not mix data from a different editor's
-model or silently discard a pending queue.
-
-The first-import route is a separate server-side transaction; it rejects a
-populated draft before applying anything. It does not implement arbitrary
-replacement, selective entity import, or merging.
-
-## Still to design and test
-
-1. Explicit replacement intent and target identification, if replacement is
-   ever offered in the editor; never invent a bulk Delete action.
-2. Network-root identity and handling when a model has zero elements but
-   still stores hydraulic metadata or libraries.
-3. Transactional replacement/merge with exact old generation and lease,
-   pending queue handling, UUID/reference/topology validation, and recovery
-   after a dropped acknowledgement.
-4. Importer parity across desktop HTTP, embedded Standalone and WASM, where
-   applicable; precise errors when source format is unsupported.
-5. Repeated imports and stale-generation errors must leave existing network
-   data unchanged. Export must be tied to the selected saved network, not
-   current in-memory editor selection.
-
-See [Projects workspace](projects-workspace.md), [quickstart](dvmdb-quickstart.md)
-and [private Save](personal-working-copy-save.md).
+**Not implemented:** an atomic "Replace working network" operation, selected
+entity/library import into an existing network, UUID/reference reconciliation,
+or safe replacement of a dirty draft. These require explicit user intent,
+lease/generation/queue checks, recoverable idempotent server operations and
+integration with the proposed History subsystem. See the
+[roadmap](dvmdb-integration-roadmap.md) for design and acceptance.

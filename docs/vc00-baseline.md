@@ -1,22 +1,27 @@
-# Version-control implementation verification
+# Projects and private editing — verification guide
 
-This development verification record is **not** the active starting point or
-a release-readiness report. The authoritative product requirements and the
-current source-level implementation/status matrix are in the
-[GUI roadmap](dvmdb-integration-roadmap.md).
+This page lists the **current product acceptance scenarios**. It is not an
+implementation-stage history or a claim that every scenario has passed.
 
-The current acceptance target is practical checkout into a private working
-DVMDB, complete hydraulic-model hydration, logical edit capture, durable
-queued autosave with atomic membership updates, crash/reconnect recovery,
-reopen with exact model equality, and explicit first local Commit from an
-unborn branch. Backend/GUI unit tests validate individual pieces but do not
-replace this end-to-end scenario.
+1. Create a private project: it has a real project UUID, an unborn `main`
+   branch and no immutable revision. Its editable HEAD appears in Projects.
+2. Open a private network and edit every supported hydraulic collection,
+   root metadata, controls, libraries and map labels. Check that the active
+   writer's staged state matches `ModelCodec<NetworkHydraulic>` exactly.
+3. Shut down and restart the GUI **and** DVMDB, reopen that same draft, and
+   compare all canonical model bytes. Repeat against embedded Standalone.
+4. Lose an edit Save reply; verify authoritative journal and local pending
+   queue reconcile without duplicate events or a false Autosaved indicator.
+5. Commit an intentionally unsupplied but referentially consistent network;
+   verify exact immutable revision, local HEAD movement and unchanged shared
+   HEAD. Recover a lost Commit reply with its original operation ID.
+6. Verify project/draft discovery past 100 entries and wrong repository
+   role/UUID/fingerprint refusals.
+7. Verify an immutable Revision opens read-only or through explicit branch
+   creation; no revision content is rewritten.
+8. Verify the currently **absent** features (full History Undo/Redo, generic
+   replacement, Publish/Merge workflows) are not falsely exposed as working.
 
-Testing and operational evidence belongs with the actual subsystems:
-[working-copy Save](personal-working-copy-save.md),
-[hydraulic logical edits](hydraulic-edit-transactions.md), and
-[Projects workspace](projects-workspace.md).
-
-Do not reintroduce backward compatibility or experimental-format migration
-code as a prerequisite for the first AOWIS release. Security design is a
-separate unscheduled effort.
+See [product documentation](README.md), [remaining integration](dvmdb-integration-roadmap.md),
+and [History roadmap](history-roadmap.md). Keep actual commands and observed
+pass/fail outcomes in test reports, not inferred from source presence.

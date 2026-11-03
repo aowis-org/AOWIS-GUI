@@ -9,8 +9,8 @@ writes, leases and recovery see [private Save](personal-working-copy-save.md).
 From the **AOWIS-SERVER-DVMDB** repository:
 
 ```bash
-./compile_linux.sh             # build only server/dependencies, then run
-# or: ./compile_linux.sh --build-only
+./compile_linux.sh             # build server/dependencies, then start the server
+# or: ./compile_linux.sh --build-only  # build without starting it
 ```
 
 From a second terminal, for the default local endpoint:
@@ -77,7 +77,8 @@ as `No network`: an unborn HEAD can already contain a saved model.
   to be open in another editor session.
 
 There is **no Delete network action** on the Inspector. Deleting entities
-is an editor operation, with ordinary undo/redo and autosave behavior.
+is an editor operation subject to model-reference checks and private draft
+autosave. **General Undo/Redo is not implemented yet.**
 
 ## 5. Commit an immutable revision
 
@@ -100,8 +101,9 @@ is forbidden; making a branch does not rewrite the original snapshot.
 
 ## 6. Limits and recovery
 
-- Generic capture supports all **18 hydraulic entity collections**, but not
-  every network-root metadata mutation has been accepted end-to-end.
+- Generic capture includes all **18 hydraulic entity collections** and
+  network-root metadata, including mixed root/entity events. Complete
+  cross-process HTTP/Standalone and every UI mutation-path acceptance remain open.
 - Unsupported/uncaptured changes must block rather than appear saved.
 - The current safe imported-network path is first import to untouched unborn
   HEAD; replacement and entity merge are separate unfinished workflows.
@@ -110,6 +112,10 @@ is forbidden; making a branch does not rewrite the original snapshot.
   don't blindly retry a state-changing request with a new identity.
 - Standalone and browser/WASM full end-to-end acceptance remain separate
   validation tasks.
+- The existing **History** toolbar action focuses Projects revision navigation;
+  a left History dock, action-list cursor, and Undo/Redo (including crossing
+  Commit markers) are **planned**, not current functionality. See the
+  [History roadmap](history-roadmap.md).
 
 See [network import semantics](network-open-import-replacement.md),
 [hydraulic transactions](hydraulic-edit-transactions.md), and the

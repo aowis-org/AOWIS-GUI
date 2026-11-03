@@ -185,8 +185,11 @@ projection, elevated projection, and hit-test results. A globe projection may
 fail when a ray misses the world; a failed projection is not a valid edit.
 
 Model changes use the existing `HydraulicData` operations and edit transactions.
-A completed action should participate in the same undo/redo and private-draft
-capture mechanisms as the corresponding 2D action. The source contains focused
+A completed action uses the same canonical MODEL capture and private-draft
+Save mechanisms as the corresponding 2D action. **The general Undo/Redo
+subsystem does not yet exist.** Its planned left History dock and ability
+to navigate across Commit checkpoints are described in the
+[History roadmap](history-roadmap.md). The source contains focused
 unit/regression coverage for those components, but a successful component test
 is **not** proof of an end-to-end interactive save/reopen session, or of the
 Linux, Windows, and WebAssembly user experience.
@@ -224,7 +227,9 @@ ctest --test-dir build-linux-tests --output-on-failure \
 
 For a real workflow check, edit a writable network in **both** map views,
 select buried entities, create and move terrain-relative and absolute nodes,
-create a bent pipe, attach a demand point, cancel a placement, undo/redo,
-reopen the network, and inspect its saved coordinates and elevations. Also
+create a bent pipe, attach a demand point, cancel a placement,
+reopen the network, and inspect its saved coordinates and elevations.
+Cross-Commit Undo/Redo belongs to the separate future [History roadmap](history-roadmap.md),
+not this current editor acceptance procedure. Also
 exercise a missing-terrain location and switching views during an operation.
 The C++ tests alone cannot replace this interactive check.

@@ -1,44 +1,55 @@
-# GUI documentation
+# AOWIS GUI documentation
 
-AOWIS-SERVER-GUI is the Qt-based hydraulic editor, map/monitor workspace and
-DVMDB Projects client. This index separates **current source behavior** from
-**unfinished acceptance or planned work**; a code path's presence does not
-by itself demonstrate successful end-to-end execution on Linux or WASM.
+This index describes the **current product**, as implemented in the source
+snapshot of 2026-11-03. Future behavior appears in roadmaps, not as if it were
+already available. An existing test or API is not by itself an accepted
+end-to-end workflow.
 
-## Hydraulic Distribution Editor
+## Hydraulic editor and map
 
-- [Distribution Editor — controls, workflows, elevations and limitations](distribution-editor.md): current 2D and 3D editing behavior, selection, node/link/vertex operations, attachments and terrain-aware movement.
-- [Maps workspace architecture](map-workspace-architecture.md): shared map viewport, renderer ownership and editor/monitor isolation.
+- [Distribution Editor](distribution-editor.md) — 2D and 3D editing, nodes,
+  links, demand points, terrain/elevation behavior and current controls.
+- [Hydraulic editing and MODEL transactions](hydraulic-edit-transactions.md) —
+  captured actions, all 18 entity collections, network-root metadata, and
+  current model-reference rules.
+- [Map workspace architecture](map-workspace-architecture.md) and
+  [graph layout](project-graph-layout.md) — renderers, shared editing view,
+  and separate Projects revision graph.
 
-## Projects and DVMDB
+## Projects, repositories, and saving
 
-| Start with | Purpose |
+| Guide | Current behavior |
 |---|---|
-| [DVMDB quickstart](dvmdb-quickstart.md) | Configure the personal database; create project/HEAD, open, import, export and Commit |
-| [Projects workspace](projects-workspace.md) | Current database/project/HEAD/revision inspector tabs and buttons |
-| [Project graph layout](project-graph-layout.md) | Separate HEAD cards, immutable shared revisions and ancestry edges |
-| [Personal working repository](working-repository-configuration.md) | ♛ private source, embedded Standalone and repository identity |
-| [Private autosave and recovery](personal-working-copy-save.md) | Durable event queue, session fencing and generation checks |
-| [Network import and replacement](network-open-import-replacement.md) | Implemented safe unborn first import vs unsupported replacement/merge |
-| [Hydraulic edit transactions](hydraulic-edit-transactions.md) | 18 persisted entity collections and gaps in mutation/root metadata capture |
-| [Integration roadmap](dvmdb-integration-roadmap.md) | Remaining GUI/DVMDB integration and acceptance gates |
+| [DVMDB quickstart](dvmdb-quickstart.md) | Configure a private database, create a project, edit a HEAD, Commit |
+| [Projects workspace](projects-workspace.md) | Tree, graph, HEAD/Revision/Branch Inspectors, toolbar navigation |
+| [Personal working database](working-repository-configuration.md) | Repository role, ♛ profile selection, embedded Standalone |
+| [Autosave and recovery](personal-working-copy-save.md) | Lease/fencing, MODEL events, durable local queue, Commit intent |
+| [Network open/import/export](network-open-import-replacement.md) | Supported first import, selected-network loading and export |
+| [Version-control identities](dvmdb-uuidv7-gui-readiness.md) | UUIDv7, branch HEAD vs GUI HEAD, immutable revisions |
 
-**Status snapshot (source review 2026-11-02):** HEAD/Revision Inspectors,
-network summary, selected-network opening/export, safe first import to an
-untouched unborn draft, persistent branch metadata and Local Commit are
-implemented in source. Complete root-metadata autosave, import into an
-existing working network, Fetch/Publish, and full Standalone/WASM acceptance
-remain open. In the current GUI the duplicate Tags/Description editors on
-HEAD/Revision details and Branch share a branch-metadata save path, **not**
-independent persisted version annotations.
+**Save** updates the private draft; **Commit** creates an immutable revision and
+advances only the local branch; **Publish** is a different, not-yet-complete
+workflow. The current GUI has **no general Undo/Redo or navigable action-history
+dock**. The History toolbar item currently navigates to the Projects revision
+tree; it does not undo edits or open a history panel.
 
-## Other systems
+## Work that is not yet implemented or accepted
 
-- [Numeric editor transactions](numeric-editor-transactions.md),
-  [numeric formatting](numeric-formatting.md) and
-  [unit presentation coverage](unit-gui-coverage-matrix.md)
-- [Patch workflow](apply-patches.md)
+- [Remaining GUI ↔ DVMDB integration roadmap](dvmdb-integration-roadmap.md)
+  — full external HTTP/Standalone acceptance, import/replacement, local
+  workflow hardening, whole-project Clone/Fetch, Publish and Merge.
+- [History and Undo/Redo roadmap](history-roadmap.md) — planned left History
+  dock, durable action navigation, and Undo/Redo **across Commit markers**;
+  none of this should be described as working today.
+- [DVMDB backend roadmap](../../AOWIS-SERVER-DVMDB/docs/roadmap.md) — the
+  server-side work and acceptance dependencies.
 
-Security is deferred to [separate considerations](deferred-security-considerations.md).
-Before the first release, do not add obsolete database-format migration or
-compatibility scaffolding merely to preserve development data.
+Other maintained guides cover [numeric editing](numeric-editor-transactions.md),
+[formatting](numeric-formatting.md), [units](unit-gui-coverage-matrix.md),
+[patch application](apply-patches.md), and
+[deferred security](deferred-security-considerations.md).
+
+Before the first release, no legacy-format migration or backwards-compatibility
+work is required merely to preserve transient development data. Security
+architecture is a separate deferred effort; a repository role is not an
+access-control mechanism.

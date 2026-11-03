@@ -30,12 +30,19 @@ revision offers read-only Monitor or creation of a branch for editing. There
 is no Inspector **Delete network** button. Standalone embeds the DVMDB HTTP
 service inside the GUI process.
 
-**Known limits (source review 2026-11-02):** capture covers all 18 persisted
-entity collections, but complete network-root settings, all GUI mutation
-paths and Standalone/WASM acceptance are not yet proven. General import
-replacement/merge, Fetch and Publish are unfinished. HEAD/Revision detail
-Tags/Description currently share branch metadata persistence with the
-Branch tab; version-specific annotations are not yet separate.
+**Current limits (source review 2026-11-03):** capture and MODEL transport
+cover all 18 collections and persistent root metadata, including mixed
+root/entity transactions. Complete mutation-path, external HTTP/Standalone
+restart and browser/WASM acceptance remain open. General import replacement,
+full-project Clone/Fetch, Publish and Merge UI flows are unfinished.
+HEAD/Revision detail Tags/Description currently share branch-metadata
+persistence; independent per-revision annotations are not yet available.
+
+**History and Undo/Redo are not implemented:** the existing toolbar History
+action navigates to the Projects revision tree. A future left History dock
+will combine editing actions and immutable Commit markers and permit
+navigation across those markers without rewriting a committed revision.
+See the [History roadmap](docs/history-roadmap.md).
 
 Start with [documentation index](docs/README.md),
 [DVMDB quickstart](docs/dvmdb-quickstart.md),
@@ -43,7 +50,8 @@ Start with [documentation index](docs/README.md),
 [graph layout](docs/project-graph-layout.md),
 [Save/recovery](docs/personal-working-copy-save.md),
 [network import semantics](docs/network-open-import-replacement.md),
-and the [integration roadmap](docs/dvmdb-integration-roadmap.md).
+the [remaining integration roadmap](docs/dvmdb-integration-roadmap.md),
+and the [History roadmap](docs/history-roadmap.md).
 
 The Projects revision graph is drawn with **QWidget/QPainter**; it does not
 create a second bgfx device next to the map renderer.

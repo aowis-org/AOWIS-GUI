@@ -1,47 +1,31 @@
-# UUIDv7 version-control integration contract
+# Projects identities and revision semantics in the GUI
 
-AOWIS/DVMDB uses UUIDv7 for the persistent identities of projects,
-branches, immutable committed revisions and private working copies.
-SHA-256 verifies immutable revision records and complete Merkle snapshots;
-it is never an alternative revision identity.
+This is the current identity convention used by the Projects navigator,
+inspectors, and DVMDB API clients; it is not a migration/readiness roadmap.
 
-## Model boundaries
+- The repository, project, branch, immutable revision and private working
+  copy have distinct UUIDv7 identities. Branch names are mutable labels.
+- Immutable revision records contain ordered parents, author, message,
+  time, canonical snapshot roots and SHA-256 integrity information.
+  SHA-256 is **not** the revision's logical ID.
+- `headRevisionId: null` means an existing unborn branch, **not** a missing
+  branch. A newly created project has unborn `main` and no fake first
+  commit; independent unborn branches can coexist.
+- DVMDB's committed branch **HEAD** is a nullable revision reference. The
+  GUI's **HEAD card** is the editable working tip; it is **not** an immutable
+  revision. Opening it creates or reopens a separate private draft.
+- Shared immutable revisions can be reachable from several branches and
+  are drawn only once in the Projects graph. The branch's fork provenance
+  is metadata, not an invented ancestry edge.
+- Checkout preserves logical UUIDs and immutable ancestry while creating a
+  distinct working-copy UUIDv7. Personal and shared repositories have
+  independent branch HEAD refs.
+- Creation, rename, checkout and metadata writes use canonical identities,
+  not names for cross-repository matching. The GUI verifies repository
+  identity/role and MODEL fingerprint; pinned metadata writes carry the
+  selected repository UUID.
 
-| Object | Display and interaction |
-|---|---|
-| Project | UUIDv7; owns named branches and revision history |
-| Branch | Stable UUIDv7, UTF-8 label, nullable committed HEAD, origin branch/fork revision metadata |
-| Committed revision | Immutable UUIDv7, ordered parents, canonical SHA-256, snapshot identity |
-| Working copy | User/session-private UUIDv7, mutable model state, pinned base revision UUID/null |
-
-A new project creates an unborn `main` and **no committed revision**.
-Additional independent unborn branches can be added to the same project.
-The GUI renders one working HEAD **card** for each branch; it is not a
-committed revision or a revision DAG vertex.
-Creating a branch from committed history does **not** create a revision.
-Creating a new working copy does **not** create or advance a branch HEAD.
-Only a successful expected-HEAD commit creates a new immutable revision.
-
-## Native and REST reader/writer requirements
-
-- Read paginated complete history with a stable snapshot of branch HEADs,
-  two-parent merge closure, record hashes and branch-origin metadata.
-- Treat `headRevisionId: null` as an unborn branch, not a missing object.
-- Preserve full UUIDv7 IDs in model, selections, API calls and persistence;
-  shortened labels are display-only. Names may contain valid UTF-8 spaces.
-- Checkout always returns an independent working-copy UUIDv7, owner/session,
-  base revision/null and target branch UUIDv7.
-- Commit with an exact expected branch HEAD/null and idempotency key;
-  return a conflict if HEAD advanced. Retain private work on conflict.
-- Never silently replace a current user's draft with a stale catalogue read.
-- Branch provenance is inspector metadata, not a second revision-ancestry
-  graph edge.
-
-## Verification
-
-The complete acceptance suite must cover empty project, first commit, independent
-branching, shared immutable ancestry, multi-user optimistic conflicts,
-three-way merge, pagination, reload, replication and native/REST equivalence.
-All resulting graph cards and inspector actions follow
-[Projects workspace](projects-workspace.md) and
-[version-control rules](../../AOWIS-SERVER-DVMDB/docs/version-control-semantics.md).
+For the actual UI see [Projects](projects-workspace.md); for storage/API
+semantics see [DVMDB version control](../../AOWIS-SERVER-DVMDB/docs/version-control-semantics.md).
+Whole-project Clone/Fetch, Publish and conflict-resolution GUI flows are
+unfinished and described only in the [integration roadmap](dvmdb-integration-roadmap.md).

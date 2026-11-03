@@ -118,7 +118,7 @@
 | `unit_conversion_test.cpp`, `unit_model_header_authority_test.cpp` | Conversion semantics and forwarding to Model authority | Matching external repository revisions, all import/export contracts |
 | `unit_profile_storage_test.cpp`, `unit_aware_view_test.cpp` | Profiles, lazy-generation lifecycle; unconditional checks in Release | Complex application/detached-window lifecycles |
 | `numeric_property_binding_test.cpp`, `numeric_editor_adapters_test.cpp`, `unit_numeric_spin_box_test.cpp`, `numeric_text_test.cpp` | Precision/no-op edits, controls, text formatting | Full inspector interaction for every entity type |
-| `coordinate_property_binding_test.cpp`, `coordinate_numeric_spin_box_test.cpp` | Independent geographic axis edits | Production node/Demand Point navigation and undo/redo |
+| `coordinate_property_binding_test.cpp`, `coordinate_numeric_spin_box_test.cpp` | Independent geographic axis edits | Production node/Demand Point navigation; Undo/Redo is deferred to the History subsystem |
 | `emitter_coefficient_binding_test.cpp`, `emitter_numeric_spin_box_test.cpp` | Exponent-dependent coefficients; canonical value preservation | Whole-network emitter constraints and solver export |
 | `unit_table_presentation_test.cpp` | Explicit quantity metadata, filtering and localized headings | All production columns, clipboard and user export |
 | `map_render_neutral_tests.cpp` ("map scale unit presentation", "map HUD length presentation") | Profile-defined readable map scales and HUD lengths | Actual WebAssembly browser runtime / ownership |
