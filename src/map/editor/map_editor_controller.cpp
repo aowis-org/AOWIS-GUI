@@ -24,9 +24,9 @@ MapEditorController::MapEditorController(MapModel *map_model, MapCanvasEntities 
                 this, &MapEditorController::signalEntitySelectionChanged);
     }
 
-    // A drag never spans a view mode switch (its corners were picked with
-    // the other camera); the selection itself is in tiles and stays. In 3D
-    // nothing is placed or hovered.
+    // An interaction never spans a view switch: the old camera's projection
+    // cannot safely drive the new one. 3D may preview a tool, but must not
+    // commit network changes until terrain-safe editing is implemented.
     if (this->map_model)
     {
         connect(this->map_model, &MapModel::viewModeChanged, this, [this](MapViewMode view_mode)
@@ -127,7 +127,8 @@ void MapEditorController::stopEntityPositioning()
 
 void MapEditorController::deleteSelectedEntities()
 {
-    if (this->map_canvas_entities)
+    // Preview-only globe interaction must never mutate the hydraulic model.
+    if (!globeMode() && this->map_canvas_entities)
         this->map_canvas_entities->onMarkerSelectedDeleteRequested();
 }
 
@@ -324,6 +325,17 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
     {
         if (this->rectangle_dragging)
             return globeMouseMove(position, viewport_size);
+        // Use the EXACT 2D placement state machine for a live globe preview.
+        // Creating only: floatEntity() in move mode changes model geometry.
+        // Only temporary link-start/bend choices are allowed on right-click;
+        // hydraulic completion, moving and deletion await 3D-00D2.
+        if (this->map_canvas_entities->creatingPreviewActive()
+            && (!this->rectangle_selection_active
+                || this->rectangle_selection_interacts_with_entities))
+        {
+            setCursorShape(Qt::CrossCursor);
+            return this->map_canvas_entities->floatEntity(position);
+        }
         if (allow_entity_interaction &&
             (!this->rectangle_selection_active || this->rectangle_selection_interacts_with_entities)
             && this->map_canvas_entities->isEntityAt(position))
@@ -494,6 +506,15 @@ bool MapEditorController::globeCoordinateAt(const QPointF &position, const QSize
 bool MapEditorController::globeMousePress(const QPointF &position, Qt::MouseButton button,
                                           const QSize &viewport_size)
 {
+    if (button == Qt::RightButton && this->map_canvas_entities
+        && this->map_canvas_entities->creatingPreviewActive()
+        && (!this->rectangle_selection_active || this->rectangle_selection_interacts_with_entities))
+    {
+        // The ordinary editor owns link-start/bend state and placement
+        // feedback. The explicit false forbids every hydraulic mutation.
+        this->map_canvas_entities->floatEntity(position);
+        return this->map_canvas_entities->anchorMarker(position, false);
+    }
     // Only the cache sections' tile selection; everything else (left drag
     // pans, middle / Ctrl orbits) belongs to the globe navigation.
     if (button != Qt::RightButton || !this->rectangle_selection_active
@@ -521,7 +542,7 @@ bool MapEditorController::globeMouseMove(const QPointF &position, const QSize &v
 {
     if (!this->rectangle_selection_active || !this->rectangle_dragging)
     {
-        // No hover, no placement on the globe.
+        // Globe tile-selection drags are separate from editor previews.
         setCursorShape(std::nullopt);
         return false;
     }

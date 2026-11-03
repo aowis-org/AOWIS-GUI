@@ -43,6 +43,9 @@ public:
     void completeMove();
 
     void updateMousePosition(const QPointF &position, const CoordinateWGS84 &coordinate);
+    // A globe ray can miss the map. Hide the pointer preview instead of
+    // reusing the last valid ground coordinate or snapping to an old node.
+    void invalidateMousePosition(const QPointF &position);
     QPointF mousePosition() const;
     CoordinateWGS84 mouseCoordinate() const;
     CoordinateWGS84 previousMouseCoordinate() const;

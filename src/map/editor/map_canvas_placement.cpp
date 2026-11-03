@@ -171,6 +171,17 @@ void MapCanvasPlacement::updateMousePosition(const QPointF &position,
     this->mouse_coordinate_valid = true;
 }
 
+void MapCanvasPlacement::invalidateMousePosition(const QPointF &position)
+{
+    this->mouse_position = position;
+    this->mouse_coordinate_valid = false;
+    this->connection_target_uuid = QUuid();
+    this->floating_visible = false;
+    // This is a globe-ray miss, not the 2D post-placement suppression
+    // around a just-created node. Reveal immediately on the next valid ray.
+    this->draw_immediately = true;
+}
+
 QPointF MapCanvasPlacement::mousePosition() const
 {
     return this->mouse_position;

@@ -49,8 +49,13 @@ public:
     void stopEntityPositioning();
     bool cancelActiveMove();
     bool positioningActive() const;
+    // Floating *creation* is preview-only. Moving existing entities changes
+    // live geometry and must not be entered by the 3D input bridge yet.
+    bool creatingPreviewActive() const;
     bool floatEntity(const QPointF &position);
-    bool anchorMarker(const QPointF &position);
+    // The same placement path can stage a 3D link preview without committing
+    // a hydraulic entity. The 2D editor retains its default commit behavior.
+    bool anchorMarker(const QPointF &position, bool commit_to_model = true);
 
     void setIconSizePercent(int size_percent);
     void scaleMarkers();
@@ -81,8 +86,8 @@ public:
     std::optional<MapEntityMarker> markerByUuid(const QUuid &uuid) const;
 
 private:
-    bool anchorDeviceLink(const QPointF &position);
-    bool anchorPipe(const QPointF &position);
+    bool anchorDeviceLink(const QPointF &position, bool commit_to_model);
+    bool anchorPipe(const QPointF &position, bool commit_to_model);
     bool anchorPipeVertexMove(const QPointF &position);
     QUuid createHydraulicPointEntity(InfrastructureEntity entity,
                               const CoordinateWGS84 &coordinate);

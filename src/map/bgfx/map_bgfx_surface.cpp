@@ -693,6 +693,17 @@ bool MapBgfxSurface::terrainCoordinateAtScreen(const QPointF &screen_position,
     return this->terrain_navigation.terrainCoordinateAtScreen(screen_position, coordinate);
 }
 
+bool MapBgfxSurface::globeCoordinateToScreen(const CoordinateWGS84 &coordinate,
+                                            QPointF *screen_position) const
+{
+    if (screen_position == nullptr || !this->globe_ready || !this->globe_surface
+        || this->map_model->viewMode() != MapViewMode::Globe
+        || !this->globe_interaction_projector)
+        return false;
+    return this->globe_interaction_projector(coordinate.longitude_deg,
+                                             coordinate.latitude_deg, screen_position, nullptr);
+}
+
 bool MapBgfxSurface::cachedTerrainElevationAtCoordinate(const CoordinateWGS84 &coordinate,
                                                         double *elevation_m) const
 {
@@ -957,6 +968,7 @@ void MapBgfxSurface::synchronizeHighlights()
 
 void MapBgfxSurface::releaseGpuResources()
 {
+    this->globe_interaction_projector = GlobeProjector();
     this->entity_style.release();
     this->globe_network.release();
     this->globe_network_ready = false;
@@ -1080,6 +1092,7 @@ void MapBgfxSurface::setOverlayBuilder(OverlayBuilder builder)
 void MapBgfxSurface::setGlobeOverlayBuilder(GlobeOverlayBuilder builder)
 {
     requestRedraw();
+    this->globe_interaction_projector = GlobeProjector();
     this->globe_overlay_builder = std::move(builder);
 }
 
@@ -1398,22 +1411,22 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
     const double eye_x = origin.x + double(basis.eye.x());
     const double eye_y = origin.y + double(basis.eye.y());
     const double eye_z = origin.z + double(basis.eye.z());
-    const MapGlobeSurfacePreparation &preparation = this->globe_surface->preparation();
     // drawnSurfaceHeightAt()'s ray start, above any exaggerated relief (as
     // MapGlobeTerrainNavigation::drawnSurfaceHeightAtCoordinate()).
     const double ray_start_height_m = 9000.0 * MapModel::MaxView3dVerticalExaggeration + 1000.0;
-    const MapGlobeTerrainNavigation &navigation = this->terrain_navigation;
     const double vertical_exaggeration = this->map_model->view3dVerticalExaggeration();
     this->globe_overlay_height_cache.synchronize(
         this->globe_surface->surfaceRevision(), vertical_exaggeration);
     const GlobeProjector projector =
-        [this, &view_projection, &origin, &preparation, &navigation, ray_start_height_m,
+        [this, view_projection, origin, ray_start_height_m,
          vertical_exaggeration, eye_x, eye_y, eye_z, viewport](
             double longitude_deg, double latitude_deg, QPointF *screen_position,
             double *distance_m) -> bool
     {
         if (!std::isfinite(longitude_deg) || !std::isfinite(latitude_deg))
             return false;
+        const MapGlobeSurfacePreparation &preparation = this->globe_surface->preparation();
+        const MapGlobeTerrainNavigation &navigation = this->terrain_navigation;
         // Beyond the horizon: the eye lies below the point's tangent plane
         // (geodetic up), so the globe hides it. Tested on the ellipsoid
         // first, before any relief lookup (a peak just past the horizon is
@@ -1494,6 +1507,9 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
         }
         return true;
     };
+    // The editor uses the precise same projection that drew the sprite hit
+    // rectangles. Keep a value-capturing copy, never frame-local references.
+    this->globe_interaction_projector = projector;
     // Query retained ECEF icon anchors against the view before consulting
     // terrain. Use only side planes: near/far clipping can differ between
     // Vulkan/GL/WebGL, whereas these four side inequalities are universal.

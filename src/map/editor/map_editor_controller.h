@@ -50,9 +50,9 @@ public:
     explicit MapEditorController(MapModel *map_model, MapCanvasEntities *map_canvas_entities,
                                  QObject *parent = nullptr);
 
-    // Globe mode shares MapCanvasEntities selection and hover with 2D.
-    // Right-drag cache tile selection remains globe-specific; hydraulic
-    // creation and movement are not enabled until elevation-safe editing.
+    // Globe mode shares MapCanvasEntities selection, hover, snapping and
+    // floating creation previews with 2D. Right-drag cache tile selection
+    // stays separate; hydraulic commits and moves require elevation safety.
     // Without a terrain resolver the ellipsoid is picked.
     void setGlobeCoordinateResolver(ScreenCoordinateResolver resolver);
     // What the tile selection is for (Tile Cache: map tiles, Terrain Cache:

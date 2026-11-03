@@ -96,6 +96,10 @@ std::optional<InfrastructureEntityReference> MapCanvasMarkers::nearestConnection
             continue;
 
         const QPointF point = markerAnchorPosition(marker);
+        // The globe projector can reject nodes behind the horizon or before
+        // its first frame. NaNs must never become connection candidates.
+        if (!std::isfinite(point.x()) || !std::isfinite(point.y()))
+            continue;
         const double distance_x = point.x() - mouse_position.x();
         const double distance_y = point.y() - mouse_position.y();
         const double distance_squared = distance_x * distance_x + distance_y * distance_y;

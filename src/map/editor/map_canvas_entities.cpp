@@ -519,6 +519,11 @@ bool MapCanvasEntities::positioningActive() const
            this->demand_point_attachment_moving;
 }
 
+bool MapCanvasEntities::creatingPreviewActive() const
+{
+    return this->placement->isCreating();
+}
+
 bool MapCanvasEntities::floatEntity(const QPointF &position)
 {
     if (this->demand_point_attachment_moving)
@@ -599,6 +604,8 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
         this->projection->coordinateFromScreen(position, this->map_canvas->size());
     if (!mouse_coordinate.has_value())
     {
+        if (!this->projection->supportsMercatorHitBox() && this->placement->isCreating())
+            this->placement->invalidateMousePosition(position);
         updateCanvas();
         return true;
     }
@@ -654,9 +661,14 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
     return true;
 }
 
-bool MapCanvasEntities::anchorMarker(const QPointF &position)
+bool MapCanvasEntities::anchorMarker(const QPointF &position, bool commit_to_model)
 {
-    if (anchorPipeVertexMove(position))
+    // Only shared creation-preview state can change in the globe until
+    // terrain/elevation-aware hydraulic commits exist. No move or new node
+    // may pass through this preview-only branch.
+    if (!commit_to_model && !this->placement->isCreating())
+        return false;
+    if (commit_to_model && anchorPipeVertexMove(position))
         return true;
 
     if (!this->placement->hasFloatingMarker())
@@ -685,10 +697,13 @@ bool MapCanvasEntities::anchorMarker(const QPointF &position)
     if (this->placement->isCreating())
     {
         if (InfrastructureEntityTraits::isHydraulicDeviceLink(this->placement->entity()))
-            return anchorDeviceLink(position);
+            return anchorDeviceLink(position, commit_to_model);
         if (this->placement->entity() == InfrastructureEntity::Pipe)
-            return anchorPipe(position);
+            return anchorPipe(position, commit_to_model);
     }
+
+    if (!commit_to_model)
+        return true; // Floating junction/tank/reservoir/demand icons only.
 
     const std::optional<CoordinateWGS84> projected_coordinate =
         this->projection->coordinateFromScreen(position, this->map_canvas->size());
@@ -757,8 +772,12 @@ QUuid MapCanvasEntities::createHydraulicPointEntity(InfrastructureEntity entity,
     }
 }
 
-bool MapCanvasEntities::anchorDeviceLink(const QPointF &position)
+bool MapCanvasEntities::anchorDeviceLink(const QPointF &position, bool commit_to_model)
 {
+    // The start-node choice is shared preview state. Completion would add
+    // a hydraulic device, so the globe cannot do it yet.
+    if (!commit_to_model && this->device_links->hasStartNode())
+        return true;
     const InfrastructureEntity entity = this->placement->entity();
     InfrastructureEntityReference reference;
     reference.type = entity;
@@ -1063,7 +1082,7 @@ void MapCanvasEntities::deletePipeVertex(const QUuid &pipe_uuid, int vertex_inde
     }
 }
 
-bool MapCanvasEntities::anchorPipe(const QPointF &position)
+bool MapCanvasEntities::anchorPipe(const QPointF &position, bool commit_to_model)
 {
     const QUuid connection_target_uuid = this->placement->connectionTargetUuid();
     if (!this->pipes->hasStartNode())
@@ -1084,6 +1103,8 @@ bool MapCanvasEntities::anchorPipe(const QPointF &position)
 
     if (!connection_target_uuid.isNull())
     {
+        if (!commit_to_model)
+            return true; // Show the snapped completion preview; do not add a pipe.
         if (connection_target_uuid == this->pipes->startNodeUuid())
             return true;
 
@@ -1262,7 +1283,9 @@ MapEditorVisualState MapCanvasEntities::visualState() const
 
     state.placement.creating = this->placement->isCreating();
     state.placement.floating_marker_visible =
-        this->placement->isCreating() && this->placement->floatingMarkerVisible();
+        this->placement->isCreating() && this->placement->floatingMarkerVisible()
+        && (this->projection->supportsMercatorHitBox()
+            || this->placement->mouseCoordinateValid());
     state.placement.entity = this->placement->entity();
     state.placement.connection_target_uuid = this->placement->connectionTargetUuid();
     state.placement.pipe_start_node_uuid = this->pipes->startNodeUuid();

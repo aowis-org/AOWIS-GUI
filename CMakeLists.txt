@@ -1002,6 +1002,26 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-map-canvas-projection COMMAND aowis-map-canvas-projection-tests)
     set_tests_properties(aowis-map-canvas-projection PROPERTIES LABELS "aowis")
 
+    # 3D-00D1: the same creation state as 2D must hide its floating icon and
+    # snapped target when a globe ray misses terrain, then recover cleanly.
+    add_executable(aowis-map-canvas-preview-tests
+        tests/map_canvas_preview_test.cpp
+        src/map/editor/map_canvas_placement.cpp)
+    target_include_directories(aowis-map-canvas-preview-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-EPANET/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-EPANET/external/epanet/include)
+    target_link_libraries(aowis-map-canvas-preview-tests PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network AOWIS::ServerModel)
+    if(NOT EMSCRIPTEN)
+        target_link_libraries(aowis-map-canvas-preview-tests PRIVATE Qt6::Positioning)
+    endif()
+    add_test(NAME aowis-map-canvas-preview COMMAND aowis-map-canvas-preview-tests)
+    set_tests_properties(aowis-map-canvas-preview PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # Stage 9: 100k-anchor ECEF spatial visibility benchmark and regression.
     # Uses only the standard library, so it also compiles in standalone CI.
     add_executable(aowis-map-bgfx-globe-icon-index-tests

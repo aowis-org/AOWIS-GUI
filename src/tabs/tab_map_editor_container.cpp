@@ -480,13 +480,14 @@ void MapEditorContainer::setupBgfxEditor()
                     return std::nullopt;
                 return coordinate;
             },
-            [](const CoordinateWGS84 &, const QSize &)
+            [this](const CoordinateWGS84 &coordinate, const QSize &)
                 -> std::optional<QPointF>
             {
-                // World-to-screen interaction projection is introduced with
-                // terrain-aware editing in 3D-00D. Read-only picking works
-                // through the renderer in this step; never use Mercator here.
-                return std::nullopt;
+                QPointF projected;
+                if (this->bgfx_surface == nullptr
+                    || !this->bgfx_surface->globeCoordinateToScreen(coordinate, &projected))
+                    return std::nullopt;
+                return projected;
             },
             [this, overlay](const QPointF &point, const QSize &)
                 -> std::optional<InfrastructureEntityReference>
@@ -1145,14 +1146,14 @@ MapEditorMenuWidget::MapEditorMenuWidget(MapWidget *map, MapCanvasWidget *map_ca
 void MapEditorMenuWidget::applyViewMode(MapViewMode view_mode)
 {
     const bool globe = view_mode == MapViewMode::Globe;
-    // A tool in use ends with the switch (the controller stops placing):
-    // back to Select, so nothing looks armed when 2D returns.
-    if (globe && this->button_radio_select != nullptr)
+    // A tool in use ends on either view switch. Both views arm the same
+    // selection/creation tools, but the globe currently previews only.
+    if (this->button_radio_select != nullptr)
         this->button_radio_select->setChecked(true);
     if (this->edit_tools != nullptr)
-        this->edit_tools->setEnabled(!globe);
-    if (this->label_edit_globe_hint != nullptr)
-        this->label_edit_globe_hint->setVisible(globe);
+        this->edit_tools->setEnabled(true);
+    if (this->button_edit_delete != nullptr)
+        this->button_edit_delete->setEnabled(!globe && this->editor_delete_selection_available);
 } 
 
 void MapEditorMenuWidget::applyTerrainDataset()
@@ -1609,14 +1610,6 @@ void MapEditorMenuWidget::createEditControls()
 {
     QWidget *wgt = new QWidget(this);
     QVBoxLayout *page_layout = new QVBoxLayout(wgt);
-    // 3D: the tools are disabled as a whole (their own enabled states are
-    // kept for 2D) and this hint says why.
-    this->label_edit_globe_hint = new QLabel(
-        "<b>Network editing works in 2D.</b> Switch the map to 2D with the 2D/3D button "
-        "to edit. Map and terrain cache controls are in Map Management.", wgt);
-    this->label_edit_globe_hint->setWordWrap(true);
-    this->label_edit_globe_hint->setVisible(false);
-    page_layout->addWidget(this->label_edit_globe_hint);
     this->edit_tools = new QWidget(wgt);
     QVBoxLayout *lay = new QVBoxLayout(this->edit_tools);
     lay->setContentsMargins(0, 0, 0, 0);
@@ -1638,17 +1631,19 @@ void MapEditorMenuWidget::createEditControls()
         this->editor_controller->startRectangleSelection(false, true);
     });
     
-    QToolButton *button_delete = new QToolButton(wgt);
-    bindEditorShortcut(button_delete, GuiShortcutId::MapEditorDelete,
+    this->button_edit_delete = new QToolButton(wgt);
+    bindEditorShortcut(this->button_edit_delete, GuiShortcutId::MapEditorDelete,
                        QStringLiteral("Delete Selected"), this);
-    button_delete->setEnabled(false);
-    lay->addWidget(button_delete);
+    this->button_edit_delete->setEnabled(false);
+    lay->addWidget(this->button_edit_delete);
     connect(this->editor_controller, &MapEditorController::signalEntitySelectionChanged, this,
-    [button_delete](bool selected)
+    [this](bool selected)
     {
-        button_delete->setEnabled(selected);
+        this->editor_delete_selection_available = selected;
+        this->button_edit_delete->setEnabled(
+            selected && this->map->model()->viewMode() != MapViewMode::Globe);
     });
-    connect(button_delete, &QPushButton::clicked, this->editor_controller,
+    connect(this->button_edit_delete, &QPushButton::clicked, this->editor_controller,
             &MapEditorController::deleteSelectedEntities);
     
     QLabel *label_add = new QLabel("Add:", this);

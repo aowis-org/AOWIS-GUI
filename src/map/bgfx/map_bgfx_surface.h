@@ -73,6 +73,10 @@ public:
     // camera-height follow runs inside this surface.
     bool terrainCoordinateAtScreen(const QPointF &screen_position, CoordinateWGS84 *coordinate,
                                    bool request_missing_tile = true);
+    // The same drawn-terrain projection used for the last globe overlay
+    // frame. No independent 3D editing camera or terrain calculation.
+    bool globeCoordinateToScreen(const CoordinateWGS84 &coordinate,
+                                 QPointF *screen_position) const;
     bool cachedTerrainElevationAtCoordinate(const CoordinateWGS84 &coordinate,
                                             double *elevation_m) const;
     bool globeSurfaceRayHitAtScreen(const QPointF &screen_position,
@@ -435,6 +439,9 @@ private:
     // HUD's), draw list and bgfx objects.
     OverlayBuilder overlay_builder;
     GlobeOverlayBuilder globe_overlay_builder;
+    // The projector owns copies of the last drawn camera values, never
+    // references to renderGlobeOverlay() stack locals.
+    GlobeProjector globe_interaction_projector;
     bool globe_flat_entity_icons_enabled = false;
     MapBgfxHudTextCache overlay_text_cache{2048};
     MapBgfxHudCanvas overlay_canvas;

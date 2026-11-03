@@ -51,9 +51,9 @@
 // cannot start, a status label takes the map's place.
 //
 // 3D: the HUD's 2D/3D switch shows the globe (terrain, the network in the
-// editor look, the globe HUD) once the bgfx globe initialized. Network
-// editing is 2D only; the cache sections (map tiles, terrain) select their
-// tiles on the globe as well.
+// editor look, the globe HUD) once the bgfx globe initialized. The same
+// editing tools preview in 3D, but hydraulic writes remain 2D-only until
+// terrain-safe commits are implemented. Cache tile selection works in 3D.
 class MapModeToolPanel;
 class MapBgfxSurface;
 class MapMonitorContainer;
@@ -116,7 +116,8 @@ private:
     QToolButton *button_tiles_delete = nullptr;
     QCheckBox *checkbox_map_editor_guide = nullptr;
     QWidget *edit_tools = nullptr;
-    QLabel *label_edit_globe_hint = nullptr;
+    QToolButton *button_edit_delete = nullptr;
+    bool editor_delete_selection_available = false;
 
     // Terrain Cache section.
     QLabel *label_terrain_dataset = nullptr;
