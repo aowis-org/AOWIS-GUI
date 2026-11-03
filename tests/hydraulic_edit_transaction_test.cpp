@@ -2412,6 +2412,147 @@ void testDraftStageRejectsOutOfOrderReplay()
 }
 
 
+// INT-05: capture all 18 collections in one actual network, not only as
+// isolated single-entity fixtures. The event queue must preserve exactly the
+// same canonical MODEL bytes across both pending and acknowledged restarts.
+template<typename Entity>
+bool captureInt05Insertion(NetworkHydraulic &network,
+                           QList<Entity> NetworkHydraulic::*collection,
+                           const QString &name, QList<QByteArray> &events)
+{
+    Entity entity;
+    entity.uuid = createUuidV7();
+    entity.id = name;
+    HydraulicEditTransactionCapture capture(QStringLiteral("int05.entity.create"));
+    if (!capture.watchCreated(entity.uuid))
+        return false;
+    (network.*collection).append(entity);
+    QString error;
+    const std::optional<QByteArray> bytes = capture.finish(network, &error);
+    if (!bytes || !error.isEmpty())
+        return false;
+    events.append(*bytes);
+    return true;
+}
+
+void testInt05CompleteNetworkQueueRoundTrip()
+{
+    NetworkHydraulic baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("INT-05 complete network");
+    NetworkHydraulic network = baseline;
+    QList<QByteArray> events;
+    bool captured = true;
+#define CAPTURE_INT05_COLLECTION(name, type, kind, ordinal) \
+    if (captured) \
+        captured = captureInt05Insertion<type>(network, &NetworkHydraulic::name, \
+                      QStringLiteral("INT05-%1").arg(ordinal), events);
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(CAPTURE_INT05_COLLECTION)
+#undef CAPTURE_INT05_COLLECTION
+    test_harness.expectTrue(captured && events.size() == 18,
+        "INT-05 all 18 collections capture into one complete network");
+    if (!captured || events.size() != 18) return;
+
+    // Use the real HydraulicData metadata setter, which is how GUI settings
+    // must reach the same canonical event/queue transport as entity edits.
+    HydraulicData editor;
+    editor.replaceNetworkHydraulic(network, {});
+    QList<QByteArray> root_events;
+    QObject::connect(&editor, &HydraulicData::signalLogicalEditRecorded,
+                     &editor, [&root_events](const QByteArray &bytes)
+                     { root_events.append(bytes); });
+    editor.setLogicalEditCaptureEnabled(true);
+    NetworkHydraulic metadata = aowis::model::hydraulicRootMetadata(network);
+    metadata.id = QStringLiteral("INT-05 renamed network");
+    metadata.title_line_1 = QStringLiteral("All 18 collections");
+    metadata.title_line_2 = QStringLiteral("Saved and reopened");
+    metadata.title_line_3 = QStringLiteral("Canonical model equality");
+    metadata.duration_s = 86400;
+    metadata.timestep_hydraulic_s = 900;
+    metadata.timestep_quality_s = 300;
+    metadata.timestep_pattern_s = 1800;
+    metadata.timestep_report_s = 1800;
+    metadata.timestep_rule_s = 300;
+    metadata.start_time_of_day_s = 3600;
+    metadata.report_statistic = HydraulicSimulationReportStatistic::Average;
+    metadata.options_hydraulic.headloss_formula = HydraulicHeadlossFormula::DarcyWeisbach;
+    metadata.options_energy.currency_iso4217 = QStringLiteral("EUR");
+    metadata.options_report.summary = false;
+    metadata.map_backdrop.file = QStringLiteral("int05-backdrop.png");
+    MultiSpeciesSpecies species;
+    species.uuid = createUuidV7();
+    species.id = QStringLiteral("INT05 tracer");
+    species.note = QStringLiteral("Persisted MSX root settings");
+    metadata.multi_species.species.append(species);
+    const bool root_captured = editor.setNetworkRootMetadata(metadata) &&
+        editor.logicalEditCaptureEnabled() && root_events.size() == 1;
+    test_harness.expectTrue(root_captured,
+        "INT-05 persistent root options/times/report/backdrop create one GUI edit");
+    if (!root_captured) return;
+    events.append(root_events.first());
+    const QByteArray expected =
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(editor.networkHydraulic());
+    test_harness.expectTrue(!expected.isEmpty(), "INT-05 complete canonical network encodes");
+    if (expected.isEmpty()) return;
+
+    QTemporaryDir directory;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    QString error;
+    PersonalDraftEditStage staged;
+    bool queued = directory.isValid() &&
+        staged.open(directory.path(), repository, draft, baseline, {}, &error);
+    for (const QByteArray &bytes : events)
+    {
+        if (!queued) break;
+        queued = staged.append(bytes, &error);
+    }
+    test_harness.expectTrue(queued && staged.pendingCount() == 19 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged.visibleNetwork()) == expected,
+        "INT-05 all collections and root enter the durable queue without data loss");
+    if (!queued) return;
+    staged.close();
+
+    PersonalDraftEditStage recovered;
+    const bool opened = recovered.open(directory.path(), repository, draft,
+                                       baseline, {}, &error);
+    test_harness.expectTrue(opened && recovered.pendingCount() == 19 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.visibleNetwork()) == expected,
+        "INT-05 queued mixed network survives a fresh editing session");
+    if (!opened) return;
+    bool acknowledged = true;
+    for (int index = 0; index < events.size(); ++index)
+    {
+        NetworkHydraulic next;
+        QList<PersonalWorkingCopyChange> records;
+        QList<HydraulicDraftMembershipEdit> membership;
+        if (!recovered.prepareOldest(next, records, membership, &error) ||
+            (index < 18
+                ? records.size() != 1 || membership.size() != 1 ||
+                  !membership.first().inserted ||
+                  membership.first().collection_index != static_cast<quint16>(index)
+                : !records.isEmpty() || !membership.isEmpty()) ||
+            !recovered.acknowledgeOldest(events.at(index), &error))
+        {
+            acknowledged = false;
+            break;
+        }
+    }
+    test_harness.expectTrue(acknowledged && recovered.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.persistedNetwork()) == expected,
+        "INT-05 19 canonical saves preserve every collection and root field");
+    if (!acknowledged) return;
+    const NetworkHydraulic persisted = recovered.persistedNetwork();
+    recovered.close();
+
+    PersonalDraftEditStage reopened;
+    test_harness.expectTrue(reopened.open(directory.path(), repository, draft,
+                                          persisted, {}, &error) &&
+        reopened.pendingCount() == 0 &&
+        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.visibleNetwork()) == expected,
+        "INT-05 final reopen has exact full-network canonical equality");
+}
+
 void testNetworkRootMetadataCaptureAndReplay()
 {
     NetworkHydraulic base;
@@ -2501,6 +2642,8 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     test_harness.runCase("INT-04 unsupplied network draft survives restart",
                          testUnsolvableNetworkDraftSurvivesRestart);
+    test_harness.runCase("INT-05 complete network queue round-trip",
+                         testInt05CompleteNetworkQueueRoundTrip);
     test_harness.runCase("Network-root metadata capture and replay", testNetworkRootMetadataCaptureAndReplay);
     test_harness.runCase("Terrain-relative 3D node creation", testTerrainRelativeNodeCreationIsAtomic);
     test_harness.runCase("Atomic 3D node movement", testTerrainAwareNodeMovementIsAtomic);

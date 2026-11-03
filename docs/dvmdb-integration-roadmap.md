@@ -182,6 +182,21 @@ creation/deletion is subject to DVMDB's documented list semantics.
   operation identity. The previously failing `aowis-projects-inspector-dock`
   suite must pass against actual tab ownership; avoid weakening real checks.
 
+**INT-05 regression checkpoint (2026-11-03; acceptance pending):**
+The GUI `aowis-hydraulic-edit-transaction` test now adds all 18 canonical
+collections to *one* network, updates network identity, simulation timing,
+solver/energy/report options, MSX and backdrop through `HydraulicData`, and
+checks complete `ModelCodec<NetworkHydraulic>` equality across queued restart,
+event acknowledgement and another reopen. This complements existing
+per-collection CRUD and widget tests; it does **not** itself exercise real
+DVMDB HTTP, embedded Standalone, user-interface undo/redo, or process restart.
+DVMDB adds an immutable-Commit/reopen/compaction check of the same full-network
+canonical equality, including nondefault root metadata. The current REST
+contract accepts network-root and membership/record edits in **separate**
+events, not one combined event; this is a remaining atomic mixed-edit gap.
+Do not mark INT-05 accepted until full HTTP/Standalone and mutation-path
+qualification pass and this boundary is explicitly resolved.
+
 ### Collaboration and synchronization (INT-08 → INT-10)
 
 * **Clone/Fetch:** full project graph, branches and unborn states. Pin shared
