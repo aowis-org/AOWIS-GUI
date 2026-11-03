@@ -211,6 +211,15 @@ void testGlobeCallbackProjection()
         "off-horizon world projection has no invented screen point");
     const int calls_before = screen_calls + world_calls;
     test_harness.expectTrue(!globe.coordinateFromScreen(
+        QPointF(-1.0, 200.0), viewport).has_value(),
+        "globe movement cannot use a coordinate outside the left viewport edge");
+    test_harness.expectTrue(!globe.coordinateFromScreen(
+        QPointF(800.0, 200.0), viewport).has_value(),
+        "globe placement cannot use a coordinate outside the right viewport edge");
+    test_harness.expectTrue(!globe.coordinateFromScreen(
+        QPointF(50.0, 600.0), viewport).has_value(),
+        "globe placement cannot use a coordinate outside the bottom viewport edge");
+    test_harness.expectTrue(!globe.coordinateFromScreen(
         QPointF(0, 0), QSize()).has_value(), "empty viewport is rejected");
     test_harness.expectTrue(!globe.screenFromCoordinate(
         coordinate(9.0, 95.0), viewport, 0.0).has_value(),

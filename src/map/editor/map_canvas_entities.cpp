@@ -669,13 +669,19 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
         this->projection->coordinateFromScreen(position, this->map_canvas->size());
     if (!mouse_coordinate.has_value())
     {
-        if (!this->projection->supportsMercatorHitBox() && this->placement->isCreating())
+        if (!this->projection->supportsMercatorHitBox()
+            && (this->placement->isCreating() || this->placement->isMoving()))
         {
+            // An off-globe cursor is not a valid movement destination.
+            // Invalidate the preview without changing the hydraulic model;
+            // the edit can resume at the next valid terrain intersection.
             this->placement->invalidateMousePosition(position);
-            // The ray may miss terrain while the pointer is over an elevated
-            // or underground network icon. Its renderer hit is still a valid
-            // snap candidate; never retain a stale target from the last ray.
-            updateConnectionTarget(position);
+            if (this->placement->isCreating())
+            {
+                // A renderer hit on an elevated/underground node is still a
+                // valid snap candidate even though the terrain ray missed.
+                updateConnectionTarget(position);
+            }
         }
         updateCanvas();
         return true;
@@ -1424,7 +1430,11 @@ MapEditorVisualState MapCanvasEntities::visualState() const
         }
     }
 
-    state.move.active = this->placement->isMoving();
+    // Do not draw a stale 3D moved-node preview when the pointer ray is
+    // outside the globe. The move stays armed and can resume when valid.
+    state.move.active = this->placement->isMoving()
+        && (this->projection->supportsMercatorHitBox()
+            || this->placement->mouseCoordinateValid());
     state.move.session_id = this->move_session_id;
     if (state.move.active)
     {

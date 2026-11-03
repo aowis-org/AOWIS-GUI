@@ -163,7 +163,10 @@ void MapCanvasPlacement::updateMousePosition(const QPointF &position,
                                              const CoordinateWGS84 &coordinate)
 {
     this->mouse_position = position;
-    if (this->mouse_coordinate_valid)
+    // A group move has already translated its markers to the last valid
+    // coordinate. If the globe ray missed in between two valid positions,
+    // resume from that last point instead of dropping the missing delta.
+    if (this->mouse_coordinate_valid || (isMoving() && this->moving_selected))
         this->previous_mouse_coordinate = this->mouse_coordinate;
     else
         this->previous_mouse_coordinate = coordinate;

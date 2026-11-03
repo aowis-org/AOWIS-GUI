@@ -263,6 +263,16 @@ bool MapEditorController::keyPress(Qt::Key key)
     if (this->map_canvas_entities && this->map_canvas_entities->cancelActiveMove())
         return true;
 
+    // The shared editor owns pipe/node placement and demand-point attachment
+    // in both projections. Escape must cancel these unfinished interactions,
+    // not leave an armed floating entity or a partially started link.
+    if (this->map_canvas_entities && this->map_canvas_entities->positioningActive())
+    {
+        this->map_canvas_entities->stopEntityPositioning();
+        setCursorShape(std::nullopt);
+        return true;
+    }
+
     if (!this->rectangle_selection_active)
         return false;
 

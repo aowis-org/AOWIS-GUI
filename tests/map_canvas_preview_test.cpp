@@ -48,6 +48,46 @@ void testMissingGlobeCoordinateDiscardsPreview()
     test_harness.expectTrue(placement.isIdle() && !placement.floatingMarkerVisible(),
                             "tool cancellation clears its preview");
 }
+void testGlobeMoveRecoveryAfterTerrainMiss()
+{
+    MapCanvasPlacement placement(nullptr);
+    CoordinateWGS84 start;
+    start.longitude_deg = 8.0;
+    start.latitude_deg = 50.0;
+    const QUuid moving_uuid = QUuid::createUuid();
+    test_harness.expectTrue(placement.startMove(
+        InfrastructureEntity::Junction, moving_uuid,
+        QStringLiteral(":/junction.png"), 32, QPointF(100.0, 100.0), start),
+        "begin a shared 3D node move at a valid geographic position");
+    placement.setMovingSelected(true);
+
+    CoordinateWGS84 first;
+    first.longitude_deg = 8.1;
+    first.latitude_deg = 50.1;
+    placement.updateMousePosition(QPointF(200.0, 200.0), first);
+    placement.invalidateMousePosition(QPointF(900.0, 700.0));
+    test_harness.expectTrue(placement.isMoving() && !placement.mouseCoordinateValid()
+                            && !placement.floatingMarkerVisible(),
+                            "off-globe movement hides preview without canceling the move");
+
+    CoordinateWGS84 resumed;
+    resumed.longitude_deg = 8.3;
+    resumed.latitude_deg = 50.3;
+    placement.updateMousePosition(QPointF(300.0, 300.0), resumed);
+    test_harness.expectNear(placement.previousMouseCoordinate().longitude_deg,
+                            first.longitude_deg, 1e-12,
+                            "selected-group movement resumes from last valid longitude");
+    test_harness.expectNear(placement.previousMouseCoordinate().latitude_deg,
+                            first.latitude_deg, 1e-12,
+                            "selected-group movement resumes from last valid latitude");
+    test_harness.expectTrue(placement.mouseCoordinateValid()
+                            && placement.revealFloatingMarkerIfReady(),
+                            "preview reappears after a valid terrain hit");
+    placement.stop();
+    test_harness.expectTrue(placement.isIdle() && !placement.mouseCoordinateValid(),
+                            "canceling movement clears pending coordinate validity");
+}
+
 void testGlobeLinkSnapAcrossMissingTerrainRay()
 {
     MapCanvasPlacement placement(nullptr);
@@ -82,5 +122,7 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     test_harness.runCase("3D shared creation preview ray miss", testMissingGlobeCoordinateDiscardsPreview);
     test_harness.runCase("3D link snap survives terrain-ray miss", testGlobeLinkSnapAcrossMissingTerrainRay);
+    test_harness.runCase("3D selected-group move recovers from terrain-ray miss",
+                         testGlobeMoveRecoveryAfterTerrainMiss);
     return test_harness.finish();
 }

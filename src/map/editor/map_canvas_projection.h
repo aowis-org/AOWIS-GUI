@@ -93,7 +93,10 @@ public:
         const QPointF &screen_position, const QSize &viewport) const override
     {
         if (!this->screen_to_world || viewport.isEmpty()
-            || !std::isfinite(screen_position.x()) || !std::isfinite(screen_position.y()))
+            || !std::isfinite(screen_position.x()) || !std::isfinite(screen_position.y())
+            || screen_position.x() < 0.0 || screen_position.y() < 0.0
+            || screen_position.x() >= viewport.width()
+            || screen_position.y() >= viewport.height())
             return std::nullopt;
         const std::optional<CoordinateWGS84> result =
             this->screen_to_world(screen_position, viewport);
