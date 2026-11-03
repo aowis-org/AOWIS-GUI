@@ -746,6 +746,21 @@ void MapBgfxEditorOverlay::tileSelection()
     }
 }
 
+std::optional<InfrastructureEntityReference> MapBgfxEditorOverlay::hitTestGlobeIcon(
+    const QPointF &position) const
+{
+    if (!std::isfinite(position.x()) || !std::isfinite(position.y()))
+        return std::nullopt;
+    // The last drawn icon wins, including when multiple entities overlap.
+    for (qsizetype index = this->globe_icon_hit_areas.size(); index > 0; --index)
+    {
+        const GlobeIconHitArea &area = this->globe_icon_hit_areas.at(index - 1);
+        if (area.bounds.contains(position))
+            return area.entity;
+    }
+    return std::nullopt;
+}
+
 void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
                                       const MapEditorViewportRenderState &viewport_state,
                                       const GlobeProjector &projector,
@@ -756,6 +771,7 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const MapCanvasProjection *editor_projection)
 {
     canvas->clear();
+    this->globe_icon_hit_areas.clear();
     if (!projector || (!viewport_state.tile_selection_visible
                        && (snapshot == nullptr || icon_width <= 0)))
         return;
@@ -777,6 +793,9 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     const std::function<void()> build = [this, &viewport_state, &projector, snapshot, icon_width,
                                          &viewport_size, &frustum, editor_state, editor_projection]()
     {
+        // The atlas can be reset and this frame rebuilt: never retain hit
+        // areas from sprites discarded by the rebuild.
+        this->globe_icon_hit_areas.clear();
         this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
         if (viewport_state.tile_selection_visible)
             globeTileSelection(viewport_state, projector);
@@ -980,8 +999,9 @@ void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &sn
     std::vector<MapBgfxGlobeIconIndex::Position> positions;
     anchors.reserve(snapshot.nodes.size() + snapshot.links.size());
     positions.reserve(std::size_t(snapshot.nodes.size() + snapshot.links.size()));
-    const std::function<void(const CoordinateWGS84 &, InfrastructureEntity, bool)> append =
-        [&anchors, &positions](const CoordinateWGS84 &coordinate,
+    const std::function<void(const CoordinateWGS84 &, const QUuid &,
+                             InfrastructureEntity, bool)> append =
+        [&anchors, &positions](const CoordinateWGS84 &coordinate, const QUuid &uuid,
                                InfrastructureEntity entity, bool bottom)
     {
         if (!finite(coordinate) || coordinate.latitude_deg < -90.0
@@ -990,19 +1010,19 @@ void MapBgfxEditorOverlay::synchronizeGlobeIcons(const NetworkRenderSnapshot &sn
         const GeoWgs84Ellipsoid::EcefPositionD ecef =
             GeoWgs84Ellipsoid::geodeticToEcefD(coordinate.longitude_deg,
                                                 coordinate.latitude_deg, 0.0);
-        anchors.append(GlobeIconAnchor{coordinate, entity, bottom});
+        anchors.append(GlobeIconAnchor{coordinate, uuid, entity, bottom});
         positions.push_back({ecef.x, ecef.y, ecef.z});
     };
     for (const NetworkRenderNode &node : snapshot.nodes)
     {
         if (node.entity_type != InfrastructureEntity::Junction
             && isPointEntity(node.entity_type))
-            append(node.coordinate_wgs84, node.entity_type, true);
+            append(node.coordinate_wgs84, node.uuid, node.entity_type, true);
     }
     for (const NetworkRenderLink &link : snapshot.links)
     {
         if (isDeviceLink(link.entity_type) && link.vertices_wgs84.size() >= 2)
-            append(deviceLinkCenter(link.vertices_wgs84), link.entity_type, false);
+            append(deviceLinkCenter(link.vertices_wgs84), link.uuid, link.entity_type, false);
     }
     this->globe_icon_index.rebuild(positions);
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::GlobeEditorIconIndexBuild);
@@ -1084,12 +1104,21 @@ void MapBgfxEditorOverlay::globeNetworkIcons(const NetworkRenderSnapshot &snapsh
     {
         const Icon icon = this->icon_provider(this->cache, entry.entity,
                                               QString(), icon_width, Highlight::None);
-        if (entry.bottom_anchored)
-            drawIcon(double(qRound(entry.point.x())),
-                     double(qRound(entry.point.y())) - icon.height, icon);
-        else
-            drawIcon(entry.point.x() - icon.width / 2.0,
-                     entry.point.y() - icon.height / 2.0, icon);
+        if (!(icon.width > 0.0) || !(icon.height > 0.0))
+            continue;
+        // Use the exact sprite anchor and actual pixmap dimensions, not
+        // an arbitrary GPU picking radius. Exclude the decorative glow.
+        const double x = entry.bottom_anchored ? double(qRound(entry.point.x()))
+                                               : entry.point.x() - icon.width / 2.0;
+        const double y = entry.bottom_anchored ? double(qRound(entry.point.y())) - icon.height
+                                               : entry.point.y() - icon.height / 2.0;
+        drawIcon(x, y, icon);
+        const GlobeIconAnchor &anchor = this->globe_icon_anchors.at(
+            qsizetype(entry.source_index));
+        if (!anchor.uuid.isNull())
+            this->globe_icon_hit_areas.append(
+                GlobeIconHitArea{InfrastructureEntityReference{anchor.entity, anchor.uuid},
+                                 QRectF(x, y, icon.width, icon.height)});
     }
 }
 

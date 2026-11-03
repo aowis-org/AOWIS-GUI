@@ -808,6 +808,35 @@ void testGlobeEditorIcons()
                         300.0 - IconHeight / 2.0),
         "globe device-link icon is centred like the 2D editor");
 
+    // The hit target must match the actually drawn full-colour pixmap, not
+    // the smaller 3D network point or the underlying pipe geometry.
+    const std::optional<InfrastructureEntityReference> demand_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(405.0, 280.0));
+    req(demand_hit.has_value() && demand_hit->type == InfrastructureEntity::DemandPoint
+        && demand_hit->uuid == demand.uuid,
+        "globe sprite hit picks a demand point above its terrain anchor");
+    const std::optional<InfrastructureEntityReference> pump_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(415.0, 305.0));
+    req(pump_hit.has_value() && pump_hit->type == InfrastructureEntity::Pump
+        && pump_hit->uuid == pump.uuid,
+        "globe sprite hit picks the centered device-link icon");
+    const std::optional<InfrastructureEntityReference> overlap_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(405.0, 295.0));
+    req(overlap_hit.has_value() && overlap_hit->uuid == pump.uuid,
+        "overlapping globe sprites pick the last painted entity");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(399.0, 280.0)).has_value(),
+        "globe sprite hit excludes pixels beyond the actual image rectangle");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(NAN, 280.0)).has_value(),
+        "globe sprite hit rejects invalid pointer positions");
+
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache, s.viewport,
+                               visible, &s.snapshot, EntityWidth * 2,
+                               QSizeF(ViewportWidth, ViewportHeight));
+    const std::optional<InfrastructureEntityReference> resized_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(425.0, 282.0));
+    req(resized_hit.has_value() && resized_hit->uuid == demand.uuid,
+        "globe sprite hit rectangle follows the Editor icon-size slider");
+
     // Reverse the original snapshot order by supplying camera distances:
     // the pump is farther away than the demand point, hence drawn first.
     const MapBgfxEditorOverlay::GlobeProjector depth_order = [](
@@ -827,6 +856,10 @@ void testGlobeEditorIcons()
         && harness.probe.calls.at(0).entity == InfrastructureEntity::Pump
         && harness.probe.calls.at(1).entity == InfrastructureEntity::DemandPoint,
         "3D editor icons use far-to-near painter ordering, not snapshot order");
+    const std::optional<InfrastructureEntityReference> depth_hit =
+        harness.overlay.hitTestGlobeIcon(QPointF(405.0, 295.0));
+    req(depth_hit.has_value() && depth_hit->uuid == demand.uuid,
+        "globe sprite selection follows far-to-near painter order");
     // Equal-depth sprites still respect source order after switching the
     // candidate query to kd-tree traversal order (no O(n log n) index sort).
     const MapBgfxEditorOverlay::GlobeProjector same_depth = [](
@@ -855,6 +888,8 @@ void testGlobeEditorIcons()
                                QSizeF(ViewportWidth, ViewportHeight));
     req(harness.probe.calls.isEmpty() && harness.canvas.vertices().isEmpty(),
         "off-horizon globe entities never generate icon sprites");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(405.0, 295.0)).has_value(),
+        "hidden globe icons are not selectable from a previous render frame");
 
     const MapBgfxEditorOverlay::GlobeProjector offscreen = [](
         double, double, QPointF *point, double *)
@@ -868,6 +903,8 @@ void testGlobeEditorIcons()
                                QSizeF(ViewportWidth, ViewportHeight));
     req(harness.probe.calls.isEmpty() && harness.canvas.vertices().isEmpty(),
         "off-viewport globe icons are culled before atlas allocation");
+    req(!harness.overlay.hitTestGlobeIcon(QPointF(405.0, 295.0)).has_value(),
+        "off-viewport icons cannot leave stale picking rectangles");
 
     // A far-away sprite can be in the same snapshot but outside the camera
     // frustum. The spatial index must reject it *before* the costly projector.

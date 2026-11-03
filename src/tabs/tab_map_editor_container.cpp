@@ -456,7 +456,10 @@ void MapEditorContainer::setupBgfxEditor()
     // The editor overlay draws its pixmaps in both 2D and globe modes.
     // The 2D and the globe overlay share the surface's overlay canvas: the
     // 2D builder must not reuse (pan) a canvas the globe frames rebuilt.
-    const std::function<void(MapViewMode)> update_editor_projection = [this](MapViewMode mode)
+    // The same overlay instance paints the globe sprites and records their
+    // hit rectangles. Its hit data is read only while Editor mode is active.
+    const std::shared_ptr<MapBgfxEditorOverlay> overlay = std::make_shared<MapBgfxEditorOverlay>();
+    const std::function<void(MapViewMode)> update_editor_projection = [this, overlay](MapViewMode mode)
     {
         MapCanvasEntities *entities = this->map_canvas->mapCanvasEntities();
         if (mode != MapViewMode::Globe)
@@ -485,11 +488,18 @@ void MapEditorContainer::setupBgfxEditor()
                 // through the renderer in this step; never use Mercator here.
                 return std::nullopt;
             },
-            [this](const QPointF &point, const QSize &)
+            [this, overlay](const QPointF &point, const QSize &)
                 -> std::optional<InfrastructureEntityReference>
             {
                 if (!this->shared_editor_mode || this->bgfx_surface == nullptr)
                     return std::nullopt;
+                // A sprite is a larger, visible target than the underlying
+                // geometry. Use exactly the icon rectangles drawn by bgfx;
+                // the common entity editor still owns the selection.
+                const std::optional<InfrastructureEntityReference> icon_hit =
+                    overlay->hitTestGlobeIcon(point);
+                if (icon_hit.has_value())
+                    return icon_hit;
                 const MapRenderHit hit = this->bgfx_surface->hitTest(point);
                 if (!hit.isValid() || hit.uuid.isNull())
                     return std::nullopt;
@@ -552,7 +562,6 @@ void MapEditorContainer::setupBgfxEditor()
 
     // Editor overlay: built per frame from the cached visual state.
     const std::shared_ptr<MapBgfxEditorIcons> icons = std::make_shared<MapBgfxEditorIcons>();
-    const std::shared_ptr<MapBgfxEditorOverlay> overlay = std::make_shared<MapBgfxEditorOverlay>();
     overlay->setIconProvider(
         [icons](MapBgfxHudTextCache *cache, InfrastructureEntity entity, const QString &path,
                 int width, MapBgfxEditorOverlay::Highlight highlight)

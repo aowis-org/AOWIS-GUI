@@ -10,6 +10,7 @@
 
 #include <QHash>
 #include <QPointF>
+#include <QRectF>
 #include <QSet>
 #include <QSizeF>
 #include <QString>
@@ -17,6 +18,7 @@
 #include <QVector>
 
 #include <functional>
+#include <optional>
 
 class MapCanvasProjection;
 
@@ -117,6 +119,12 @@ public:
                     const MapBgfxGlobeIconIndex::Frustum &frustum = {},
                     const MapEditorVisualState *editor_state = nullptr,
                     const MapCanvasProjection *editor_projection = nullptr);
+    // The rectangles are recorded while painting the actual 3D Editor sprites.
+    // Query them before the globe network geometry hit-test so clicking an
+    // icon (including through terrain) selects the entity the user sees.
+    // Returns no hit when the last globe frame contained no drawable icons.
+    std::optional<InfrastructureEntityReference> hitTestGlobeIcon(
+        const QPointF &position) const;
     // Globe tile selection lattice: at most this many cells per axis (each
     // lattice point is one projection, relief lookup included), at most
     // this many cells per tile (relief detail along the frame and grid).
@@ -244,8 +252,14 @@ private:
     struct GlobeIconAnchor
     {
         CoordinateWGS84 coordinate;
+        QUuid uuid;
         InfrastructureEntity entity = InfrastructureEntity::Unknown;
         bool bottom_anchored = false;
+    };
+    struct GlobeIconHitArea
+    {
+        InfrastructureEntityReference entity;
+        QRectF bounds;
     };
     // Built on a network geometry revision only; never on camera movement.
     void synchronizeGlobeIcons(const NetworkRenderSnapshot &snapshot);
@@ -259,6 +273,9 @@ private:
                            const MapBgfxGlobeIconIndex::Frustum &frustum);
     MapBgfxGlobeIconIndex globe_icon_index;
     QVector<GlobeIconAnchor> globe_icon_anchors;
+    // Screen-space hit rectangles follow the actual far-to-near painter order.
+    // Rebuilt on every globe frame; never cache a frame-local projector.
+    QVector<GlobeIconHitArea> globe_icon_hit_areas;
     quint64 globe_icons_revision = 0;
     qsizetype globe_icons_node_count = -1;
     qsizetype globe_icons_link_count = -1;
