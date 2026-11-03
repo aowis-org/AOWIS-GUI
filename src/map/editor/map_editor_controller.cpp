@@ -325,6 +325,18 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
     {
         if (this->rectangle_dragging)
             return globeMouseMove(position, viewport_size);
+        // Demand-point attachment selection and movement share the same 2D
+        // cursor-preview path. They do not mutate the hydraulic model here.
+        // The right-click handler below performs confirmation.
+        if (this->map_canvas_entities->positioningActive()
+            && !this->map_canvas_entities->creatingPreviewActive()
+            && !this->map_canvas_entities->isMoveActive()
+            && (!this->rectangle_selection_active
+                || this->rectangle_selection_interacts_with_entities))
+        {
+            setCursorShape(Qt::CrossCursor);
+            return this->map_canvas_entities->floatEntity(position);
+        }
         // Use the exact shared placement state for both creation and moves.
         // Float updates marker previews only; the hydraulic edit is recorded
         // by the shared anchorMarker() when placement is confirmed.
@@ -512,6 +524,11 @@ bool MapEditorController::globeMousePress(const QPointF &position,
     if (button == Qt::RightButton && this->map_canvas_entities &&
         entity_interaction_enabled)
     {
+        // Attachment handles, reattachment, and attachment moves are owned
+        // by the existing 2D MapCanvasEntities workflow in both projections.
+        if (this->map_canvas_entities->handleDemandPointAttachmentRightClick(
+                position, global_position))
+            return true;
         if (this->map_canvas_entities->isMoveActive())
         {
             // Same confirm action as 2D; terrain height and coordinate are

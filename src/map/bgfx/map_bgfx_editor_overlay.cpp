@@ -1019,6 +1019,70 @@ void MapBgfxEditorOverlay::globeEditorVisuals(
         }
     }
 
+    // Demand-point attachment guides are the same shared visual state used
+    // by the flat editor. In globe mode only their coordinate projection
+    // differs; editing, attaching, and reattaching remain in MapCanvasEntities.
+    const quint32 emphasized_color = rgba(0, 120, 190, 255);
+    for (const MapEditorDemandPointAttachmentVisualState &attachment :
+         state.demand_point_attachments)
+    {
+        if (!attachment.visible)
+            continue;
+        const std::optional<MapBgfxHudPoint> demand =
+            point(attachment.demand_point_coordinate_wgs84);
+        if (!demand.has_value())
+            continue;
+        if (attachment.selecting_target
+            && onScreen(demand->x - 12.0, demand->y - 12.0, 24.0, 24.0))
+        {
+            dashedCircle(demand->x, demand->y, 10.0, 1.0, 6.0, 3.0,
+                         emphasized_color);
+        }
+        if (!attachment.attachment_coordinate_valid)
+            continue;
+        const std::optional<MapBgfxHudPoint> target =
+            point(attachment.attachment_coordinate_wgs84);
+        if (!target.has_value())
+            continue; // never draw an attachment across the horizon
+        const bool emphasized = attachment.selected || attachment.selecting_target
+                                || attachment.moving;
+        const quint32 color = emphasized ? emphasized_color : rgba(70, 105, 125, 190);
+        const double width = emphasized ? 1.5 : 1.0;
+        const double min_x = std::min(demand->x, target->x);
+        const double min_y = std::min(demand->y, target->y);
+        if (!onScreen(min_x - 16.0, min_y - 16.0,
+                      std::fabs(target->x - demand->x) + 32.0,
+                      std::fabs(target->y - demand->y) + 32.0))
+            continue;
+        double start_fraction = 0.0;
+        double end_fraction = 1.0;
+        const double length = std::hypot(target->x - demand->x,
+                                         target->y - demand->y);
+        if (length > 0.0 && clipSegment(
+                demand.value(), target.value(), -16.0, -16.0,
+                viewport_size.width() + 16.0, viewport_size.height() + 16.0,
+                &start_fraction, &end_fraction))
+        {
+            dashedSegment(MapBgfxHudPoint{
+                              demand->x + (target->x - demand->x) * start_fraction,
+                              demand->y + (target->y - demand->y) * start_fraction},
+                          MapBgfxHudPoint{
+                              demand->x + (target->x - demand->x) * end_fraction,
+                              demand->y + (target->y - demand->y) * end_fraction},
+                          width, 4.0 * width, 2.0 * width,
+                          start_fraction * length, color);
+        }
+        const double radius = attachment.moving ? 7.0 : attachment.selected ? 6.0 : 4.5;
+        const double pen = emphasized ? 2.0 : 1.5;
+        if ((emphasized || length >= MinimumAttachmentHandleLinePx)
+            && onScreen(target->x - radius - pen, target->y - radius - pen,
+                        2.0 * (radius + pen), 2.0 * (radius + pen)))
+        {
+            disc(target->x, target->y, radius, pen,
+                 rgba(255, 255, 255, emphasized ? 230 : 190), color);
+        }
+    }
+
     const MapEditorPlacementVisualState &placement = state.placement;
     if (!placement.creating)
         return;

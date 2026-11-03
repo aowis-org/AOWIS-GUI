@@ -133,6 +133,8 @@ private:
     std::optional<CoordinateWGS84> demandPointAttachmentCoordinate(
         const HydraulicDemandPoint &demand_point) const;
     bool demandPointAttachmentHandleAt(const QPointF &position, QUuid *demand_point_uuid) const;
+    std::optional<InfrastructureEntityReference> attachmentJunctionAt(
+        const QPointF &position) const;
     void showMarkerContextMenu(const QUuid &uuid, const QPoint &global_position,
                                const QPointF &pointer_position);
     void repaintCanvas();

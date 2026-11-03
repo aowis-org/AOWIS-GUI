@@ -42,6 +42,24 @@ CoordinateWGS84 midpoint(const CoordinateWGS84 &from, const CoordinateWGS84 &to)
     return coordinate;
 }
 
+// A pipe may be hit through the terrain in the 3D renderer even when its
+// screen-space geometry is outside the 2D-style segment hit radius. The
+// shared attachment editor still computes the position along that pipe.
+MapCanvasPipes::PipePositionHit demandAttachmentPipeHit(
+    const QPointF &position, const MapCanvasPipes *pipes,
+    const MapCanvasMarkers *markers, const MapCanvasProjection *projection,
+    const QSize &viewport)
+{
+    MapCanvasPipes::PipePositionHit hit = pipes->pipePositionAt(position, *markers);
+    if (hit.isValid() || projection == nullptr || projection->supportsMercatorHitBox())
+        return hit;
+    const std::optional<InfrastructureEntityReference> entity =
+        projection->hitEntity(position, viewport);
+    if (entity.has_value() && entity->type == InfrastructureEntity::Pipe)
+        hit = pipes->nearestPositionOnPipe(entity->uuid, position, *markers);
+    return hit;
+}
+
 }
 
 MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraulic_data,
@@ -561,8 +579,8 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
         this->demand_point_attachment_preview_valid = false;
 
         const std::optional<InfrastructureEntityReference> marker =
-            this->point_markers->markerAt(position);
-        if (marker.has_value() && marker->type == InfrastructureEntity::Junction)
+            attachmentJunctionAt(position);
+        if (marker.has_value())
         {
             const std::optional<MapEntityMarker> junction_marker =
                 this->point_markers->markerByUuid(marker->uuid);
@@ -576,8 +594,9 @@ bool MapCanvasEntities::floatEntity(const QPointF &position)
 
         if (!this->demand_point_attachment_preview_valid)
         {
-            const MapCanvasPipes::PipePositionHit pipe_hit =
-                this->pipes->pipePositionAt(position, *this->point_markers);
+            const MapCanvasPipes::PipePositionHit pipe_hit = demandAttachmentPipeHit(
+                position, this->pipes, this->point_markers, this->projection.get(),
+                this->map_canvas->size());
             if (pipe_hit.isValid())
             {
                 this->demand_point_attachment_preview_coordinate =
@@ -1973,6 +1992,26 @@ void MapCanvasEntities::startDemandPointAttachmentMove(const QUuid &demand_point
     updateCanvas();
 }
 
+std::optional<InfrastructureEntityReference> MapCanvasEntities::attachmentJunctionAt(
+    const QPointF &position) const
+{
+    if (!this->projection || !this->map_canvas)
+        return std::nullopt;
+
+    // In the globe, visible geometry can lie above or below the terrain ray.
+    // Reuse its renderer hit just as shared 3D entity selection does.
+    const std::optional<InfrastructureEntityReference> hit =
+        this->projection->supportsMercatorHitBox()
+            ? this->point_markers->markerAt(position)
+            : this->projection->hitEntity(position, this->map_canvas->size());
+    if (!hit.has_value() || hit->type != InfrastructureEntity::Junction)
+        return std::nullopt;
+    const std::optional<MapEntityMarker> marker = markerByUuid(hit->uuid);
+    if (!marker.has_value() || marker->entity.type != InfrastructureEntity::Junction)
+        return std::nullopt;
+    return hit;
+}
+
 bool MapCanvasEntities::handleDemandPointAttachmentRightClick(
     const QPointF &position, const QPoint &global_position)
 {
@@ -2007,8 +2046,8 @@ bool MapCanvasEntities::handleDemandPointAttachmentRightClick(
     {
         const QUuid demand_point_uuid = this->demand_point_attachment_interaction_uuid;
         const std::optional<InfrastructureEntityReference> marker =
-            this->point_markers->markerAt(position);
-        if (marker.has_value() && marker->type == InfrastructureEntity::Junction)
+            attachmentJunctionAt(position);
+        if (marker.has_value())
         {
             this->hydraulic_data->attachDemandPointToJunction(
                 demand_point_uuid, marker->uuid);
@@ -2018,8 +2057,9 @@ bool MapCanvasEntities::handleDemandPointAttachmentRightClick(
             return true;
         }
 
-        const MapCanvasPipes::PipePositionHit pipe_hit = this->pipes->pipePositionAt(
-            position, *this->point_markers);
+        const MapCanvasPipes::PipePositionHit pipe_hit = demandAttachmentPipeHit(
+            position, this->pipes, this->point_markers, this->projection.get(),
+            this->map_canvas->size());
         if (pipe_hit.isValid())
         {
             this->hydraulic_data->attachDemandPointToPipe(
