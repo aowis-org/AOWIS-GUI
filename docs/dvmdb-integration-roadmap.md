@@ -19,7 +19,7 @@ an acceptance gate complete. Latest snapshot reviewed: 2026-11-03.
 | Order | Remaining work | Required result |
 |---|---|---|
 | **1** | Finish hydraulic Save acceptance | All 18 collections and persistent root fields round-trip through real HTTP and Standalone, including server + GUI restart, interrupted Save and exact canonical equality |
-| **2** | Complete History architecture; qualify initial read-only History dock | Existing History action opens left dock; future navigation requires a persistent controller |
+| **2** | History architecture specified; read-only History dock present | HIST-00 contract and HIST-UI done; persistent navigation still requires HIST-01–04 |
 | **3** | Build persistent History/Undo/Redo | Navigate edits and Commit checkpoints without modifying immutable revisions or silently losing work; see the dedicated roadmap |
 | **4** | Complete network import/replacement | Explicit new/replace/selected-entity operations, atomicity, target identity, queued-edit protection and recovery |
 | **5** | Qualify local editing lifecycle | Unborn HEAD → checkout → edit → Save → Commit → branch → reopen, including wrong-target/recovery and multiple sessions |

@@ -1,6 +1,10 @@
 # History dock and cross-Commit Undo/Redo — implementation roadmap
 
-**Status: HIST-UI view implemented; action-navigation subsystem not implemented.**
+**Status: HIST-UI read-only dock implemented; HIST-00 architecture specified.**
+Undo/Redo and history navigation are **not implemented**.
+The detailed [GUI interaction contract](history-contract.md) and
+[backend persistence contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md)
+are the authoritative design decisions for subsequent milestones.
 The toolbar's **Open revision history in Projects** button now opens a closable
 **History** dock on the left of the current workspace without leaving the
 hydraulic editor. Its read-only list displays first-parent commit checkpoints
@@ -78,16 +82,15 @@ reference to an immutable snapshot and an action-history checkpoint.
 
 ## Implementation status and remaining stages
 
-### HIST-00 — Design persistent semantics first
+### HIST-00 — Persistent action-history contract (specified)
 
-Specify identities for action groups, origin events, inverse/redo events and
-commit markers; current-state cursor, branching/redo invalidation, partial
-history availability, branch-switch behavior, journal retention and
-recovery. Determine how metadata actions that are not `NetworkHydraulic`
-MODEL edits (branch name, Commit message, project metadata) appear: first
-release should distinguish their informational markers from model Undo.
-Do not pretend current draft events or immutable revisions contain action
-history that was never recorded.
+[GUI interaction semantics](history-contract.md) and
+[DVMDB storage/recovery contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md)
+settle action/group identity, Commit markers, cursor and redo paths, safe
+cross-Commit reconstruction, original MODEL v1 frame retention, page and
+scope identities, and the current metadata/history gaps. This milestone is
+**design only**: no inverse engine, permanent archive, cursor or navigation
+endpoint exists yet.
 
 ### HIST-UI — Read-only History dock (implemented)
 
@@ -149,17 +152,18 @@ Include real external HTTP DVMDB and embedded Standalone sessions. Confirm
 canonical model equality after each transition and that immutable
 revision hashes/ancestry never change.
 
-## Decisions deliberately still open
+## Deferred details (not blockers for HIST-01)
 
-- Exact retention and UI for abandoned redo branches and non-reconstructable
-  pre-history commits.
-- Whether independent metadata changes (project/branch labels and mutable
-  revision annotations) are undoable or merely shown as timeline events.
-- How user-selectable retention quotas and history pruning are exposed.
-- The precise choice for navigating a merge: the first-parent narrative is
-  the default, but switching to a merged-in path requires explicit context.
+- The future UI for browsing abandoned redo branches is optional; ordinary
+  Redo follows only the active path, and the audit remains retained.
+- Editing project/branch labels and mutable revision display metadata is
+  **informational**, not Undoable model history, in the first release.
+- The settings surface for explicit history quota/pruning is deferred; the
+  backend must first define safe retention and fail-closed limits.
+- First-parent merge history is the default. Alternate-parent browsing is
+  read-only until a distinct, explicit context switch is designed.
 
-**Delivery order:** finish mixed-event Save acceptance, settle HIST-00
-semantics, then build durable HIST-01/02/03 behavior before enabling the
-read-only dock's Undo/Redo or action navigation controls. The
-broader GUI integration roadmap can continue in parallel.
+**Delivery order:** verify mixed-event Save acceptance; build HIST-01 MODEL
+inversion alongside HDB-01 durable archive/checkpoints, then HDB-02/03 and
+HIST-03 controller before enabling navigation. HIST-04 and HIST-05 complete
+the dock and real HTTP/Standalone acceptance.

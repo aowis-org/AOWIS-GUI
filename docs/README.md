@@ -39,6 +39,8 @@ and jumping to historical states remain unimplemented.
 - [Remaining GUI ↔ DVMDB integration roadmap](dvmdb-integration-roadmap.md)
   — full external HTTP/Standalone acceptance, import/replacement, local
   workflow hardening, whole-project Clone/Fetch, Publish and Merge.
+- [History interaction contract](history-contract.md) — HIST-00 design for
+  future Undo/Redo; no navigation engine yet.
 - [History and Undo/Redo roadmap](history-roadmap.md) — implemented read-only left History
   dock, and future durable action navigation and Undo/Redo **across Commit
   markers**; only the read-only dock is implemented today.
