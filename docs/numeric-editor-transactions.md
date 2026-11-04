@@ -27,8 +27,11 @@ their own suffix automatically.
 
 Bindings must outlive controls. Before retargeting an accessor to a different
 entity, the owning view must resolve or explicitly cancel its pending edit.
-Writers continue to use application mutation/undo commands. These controls are
-infrastructure; production inspector migration is a later phase.
+Writers use the application's MODEL mutation capture rather than writing
+canonical data from presentation-only refreshes. Application History Undo/Redo
+is separate from a focused text editor's in-progress local Qt Undo/Redo; the
+History keyboard shortcut integration is not yet complete. See
+[History](history-contract.md).
 
 The numeric editor regression target covers profile changes via UnitAwareView,
 hidden/show cycles, incomplete spin-box input across focus loss, Enter, Escape,

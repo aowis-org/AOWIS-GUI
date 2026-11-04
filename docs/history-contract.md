@@ -1,8 +1,9 @@
 # History interaction contract — GUI
 
-**Status: current GUI History behavior.**
+**Status: current GUI History behavior (2026-11-04 source review).**
 This document describes the implemented History dock, its authoritative
-navigation boundaries and the remaining user-facing limitations. The authoritative
+navigation boundaries and the remaining user-facing limitations. Implemented
+code is not a claim of complete GUI/server restart acceptance. The authoritative
 persistence/recovery design is in the
 [DVMDB history contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md).
 The [History roadmap](history-roadmap.md) lists remaining work. This page
@@ -46,9 +47,10 @@ The History dock presents (chronologically):
 
 **Undo** selects the immediately preceding reconstructable user-action
 state. **Redo** selects the next action on the active redo path. Neither
-consumes a Commit marker step. **Jump** selects a known action-state cursor
-or an exact immutable checkpoint; it is a single requested, atomic history
-transition, not a visible loop of unconfirmed Undo clicks.
+consumes a Commit marker step. **Jump** selects a known action-state cursor or an eligible archived Commit
+action-tip checkpoint; it is a single requested, atomic history transition,
+not a visible loop of unconfirmed Undo clicks. Snapshot-only immutable
+checkpoints currently remain read-only.
 
 Crossing a Commit must never mutate or remove that immutable revision or
 move the branch's committed HEAD. Instead the **private candidate** receives
@@ -137,10 +139,16 @@ state only from the matching repository/project/branch/draft/network scope.
 ## Current acceptance boundary
 
 DVMDB retains permanent indexed local-Commit MODEL action archives, verifies
-canonical reconstruction and provides fenced HTTP cursor navigation. The GUI
+canonical reconstruction and provides fenced HTTP cursor navigation. An
+active draft journal may be suspended while browsing committed actions;
+its unapplied Redo frames are retained, and ordinary editing remains blocked
+until the draft is returned to an eligible position. New edits after Undo
+atomically replace the abandoned active-journal Redo suffix. The GUI
 wires adjacent Undo/Redo to that controller for eligible private drafts, but
 **the current tests have not yet proved the complete GUI + server + restart
 workflow**. The list expands archived MODEL actions for Commits already visible in the
 Projects first-parent graph, but it does not yet independently page the
-entire branch ancestry. Direct-jump end-to-end acceptance, shortcuts and
-unborn-base navigation remain outstanding. See the [History roadmap](history-roadmap.md).
+entire branch ancestry. Direct-jump end-to-end acceptance, complete branch ancestry paging,
+shortcuts and unborn-base navigation remain outstanding. Multi-network
+History navigation is deferred without restricting multiple-network storage.
+For the latest actual test evidence see [verification status](verification-status.md). See the [History roadmap](history-roadmap.md).

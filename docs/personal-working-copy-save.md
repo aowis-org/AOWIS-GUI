@@ -2,8 +2,10 @@
 
 This page describes the current GUI client, durable queue, and DVMDB
 working-copy contract. Saving is **not** committing. Committing locally is
-**not** publishing. A MODEL event journal is **not** a user-facing Undo/Redo
-system; that future subsystem is in [History](history-roadmap.md).
+**not** publishing. A MODEL event journal is part of the durable History
+architecture, but is not the *entire* historical timeline. The user-facing
+History dock navigates the current draft and eligible permanently archived
+Commit actions through DVMDB; see [History](history-contract.md).
 
 ## Repository, draft and lease identity
 
@@ -42,8 +44,11 @@ client can reach it; browser memory is not durable DVMDB storage.
 
 The GUI's pending queue is local transport state, **not the full edit
 history**: acknowledged entries are removed. DVMDB stores accepted events
-in a bounded draft journal, then clears/rebases that journal after a
-successful Commit. See [working-copy details in DVMDB](../../AOWIS-SERVER-DVMDB/docs/working-copies.md).
+in a bounded draft journal and archives their original MODEL frames against
+an immutable revision on local Commit. The active journal is cleared/rebased
+after Commit, but the indexed permanent Commit action archive is retained.
+See [History](history-contract.md) and
+[working-copy details in DVMDB](../../AOWIS-SERVER-DVMDB/docs/working-copies.md).
 
 ## Complete discovery and uncertain operations
 
@@ -77,16 +82,43 @@ operation. Recorded terminal outcomes require acknowledgement before the
 next new Commit. Local intent persistence is separate from the native
 server's idempotent Commit ledger.
 
+## History cursor, Redo and draft recovery
+
+For eligible existing-base single-network drafts, the GUI reads DVMDB's
+`GET /working-copies/{draftId}/history/cursor`. That response supplies the
+authoritative journal position and adjacent Undo/Redo coordinates. A fenced
+`POST /working-copies/{draftId}/history/navigate` selects a verified draft
+or archived action boundary; on acknowledgement the GUI reopens the canonical
+saved network **before** logical edit capture resumes. Direct jumps use the
+same operation, not a succession of locally inferred Undo requests.
+
+An Undo can retain unapplied draft journal actions as Redo. A subsequent
+ordinary new edit branches the journal: applied prefix plus new MODEL event;
+the abandoned Redo tail is invalidated atomically. A transition backward
+across a Commit marker can suspend the active journal and retain its Redo
+frames; ordinary Save/Commit is blocked during archived browsing until the
+eligible draft state is restored. Immutable revisions and committed HEAD
+are never rewritten by navigation. UUIDv7 operation identity, lease,
+generation and expected HEAD are part of the guarded operation. A lost
+acknowledgement must be reconciled against DVMDB instead of guessed.
+
+First/unborn-base History and multi-network navigation remain unsupported
+by the current adapter; **multiple-network native storage remains allowed**.
+Exact V8 DVMDB working-copy persistence and cursor recovery must be verified
+in the deployed server; this GUI documentation does not promise backwards
+compatibility with earlier development draft markers.
+
 ## Current limits and required acceptance
 
 A DVMDB draft currently has a 4,096-event/8-MiB journal limit, with per-Save
-record/event limits and a bounded candidate size. The GUI must not silently
-continue editing after the server rejects an oversized Save. The remaining
+record/event limits and a bounded candidate size. Permanent indexed Commit
+archives are **separate** from this draft-journal limit; old snapshots without
+original actions remain checkpoint-only. The GUI must not silently continue
+editing after the server rejects an oversized Save. The remaining
 [roadmap](dvmdb-integration-roadmap.md) includes actual external HTTP and
 embedded Standalone restart/ENOSPC/lost-acknowledgement tests, the complete
-mutation-path audit and safe bulk-event handling. History/Undo/Redo requires
-**additional persisted action history**, not merely raising this journal
-limit; see [History](history-roadmap.md).
+mutation-path audit and safe bulk-event handling. See the
+[History roadmap](history-roadmap.md) for end-to-end navigation acceptance.
 
 The GUI and server must be built against the same tracked MODEL sources;
 the advertised content fingerprint must match. A fingerprint mismatch is a

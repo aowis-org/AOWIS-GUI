@@ -1,68 +1,85 @@
-# History — remaining GUI and end-to-end work
+# History — remaining work and acceptance
 
-This page lists only **outstanding** work. The shipped implementation is
-covered in [Projects workspace](projects-workspace.md),
-[History interaction contract](history-contract.md) and the
-[DVMDB History contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md).
+This roadmap contains **future tasks only**. For implemented behavior see
+[History](history-contract.md), [Projects](projects-workspace.md), and
+[private Save](personal-working-copy-save.md). For evidence and the latest
+unverified Qt/HTTP gates see [verification status](verification-status.md).
 
-## Current implementation
+The existing implementation already has a left History dock, saved and
+pending actions, paginated permanent Commit archives, Undo/Redo buttons,
+direct action/eligible checkpoint selection, fenced HTTP cursor navigation,
+MODEL-verified reconstruction, durable cursor recovery, retained Redo across
+Commit boundaries and atomic Redo invalidation after a new edit. All of
+those are **implemented code**, not new roadmap milestones. Immutable
+Commit snapshots and the branch's committed HEAD remain unchanged by Undo.
 
-The left **History** dock opens from the existing toolbar control without
-leaving Distribution Editor. It shows first-parent immutable Commit markers,
-acknowledged draft MODEL actions and local pending events. Commit disclosure
-rows load genuine archived MODEL descriptions from the private DVMDB in
-pages of 50 actions. Clicking a saved action, an archived action or a verified
-Commit checkpoint can request an exact fenced jump. While a private draft
-writer is ready and its queue is empty, the GUI reads the authoritative
-DVMDB History cursor and enables only server-advertised adjacent Undo/Redo
-coordinates. It never derives eligibility from visible labels.
+## 1. Real editor + DVMDB acceptance (critical)
 
-The private session performs fenced, UUIDv7-identified HTTP navigation,
-reopens the acknowledged draft, rehydrates the saved canonical network and
-replaces the editor network with logical edit capture disabled. Only after
-that complete verified reload does capture resume. On an uncertain result
-it blocks editing and requires an authoritative reopen; it does not assume
-the operation succeeded. New ordinary Saves after Undo branch the current
-journal and invalidate the abandoned redo tail in DVMDB. Commit markers do
-not move or rewrite immutable HEADs.
+Prove with a real single-network editor session and separate DVMDB daemon:
 
-DVMDB currently supports this navigation for one **existing** hydraulic
-network in a private draft whose base is a committed revision, and for
-eligible archived action sequences. Unborn-base draft action navigation and
-multi-network navigation are not implemented. This does **not** restrict
-DVMDB's ability to store multiple networks per revision.
+1. Open a committed network; make representative property, structural,
+   library, controls, map-label and root-metadata edits in 2D and 3D.
+2. Confirm autosaved MODEL events and exact canonical network equality;
+   Undo and Redo several active-draft actions.
+3. Create two genuine local Commits, navigate backward and forward over
+   their markers, jump to an archived action and return to the draft.
+4. Undo, make a **new** edit, verify the former Redo suffix is no longer
+   available, and Commit only eligible actions. The old immutable revisions
+   must remain unchanged.
+5. Restart the GUI **and** DVMDB during each relevant cursor state, reopen
+   the same personal repository/branch/draft and verify exact model bytes,
+   action IDs, journal position and selected network.
 
-## Remaining acceptance and usability gates
+Keep automated Qt/HTTP tests separate from this manual integration evidence.
+A passing component test is not a substitute for the workflow above.
 
-1. **Prove the full external-server path:** GUI edit → autosave → Undo →
-   Redo → Undo across two Commit markers → return to draft → new edit after
-   Undo → close/reopen GUI and DVMDB, with exact canonical network equality,
-   immutable HEAD unchanged, and no forgotten queued operations.
-2. **Qualify failure recovery:** lost POST response, stale generation, expired
-   lease, changed HEAD, disconnected server, corrupted archive and attempted
-   navigation while a Save is in flight. All must fail closed and never
-   leave editor capture active with unverified model state.
-3. **Make the whole branch timeline complete:** the dock now expands archived
-   action pages for Commits present in the Projects first-parent graph.
-   Independently page older Commit ancestry from DVMDB when the Projects
-   preview is incomplete, explicitly identify snapshot-only checkpoints,
-   and retain a stable branch watermark during refresh. Never imply an
-   incomplete ancestry is complete.
-4. **Prove direct history jumps end-to-end:** exercise click-to-jump in long
-   (multiple 50-action pages) archives, checkpoint lookup before expansion,
-   failed/retried requests, scope changes during lookup and network reload
-   after a successful jump. Snapshot-only checkpoints remain read-only.
-5. **Add keyboard shortcuts:** expose context-sensitive Undo/Redo actions
-   without stealing text-field Undo/Redo, map controls or native Qt editor
-   shortcuts. Bind availability to the same authoritative cursor as the dock.
-6. **Support normal newborn branches:** DVMDB must verify actions in an
-   unborn-base first draft (network initialization/import included) before
-   the GUI offers Undo for that history.
-7. **Standalone and WASM acceptance:** repeat the verified network/history
-   path with embedded DVMDB and Qt WebAssembly, then document results and
-   remaining platform-specific limitations.
+## 2. Concurrency and uncertain-result recovery (critical)
 
-Multi-network navigation may be added later if the product needs it; it is
-**not a prerequisite** for the single-network user workflow. No solver
-convergence or connected-supply requirement is introduced by History; MODEL
-record and UUID/reference integrity remain mandatory.
+Exercise lost navigation acknowledgements and original-operation-ID retry,
+stale draft generations, expired leases, changed committed HEAD, Save in
+flight, dropped network reload, incomplete/corrupt Commit archives, server
+disconnect and switching scope during an archive page/POST. The GUI must
+never claim successful navigation before authoritative acknowledgement and
+canonical network reload; it must never resume capture against unverified
+state. Check a suspended active journal's Redo frames survive restart and
+navigation into/out of archived History.
+
+## 3. Full first-parent branch timeline (important)
+
+The dock currently gets visible Commit markers from the Projects preview.
+Implement independent, watermark-pinned paging of **all** first-parent
+Commit ancestry from DVMDB. Detect incomplete pages, expose snapshot-only
+checkpoints without inventing MODEL actions, retain scroll/cursor across
+updates and load archived action metadata in bounded pages of 50.
+
+## 4. Direct-jump acceptance and ergonomics (important)
+
+Test clicking a saved action, an archived action (including pages beyond
+50) and an eligible Commit checkpoint whose total actions exceed the
+loaded page. Verify exact action boundaries, retries, stale generation,
+branch switching, empty/failed page responses and unchanged selection on
+failure. Check pending actions and checkpoint-only revisions remain
+non-navigable.
+
+Add context-sensitive keyboard shortcuts for History Undo/Redo without
+capturing text-field Undo/Redo or conflicting with map and Qt controls.
+Expose accurate unavailable reasons in the dock.
+
+## 5. First/unborn working-copy history (important)
+
+Support MODEL-verified action replay when the working copy has no immutable
+base revision, including the first network initialization/import and an
+initially empty HEAD. Provide an exact initial-state boundary and preserve
+redo/rollback behavior without inventing a synthetic initial Commit.
+Only enable it in the GUI once the server supports and tests the workflow.
+
+## 6. Platform qualification
+
+Repeat the accepted workflow in Standalone with embedded DVMDB and in the
+supported WASM/browser client. Record actual build configuration and test
+results; avoid assuming Linux desktop success extends to other platforms.
+
+**Not a prerequisite:** multi-network History navigation. DVMDB may store
+multiple independent `NetworkHydraulic` objects in a revision. We are
+leaving that native capability intact and limiting this History acceptance
+to one existing network. No solver feasibility requirement is introduced.

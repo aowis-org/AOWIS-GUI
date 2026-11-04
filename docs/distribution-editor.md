@@ -186,13 +186,13 @@ fail when a ray misses the world; a failed projection is not a valid edit.
 
 Model changes use the existing `HydraulicData` operations and edit transactions.
 A completed action uses the same canonical MODEL capture and private-draft
-Save mechanisms as the corresponding 2D action. **The general Undo/Redo
-subsystem does not yet exist.** The read-only left History dock is available;
-navigation across Commit checkpoints is future work described in the
-[History roadmap](history-roadmap.md). The source contains focused
-unit/regression coverage for those components, but a successful component test
-is **not** proof of an end-to-end interactive save/reopen session, or of the
-Linux, Windows, and WebAssembly user experience.
+Save mechanisms as the corresponding 2D action. The toolbar opens the left
+**History** dock: a verified single-network private draft can Undo/Redo,
+select an eligible archived action or Commit checkpoint, and reload its
+canonical network from DVMDB without changing immutable revisions.
+See the [History contract](history-contract.md). This implementation still
+requires end-to-end editor/server/restart acceptance; a passing component
+test does **not** prove that workflow on Linux, Windows or WebAssembly.
 
 ## Source and verification reference
 
@@ -229,7 +229,9 @@ For a real workflow check, edit a writable network in **both** map views,
 select buried entities, create and move terrain-relative and absolute nodes,
 create a bent pipe, attach a demand point, cancel a placement,
 reopen the network, and inspect its saved coordinates and elevations.
-Cross-Commit Undo/Redo belongs to the separate future [History roadmap](history-roadmap.md),
-not this current editor acceptance procedure. Also
-exercise a missing-terrain location and switching views during an operation.
+Also test History Undo/Redo and direct jumps across two real Commits in a
+verified private draft, checking the canonical network in both views after
+navigation and across GUI/DVMDB restart. These are outstanding acceptance
+tests in the [History roadmap](history-roadmap.md). Also exercise a
+missing-terrain location and switching views during an operation.
 The C++ tests alone cannot replace this interactive check.

@@ -1,6 +1,6 @@
 # Open, import and export hydraulic networks
 
-This page describes the currently exposed operations. Unimplemented
+This page describes the operations exposed in the current GUI source. Unimplemented
 replacement and selective import belong in the
 [remaining integration roadmap](dvmdb-integration-roadmap.md).
 
@@ -28,5 +28,6 @@ network** and must not be used to imply a persistent replacement operation.
 entity/library import into an existing network, UUID/reference reconciliation,
 or safe replacement of a dirty draft. These require explicit user intent,
 lease/generation/queue checks, recoverable idempotent server operations and
-integration with the proposed History subsystem. See the
+integration with the implemented History navigation and its retained
+MODEL actions and Redo state. See the
 [roadmap](dvmdb-integration-roadmap.md) for design and acceptance.

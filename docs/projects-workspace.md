@@ -15,7 +15,7 @@ workflow see [quickstart](dvmdb-quickstart.md); for graph semantics see
 | Revisions (left) | Immutable committed revisions; absent for a branch with no commits |
 | Graph (center) | Server and project cards, **immutable revision cards** and **writable HEAD cards**; no independent branch cards |
 | Inspector (right) | Context-sensitive Overview and management tabs for Database, Project, Branch, HEAD or Revision |
-| History dock (main window, left) | Commit checkpoints and saved/pending draft events; the toolbar opens it without leaving the editor. Adjacent Undo/Redo uses DVMDB-verified cursor targets in a ready private session; committed action frames are not yet expanded in the list |
+| History dock (main window, left) | Saved/pending actions and first-parent Commit markers; DVMDB-backed Undo/Redo, expandable archived actions (50/page), direct selection of eligible actions and Commit checkpoints |
 
 The personal database has a crown in the navigator and a gold server card in
 the graph. A visibility checkbox is a graph/list filter, **not** a
@@ -174,9 +174,9 @@ an uncertain response, editing is blocked until the draft can be reopened;
 the GUI never assumes an HTTP operation succeeded. Archived actions can be
 expanded in bounded pages, while clicking a saved action, archived action or
 verified Commit checkpoint requests a single fenced direct jump. Snapshot-only
-checkpoints and pending Saves are not navigable. **Keyboard shortcuts and
-end-to-end acceptance of direct jumping remain outstanding.** Multi-network and unborn-base
-draft navigation are intentionally not supported by the current DVMDB adapter;
+checkpoints and pending Saves are not navigable. **Keyboard shortcuts, complete ancestry paging and
+end-to-end acceptance of direct jumping remain outstanding.** Multi-network
+and unborn-base draft navigation are intentionally not supported by the current DVMDB adapter;
 this does **not** restrict what DVMDB can store. The separate Projects revision
 graph continues to display the full immutable DAG.
 
@@ -190,9 +190,9 @@ server cylinder and displays **♛ before its name** on a golden card.
 
 The complete `NetworkHydraulic` model contains 18 persisted entity
 collections. Generic entity capture does not prove that every GUI mutation
-path or root setting autosaves. The remaining work includes full root
-metadata, import into a deliberately emptied existing draft, standalone and
-WASM acceptance, user-friendly recovery for stale/conflicting drafts, and
-Fetch/Publish. See [Save/recovery](personal-working-copy-save.md),
+path or root setting autosaves. The remaining work includes real end-to-end root-metadata
+and full mutation-path acceptance, import into an existing draft, Standalone
+and WASM verification, user-friendly recovery for stale/conflicting drafts,
+and Fetch/Publish. See [Save/recovery](personal-working-copy-save.md),
 [network import](network-open-import-replacement.md), and the
 [integration roadmap](dvmdb-integration-roadmap.md).

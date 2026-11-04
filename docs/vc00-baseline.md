@@ -19,8 +19,14 @@ implementation-stage history or a claim that every scenario has passed.
    role/UUID/fingerprint refusals.
 7. Verify an immutable Revision opens read-only or through explicit branch
    creation; no revision content is rewritten.
-8. Verify the currently **absent** features (full History Undo/Redo, generic
-   replacement, Publish/Merge workflows) are not falsely exposed as working.
+8. On an eligible committed-base private draft, exercise direct History
+   action jumps, archived Commit markers, Undo/Redo and retained Redo across
+   Commit boundaries. Verify immutable revision and committed HEAD stability.
+   Repeat across GUI/DVMDB restart and lost navigation acknowledgement;
+   distinguish implemented code from accepted end-to-end behavior.
+9. Verify genuinely **unfinished** features (unborn first-draft History,
+   general replacement, complete Publish/Merge workflows) are not falsely
+   exposed as working.
 
 See [product documentation](README.md), [remaining integration](dvmdb-integration-roadmap.md),
 and [History roadmap](history-roadmap.md). Keep actual commands and observed

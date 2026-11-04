@@ -30,19 +30,38 @@ revision offers read-only Monitor or creation of a branch for editing. There
 is no Inspector **Delete network** button. Standalone embeds the DVMDB HTTP
 service inside the GUI process.
 
-**Current limits (source review 2026-11-03):** capture and MODEL transport
-cover all 18 collections and persistent root metadata, including mixed
-root/entity transactions. Complete mutation-path, external HTTP/Standalone
-restart and browser/WASM acceptance remain open. General import replacement,
-full-project Clone/Fetch, Publish and Merge UI flows are unfinished.
-HEAD/Revision detail Tags/Description currently share branch-metadata
-persistence; independent per-revision annotations are not yet available.
+**Current limits (source review 2026-11-04):** MODEL capture and private
+Save transport cover all 18 hydraulic collections and persistent root
+metadata, including mixed root/entity transactions. Complete mutation-path,
+external HTTP/Standalone restart and browser/WASM acceptance remain open.
+General import replacement, whole-project Clone/Fetch, Publish and Merge UI
+flows are unfinished. HEAD/Revision detail Tags/Description still share
+branch-metadata persistence rather than independent revision annotations.
 
-**History and Undo/Redo are not implemented:** the existing toolbar History
-action navigates to the Projects revision tree. A future left History dock
-will combine editing actions and immutable Commit markers and permit
-navigation across those markers without rewriting a committed revision.
-See the [History roadmap](docs/history-roadmap.md).
+## History and Undo/Redo
+
+The toolbar's **Open revision history in Projects** action opens a left
+**History dock** without leaving Distribution Editor. For a verified private
+working-copy session, the dock offers **Undo**, **Redo**, and direct selection
+of saved actions, archived Commit actions and eligible Commit checkpoints.
+Original MODEL actions are retained in DVMDB after Commit and expandable in
+pages of 50. Commit markers are checkpoints, **not Undo steps**: navigation
+reconstructs a private draft at a chosen action boundary; immutable revisions
+and the committed branch HEAD remain unchanged.
+
+DVMDB is authoritative for the cursor, leases, expected generation and
+navigation eligibility. After accepted navigation the editor reloads the
+saved canonical network before resuming edit capture. The current adapter
+supports one existing hydraulic network based on a committed revision;
+first/unborn-draft action history and multi-network navigation are not yet
+supported, although DVMDB can still store multiple networks per revision.
+The dock currently obtains Commit markers from the Projects preview, so an
+incomplete ancestry preview can also limit which older actions are shown.
+**End-to-end GUI/server restart and cross-Commit acceptance remains pending.**
+See [Using History](docs/history.md), the
+[History contract](docs/history-contract.md),
+[remaining History work](docs/history-roadmap.md), and
+[verification status](docs/verification-status.md).
 
 Start with [documentation index](docs/README.md),
 [DVMDB quickstart](docs/dvmdb-quickstart.md),

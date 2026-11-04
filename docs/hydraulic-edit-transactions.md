@@ -3,12 +3,13 @@
 This is the **current implementation**, not a list of older capture stages.
 See [autosave and recovery](personal-working-copy-save.md) for transport and
 [the remaining roadmap](dvmdb-integration-roadmap.md) for qualification work.
-The private History dock now supports adjacent DVMDB-verified single-network
-Undo/Redo selections, but **general Undo/Redo is not yet fully accepted**:
-there is no arbitrary jump, unborn-base support or GUI end-to-end qualification.
-MODEL
-transactions carry reversible before/after images. See the separate
-[History roadmap](history-roadmap.md).
+The private History dock supports adjacent DVMDB-verified single-network
+Undo/Redo **and direct jumps** to eligible saved actions, archived actions
+and Commit checkpoints. MODEL transactions carry reversible before/after
+images; DVMDB persists original actions permanently at Commit. Unborn-base
+navigation, full timeline paging and GUI end-to-end qualification are still
+outstanding. See [History](history-contract.md) and the
+[remaining History roadmap](history-roadmap.md).
 
 ## Model scope
 
@@ -100,5 +101,5 @@ transaction staging. Related widget tests cover libraries and controls.
 DVMDB native and HTTP tests exercise server-owned manifests, leases,
 generations, commit/reopen and mixed root/member events. The newest changes
 in the reviewed source are **not asserted to pass** unless their test
-execution has been reported. For the missing end-to-end tests and future
-Undo/Redo, see the two roadmaps linked above.
+execution has been reported. For the missing end-to-end tests, including operational Undo/Redo
+acceptance, see the two roadmaps linked above.

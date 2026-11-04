@@ -78,7 +78,13 @@ as `No network`: an unborn HEAD can already contain a saved model.
 
 There is **no Delete network action** on the Inspector. Deleting entities
 is an editor operation subject to model-reference checks and private draft
-autosave. **Single-network Undo/Redo is available through the private History dock for backend-verified action boundaries**, but it is not yet a complete general editor history experience.
+autosave. For an eligible saved private draft, open the toolbar's **History**
+dock to Undo/Redo, expand original actions archived under a Commit or click
+an action/eligible checkpoint to jump to its state. Commit markers do not
+consume Undo steps or change committed HEAD. The editor reloads the DVMDB-
+verified network after each successful navigation; pending Saves or stale
+sessions block navigation. See [Using History](history.md) and the
+[technical History contract](history-contract.md).
 
 ## 5. Commit an immutable revision
 
@@ -114,11 +120,12 @@ is forbidden; making a branch does not rewrite the original snapshot.
   validation tasks.
 - The **History** toolbar action opens the left History dock without leaving
   the editor. For a ready private session with no pending Save, DVMDB provides
-  adjacent Undo/Redo coordinates; a selected state is published atomically
-  and reloaded into the editor. This is deliberately limited to single-network
-  existing-base drafts and verified indexed Commit archives. Jump-to-entry,
-  shortcuts, expanded archived action details and unborn-base support are
-  still pending. See the [History roadmap](history-roadmap.md).
+  adjacent Undo/Redo targets and verifies direct jumps to saved and archived
+  actions or eligible Commit checkpoints. Archived actions expand in pages of
+  50. The selected state is published atomically and reloaded into the editor.
+  Existing-base single-network drafts are supported; unborn first drafts,
+  multi-network navigation, keyboard shortcuts and complete ancestry paging
+  remain outstanding. See the [History roadmap](history-roadmap.md).
 
 See [network import semantics](network-open-import-replacement.md),
 [hydraulic transactions](hydraulic-edit-transactions.md), and the
