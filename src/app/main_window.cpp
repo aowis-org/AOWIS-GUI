@@ -113,6 +113,53 @@ MainWindow::MainWindow(QWidget *parent)
             this, [this] { this->personal_edit_session->navigateHistory(true); });
     connect(this->history_dock, &HistoryDock::redoRequested,
             this, [this] { this->personal_edit_session->navigateHistory(false); });
+    connect(this->history_dock, &HistoryDock::archivedActionPageRequested,
+            this, [this](const QString &revision, int offset)
+    {
+        if (!this->personal_edit_active || this->personal_edit_session == nullptr ||
+            this->opened_branch_name.isEmpty())
+        {
+            this->history_dock->failArchivedActionPage(
+                revision, tr("Open a private branch to read archived actions."));
+            return;
+        }
+        const QString branch = this->opened_branch_name;
+        const QString scope = this->personal_edit_session->historyScopeKey() +
+            QStringLiteral(":") + branch;
+        this->personal_edit_session->archivedActionPage(branch, revision, offset,
+            [this, scope, revision, offset](const QList<QJsonObject> &data,
+                                             int next_offset, const QString &error)
+        {
+            // A delayed response may belong to the previous private draft or
+            // branch. Never render it in the currently opened History dock.
+            if (!this->personal_edit_active || this->personal_edit_session == nullptr ||
+                this->personal_edit_session->historyScopeKey() +
+                    QStringLiteral(":") + this->opened_branch_name != scope)
+                return;
+            if (!error.isEmpty())
+            {
+                this->history_dock->failArchivedActionPage(revision, error);
+                return;
+            }
+            QList<HistoryDockEntry> entries;
+            for (const QJsonObject &action : data)
+            {
+                HistoryDockEntry entry;
+                entry.kind = HistoryDockEntry::Kind::ArchivedAction;
+                entry.identity = action.value(QStringLiteral("id")).toString();
+                entry.title = action.value(QStringLiteral("label")).toString();
+                entry.details = tr("Original archived MODEL action: %1").arg(entry.identity);
+                const QString operation = action.value(QStringLiteral("operation")).toString();
+                if (!operation.isEmpty()) entry.details += tr("\nOperation: %1").arg(operation);
+                const QJsonValue edits = action.value(QStringLiteral("editCount"));
+                if (edits.isDouble())
+                    entry.details += tr("\n%1 entity edit(s)").arg(edits.toInt());
+                entries.append(entry);
+            }
+            this->history_dock->appendArchivedActionPage(
+                revision, offset, entries, next_offset);
+        });
+    });
     addToolBar(Qt::TopToolBarArea, this->top_control_bar);
 
     const QList<QDockWidget *> right_docks = findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly);
@@ -1112,6 +1159,10 @@ void MainWindow::refreshHistoryDock()
         appendEvents(this->personal_edit_session->pendingHistoryEvents(),
                      HistoryDockEntry::Kind::PendingAction);
     }
+    this->history_dock->setArchiveScope(opened && this->personal_edit_session != nullptr &&
+        !this->opened_branch_name.isEmpty()
+        ? this->personal_edit_session->historyScopeKey() + QStringLiteral(":") +
+            this->opened_branch_name : QString());
     this->history_dock->setTimeline(context, actions, this->personal_edit_active,
                                     this->personal_edit_blocked);
     this->history_dock->setNavigationState(

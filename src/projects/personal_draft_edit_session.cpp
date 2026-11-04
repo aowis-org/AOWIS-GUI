@@ -78,6 +78,7 @@ void PersonalDraftEditSession::start(
         this->saved_history_events_.clear();
         for (const PersonalWorkingCopyEvent &event : draft.events)
             this->saved_history_events_.append(event.encoded);
+        this->project_id_ = draft.project_id;
         this->session_id_ = draft.session_id;
         this->generation_ = draft.generation;
         this->base_revision_ = draft.base_revision;
@@ -293,6 +294,26 @@ void PersonalDraftEditSession::renew()
         scheduleFlush();
         refreshHistoryCursor();
     });
+}
+
+QString PersonalDraftEditSession::historyScopeKey() const
+{
+    return this->target_.repository_id + QStringLiteral(":") +
+        this->project_id_ + QStringLiteral(":") + this->draft_id_;
+}
+
+void PersonalDraftEditSession::archivedActionPage(
+    const QString &branch_name, const QString &revision_id, int offset,
+    ArchivedPageCompletion completion)
+{
+    if (this->state_ == State::Idle || this->state_ == State::Stopping ||
+        this->project_id_.isEmpty() || this->stop_requested_)
+    {
+        completion({}, -1, QStringLiteral("No open private History repository."));
+        return;
+    }
+    this->client_.archivedActionPage(this->target_, this->project_id_,
+        branch_name, revision_id, offset, std::move(completion));
 }
 
 const QJsonObject &PersonalDraftEditSession::historyCursor() const
@@ -550,6 +571,7 @@ void PersonalDraftEditSession::resetLocal()
     emit historyCursorChanged();
     this->target_ = PersonalRepositoryTarget{};
     this->draft_id_.clear();
+    this->project_id_.clear();
     this->network_id_.clear();
     this->queue_root_.clear();
     this->session_id_.clear();

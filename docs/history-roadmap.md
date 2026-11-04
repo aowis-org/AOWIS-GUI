@@ -9,7 +9,9 @@ covered in [Projects workspace](projects-workspace.md),
 
 The left **History** dock opens from the existing toolbar control without
 leaving Distribution Editor. It shows first-parent immutable Commit markers,
-acknowledged draft MODEL actions and local pending events. While a private
+acknowledged draft MODEL actions and local pending events. Opening a Commit
+loads genuine archived MODEL descriptions from the private DVMDB in pages
+of 50 actions; neither row clicks nor archive retrieval change model state. While a private
 draft writer is ready and its queue is empty, the GUI reads the authoritative
 DVMDB History cursor and enables only server-advertised adjacent Undo/Redo
 coordinates. It never derives eligibility from visible labels.
@@ -39,10 +41,12 @@ DVMDB's ability to store multiple networks per revision.
    lease, changed HEAD, disconnected server, corrupted archive and attempted
    navigation while a Save is in flight. All must fail closed and never
    leave editor capture active with unverified model state.
-3. **Make the timeline complete:** page archived action metadata from the
-   permanent indexed DVMDB archive, group it with Commit markers, and mark
-   checkpoint-only revisions visibly. The current dock does not yet expand
-   archived MODEL action details; its Commit labels remain informational.
+3. **Make the whole branch timeline complete:** the dock now expands archived
+   action pages for Commits present in the Projects first-parent graph.
+   Independently page older Commit ancestry from DVMDB when the Projects
+   preview is incomplete, explicitly identify snapshot-only checkpoints,
+   and retain a stable branch watermark during refresh. Never imply an
+   incomplete ancestry is complete.
 4. **Add direct history jumps:** selecting a specific verified action or
    checkpoint from the list must use one atomic server navigation request.
    Keep long-history page cursors stable and avoid mismatched branches.

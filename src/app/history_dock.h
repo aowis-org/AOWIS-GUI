@@ -1,19 +1,22 @@
 #pragma once
 
 #include <QDockWidget>
+#include <QHash>
 #include <QList>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
 
 class QLabel;
 class QListWidget;
+class QListWidgetItem;
 class QPushButton;
 
 // The visible revision markers come from Projects, while navigability and
 // the active position come only from the authoritative private DVMDB cursor.
 struct HistoryDockEntry
 {
-    enum class Kind { Commit, SavedAction, PendingAction };
+    enum class Kind { Commit, ArchivedAction, SavedAction, PendingAction };
     Kind kind = Kind::Commit;
     QString title;
     QString identity;
@@ -41,16 +44,36 @@ public:
     void setTimeline(const HistoryDockContext &context,
                      const QList<HistoryDockEntry> &actions, bool editing, bool blocked);
     void clearDraftActions();
+    // Archive rows are read-only and scoped to the exact private draft.
+    // Clicking a Commit expands real archived frames one bounded page at a time.
+    void setArchiveScope(const QString &scope);
+    void appendArchivedActionPage(const QString &revision, int offset,
+                                  const QList<HistoryDockEntry> &entries, int next_offset);
+    void failArchivedActionPage(const QString &revision, const QString &error);
     void setNavigationState(const QJsonObject &cursor, bool available,
                             const QString &unavailable_reason = QString());
 
 signals:
     void undoRequested();
     void redoRequested();
+    void archivedActionPageRequested(const QString &revision, int offset);
 
 private:
     void rebuild();
+    void handleTimelineClick(QListWidgetItem *item);
 
+    struct ArchivedPage
+    {
+        QList<HistoryDockEntry> actions;
+        int next_offset = 0;
+        bool complete = false;
+        bool expanded = false;
+        bool loading = false;
+        QString error;
+    };
+
+    QString archive_scope_;
+    QHash<QString, ArchivedPage> archived_pages_;
     HistoryDockContext context_;
     QList<HistoryDockEntry> actions_;
     bool editing_ = false;

@@ -109,6 +109,9 @@ public:
     int network_read_count = 0;
     int network_summary_count = 0;
     QString saved_network_id;
+    int archive_page_reads = 0;
+    bool invalid_archive_page = false;
+    QStringList archive_paths;
     int history_cursor_reads = 0;
     int history_navigation_requests = 0;
     QJsonObject last_history_navigation;
@@ -169,6 +172,30 @@ public:
                         document.insert(QStringLiteral("modelCodecFingerprint"),
                             this->incompatible_codec ? QString(64, QLatin1Char('0'))
                                                      : ModelCodecCompatibility::fingerprint());
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/projects/") &&
+                             request_line.contains("/action-history/") &&
+                             request_line.contains("/events?"))
+                    {
+                        ++this->archive_page_reads;
+                        const QString path = QString::fromLatin1(request_line.split(' ').value(1));
+                        this->archive_paths.append(path);
+                        const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
+                        const int offset = query.queryItemValue(QStringLiteral("offset")).toInt();
+                        const QString action = offset == 0 ? entity_id : lease_token;
+                        document = QJsonObject{
+                            {QStringLiteral("revisionId"), this->invalid_archive_page
+                                ? draft_id : head_id},
+                            {QStringLiteral("total"), 2},
+                            {QStringLiteral("nextOffset"), offset == 0
+                                ? QJsonValue(1) : QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("actions"), QJsonArray{
+                                QJsonObject{{QStringLiteral("id"), action},
+                                    {QStringLiteral("label"), offset == 0
+                                        ? QStringLiteral("Lay pipe") : QStringLiteral("Move valve")},
+                                    {QStringLiteral("operation"), QStringLiteral("hydraulic.update")},
+                                    {QStringLiteral("editCount"), 1},
+                                    {QStringLiteral("frameBase64"), QStringLiteral("AA==")}}}}};
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/projects/") &&
                              request_line.contains("/branch-ids/"))
@@ -973,6 +1000,55 @@ int main(int argc, char **argv)
                cursor.value(QStringLiteral("nextAction")).isObject() &&
                history_stub.history_cursor_reads == 1,
                "History cursor was not read from private DVMDB")) return 1;
+    // Original Commit actions are paged from the private repository and
+    // validated by revision and offset. A malformed page never reaches UI.
+    history_done = false;
+    QList<QJsonObject> archived_actions;
+    int next_archive_offset = -1;
+    client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
+        head_id, 0, [&](const QList<QJsonObject> &entries, int next, const QString &failure)
+    {
+        archived_actions = entries;
+        next_archive_offset = next;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               archived_actions.size() == 1 && next_archive_offset == 1 &&
+               archived_actions.first().value(QStringLiteral("label")).toString() ==
+                   QStringLiteral("Lay pipe") &&
+               !archived_actions.first().contains(QStringLiteral("frameBase64")) &&
+               history_stub.archive_page_reads == 1 &&
+               history_stub.archive_paths.first().contains(
+                   QStringLiteral("/branches/main/action-history/") + head_id +
+                   QStringLiteral("/events?offset=0&limit=50")),
+               "archived MODEL page was not scoped, validated and stripped of large frames")) return 1;
+    history_done = false;
+    client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
+        head_id, 1, [&](const QList<QJsonObject> &entries, int next, const QString &failure)
+    {
+        archived_actions = entries;
+        next_archive_offset = next;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               archived_actions.size() == 1 && next_archive_offset == -1 &&
+               history_stub.archive_page_reads == 2,
+               "archived MODEL pagination did not terminate correctly")) return 1;
+    history_stub.invalid_archive_page = true;
+    history_done = false;
+    client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
+        head_id, 0, [&](const QList<QJsonObject> &, int, const QString &failure)
+    {
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) &&
+               !history_error.isEmpty(),
+               "archived MODEL response accepted the wrong revision")) return 1;
+    history_stub.invalid_archive_page = false;
+    history_done = false;
     history_done = false;
     PersonalWorkingCopyInfo navigated;
     const QString history_operation = PersonalWorkingCopyClient::newSessionUuidV7();

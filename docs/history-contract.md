@@ -1,8 +1,8 @@
 # History interaction contract — GUI
 
-**Status: HIST-00 architecture, 2026-11-03. Navigation not implemented.**
-This document specifies the behavior of the already implemented **read-only
-History dock** once HIST-01–04 make its actions safe. The authoritative
+**Status: current GUI History behavior.**
+This document describes the implemented History dock, its authoritative
+navigation boundaries and the remaining user-facing limitations. The authoritative
 persistence/recovery design is in the
 [DVMDB history contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md).
 The [History roadmap](history-roadmap.md) lists remaining work. This page
@@ -84,10 +84,18 @@ are informational until a separate metadata-history contract is designed.
   pending Save, a verified generation/HEAD cursor, a valid lease and an
   eligible target. Direct row jumps and keyboard shortcuts are not yet wired.
   An unavailable position must not issue a write.
-- **Future direct jumps:** a click on a Commit marker should select its
-  exact snapshot, and a click on an action should select the state **after**
-  that action. Arbitrary row selection is currently disabled; only adjacent
-  server-provided Undo/Redo coordinates are executable.
+- **Archived actions:** clicking a Commit expands its original archived
+  MODEL actions, fetched from the **private** DVMDB in bounded pages of 50.
+  The actions are placed chronologically *before* their Commit checkpoint,
+  with their descriptions, stable action UUIDs and entity edit counts. A
+  **Load more** row requests the next page; unavailable pages show an error
+  rather than silently hiding older actions. Expanded pages are cached only
+  for the same private draft and branch. No original actions are fabricated
+  for checkpoint-only revisions.
+- **Future direct jumps:** a click on an action or Commit checkpoint should
+  select the corresponding verified state. Currently row clicks only expand
+  or collapse Commit actions and request more read-only pages. Only adjacent
+  server-provided Undo/Redo coordinates can change the working copy.
 - Load long histories by pages at a stable history watermark, preserving
   scroll position and selected cursor. Never truncate silently to the
   draft's current journal capacity or show a first page as the entire past.
@@ -123,6 +131,7 @@ DVMDB retains permanent indexed local-Commit MODEL action archives, verifies
 canonical reconstruction and provides fenced HTTP cursor navigation. The GUI
 wires adjacent Undo/Redo to that controller for eligible private drafts, but
 **the current tests have not yet proved the complete GUI + server + restart
-workflow**. The visual list does not yet expand permanent archived action
-frames, and direct jumps, shortcuts and unborn-base navigation remain
-outstanding. See the [History roadmap](history-roadmap.md).
+workflow**. The list expands archived MODEL actions for Commits already visible in the
+Projects first-parent graph, but it does not yet independently page the
+entire branch ancestry. Direct jumps, shortcuts and unborn-base navigation
+remain outstanding. See the [History roadmap](history-roadmap.md).

@@ -45,6 +45,12 @@ public:
     bool canNavigateHistory() const;
     QString historyNavigationStatus() const;
     void navigateHistory(bool backward);
+    // Read-only paged archive metadata. It never uses the source repository
+    // or acquires/rotates the draft writer lease.
+    QString historyScopeKey() const;
+    using ArchivedPageCompletion = PersonalWorkingCopyClient::ArchivedActionPageCompletion;
+    void archivedActionPage(const QString &branch_name, const QString &revision_id,
+                            int offset, ArchivedPageCompletion completion);
 
 signals:
     void ready();
@@ -74,6 +80,7 @@ private:
     QTimer renew_timer_;
     PersonalRepositoryTarget target_;
     QString draft_id_;
+    QString project_id_;
     QString network_id_;
     QString queue_root_;
     QString session_id_;

@@ -657,6 +657,77 @@ void PersonalWorkingCopyClient::reopen(const PersonalRepositoryTarget &target,
     });
 }
 
+void PersonalWorkingCopyClient::archivedActionPage(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_name, const QString &revision_id, int offset,
+    ArchivedActionPageCompletion completion)
+{
+    // Branch names are not UUIDs. Encode the entire path segment, including
+    // spaces and slashes, rather than accepting a path supplied by the caller.
+    if (!DvmdbIdentity::isUuidV7(project_id) ||
+        !DvmdbIdentity::isUuidV7(revision_id) || branch_name.isEmpty() ||
+        branch_name.size() > 200 || offset < 0 || offset > 4096)
+    {
+        completion({}, -1, QStringLiteral("Invalid archived History request."));
+        return;
+    }
+    const QString branch_path = QString::fromLatin1(QUrl::toPercentEncoding(branch_name));
+    const QString path = QStringLiteral("/projects/") + project_id +
+        QStringLiteral("/branches/") + branch_path +
+        QStringLiteral("/action-history/") + revision_id +
+        QStringLiteral("/events?offset=%1&limit=50").arg(offset);
+    request(target, "GET", path, {},
+        [completion = std::move(completion), revision_id, offset](
+            const QJsonObject &body, const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, -1, error); return; }
+        const QJsonArray actions = body.value(QStringLiteral("actions")).toArray();
+        const QJsonValue next = body.value(QStringLiteral("nextOffset"));
+        const QJsonValue total = body.value(QStringLiteral("total"));
+        const bool has_next = next.isDouble() && next.toInt(-1) > offset;
+        const int following = has_next ? next.toInt(-1) : -1;
+        if (body.value(QStringLiteral("revisionId")).toString() != revision_id ||
+            !body.value(QStringLiteral("actions")).isArray() ||
+            actions.size() > 50 || !total.isDouble() || total.toInt(-1) < 0 ||
+            total.toInt() > 4096 || offset + actions.size() > total.toInt() ||
+            (!next.isNull() && !has_next) ||
+            (has_next && (following != offset + actions.size() ||
+                          following > total.toInt())) ||
+            (next.isNull() && offset + actions.size() != total.toInt()))
+        {
+            completion({}, -1, QStringLiteral("Invalid archived History page."));
+            return;
+        }
+        QList<QJsonObject> entries;
+        QSet<QString> seen;
+        for (const QJsonValue &value : actions)
+        {
+            if (!value.isObject())
+            {
+                completion({}, -1, QStringLiteral("Invalid archived History action."));
+                return;
+            }
+            const QJsonObject entry = value.toObject();
+            const QString id = entry.value(QStringLiteral("id")).toString();
+            const QString label = entry.value(QStringLiteral("label")).toString();
+            if (!DvmdbIdentity::isUuidV7(id) || seen.contains(id) ||
+                label.isEmpty() || label.size() > 4096 ||
+                !entry.value(QStringLiteral("frameBase64")).isString())
+            {
+                completion({}, -1, QStringLiteral("Invalid archived MODEL action metadata."));
+                return;
+            }
+            seen.insert(id);
+            // Do not retain large original MODEL frames in a visual list. The
+            // server archive remains the source of truth for navigation.
+            QJsonObject metadata = entry;
+            metadata.remove(QStringLiteral("frameBase64"));
+            entries.append(metadata);
+        }
+        completion(entries, following, {});
+    });
+}
+
 void PersonalWorkingCopyClient::historyCursor(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     HistoryCursorCompletion completion)

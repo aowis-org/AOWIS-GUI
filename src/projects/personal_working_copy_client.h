@@ -85,6 +85,15 @@ public:
     using LeaseCompletion = std::function<void(const PersonalWorkingCopyLease &, const QString &)>;
     using Completion = std::function<void(const QString &)>;
     using HistoryCursorCompletion = std::function<void(const QJsonObject &, const QString &)>;
+    // One page of genuine archived MODEL actions. The response is validated
+    // against the requested revision/offset; pagination is explicit so opening
+    // a long history never downloads arbitrary amounts of archived frame data.
+    using ArchivedActionPageCompletion = std::function<void(
+        const QList<QJsonObject> &, int next_offset, const QString &)>;
+    void archivedActionPage(const PersonalRepositoryTarget &target,
+                            const QString &project_id, const QString &branch_name,
+                            const QString &revision_id, int offset,
+                            ArchivedActionPageCompletion completion);
 
     explicit PersonalWorkingCopyClient(QObject *parent = nullptr);
 

@@ -56,7 +56,9 @@ HistoryDock::HistoryDock(QWidget *parent) : QDockWidget(tr("History"), parent)
     this->timeline_->setObjectName(QStringLiteral("historyDockTimeline"));
     this->timeline_->setSelectionMode(QAbstractItemView::NoSelection);
     this->timeline_->setFocusPolicy(Qt::NoFocus);
-    this->timeline_->setToolTip(tr("Commit markers and draft events. Undo/Redo follows the authoritative DVMDB cursor."));
+    this->timeline_->setToolTip(tr("Click a Commit to expand its archived actions. Undo/Redo follows the authoritative DVMDB cursor."));
+    connect(this->timeline_, &QListWidget::itemClicked,
+            this, &HistoryDock::handleTimelineClick);
     layout->addWidget(this->timeline_, 1);
 
     this->notice_label_ = new QLabel(content);
@@ -69,6 +71,9 @@ HistoryDock::HistoryDock(QWidget *parent) : QDockWidget(tr("History"), parent)
 
 void HistoryDock::setContext(const HistoryDockContext &context)
 {
+    if (this->context_.project != context.project ||
+        this->context_.branch != context.branch)
+        this->archived_pages_.clear();
     this->context_ = context;
     rebuild();
 }
@@ -84,6 +89,9 @@ void HistoryDock::setTimeline(const HistoryDockContext &context,
                               const QList<HistoryDockEntry> &actions,
                               bool editing, bool blocked)
 {
+    if (this->context_.project != context.project ||
+        this->context_.branch != context.branch)
+        this->archived_pages_.clear();
     this->context_ = context;
     this->actions_ = actions;
     this->editing_ = editing;
@@ -94,6 +102,8 @@ void HistoryDock::setTimeline(const HistoryDockContext &context,
 void HistoryDock::clearDraftActions()
 {
     this->actions_.clear();
+    this->archived_pages_.clear();
+    this->archive_scope_.clear();
     this->editing_ = false;
     this->blocked_ = false;
     this->navigation_cursor_ = {};
@@ -111,6 +121,80 @@ void HistoryDock::setNavigationState(const QJsonObject &cursor, bool available,
     rebuild();
 }
 
+void HistoryDock::setArchiveScope(const QString &scope)
+{
+    if (this->archive_scope_ == scope) return;
+    this->archive_scope_ = scope;
+    this->archived_pages_.clear();
+    rebuild();
+}
+
+void HistoryDock::appendArchivedActionPage(
+    const QString &revision, int offset, const QList<HistoryDockEntry> &entries,
+    int next_offset)
+{
+    if (!this->archived_pages_.contains(revision)) return;
+    ArchivedPage &page = this->archived_pages_[revision];
+    if (!page.loading || offset != page.actions.size() ||
+        (next_offset >= 0 && next_offset != offset + entries.size()))
+    {
+        page.loading = false;
+        page.error = tr("Archived History page did not match the requested cursor.");
+        rebuild();
+        return;
+    }
+    QSet<QString> seen;
+    for (const HistoryDockEntry &prior : page.actions) seen.insert(prior.identity);
+    for (const HistoryDockEntry &entry : entries)
+    {
+        if (entry.identity.isEmpty() || seen.contains(entry.identity) ||
+            entry.kind != HistoryDockEntry::Kind::ArchivedAction)
+        {
+            page.loading = false;
+            page.error = tr("Archived History returned duplicate or invalid actions.");
+            rebuild();
+            return;
+        }
+        seen.insert(entry.identity);
+    }
+    page.actions.append(entries);
+    page.next_offset = next_offset;
+    page.complete = next_offset < 0;
+    page.loading = false;
+    page.error.clear();
+    rebuild();
+}
+
+void HistoryDock::failArchivedActionPage(const QString &revision, const QString &error)
+{
+    if (!this->archived_pages_.contains(revision)) return;
+    ArchivedPage &page = this->archived_pages_[revision];
+    page.loading = false;
+    page.error = error.isEmpty() ? tr("Archived actions are unavailable.") : error;
+    rebuild();
+}
+
+void HistoryDock::handleTimelineClick(QListWidgetItem *item)
+{
+    if (item == nullptr || this->archive_scope_.isEmpty()) return;
+    const QString revision = item->data(Qt::UserRole).toString();
+    const QString role = item->data(Qt::UserRole + 1).toString();
+    if (role != QStringLiteral("commit") && role != QStringLiteral("more")) return;
+    ArchivedPage &page = this->archived_pages_[revision];
+    if (role == QStringLiteral("commit")) page.expanded = !page.expanded;
+    if (page.expanded && !page.complete && !page.loading &&
+        (page.actions.isEmpty() || role == QStringLiteral("more")))
+    {
+        page.loading = true;
+        page.error.clear();
+        const int offset = page.next_offset;
+        rebuild();
+        emit archivedActionPageRequested(revision, offset);
+        return;
+    }
+    rebuild();
+}
+
 void HistoryDock::rebuild()
 {
     if (this->timeline_ == nullptr) return;
@@ -120,28 +204,60 @@ void HistoryDock::rebuild()
         this->context_.project + QStringLiteral(" / ") + this->context_.branch);
 
     const int previous_position = this->timeline_->verticalScrollBar()->value();
-    const bool follow_latest = previous_position >=
-        this->timeline_->verticalScrollBar()->maximum() - 1;
+    const int previous_maximum = this->timeline_->verticalScrollBar()->maximum();
+    const bool follow_latest = previous_maximum > 0 &&
+        previous_position >= previous_maximum - 1;
     this->timeline_->clear();
-    const QList<HistoryDockEntry> timeline = this->context_.commits + this->actions_;
-    for (const HistoryDockEntry &entry : timeline)
+    // Actions belong *before* their Commit checkpoint, oldest to newest.
+    // An unexpanded Commit never claims it contains any invented actions.
+    QHash<QString, int> archive_boundaries;
+    for (const HistoryDockEntry &commit : this->context_.commits)
     {
-        QString prefix;
-        switch (entry.kind)
+        const ArchivedPage page = this->archived_pages_.value(commit.identity);
+        const int first_action_index = this->timeline_->count();
+        if (page.expanded)
         {
-        case HistoryDockEntry::Kind::Commit: prefix = QStringLiteral("◆ "); break;
-        case HistoryDockEntry::Kind::SavedAction: prefix = QStringLiteral("● "); break;
-        case HistoryDockEntry::Kind::PendingAction: prefix = QStringLiteral("◌ "); break;
+            for (const HistoryDockEntry &entry : page.actions)
+            {
+                QListWidgetItem *item = new QListWidgetItem(
+                    QStringLiteral("    ● ") + entry.title, this->timeline_);
+                item->setData(Qt::UserRole, entry.identity);
+                item->setToolTip(entry.details);
+            }
+            if (page.complete && page.actions.isEmpty())
+                new QListWidgetItem(tr("    Snapshot-only checkpoint (no archived actions)"),
+                                    this->timeline_);
+            if (page.loading || !page.error.isEmpty() || !page.complete)
+            {
+                QString text = page.loading ? tr("    Loading archived actions…") :
+                    !page.error.isEmpty() ? tr("    Archived actions unavailable — click to retry") :
+                    tr("    Load more archived actions…");
+                QListWidgetItem *item = new QListWidgetItem(text, this->timeline_);
+                item->setData(Qt::UserRole, commit.identity);
+                item->setData(Qt::UserRole + 1, QStringLiteral("more"));
+                if (!page.error.isEmpty()) item->setToolTip(page.error);
+            }
         }
+        archive_boundaries.insert(commit.identity, first_action_index);
+        const QString prefix = this->archive_scope_.isEmpty() ? QStringLiteral("◆ ") :
+            page.expanded ? QStringLiteral("◆ ▾ ") : QStringLiteral("◆ ▸ ");
+        QListWidgetItem *item = new QListWidgetItem(prefix + commit.title, this->timeline_);
+        item->setData(Qt::UserRole, commit.identity);
+        item->setData(Qt::UserRole + 1, QStringLiteral("commit"));
+        item->setToolTip(commit.details + (this->archive_scope_.isEmpty() ? QString() :
+            tr("\nClick to expand/collapse original MODEL actions.")));
+        QFont font = item->font();
+        font.setBold(true);
+        item->setFont(font);
+    }
+    const int draft_start = this->timeline_->count();
+    for (const HistoryDockEntry &entry : this->actions_)
+    {
+        const QString prefix = entry.kind == HistoryDockEntry::Kind::PendingAction ?
+            QStringLiteral("◌ ") : QStringLiteral("● ");
         QListWidgetItem *item = new QListWidgetItem(prefix + entry.title, this->timeline_);
         item->setData(Qt::UserRole, entry.identity);
         item->setToolTip(entry.details.isEmpty() ? entry.identity : entry.details);
-        if (entry.kind == HistoryDockEntry::Kind::Commit)
-        {
-            QFont font = item->font();
-            font.setBold(true);
-            item->setFont(font);
-        }
     }
     if (has_project && !this->context_.branch.isEmpty())
     {
@@ -160,19 +276,26 @@ void HistoryDock::rebuild()
         if (live && valid_position && position >= 0 && position <= this->actions_.size())
         {
             marker = tr("▶ Selected draft position %1").arg(position);
-            insert_position = this->context_.commits.size() + position;
+            insert_position = draft_start + position;
         }
         else if (kind == QStringLiteral("archived") && !revision.isEmpty())
         {
             marker = tr("▶ Archived action %1 in %2")
                 .arg(this->navigation_cursor_.value(QStringLiteral("archivedActionPosition")).toString(),
                      revision.left(8));
-            for (int index = 0; index < this->context_.commits.size(); ++index)
-                if (this->context_.commits.at(index).identity == revision)
-                {
-                    insert_position = index + 1;
-                    break;
-                }
+            if (archive_boundaries.contains(revision))
+            {
+                const ArchivedPage page = this->archived_pages_.value(revision);
+                insert_position = archive_boundaries.value(revision);
+                bool exact = false;
+                const int archived_position = this->navigation_cursor_.value(
+                    QStringLiteral("archivedActionPosition")).toString().toInt(&exact);
+                if (page.expanded && exact && archived_position >= 0 &&
+                    archived_position <= page.actions.size())
+                    insert_position += archived_position;
+                else if (page.expanded)
+                    marker += tr(" (expand/load more to locate)");
+            }
         }
         QListWidgetItem *current = new QListWidgetItem(marker);
         this->timeline_->insertItem(insert_position, current);
@@ -211,7 +334,9 @@ void HistoryDock::rebuild()
     if (this->context_.commits.isEmpty() && has_project && !this->context_.branch.isEmpty())
         notice += tr(" No commits yet on this branch.");
     if (!this->context_.commits.isEmpty())
-        notice += tr(" Committed actions are navigable when verified, but this list currently shows Commit markers rather than expanding archived frames.");
+        notice += this->archive_scope_.isEmpty()
+            ? tr(" Open a private draft to expand archived MODEL actions.")
+            : tr(" Click a Commit to expand archived actions in bounded pages. Row clicks never change the model.");
     if (this->editing_)
         notice += tr(" Draft actions appear after commit checkpoints; pending actions are marked ◌.");
     this->notice_label_->setText(notice);
