@@ -113,6 +113,13 @@ MainWindow::MainWindow(QWidget *parent)
             this, [this] { this->personal_edit_session->navigateHistory(true); });
     connect(this->history_dock, &HistoryDock::redoRequested,
             this, [this] { this->personal_edit_session->navigateHistory(false); });
+    connect(this->history_dock, &HistoryDock::jumpRequested,
+            this, [this](const QJsonObject &coordinate)
+    {
+        if (this->personal_edit_active && !this->personal_edit_blocked &&
+            this->personal_edit_session != nullptr)
+            this->personal_edit_session->navigateHistoryTo(coordinate);
+    });
     connect(this->history_dock, &HistoryDock::archivedActionPageRequested,
             this, [this](const QString &revision, int offset)
     {
@@ -128,7 +135,8 @@ MainWindow::MainWindow(QWidget *parent)
             QStringLiteral(":") + branch;
         this->personal_edit_session->archivedActionPage(branch, revision, offset,
             [this, scope, revision, offset](const QList<QJsonObject> &data,
-                                             int next_offset, const QString &error)
+                                             int next_offset, int total_count,
+                                             const QString &error)
         {
             // A delayed response may belong to the previous private draft or
             // branch. Never render it in the currently opened History dock.
@@ -157,7 +165,7 @@ MainWindow::MainWindow(QWidget *parent)
                 entries.append(entry);
             }
             this->history_dock->appendArchivedActionPage(
-                revision, offset, entries, next_offset);
+                revision, offset, entries, next_offset, total_count);
         });
     });
     addToolBar(Qt::TopToolBarArea, this->top_control_bar);

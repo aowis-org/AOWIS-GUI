@@ -31,8 +31,9 @@ struct HistoryDockContext
     bool incomplete_ancestry = false;
 };
 
-// The buttons request only adjacent backend-approved positions. They never
-// invent history from displayed labels or change immutable revisions.
+// Adjacent buttons use server-resolved coordinates; direct jumps use numeric
+// positions proven by the private journal or authenticated archive metadata.
+// Every navigation remains an atomic fenced operation on the private draft.
 class HistoryDock final : public QDockWidget
 {
     Q_OBJECT
@@ -44,11 +45,13 @@ public:
     void setTimeline(const HistoryDockContext &context,
                      const QList<HistoryDockEntry> &actions, bool editing, bool blocked);
     void clearDraftActions();
-    // Archive rows are read-only and scoped to the exact private draft.
-    // Clicking a Commit expands real archived frames one bounded page at a time.
+    // Archived metadata is scoped to the exact private draft. The server's
+    // validated action total authenticates checkpoint coordinates even when
+    // only one 50-action page is loaded for display.
     void setArchiveScope(const QString &scope);
     void appendArchivedActionPage(const QString &revision, int offset,
-                                  const QList<HistoryDockEntry> &entries, int next_offset);
+                                  const QList<HistoryDockEntry> &entries,
+                                  int next_offset, int total_count);
     void failArchivedActionPage(const QString &revision, const QString &error);
     void setNavigationState(const QJsonObject &cursor, bool available,
                             const QString &unavailable_reason = QString());
@@ -56,6 +59,7 @@ public:
 signals:
     void undoRequested();
     void redoRequested();
+    void jumpRequested(const QJsonObject &coordinate);
     void archivedActionPageRequested(const QString &revision, int offset);
 
 private:
@@ -66,9 +70,12 @@ private:
     {
         QList<HistoryDockEntry> actions;
         int next_offset = 0;
+        int total_count = -1;
         bool complete = false;
         bool expanded = false;
         bool loading = false;
+        bool pending_checkpoint_jump = false;
+        QString pending_generation;
         QString error;
     };
 

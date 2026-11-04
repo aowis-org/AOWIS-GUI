@@ -88,8 +88,10 @@ public:
     // One page of genuine archived MODEL actions. The response is validated
     // against the requested revision/offset; pagination is explicit so opening
     // a long history never downloads arbitrary amounts of archived frame data.
+    // The authenticated total is separate from the current page length:
+    // an exact Commit checkpoint need not download every archived frame.
     using ArchivedActionPageCompletion = std::function<void(
-        const QList<QJsonObject> &, int next_offset, const QString &)>;
+        const QList<QJsonObject> &, int next_offset, int total_count, const QString &)>;
     void archivedActionPage(const PersonalRepositoryTarget &target,
                             const QString &project_id, const QString &branch_name,
                             const QString &revision_id, int offset,

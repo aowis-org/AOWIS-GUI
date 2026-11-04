@@ -9,10 +9,11 @@ covered in [Projects workspace](projects-workspace.md),
 
 The left **History** dock opens from the existing toolbar control without
 leaving Distribution Editor. It shows first-parent immutable Commit markers,
-acknowledged draft MODEL actions and local pending events. Opening a Commit
-loads genuine archived MODEL descriptions from the private DVMDB in pages
-of 50 actions; neither row clicks nor archive retrieval change model state. While a private
-draft writer is ready and its queue is empty, the GUI reads the authoritative
+acknowledged draft MODEL actions and local pending events. Commit disclosure
+rows load genuine archived MODEL descriptions from the private DVMDB in
+pages of 50 actions. Clicking a saved action, an archived action or a verified
+Commit checkpoint can request an exact fenced jump. While a private draft
+writer is ready and its queue is empty, the GUI reads the authoritative
 DVMDB History cursor and enables only server-advertised adjacent Undo/Redo
 coordinates. It never derives eligibility from visible labels.
 
@@ -47,9 +48,10 @@ DVMDB's ability to store multiple networks per revision.
    preview is incomplete, explicitly identify snapshot-only checkpoints,
    and retain a stable branch watermark during refresh. Never imply an
    incomplete ancestry is complete.
-4. **Add direct history jumps:** selecting a specific verified action or
-   checkpoint from the list must use one atomic server navigation request.
-   Keep long-history page cursors stable and avoid mismatched branches.
+4. **Prove direct history jumps end-to-end:** exercise click-to-jump in long
+   (multiple 50-action pages) archives, checkpoint lookup before expansion,
+   failed/retried requests, scope changes during lookup and network reload
+   after a successful jump. Snapshot-only checkpoints remain read-only.
 5. **Add keyboard shortcuts:** expose context-sensitive Undo/Redo actions
    without stealing text-field Undo/Redo, map controls or native Qt editor
    shortcuts. Bind availability to the same authoritative cursor as the dock.

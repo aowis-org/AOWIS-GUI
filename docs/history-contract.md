@@ -36,8 +36,9 @@ The History dock presents (chronologically):
   active path. A new edit after Undo invalidates ordinary Redo on that
   suffix while leaving committed revisions and the audit intact.
 - **Snapshot-only** gaps where exact immutable revisions exist but the
-  original per-action history was never retained. A checkpoint may remain a
-  jump target even though individual missing actions cannot be replayed.
+  original per-action history was never retained. These checkpoints are
+  displayed, but direct jumps to them are not currently offered by the
+  verified MODEL-action navigation API.
 - A merge checkpoint with a link to its other parent(s), not a fabricated
   linear ordering of concurrent actions from both branches.
 
@@ -82,20 +83,28 @@ are informational until a separate metadata-history contract is designed.
 - **Undo/Redo buttons are wired today** to DVMDB's server-resolved adjacent
   action coordinates. They are enabled only for a ready private writer, no
   pending Save, a verified generation/HEAD cursor, a valid lease and an
-  eligible target. Direct row jumps and keyboard shortcuts are not yet wired.
+  eligible target. Exact row jumps use the same fenced publication path.
+  Keyboard shortcuts are not yet wired.
   An unavailable position must not issue a write.
-- **Archived actions:** clicking a Commit expands its original archived
-  MODEL actions, fetched from the **private** DVMDB in bounded pages of 50.
+- **Archived actions:** each Commit has a separate disclosure row for
+  expanding its original archived MODEL actions, fetched from the **private**
+  DVMDB in bounded pages of 50.
   The actions are placed chronologically *before* their Commit checkpoint,
   with their descriptions, stable action UUIDs and entity edit counts. A
   **Load more** row requests the next page; unavailable pages show an error
   rather than silently hiding older actions. Expanded pages are cached only
   for the same private draft and branch. No original actions are fabricated
   for checkpoint-only revisions.
-- **Future direct jumps:** a click on an action or Commit checkpoint should
-  select the corresponding verified state. Currently row clicks only expand
-  or collapse Commit actions and request more read-only pages. Only adjacent
-  server-provided Undo/Redo coordinates can change the working copy.
+- **Direct jumps:** clicking a saved draft action or an original archived
+  action selects its exact numeric action boundary. Clicking a Commit
+  checkpoint selects the archive tip, using DVMDB’s validated total action
+  count rather than the number of rows loaded. On the first click, the GUI
+  fetches at most the first archive page to establish that total, then sends
+  one fenced navigation POST. A snapshot-only checkpoint with no archived
+  MODEL actions remains read-only. Disclosure, paging, pending actions and
+  the current-state marker never navigate. The DVMDB backend re-verifies
+  archive coverage and rejects ineligible revisions; the GUI never grants
+  eligibility from labels or from a partial local replay.
 - Load long histories by pages at a stable history watermark, preserving
   scroll position and selected cursor. Never truncate silently to the
   draft's current journal capacity or show a first page as the entire past.
@@ -133,5 +142,5 @@ wires adjacent Undo/Redo to that controller for eligible private drafts, but
 **the current tests have not yet proved the complete GUI + server + restart
 workflow**. The list expands archived MODEL actions for Commits already visible in the
 Projects first-parent graph, but it does not yet independently page the
-entire branch ancestry. Direct jumps, shortcuts and unborn-base navigation
-remain outstanding. See the [History roadmap](history-roadmap.md).
+entire branch ancestry. Direct-jump end-to-end acceptance, shortcuts and
+unborn-base navigation remain outstanding. See the [History roadmap](history-roadmap.md).

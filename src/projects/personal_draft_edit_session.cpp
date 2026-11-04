@@ -309,7 +309,7 @@ void PersonalDraftEditSession::archivedActionPage(
     if (this->state_ == State::Idle || this->state_ == State::Stopping ||
         this->project_id_.isEmpty() || this->stop_requested_)
     {
-        completion({}, -1, QStringLiteral("No open private History repository."));
+        completion({}, -1, -1, QStringLiteral("No open private History repository."));
         return;
     }
     this->client_.archivedActionPage(this->target_, this->project_id_,
@@ -420,7 +420,37 @@ void PersonalDraftEditSession::navigateHistory(bool backward)
     if (!canNavigateHistory()) return;
     const QJsonObject coordinate = this->history_cursor_.value(
         backward ? QStringLiteral("previousAction") : QStringLiteral("nextAction")).toObject();
-    if (coordinate.isEmpty()) return;
+    navigateHistoryTo(coordinate);
+}
+
+void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
+{
+    if (!canNavigateHistory() || coordinate.isEmpty()) return;
+    const QString kind = coordinate.value(QStringLiteral("selectionKind")).toString();
+    const QString position_string = coordinate.value(QStringLiteral("actionPosition")).toString();
+    bool valid = false;
+    const qulonglong position = position_string.toULongLong(&valid);
+    if (!valid || position_string.isEmpty() || position > 4096) return;
+    if (kind == QStringLiteral("draft"))
+    {
+        if (!coordinate.value(QStringLiteral("revisionId")).isNull() ||
+            position > static_cast<qulonglong>(this->saved_history_events_.size())) return;
+        if (this->history_cursor_.value(QStringLiteral("selectionKind")).toString() == kind &&
+            this->history_cursor_.value(QStringLiteral("actionPosition")).toString() ==
+                position_string) return;
+    }
+    else if (kind == QStringLiteral("archived"))
+    {
+        const QString revision = coordinate.value(QStringLiteral("revisionId")).toString();
+        // Position zero is a legitimate archived boundary used by adjacent
+        // Undo to cross the first action of a Commit into its parent state.
+        if (!DvmdbIdentity::isUuidV7(revision)) return;
+        if (this->history_cursor_.value(QStringLiteral("selectionKind")).toString() == kind &&
+            this->history_cursor_.value(QStringLiteral("archivedRevisionId")).toString() == revision &&
+            this->history_cursor_.value(QStringLiteral("archivedActionPosition")).toString() ==
+                position_string) return;
+    }
+    else return;
     this->state_ = State::Navigating;
     this->request_in_flight_ = true;
     this->history_cursor_ = {};

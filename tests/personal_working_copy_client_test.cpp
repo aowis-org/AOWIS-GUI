@@ -114,6 +114,7 @@ public:
     QStringList archive_paths;
     int history_cursor_reads = 0;
     int history_navigation_requests = 0;
+    bool history_require_committed_head = false;
     QJsonObject last_history_navigation;
     int network_import_count = 0;
     QJsonObject last_network_import;
@@ -414,7 +415,10 @@ public:
                         this->last_history_navigation = request_body;
                         if (request_body.value(QStringLiteral("expectedGeneration")).toString() !=
                                 QString::number(this->generation) ||
-                            !request_body.value(QStringLiteral("expectedHead")).isNull() ||
+                            (this->history_require_committed_head
+                                ? request_body.value(QStringLiteral("expectedHead")).toString() != head_id ||
+                                  request_body.value(QStringLiteral("revisionId")).toString() != head_id
+                                : !request_body.value(QStringLiteral("expectedHead")).isNull()) ||
                             request_body.value(QStringLiteral("fencingToken")).toString() != lease_token)
                         {
                             status = 409;
@@ -1005,16 +1009,20 @@ int main(int argc, char **argv)
     history_done = false;
     QList<QJsonObject> archived_actions;
     int next_archive_offset = -1;
+    int archived_total = -1;
     client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
-        head_id, 0, [&](const QList<QJsonObject> &entries, int next, const QString &failure)
+        head_id, 0, [&](const QList<QJsonObject> &entries, int next, int total,
+                        const QString &failure)
     {
         archived_actions = entries;
         next_archive_offset = next;
+        archived_total = total;
         history_error = failure;
         history_done = true;
     });
     if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
                archived_actions.size() == 1 && next_archive_offset == 1 &&
+               archived_total == 2 &&
                archived_actions.first().value(QStringLiteral("label")).toString() ==
                    QStringLiteral("Lay pipe") &&
                !archived_actions.first().contains(QStringLiteral("frameBase64")) &&
@@ -1025,21 +1033,24 @@ int main(int argc, char **argv)
                "archived MODEL page was not scoped, validated and stripped of large frames")) return 1;
     history_done = false;
     client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
-        head_id, 1, [&](const QList<QJsonObject> &entries, int next, const QString &failure)
+        head_id, 1, [&](const QList<QJsonObject> &entries, int next, int total,
+                        const QString &failure)
     {
         archived_actions = entries;
         next_archive_offset = next;
+        archived_total = total;
         history_error = failure;
         history_done = true;
     });
     if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
                archived_actions.size() == 1 && next_archive_offset == -1 &&
+               archived_total == 2 &&
                history_stub.archive_page_reads == 2,
                "archived MODEL pagination did not terminate correctly")) return 1;
     history_stub.invalid_archive_page = true;
     history_done = false;
     client.archivedActionPage(history_stub.target(), project_id, QStringLiteral("main"),
-        head_id, 0, [&](const QList<QJsonObject> &, int, const QString &failure)
+        head_id, 0, [&](const QList<QJsonObject> &, int, int, const QString &failure)
     {
         history_error = failure;
         history_done = true;
@@ -1086,6 +1097,31 @@ int main(int argc, char **argv)
     if (!check(history_done && !history_error.isEmpty() &&
                history_stub.history_navigation_requests == 1,
                "invalid archived target was transmitted to the server")) return 1;
+    history_stub.history_require_committed_head = true;
+    history_done = false;
+    const QJsonObject checkpoint_target{
+        {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+        {QStringLiteral("revisionId"), head_id},
+        {QStringLiteral("actionPosition"), QStringLiteral("2")}};
+    client.navigateHistory(history_stub.target(), draft_id,
+        PersonalWorkingCopyClient::newSessionUuidV7(), head_id, lease_token,
+        QStringLiteral("1"), head_id, checkpoint_target,
+        [&](const PersonalWorkingCopyInfo &draft, const QString &failure)
+    {
+        navigated = draft;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               navigated.generation == QStringLiteral("2") &&
+               history_stub.history_navigation_requests == 2 &&
+               history_stub.last_history_navigation.value(QStringLiteral("revisionId")).toString()
+                   == head_id &&
+               history_stub.last_history_navigation.value(QStringLiteral("expectedHead")).toString()
+                   == head_id &&
+               history_stub.last_history_navigation.value(QStringLiteral("actionPosition")).toString()
+                   == QStringLiteral("2"),
+               "direct Commit jump did not send one fenced archived navigation")) return 1;
     // Bootstrap a first network on an independent unborn draft. It must be
     // represented as kind-100 candidate data, with no synthetic commit.
     Stub bootstrap;

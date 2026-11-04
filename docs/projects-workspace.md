@@ -171,9 +171,11 @@ the cursor cannot be verified, the lease needs renewal, or the backend offers
 no eligible adjacent action. On success the full saved network is reloaded,
 editor logical capture is restored, and the dock reads the new cursor. On
 an uncertain response, editing is blocked until the draft can be reopened;
-the GUI never assumes an HTTP operation succeeded. **Direct jumping by
-clicking an arbitrary entry, expanded archived action descriptions and normal
-keyboard shortcuts remain future work.** Multi-network and unborn-base
+the GUI never assumes an HTTP operation succeeded. Archived actions can be
+expanded in bounded pages, while clicking a saved action, archived action or
+verified Commit checkpoint requests a single fenced direct jump. Snapshot-only
+checkpoints and pending Saves are not navigable. **Keyboard shortcuts and
+end-to-end acceptance of direct jumping remain outstanding.** Multi-network and unborn-base
 draft navigation are intentionally not supported by the current DVMDB adapter;
 this does **not** restrict what DVMDB can store. The separate Projects revision
 graph continues to display the full immutable DAG.

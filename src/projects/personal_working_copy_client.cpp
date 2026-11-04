@@ -668,7 +668,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
         !DvmdbIdentity::isUuidV7(revision_id) || branch_name.isEmpty() ||
         branch_name.size() > 200 || offset < 0 || offset > 4096)
     {
-        completion({}, -1, QStringLiteral("Invalid archived History request."));
+        completion({}, -1, -1, QStringLiteral("Invalid archived History request."));
         return;
     }
     const QString branch_path = QString::fromLatin1(QUrl::toPercentEncoding(branch_name));
@@ -680,7 +680,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
         [completion = std::move(completion), revision_id, offset](
             const QJsonObject &body, const QString &error)
     {
-        if (!error.isEmpty()) { completion({}, -1, error); return; }
+        if (!error.isEmpty()) { completion({}, -1, -1, error); return; }
         const QJsonArray actions = body.value(QStringLiteral("actions")).toArray();
         const QJsonValue next = body.value(QStringLiteral("nextOffset"));
         const QJsonValue total = body.value(QStringLiteral("total"));
@@ -695,7 +695,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
                           following > total.toInt())) ||
             (next.isNull() && offset + actions.size() != total.toInt()))
         {
-            completion({}, -1, QStringLiteral("Invalid archived History page."));
+            completion({}, -1, -1, QStringLiteral("Invalid archived History page."));
             return;
         }
         QList<QJsonObject> entries;
@@ -704,7 +704,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
         {
             if (!value.isObject())
             {
-                completion({}, -1, QStringLiteral("Invalid archived History action."));
+                completion({}, -1, -1, QStringLiteral("Invalid archived History action."));
                 return;
             }
             const QJsonObject entry = value.toObject();
@@ -714,7 +714,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
                 label.isEmpty() || label.size() > 4096 ||
                 !entry.value(QStringLiteral("frameBase64")).isString())
             {
-                completion({}, -1, QStringLiteral("Invalid archived MODEL action metadata."));
+                completion({}, -1, -1, QStringLiteral("Invalid archived MODEL action metadata."));
                 return;
             }
             seen.insert(id);
@@ -724,7 +724,7 @@ void PersonalWorkingCopyClient::archivedActionPage(
             metadata.remove(QStringLiteral("frameBase64"));
             entries.append(metadata);
         }
-        completion(entries, following, {});
+        completion(entries, following, total.toInt(), {});
     });
 }
 

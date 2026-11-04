@@ -45,6 +45,9 @@ public:
     bool canNavigateHistory() const;
     QString historyNavigationStatus() const;
     void navigateHistory(bool backward);
+    // Exact GUI-selected coordinate. Eligibility is rechecked before the
+    // same fenced, verified publication path used by adjacent Undo/Redo.
+    void navigateHistoryTo(const QJsonObject &coordinate);
     // Read-only paged archive metadata. It never uses the source repository
     // or acquires/rotates the draft writer lease.
     QString historyScopeKey() const;
