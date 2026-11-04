@@ -4039,7 +4039,7 @@ void ProjectsWidget::deleteInspectedBranch() {
         tr("Permanently remove the branch '%1' and its HEAD from this project? "
            "Its unique history will disappear from the branch graph. "
            "Immutable revisions still needed by other branches or merges remain stored. "
-           "Deletion cannot be undone. Active working copies must be discarded first.")
+           "Deletion cannot be undone. Any saved working copies for this branch, including uncommitted edits and Undo/Redo history, will be discarded as part of this operation.")
             .arg(branch->name), QMessageBox::Yes | QMessageBox::Cancel,
         QMessageBox::Cancel) != QMessageBox::Yes) return;
     this->source_writer->deleteBranch(*server, project_id, branch_id, expected_head,
@@ -4074,7 +4074,7 @@ void ProjectsWidget::deleteInspectedRevision() {
         tr("Remove the selected revision and all subsequent first-parent revisions "
            "on branch '%1'? The branch may be deleted if this is its first revision. "
            "Shared merge ancestry is preserved. This cannot be undone. "
-           "Active working copies must be discarded first.").arg(branch->name),
+           "Any saved working copies for this branch, including uncommitted edits and Undo/Redo history, will be discarded as part of this operation.").arg(branch->name),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
     this->source_writer->truncateBranch(*server, project_id, branch_id, head, first_removed,
         [this](const QString &, const QString &error) {

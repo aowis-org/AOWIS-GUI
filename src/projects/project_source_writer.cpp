@@ -285,7 +285,8 @@ void ProjectSourceWriter::deleteBranch(const ProjectServerProfile &profile,
     }
     destructiveWrite(profile, QStringLiteral("/projects/%1/branch-ids/%2/delete")
         .arg(project_id, branch_id), QJsonObject{{QStringLiteral("expectedHead"),
-        expected_head.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(expected_head)}},
+        expected_head.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(expected_head)},
+        {QStringLiteral("discardWorkingCopies"), true}},
         std::move(completion));
 }
 
@@ -301,7 +302,8 @@ void ProjectSourceWriter::truncateBranch(const ProjectServerProfile &profile,
     destructiveWrite(profile, QStringLiteral("/projects/%1/branch-ids/%2/truncate")
         .arg(project_id, branch_id), QJsonObject{
             {QStringLiteral("expectedHead"), expected_head},
-            {QStringLiteral("firstRemoved"), first_removed}}, std::move(completion));
+            {QStringLiteral("firstRemoved"), first_removed},
+            {QStringLiteral("discardWorkingCopies"), true}}, std::move(completion));
 }
 
 void ProjectSourceWriter::destructiveWrite(const ProjectServerProfile &profile,
