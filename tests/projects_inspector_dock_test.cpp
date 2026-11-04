@@ -1527,6 +1527,33 @@ int main(int argc, char **argv)
                      && revision_branch->parentWidget() == revision_form
                      && revision_commit->parentWidget() == revision_form,
                  "Revision inspector did not separate branch editing from Overview")) return 1;
+    // Destructive controls belong to their own tabs and must be unavailable
+    // for a preview-only revision without a real database identity.
+    QPushButton *revision_delete = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsRevisionOverviewDelete"));
+    QPushButton *branch_delete = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsRevisionBranchDelete"));
+    if (!require(revision_delete != nullptr && branch_delete != nullptr
+                     && revision_delete->text().contains(QStringLiteral("Delete revision"))
+                     && !revision_delete->isEnabled() && !branch_delete->isEnabled()
+                     && revision_delete->parentWidget() != nullptr
+                     && branch_delete->parentWidget() == revision_branch_tab,
+                 "preview revision offered destructive database operations or lost Delete controls"))
+        return 1;
+    inspector_tabs->setCurrentIndex(2);
+    app.processEvents();
+    if (!require(branch_delete->isVisible() && !revision_delete->isVisible(),
+                 "branch deletion control leaked outside its Branch tab")) return 1;
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
+    if (!require(!revision_delete->isVisible() && !branch_delete->isVisible(),
+                 "revision deletion control leaked onto the Revision tab")) return 1;
+    inspector_tabs->setCurrentIndex(0);
+    app.processEvents();
+    if (!require(revision_delete->isVisible() && !branch_delete->isVisible(),
+                 "revision deletion control is not confined to the Overview tab")) return 1;
+    inspector_tabs->setCurrentIndex(1);
+    app.processEvents();
     if (!require(revision_message->minimumHeight() == revision_message->maximumHeight()
                      && revision_message->height() == revision_message->minimumHeight()
                      && revision_message->height() >= 2 * revision_message->fontMetrics().lineSpacing()
@@ -1578,6 +1605,11 @@ int main(int argc, char **argv)
                      && activeInspectorAction(projects,
                          QStringLiteral("projectsHeadInspectorEditNetwork")) == nullptr,
                  "selecting a HEAD card did not open its HEAD/Revision Inspector"))
+        return 1;
+    if (!require(revision_delete != nullptr && branch_delete != nullptr
+                     && revision_delete->text().contains(QStringLiteral("HEAD"))
+                     && !revision_delete->isEnabled() && !branch_delete->isEnabled(),
+                 "preview HEAD exposed destructive operations or lacked contextual Delete"))
         return 1;
     QPushButton *head_branch = activeInspectorAction(projects,
         QStringLiteral("projectsInspectorCreateBranch"));
