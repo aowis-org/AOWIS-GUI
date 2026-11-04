@@ -324,7 +324,7 @@ const QJsonObject &PersonalDraftEditSession::historyCursor() const
 bool PersonalDraftEditSession::canNavigateHistory() const
 {
     return this->state_ == State::Ready && !this->stop_requested_ &&
-        !this->base_revision_.isEmpty() && this->history_network_qualified_ &&
+        this->history_network_qualified_ &&
         !this->request_in_flight_ && !this->history_cursor_request_in_flight_ &&
         this->stage_.pendingCount() == 0 && !leaseIsExpiring() &&
         !this->history_cursor_.isEmpty() &&
@@ -338,8 +338,6 @@ QString PersonalDraftEditSession::historyNavigationStatus() const
         return QStringLiteral("Navigating and verifying History state…");
     if (this->state_ == State::Blocked)
         return QStringLiteral("Private editing is blocked; reopen the draft to recover History.");
-    if (this->base_revision_.isEmpty() && this->state_ != State::Idle)
-        return QStringLiteral("Undo/Redo of an unborn first draft is not supported yet.");
     if (this->stage_.pendingCount() > 0)
         return QStringLiteral("Wait for all pending Saves before navigating History.");
     if (this->state_ != State::Ready || this->stop_requested_ || leaseIsExpiring())
@@ -355,7 +353,7 @@ QString PersonalDraftEditSession::historyNavigationStatus() const
 void PersonalDraftEditSession::refreshHistoryCursor()
 {
     if (this->state_ != State::Ready || this->stop_requested_ ||
-        this->base_revision_.isEmpty() || this->request_in_flight_ ||
+        this->request_in_flight_ ||
         this->history_cursor_request_in_flight_ ||
         this->stage_.pendingCount() != 0)
         return;

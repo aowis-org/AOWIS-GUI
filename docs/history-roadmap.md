@@ -67,11 +67,12 @@ Expose accurate unavailable reasons in the dock.
 
 ## 5. First/unborn working-copy history (important)
 
-Support MODEL-verified action replay when the working copy has no immutable
-base revision, including the first network initialization/import and an
-initially empty HEAD. Provide an exact initial-state boundary and preserve
-redo/rollback behavior without inventing a synthetic initial Commit.
-Only enable it in the GUI once the server supports and tests the workflow.
+Qualify the implemented initial unborn-draft path in the real GUI: the
+already initialized/imported network is a seed (not an Undo step), followed
+by journaled creations and property changes. Verify Undo of the first tank,
+Redo, new edits after Undo, restart recovery, imported-network seeds and
+refusal of unsupported deletions when original membership ordering cannot
+be proved. Extend ordering provenance before enabling those deletions.
 
 ## 6. Platform qualification
 

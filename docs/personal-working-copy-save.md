@@ -102,8 +102,12 @@ are never rewritten by navigation. UUIDv7 operation identity, lease,
 generation and expected HEAD are part of the guarded operation. A lost
 acknowledgement must be reconciled against DVMDB instead of guessed.
 
-First/unborn-base History and multi-network navigation remain unsupported
-by the current adapter; **multiple-network native storage remains allowed**.
+An unborn first draft can now Undo/Redo journaled creations and updates
+against the already initialized network seed. DVMDB verifies the full
+forward MODEL replay and refuses unborn journal deletions whose original
+membership position cannot be established. Initial network initialization
+or import is not an Undo step. Multi-network navigation remains unsupported;
+**multiple-network native storage remains allowed**.
 Exact V8 DVMDB working-copy persistence and cursor recovery must be verified
 in the deployed server; this GUI documentation does not promise backwards
 compatibility with earlier development draft markers.

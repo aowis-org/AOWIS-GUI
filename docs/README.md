@@ -26,8 +26,8 @@ checkpoints. It does **not** rewrite committed revisions or roll back HEAD.
 
 The current GUI wires adjacent Undo/Redo and direct jumps to DVMDB's verified
 History HTTP operations, expands archived actions in pages of 50 and reloads
-the canonical model after success. First/unborn-draft and multi-network History
-navigation are deferred; DVMDB storage remains capable of multiple networks.
+the canonical model after success. Unborn first-draft MODEL creations and updates are supported, but
+ambiguous deletions and multi-network History navigation are deferred; DVMDB storage remains capable of multiple networks.
 End-to-end acceptance is **not** implied by this implementation statement.
 
 ## Reference documentation

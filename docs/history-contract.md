@@ -70,8 +70,11 @@ not be mistaken for durable acceptance.
 If no personal editing session or no live writer lease is available, show
 history **read-only**; provide contextual information rather than enabling
 navigation. A dirty queued Save must be reconciled before navigating.
-Unborn branches and branches with only snapshot checkpoints must not
-pretend to have ordinary Undo steps. Revision and branch metadata edits
+An unborn branch with no journal has no Undo steps. Once a network has
+been initialized and original MODEL actions have been saved, the verified
+single-network draft cursor may navigate those actions without inventing
+a Commit. An unborn deletion with unprovable membership order remains
+ineligible; checkpoint-only revisions must not invent MODEL actions. Revision and branch metadata edits
 are informational until a separate metadata-history contract is designed.
 
 ## Dock behavior and controls
