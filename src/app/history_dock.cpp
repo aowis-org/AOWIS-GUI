@@ -1,5 +1,7 @@
 #include "app/history_dock.h"
 
+#include <algorithm>
+
 #include <QAbstractItemView>
 #include <QFont>
 #include <QHBoxLayout>
@@ -122,6 +124,12 @@ void HistoryDock::clearDraftActions()
     this->actions_.clear();
     this->archived_pages_.clear();
     this->archive_scope_.clear();
+    this->branch_commits_.clear();
+    this->branch_next_cursor_.clear();
+    this->branch_request_cursor_.clear();
+    this->branch_history_error_.clear();
+    this->branch_history_loaded_ = false;
+    this->branch_history_loading_ = false;
     this->editing_ = false;
     this->blocked_ = false;
     this->navigation_cursor_ = {};
@@ -150,6 +158,81 @@ void HistoryDock::setArchiveScope(const QString &scope)
     if (this->archive_scope_ == scope) return;
     this->archive_scope_ = scope;
     this->archived_pages_.clear();
+    this->branch_commits_.clear();
+    this->branch_next_cursor_.clear();
+    this->branch_request_cursor_.clear();
+    this->branch_history_error_.clear();
+    this->branch_history_loaded_ = false;
+    this->branch_history_loading_ = false;
+    rebuild();
+    if (!scope.isEmpty()) requestBranchHistoryPage(QString());
+}
+
+void HistoryDock::requestBranchHistoryPage(const QString &after_revision)
+{
+    if (this->archive_scope_.isEmpty() || this->branch_history_loading_) return;
+    if (!after_revision.isEmpty() &&
+        (!this->branch_history_loaded_ || after_revision != this->branch_next_cursor_))
+        return;
+    this->branch_history_loading_ = true;
+    this->branch_request_cursor_ = after_revision;
+    this->branch_history_error_.clear();
+    rebuild();
+    emit branchHistoryPageRequested(after_revision);
+}
+
+void HistoryDock::appendBranchHistoryPage(
+    const QString &after_revision, const QList<HistoryDockEntry> &commits,
+    const QString &next_cursor)
+{
+    if (!this->branch_history_loading_ ||
+        this->branch_request_cursor_ != after_revision || this->archive_scope_.isEmpty())
+        return;
+    QString expected;
+    if (!after_revision.isEmpty() && !this->branch_commits_.isEmpty())
+        expected = this->branch_commits_.constLast().first_parent;
+    QSet<QString> known;
+    for (const HistoryDockEntry &entry : this->branch_commits_)
+        known.insert(entry.identity);
+    bool valid = commits.size() <= 10 &&
+        (!commits.isEmpty() || after_revision.isEmpty());
+    for (const HistoryDockEntry &entry : commits)
+    {
+        if (entry.kind != HistoryDockEntry::Kind::Commit ||
+            entry.identity.isEmpty() || known.contains(entry.identity) ||
+            (!expected.isEmpty() && expected != entry.identity))
+        {
+            valid = false;
+            break;
+        }
+        known.insert(entry.identity);
+        expected = entry.first_parent;
+    }
+    if ((!next_cursor.isEmpty() && (commits.isEmpty() ||
+            next_cursor != commits.constLast().identity || expected.isEmpty())) ||
+        (next_cursor.isEmpty() && !commits.isEmpty() && !expected.isEmpty()))
+        valid = false;
+    this->branch_history_loading_ = false;
+    if (!valid)
+    {
+        this->branch_history_error_ = tr("Branch History page did not match its first-parent cursor.");
+        rebuild();
+        return;
+    }
+    this->branch_history_loaded_ = true;
+    this->branch_commits_.append(commits);
+    this->branch_next_cursor_ = next_cursor;
+    this->branch_history_error_.clear();
+    rebuild();
+}
+
+void HistoryDock::failBranchHistoryPage(const QString &after_revision, const QString &error)
+{
+    if (!this->branch_history_loading_ || this->branch_request_cursor_ != after_revision)
+        return;
+    this->branch_history_loading_ = false;
+    this->branch_history_error_ = error.isEmpty()
+        ? tr("Committed History is unavailable.") : error;
     rebuild();
 }
 
@@ -230,6 +313,23 @@ void HistoryDock::handleTimelineClick(QListWidgetItem *item)
     if (item == nullptr) return;
     const QString revision = item->data(Qt::UserRole).toString();
     const QString role = item->data(Qt::UserRole + 1).toString();
+    if (role == QStringLiteral("older-commits"))
+    {
+        if (this->branch_history_loading_) return;
+        if (!this->branch_history_loaded_ || !this->branch_next_cursor_.isEmpty())
+            requestBranchHistoryPage(this->branch_history_loaded_
+                ? this->branch_next_cursor_ : QString());
+        return;
+    }
+    if (role == QStringLiteral("refresh-commits"))
+    {
+        if (this->archive_scope_.isEmpty() || this->branch_history_loading_) return;
+        this->branch_commits_.clear();
+        this->branch_next_cursor_.clear();
+        this->branch_history_loaded_ = false;
+        requestBranchHistoryPage(QString());
+        return;
+    }
     if (role == QStringLiteral("draft-action"))
     {
         if (!this->navigation_available_) return;
@@ -315,10 +415,36 @@ void HistoryDock::rebuild()
     const bool follow_latest = previous_maximum > 0 &&
         previous_position >= previous_maximum - 1;
     this->timeline_->clear();
+    // Server-paged first-parent ancestry is authoritative. Projects graph
+    // preview is displayed only until the first page arrives (or without a
+    // private draft). Commit rows are oldest-first; the HTTP pages are newest-first.
+    const bool paged = !this->archive_scope_.isEmpty() && this->branch_history_loaded_;
+    QList<HistoryDockEntry> commits = paged ? this->branch_commits_ : this->context_.commits;
+    if (paged) std::reverse(commits.begin(), commits.end());
+    if (!this->archive_scope_.isEmpty())
+    {
+        QListWidgetItem *refresh = new QListWidgetItem(
+            tr("⟳ Refresh committed History"), this->timeline_);
+        refresh->setData(Qt::UserRole + 1, QStringLiteral("refresh-commits"));
+        refresh->setToolTip(tr("Read the newest first-parent Commit page from private DVMDB."));
+        if (this->branch_history_loading_ || !this->branch_history_error_.isEmpty() ||
+            (!this->branch_next_cursor_.isEmpty() && paged))
+        {
+            const QString label = this->branch_history_loading_
+                ? tr("Loading committed History…") :
+                !this->branch_history_error_.isEmpty()
+                    ? tr("Committed History unavailable — click to retry") :
+                    tr("Load earlier Commits…");
+            QListWidgetItem *more = new QListWidgetItem(label, this->timeline_);
+            more->setData(Qt::UserRole + 1, QStringLiteral("older-commits"));
+            if (!this->branch_history_error_.isEmpty())
+                more->setToolTip(this->branch_history_error_);
+        }
+    }
     // Actions belong *before* their Commit checkpoint, oldest to newest.
     // The disclosure row expands metadata; the Commit row is a state target.
     QHash<QString, int> archive_boundaries;
-    for (const HistoryDockEntry &commit : this->context_.commits)
+    for (const HistoryDockEntry &commit : commits)
     {
         const ArchivedPage page = this->archived_pages_.value(commit.identity);
         const int first_action_index = this->timeline_->count();
@@ -399,7 +525,7 @@ void HistoryDock::rebuild()
             QStringLiteral("archivedRevisionId")).toString();
         QString marker = this->blocked_ ? tr("▶ Private working state — editing blocked") :
             this->editing_ ? tr("▶ Current private working state") :
-                this->context_.commits.isEmpty() && !this->context_.incomplete_ancestry
+                commits.isEmpty() && (paged || !this->context_.incomplete_ancestry)
                     ? tr("▶ Current unborn HEAD") : tr("▶ Current branch HEAD");
         int insert_position = this->timeline_->count();
         if (live && valid_position && position >= 0 && position <= this->actions_.size())
@@ -458,11 +584,15 @@ void HistoryDock::rebuild()
         : tr("Undo/Redo unavailable: %1").arg(unavailable);
     if (this->blocked_)
         notice += tr(" Private editing is blocked; check the network status before making changes.");
-    if (this->context_.incomplete_ancestry)
-        notice += tr(" Some committed ancestors are unavailable in the loaded graph.");
-    if (this->context_.commits.isEmpty() && has_project && !this->context_.branch.isEmpty())
+    if (!paged && this->context_.incomplete_ancestry)
+        notice += tr(" Some committed ancestors are unavailable in the Projects preview; open the private draft to load full History.");
+    if (this->branch_history_loading_) notice += tr(" Loading committed first-parent History.");
+    if (!this->branch_history_error_.isEmpty())
+        notice += tr(" Committed History request failed: %1").arg(this->branch_history_error_);
+    if (commits.isEmpty() && has_project && !this->context_.branch.isEmpty() &&
+        (paged || this->archive_scope_.isEmpty()))
         notice += tr(" No commits yet on this branch.");
-    if (!this->context_.commits.isEmpty())
+    if (!commits.isEmpty())
         notice += this->archive_scope_.isEmpty()
             ? tr(" Open a private draft to inspect archived MODEL actions.")
             : tr(" Click a Commit to jump to its verified checkpoint; use the disclosure row to expand actions in pages.");

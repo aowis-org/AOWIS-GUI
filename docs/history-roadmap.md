@@ -44,13 +44,22 @@ canonical network reload; it must never resume capture against unverified
 state. Check a suspended active journal's Redo frames survive restart and
 navigation into/out of archived History.
 
-## 3. Full first-parent branch timeline (important)
+## 3. Independent branch-history paging acceptance (important)
 
-The dock currently gets visible Commit markers from the Projects preview.
-Implement independent, watermark-pinned paging of **all** first-parent
-Commit ancestry from DVMDB. Detect incomplete pages, expose snapshot-only
-checkpoints without inventing MODEL actions, retain scroll/cursor across
-updates and load archived action metadata in bounded pages of 50.
+The History dock now reads committed first-parent checkpoints independently
+from the Projects graph preview: **10 Commits per DVMDB page**, newest-first
+on the wire and oldest-first in the dock. **Load earlier Commits** follows the
+server's exclusive revision cursor. The GUI validates first-parent continuity,
+rejects inconsistent or duplicate pages, and keeps already loaded pages on
+older-page failure. **Refresh committed History** restarts at the current
+branch tip. Archived MODEL descriptions remain separately paged in groups of
+50; checkpoint-only Commits never acquire fabricated actions.
+
+Accept long first-parent chains across many pages, branch-tip advancement
+while pages are loaded, refresh/retry after disconnect, merge first-parent
+ordering, private repository changes and delayed responses from a previous
+scope. Confirm the visible cursor and scroll position do not jump unexpectedly.
+These are **acceptance tests**, not another paging implementation milestone.
 
 ## 4. Direct-jump acceptance and ergonomics (important)
 

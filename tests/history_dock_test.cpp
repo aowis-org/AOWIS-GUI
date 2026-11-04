@@ -4,7 +4,9 @@
 #include <QAbstractItemView>
 #include <QDockWidget>
 #include <QLabel>
+#include <QList>
 #include <QListWidget>
+#include <QListWidgetItem>
 #include <QMainWindow>
 #include <QPushButton>
 
@@ -16,6 +18,22 @@ bool require(bool expression, const char *message)
 {
     if (!expression) std::fprintf(stderr, "history_dock: %s\n", message);
     return expression;
+}
+
+// Keep navigation assertions independent of the paging controls introduced by
+// complete first-parent History. Pagination itself is tested separately below.
+QList<QListWidgetItem *> historyContentRows(QListWidget *timeline)
+{
+    QList<QListWidgetItem *> rows;
+    for (int index = 0; index < timeline->count(); ++index)
+    {
+        QListWidgetItem *item = timeline->item(index);
+        const QString role = item->data(Qt::UserRole + 1).toString();
+        if (role != QStringLiteral("refresh-commits") &&
+            role != QStringLiteral("older-commits"))
+            rows.append(item);
+    }
+    return rows;
 }
 }
 
@@ -130,12 +148,12 @@ int main(int argc, char **argv)
     dock.setNavigationState(archived, true);
     // Initially: selected position, disclosure, Commit checkpoint. One
     // click on the Commit fetches only the first bounded metadata page.
-    if (!require(list->count() == 3 &&
-                 list->item(2)->text().contains(QStringLiteral("Initial layout")),
+    if (!require(historyContentRows(list).size() == 3 &&
+                 historyContentRows(list).at(2)->text().contains(QStringLiteral("Initial layout")),
                  "Commit disclosure/checkpoint rows were not separated")) return 1;
-    emit list->itemClicked(list->item(2));
+    emit list->itemClicked(historyContentRows(list).at(2));
     if (!require(archived_page_requests == 1 && archived_last_offset == 0 &&
-                 jumps == 0 && list->item(1)->text().contains(QStringLiteral("Loading")),
+                 jumps == 0 && historyContentRows(list).at(1)->text().contains(QStringLiteral("Loading")),
                  "Commit checkpoint did not request verified archive metadata")) return 1;
     HistoryDockEntry a;
     a.kind = HistoryDockEntry::Kind::ArchivedAction;
@@ -151,42 +169,42 @@ int main(int argc, char **argv)
                  last_jump.value(QStringLiteral("revisionId")).toString() == commit.identity &&
                  last_jump.value(QStringLiteral("actionPosition")).toString() == QStringLiteral("3"),
                  "Commit jump did not use the authenticated total action count")) return 1;
-    if (!require(list->count() == 6 &&
-                 list->item(0)->text().contains(QStringLiteral("Lay pipe")) &&
-                 list->item(1)->text().contains(QStringLiteral("Archived action 1")) &&
-                 list->item(2)->text().contains(QStringLiteral("Change demand")) &&
-                 list->item(3)->text().contains(QStringLiteral("Load more")),
+    if (!require(historyContentRows(list).size() == 6 &&
+                 historyContentRows(list).at(0)->text().contains(QStringLiteral("Lay pipe")) &&
+                 historyContentRows(list).at(1)->text().contains(QStringLiteral("Archived action 1")) &&
+                 historyContentRows(list).at(2)->text().contains(QStringLiteral("Change demand")) &&
+                 historyContentRows(list).at(3)->text().contains(QStringLiteral("Load more")),
                  "archived actions are not ordered around the exact cursor")) return 1;
     // A stale or duplicated page must not change the loaded archive.
     dock.appendArchivedActionPage(commit.identity, 0, {a}, -1, 1);
-    if (!require(list->count() == 6 && jumps == 1 && archived_page_requests == 1,
+    if (!require(historyContentRows(list).size() == 6 && jumps == 1 && archived_page_requests == 1,
                  "unexpected archived page changed the verified timeline")) return 1;
-    emit list->itemClicked(list->item(3));
+    emit list->itemClicked(historyContentRows(list).at(3));
     if (!require(archived_page_requests == 2 && archived_last_offset == 2,
                  "Load more did not use the next authoritative offset")) return 1;
     HistoryDockEntry c = a;
     c.identity = QStringLiteral("018f84c0-0000-7000-8000-000000000013");
     c.title = QStringLiteral("Add pump");
     dock.appendArchivedActionPage(commit.identity, 2, {c}, -1, 3);
-    if (!require(list->count() == 6 &&
-                 list->item(3)->text().contains(QStringLiteral("Add pump")) &&
-                 list->item(5)->text().contains(QStringLiteral("Initial layout")),
+    if (!require(historyContentRows(list).size() == 6 &&
+                 historyContentRows(list).at(3)->text().contains(QStringLiteral("Add pump")) &&
+                 historyContentRows(list).at(5)->text().contains(QStringLiteral("Initial layout")),
                  "final archive page or Commit checkpoint ordering is incorrect")) return 1;
     // A click on an original archived action chooses the action state; a
     // click on the disclosure row still only collapses the display.
-    emit list->itemClicked(list->item(2));
+    emit list->itemClicked(historyContentRows(list).at(2));
     if (!require(jumps == 2 &&
                  last_jump.value(QStringLiteral("actionPosition")).toString() == QStringLiteral("2"),
                  "archived action row did not select its exact position")) return 1;
-    emit list->itemClicked(list->item(4));
-    if (!require(jumps == 2 && list->count() == 3,
+    emit list->itemClicked(historyContentRows(list).at(4));
+    if (!require(jumps == 2 && historyContentRows(list).size() == 3,
                  "disclosure click navigated the model or failed to collapse")) return 1;
-    emit list->itemClicked(list->item(2));
+    emit list->itemClicked(historyContentRows(list).at(2));
     if (!require(jumps == 3 &&
                  last_jump.value(QStringLiteral("actionPosition")).toString() == QStringLiteral("3"),
                  "checkpoint click did not select the archive tip")) return 1;
     dock.setNavigationState(archived, false);
-    emit list->itemClicked(list->item(2));
+    emit list->itemClicked(historyContentRows(list).at(2));
     if (!require(jumps == 3, "blocked History still emitted a direct jump")) return 1;
     // A real saved draft action can be selected, but pending events cannot.
     dock.setNavigationState(cursor, true);
@@ -195,21 +213,21 @@ int main(int argc, char **argv)
     base_cursor.insert(QStringLiteral("actionPosition"), QStringLiteral("0"));
     dock.setNavigationState(base_cursor, true);
     // Collapsed Commit + disclosure precede saved and pending rows.
-    emit list->itemClicked(list->item(3));
+    emit list->itemClicked(historyContentRows(list).at(3));
     if (!require(jumps == 4 &&
                  last_jump.value(QStringLiteral("selectionKind")).toString() ==
                      QStringLiteral("draft") &&
                  last_jump.value(QStringLiteral("actionPosition")).toString() == QStringLiteral("1"),
                  "saved draft action did not select its exact journal position")) return 1;
-    emit list->itemClicked(list->item(4));
+    emit list->itemClicked(historyContentRows(list).at(4));
     if (!require(jumps == 4, "pending Save was exposed as navigable history")) return 1;
     dock.setDraftActions({}, false);
     // The next opened draft must not inherit another private archive's frames.
     dock.setArchiveScope(QStringLiteral("another:repository:draft:main"));
-    if (!require(list->count() == 3 && jumps == 4,
+    if (!require(historyContentRows(list).size() == 3 && jumps == 4,
                  "changing private repository scope leaked archived actions")) return 1;
     // An in-flight checkpoint lookup must not jump after a generation change.
-    emit list->itemClicked(list->item(1));
+    emit list->itemClicked(historyContentRows(list).at(1));
     if (!require(archived_page_requests == 3 && archived_last_offset == 0,
                  "fresh scope did not request checkpoint metadata")) return 1;
     QJsonObject newer_cursor = base_cursor;
@@ -221,15 +239,15 @@ int main(int argc, char **argv)
     // No archived MODEL actions means a snapshot-only checkpoint is not a
     // fabricated executable coordinate.
     dock.setArchiveScope(QStringLiteral("checkpoint-only:repository:draft:main"));
-    emit list->itemClicked(list->item(1));
+    emit list->itemClicked(historyContentRows(list).at(1));
     dock.appendArchivedActionPage(commit.identity, 0, {}, -1, 0);
-    emit list->itemClicked(list->item(list->count() - 2));
+    emit list->itemClicked(historyContentRows(list).at(historyContentRows(list).size() - 2));
     if (!require(jumps == 4 && notice->text().contains(QStringLiteral("checkpoint")),
                  "snapshot-only checkpoint was offered as a jump")) return 1;
     // An old response must not populate the newly opened private scope.
     dock.setArchiveScope(QStringLiteral("third:repository:draft:main"));
     dock.appendArchivedActionPage(commit.identity, 0, {a}, -1, 1);
-    if (!require(jumps == 4 && list->count() == 3,
+    if (!require(jumps == 4 && historyContentRows(list).size() == 3,
                  "old archived response leaked into a newly opened private draft")) return 1;
     window.show();
     dock.show();
@@ -244,5 +262,69 @@ int main(int argc, char **argv)
     dock.setContext(unborn);
     if (!require(notice->text().contains(QStringLiteral("No commits yet")) &&
                  list->count() == 1, "unborn branch incorrectly displays commits")) return 1;
+    // Commit ancestry pagination is independent of the graph preview. The
+    // server returns newest-first, but the timeline displays oldest-first.
+    {
+        HistoryDock paged(&window);
+        QListWidget *rows = paged.findChild<QListWidget *>(
+            QStringLiteral("historyDockTimeline"));
+        int requests = 0;
+        QString last_after;
+        QObject::connect(&paged, &HistoryDock::branchHistoryPageRequested, &paged,
+            [&requests, &last_after](const QString &after)
+        {
+            ++requests;
+            last_after = after;
+        });
+        paged.setContext(context);
+        paged.setArchiveScope(QStringLiteral("private:history:main"));
+        if (!require(requests == 1 && last_after.isEmpty() &&
+                     rows->item(1)->text().contains(QStringLiteral("Loading")),
+                     "first full branch History page did not start")) return 1;
+        HistoryDockEntry most_recent = commit;
+        most_recent.identity = QStringLiteral("019a47b1-2044-7af9-8d1c-2670badb6371");
+        most_recent.title = QStringLiteral("Latest committed edit");
+        most_recent.first_parent = QStringLiteral("019a47b1-2045-7af9-8d1c-2670badb6371");
+        HistoryDockEntry middle = commit;
+        middle.identity = most_recent.first_parent;
+        middle.title = QStringLiteral("Earlier edit");
+        middle.first_parent = QStringLiteral("019a47b1-2046-7af9-8d1c-2670badb6371");
+        paged.appendBranchHistoryPage({}, {most_recent, middle}, middle.identity);
+        if (!require(rows->item(1)->text().contains(QStringLiteral("Load earlier")) &&
+                     rows->item(3)->text().contains(QStringLiteral("Earlier edit")) &&
+                     rows->item(5)->text().contains(QStringLiteral("Latest committed edit")) &&
+                     !rows->item(5)->text().contains(QStringLiteral("Initial layout")),
+                     "full server History did not replace the graph preview in chronological order"))
+            return 1;
+        emit rows->itemClicked(rows->item(1));
+        if (!require(requests == 2 && last_after == middle.identity,
+                     "older ancestry request did not use the server cursor")) return 1;
+        HistoryDockEntry oldest = commit;
+        oldest.identity = middle.first_parent;
+        oldest.title = QStringLiteral("Original ancestor");
+        oldest.first_parent.clear();
+        paged.appendBranchHistoryPage(middle.identity, {oldest}, {});
+        if (!require(rows->item(2)->text().contains(QStringLiteral("Original ancestor")) &&
+                     rows->item(4)->text().contains(QStringLiteral("Earlier edit")) &&
+                     rows->item(6)->text().contains(QStringLiteral("Latest committed edit")) &&
+                     rows->count() == 8,
+                     "older Commit page did not prepend only the missing ancestors")) return 1;
+        paged.appendBranchHistoryPage(middle.identity, {oldest}, {});
+        if (!require(rows->count() == 8,
+                     "duplicate branch History page altered the timeline")) return 1;
+        emit rows->itemClicked(rows->item(0));
+        if (!require(requests == 3 && last_after.isEmpty(),
+                     "explicit History refresh did not start a fresh first page")) return 1;
+        paged.failBranchHistoryPage({}, QStringLiteral("service temporarily unavailable"));
+        if (!require(rows->item(1)->text().contains(QStringLiteral("unavailable")),
+                     "History failure did not offer a retry")) return 1;
+        emit rows->itemClicked(rows->item(1));
+        if (!require(requests == 4 && last_after.isEmpty(),
+                     "failed initial History page could not be retried")) return 1;
+        paged.setArchiveScope(QStringLiteral("different:draft:main"));
+        if (!require(requests == 5 && rows->count() == 5 &&
+                     rows->item(1)->text().contains(QStringLiteral("Loading")),
+                     "new draft leaked previously fetched Commit ancestry")) return 1;
+    }
     return 0;
 }

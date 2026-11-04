@@ -21,6 +21,8 @@ struct HistoryDockEntry
     QString title;
     QString identity;
     QString details;
+    // For server-paged first-parent checkpoints; empty for action rows.
+    QString first_parent;
 };
 
 struct HistoryDockContext
@@ -53,6 +55,13 @@ public:
                                   const QList<HistoryDockEntry> &entries,
                                   int next_offset, int total_count);
     void failArchivedActionPage(const QString &revision, const QString &error);
+    // Independent first-parent Commit pagination from the private repository.
+    // Entries arrive newest-first and are rendered oldest-first; previously
+    // loaded pages remain visible when an older-page request fails.
+    void appendBranchHistoryPage(const QString &after_revision,
+                                 const QList<HistoryDockEntry> &commits,
+                                 const QString &next_cursor);
+    void failBranchHistoryPage(const QString &after_revision, const QString &error);
     void setNavigationState(const QJsonObject &cursor, bool available,
                             const QString &unavailable_reason = QString());
 
@@ -61,10 +70,12 @@ signals:
     void redoRequested();
     void jumpRequested(const QJsonObject &coordinate);
     void archivedActionPageRequested(const QString &revision, int offset);
+    void branchHistoryPageRequested(const QString &after_revision);
 
 private:
     void rebuild();
     void handleTimelineClick(QListWidgetItem *item);
+    void requestBranchHistoryPage(const QString &after_revision);
 
     struct ArchivedPage
     {
@@ -80,6 +91,12 @@ private:
     };
 
     QString archive_scope_;
+    QList<HistoryDockEntry> branch_commits_; // newest-first from DVMDB
+    QString branch_next_cursor_;
+    QString branch_request_cursor_;
+    QString branch_history_error_;
+    bool branch_history_loaded_ = false;
+    bool branch_history_loading_ = false;
     QHash<QString, ArchivedPage> archived_pages_;
     HistoryDockContext context_;
     QList<HistoryDockEntry> actions_;

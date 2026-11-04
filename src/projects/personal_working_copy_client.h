@@ -92,6 +92,15 @@ public:
     // an exact Commit checkpoint need not download every archived frame.
     using ArchivedActionPageCompletion = std::function<void(
         const QList<QJsonObject> &, int next_offset, int total_count, const QString &)>;
+    // Immutable first-parent Commit checkpoints, newest-first, max 10 per
+    // request. Unlike the Projects graph preview, this cursor can reach the
+    // entire branch ancestry without loading the project graph.
+    using BranchHistoryPageCompletion = std::function<void(
+        const QList<QJsonObject> &, const QString &next_cursor, const QString &error)>;
+    void branchHistoryPage(const PersonalRepositoryTarget &target,
+                           const QString &project_id, const QString &branch_name,
+                           const QString &after_revision,
+                           BranchHistoryPageCompletion completion);
     void archivedActionPage(const PersonalRepositoryTarget &target,
                             const QString &project_id, const QString &branch_name,
                             const QString &revision_id, int offset,

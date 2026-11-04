@@ -110,6 +110,9 @@ public:
     int network_summary_count = 0;
     QString saved_network_id;
     int archive_page_reads = 0;
+    int branch_history_reads = 0;
+    bool invalid_branch_history_page = false;
+    QStringList branch_history_paths;
     bool invalid_archive_page = false;
     QStringList archive_paths;
     int history_cursor_reads = 0;
@@ -173,6 +176,50 @@ public:
                         document.insert(QStringLiteral("modelCodecFingerprint"),
                             this->incompatible_codec ? QString(64, QLatin1Char('0'))
                                                      : ModelCodecCompatibility::fingerprint());
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/projects/") &&
+                             request_line.contains("/action-history?"))
+                    {
+                        ++this->branch_history_reads;
+                        const QString path = QString::fromLatin1(request_line.split(' ').value(1));
+                        this->branch_history_paths.append(path);
+                        const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
+                        const QString after = query.queryItemValue(QStringLiteral("after"));
+                        const std::function<QJsonObject(const QString &, const QJsonArray &,
+                            const QString &, const QJsonArray &)> commit =
+                            [](const QString &id, const QJsonArray &parents,
+                               const QString &message, const QJsonArray &actions)
+                        {
+                            return QJsonObject{
+                                {QStringLiteral("revision"), QJsonObject{
+                                    {QStringLiteral("id"), id},
+                                    {QStringLiteral("parents"), parents},
+                                    {QStringLiteral("message"), message}}},
+                                {QStringLiteral("actionCount"), actions.size()},
+                                {QStringLiteral("actions"), actions},
+                                {QStringLiteral("checkpointOnly"), actions.isEmpty()},
+                                {QStringLiteral("operationId"), QJsonValue(QJsonValue::Null)}};
+                        };
+                        if (after.isEmpty())
+                        {
+                            document = QJsonObject{
+                                {QStringLiteral("commits"), QJsonArray{
+                                    commit(head_id, QJsonArray{lease_token},
+                                        QStringLiteral("Latest water edit"), QJsonArray{draft_id}),
+                                    commit(lease_token, QJsonArray{entity_id},
+                                        QStringLiteral("Previous checkpoint"), QJsonArray{})}},
+                                {QStringLiteral("nextCursor"), this->invalid_branch_history_page
+                                    ? QJsonValue(draft_id) : QJsonValue(lease_token)},
+                                {QStringLiteral("draft"), QJsonValue(QJsonValue::Null)}};
+                        }
+                        else
+                        {
+                            document = QJsonObject{
+                                {QStringLiteral("commits"), QJsonArray{
+                                    commit(entity_id, {}, QStringLiteral("Original layout"), {})}},
+                                {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)},
+                                {QStringLiteral("draft"), QJsonValue(QJsonValue::Null)}};
+                        }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/projects/") &&
                              request_line.contains("/action-history/") &&
@@ -1004,6 +1051,58 @@ int main(int argc, char **argv)
                cursor.value(QStringLiteral("nextAction")).isObject() &&
                history_stub.history_cursor_reads == 1,
                "History cursor was not read from private DVMDB")) return 1;
+    // Full first-parent branch History is fetched independently of Projects'
+    // graph preview, with a server-authored continuation cursor.
+    history_done = false;
+    QList<QJsonObject> branch_commits;
+    QString branch_next;
+    client.branchHistoryPage(history_stub.target(), project_id,
+        QStringLiteral("main"), QString(),
+        [&](const QList<QJsonObject> &entries, const QString &next, const QString &failure)
+    {
+        branch_commits = entries;
+        branch_next = next;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               branch_commits.size() == 2 && branch_next == lease_token &&
+               branch_commits.first().value(QStringLiteral("id")).toString() == head_id &&
+               branch_commits.last().value(QStringLiteral("firstParent")).toString() == entity_id &&
+               branch_commits.first().value(QStringLiteral("actionCount")).toInt() == 1 &&
+               history_stub.branch_history_reads == 1 &&
+               history_stub.branch_history_paths.first().contains(
+                   QStringLiteral("/branches/main/action-history?limit=10")),
+               "full branch History initial page was not validated or repository-scoped")) return 1;
+    history_done = false;
+    client.branchHistoryPage(history_stub.target(), project_id,
+        QStringLiteral("main"), branch_next,
+        [&](const QList<QJsonObject> &entries, const QString &next, const QString &failure)
+    {
+        branch_commits = entries;
+        branch_next = next;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               branch_commits.size() == 1 && branch_next.isEmpty() &&
+               branch_commits.first().value(QStringLiteral("id")).toString() == entity_id &&
+               history_stub.branch_history_paths.last().contains(
+                   QStringLiteral("&after=") + lease_token),
+               "full branch History pagination did not reach its first ancestor")) return 1;
+    history_stub.invalid_branch_history_page = true;
+    history_done = false;
+    client.branchHistoryPage(history_stub.target(), project_id,
+        QStringLiteral("main"), QString(),
+        [&](const QList<QJsonObject> &, const QString &, const QString &failure)
+    {
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) &&
+               !history_error.isEmpty(),
+               "branch History accepted a forged continuation cursor")) return 1;
+    history_stub.invalid_branch_history_page = false;
     // Original Commit actions are paged from the private repository and
     // validated by revision and offset. A malformed page never reaches UI.
     history_done = false;

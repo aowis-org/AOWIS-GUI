@@ -657,6 +657,112 @@ void PersonalWorkingCopyClient::reopen(const PersonalRepositoryTarget &target,
     });
 }
 
+void PersonalWorkingCopyClient::branchHistoryPage(
+    const PersonalRepositoryTarget &target, const QString &project_id,
+    const QString &branch_name, const QString &after_revision,
+    BranchHistoryPageCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(project_id) || branch_name.isEmpty() ||
+        branch_name.size() > 200 || (!after_revision.isEmpty() &&
+        !DvmdbIdentity::isUuidV7(after_revision)))
+    {
+        completion({}, {}, QStringLiteral("Invalid branch History request."));
+        return;
+    }
+    const QString branch_path = QString::fromLatin1(QUrl::toPercentEncoding(branch_name));
+    QString path = QStringLiteral("/projects/") + project_id +
+        QStringLiteral("/branches/") + branch_path +
+        QStringLiteral("/action-history?limit=10");
+    if (!after_revision.isEmpty()) path += QStringLiteral("&after=") + after_revision;
+    request(target, "GET", path, {},
+        [completion = std::move(completion), after_revision](
+            const QJsonObject &body, const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, {}, error); return; }
+        const QJsonValue commits_value = body.value(QStringLiteral("commits"));
+        const QJsonValue next_value = body.value(QStringLiteral("nextCursor"));
+        const QJsonArray commits = commits_value.toArray();
+        const QString next = next_value.toString();
+        const std::function<void()> invalid = [&completion]
+        {
+            completion({}, {}, QStringLiteral("Invalid branch History page."));
+        };
+        if (!commits_value.isArray() || commits.size() > 10 ||
+            (!next_value.isNull() && (!next_value.isString() ||
+                !DvmdbIdentity::isUuidV7(next))) ||
+            (!after_revision.isEmpty() && commits.isEmpty()))
+        {
+            invalid();
+            return;
+        }
+        QList<QJsonObject> result;
+        QSet<QString> seen;
+        QString expected;
+        for (const QJsonValue &item : commits)
+        {
+            if (!item.isObject()) { invalid(); return; }
+            const QJsonObject entry = item.toObject();
+            const QJsonObject revision = entry.value(QStringLiteral("revision")).toObject();
+            const QString id = revision.value(QStringLiteral("id")).toString();
+            const QJsonValue parents_value = revision.value(QStringLiteral("parents"));
+            const QJsonArray parents = parents_value.toArray();
+            const QJsonValue count_value = entry.value(QStringLiteral("actionCount"));
+            const QJsonValue checkpoint_value = entry.value(QStringLiteral("checkpointOnly"));
+            const QJsonValue actions_value = entry.value(QStringLiteral("actions"));
+            const QJsonArray actions = actions_value.toArray();
+            const QString message = revision.value(QStringLiteral("message")).toString();
+            if (!DvmdbIdentity::isUuidV7(id) || seen.contains(id) ||
+                (!expected.isEmpty() && id != expected) ||
+                !parents_value.isArray() || parents.size() > 2 ||
+                !revision.value(QStringLiteral("message")).isString() ||
+                message.size() > 4096 || !count_value.isDouble() ||
+                count_value.toInt(-1) < 0 || count_value.toInt() > 4096 ||
+                count_value.toDouble() != count_value.toInt() ||
+                !checkpoint_value.isBool() || !actions_value.isArray() ||
+                actions.size() != count_value.toInt() ||
+                checkpoint_value.toBool() != actions.isEmpty())
+            {
+                invalid();
+                return;
+            }
+            QString parent;
+            for (const QJsonValue &value : parents)
+            {
+                if (!value.isString() || !DvmdbIdentity::isUuidV7(value.toString()))
+                {
+                    invalid(); return;
+                }
+                if (parent.isEmpty()) parent = value.toString();
+            }
+            QSet<QString> action_ids;
+            for (const QJsonValue &value : actions)
+            {
+                if (!value.isString() || !DvmdbIdentity::isUuidV7(value.toString()) ||
+                    action_ids.contains(value.toString()))
+                {
+                    invalid(); return;
+                }
+                action_ids.insert(value.toString());
+            }
+            result.append(QJsonObject{{QStringLiteral("id"), id},
+                {QStringLiteral("message"), message},
+                {QStringLiteral("firstParent"), parent},
+                {QStringLiteral("actionCount"), count_value.toInt()},
+                {QStringLiteral("checkpointOnly"), checkpoint_value.toBool()}});
+            seen.insert(id);
+            expected = parent;
+        }
+        if ((!next.isEmpty() && (result.isEmpty() ||
+                next != result.constLast().value(QStringLiteral("id")).toString() ||
+                expected.isEmpty())) ||
+            (next.isEmpty() && !result.isEmpty() && !expected.isEmpty()))
+        {
+            invalid(); return;
+        }
+        completion(result, next, {});
+    });
+}
+
 void PersonalWorkingCopyClient::archivedActionPage(
     const PersonalRepositoryTarget &target, const QString &project_id,
     const QString &branch_name, const QString &revision_id, int offset,

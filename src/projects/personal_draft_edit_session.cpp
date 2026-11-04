@@ -302,6 +302,20 @@ QString PersonalDraftEditSession::historyScopeKey() const
         this->project_id_ + QStringLiteral(":") + this->draft_id_;
 }
 
+void PersonalDraftEditSession::branchHistoryPage(
+    const QString &branch_name, const QString &after_revision,
+    BranchHistoryPageCompletion completion)
+{
+    if (this->state_ == State::Idle || this->state_ == State::Stopping ||
+        this->project_id_.isEmpty() || this->stop_requested_)
+    {
+        completion({}, {}, QStringLiteral("No open private History repository."));
+        return;
+    }
+    this->client_.branchHistoryPage(this->target_, this->project_id_,
+        branch_name, after_revision, std::move(completion));
+}
+
 void PersonalDraftEditSession::archivedActionPage(
     const QString &branch_name, const QString &revision_id, int offset,
     ArchivedPageCompletion completion)

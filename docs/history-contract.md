@@ -110,9 +110,19 @@ are informational until a separate metadata-history contract is designed.
   the current-state marker never navigate. The DVMDB backend re-verifies
   archive coverage and rejects ineligible revisions; the GUI never grants
   eligibility from labels or from a partial local replay.
-- Load long histories by pages at a stable history watermark, preserving
-  scroll position and selected cursor. Never truncate silently to the
-  draft's current journal capacity or show a first page as the entire past.
+- **Commit ancestry paging:** while a private draft is open, fetch the
+  actual first-parent Commit history from DVMDB independently of the Projects
+  graph preview, 10 Commits per page. A **Load earlier Commits** row follows
+  DVMDB's exclusive revision cursor, while **Refresh committed History**
+  rereads the branch tip. The GUI validates first-parent continuity,
+  de-duplicates revision UUIDs, and keeps already loaded pages when an older
+  request fails. The dock displays oldest-to-newest even though DVMDB's
+  transport pages arrive newest-first. On a missing/unavailable private draft,
+  the Projects preview remains a read-only fallback and reports incomplete
+  ancestry rather than silently treating it as exhaustive. Archived MODEL
+  actions are paginated separately, 50 at a time.
+- Preserve scroll position and selected action cursor across updates. Never
+  truncate silently to the current draft journal or graph-preview capacity.
 - Show meaningful action labels, but never use a label alone as identity.
   Before/after images, action IDs and revision IDs remain authoritative.
 - When navigation is rejected, keep the unchanged model and cursor; expose
@@ -149,9 +159,9 @@ until the draft is returned to an eligible position. New edits after Undo
 atomically replace the abandoned active-journal Redo suffix. The GUI
 wires adjacent Undo/Redo to that controller for eligible private drafts, but
 **the current tests have not yet proved the complete GUI + server + restart
-workflow**. The list expands archived MODEL actions for Commits already visible in the
-Projects first-parent graph, but it does not yet independently page the
-entire branch ancestry. Direct-jump end-to-end acceptance, complete branch ancestry paging,
-shortcuts and unborn-base navigation remain outstanding. Multi-network
+workflow**. The dock now independently pages the entire private branch's first-parent
+ancestry through DVMDB, rather than relying on the Projects graph preview.
+Direct-jump and long-history end-to-end acceptance, keyboard shortcuts and
+some unborn-draft membership edits remain outstanding. Multi-network
 History navigation is deferred without restricting multiple-network storage.
 For the latest actual test evidence see [verification status](verification-status.md). See the [History roadmap](history-roadmap.md).

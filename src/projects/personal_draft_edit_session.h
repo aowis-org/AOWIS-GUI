@@ -51,6 +51,9 @@ public:
     // Read-only paged archive metadata. It never uses the source repository
     // or acquires/rotates the draft writer lease.
     QString historyScopeKey() const;
+    using BranchHistoryPageCompletion = PersonalWorkingCopyClient::BranchHistoryPageCompletion;
+    void branchHistoryPage(const QString &branch_name, const QString &after_revision,
+                           BranchHistoryPageCompletion completion);
     using ArchivedPageCompletion = PersonalWorkingCopyClient::ArchivedActionPageCompletion;
     void archivedActionPage(const QString &branch_name, const QString &revision_id,
                             int offset, ArchivedPageCompletion completion);

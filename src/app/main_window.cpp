@@ -120,6 +120,51 @@ MainWindow::MainWindow(QWidget *parent)
             this->personal_edit_session != nullptr)
             this->personal_edit_session->navigateHistoryTo(coordinate);
     });
+    connect(this->history_dock, &HistoryDock::branchHistoryPageRequested,
+            this, [this](const QString &after_revision)
+    {
+        if (!this->personal_edit_active || this->personal_edit_session == nullptr ||
+            this->opened_branch_name.isEmpty())
+        {
+            this->history_dock->failBranchHistoryPage(
+                after_revision, tr("Open a private branch to read committed History."));
+            return;
+        }
+        const QString branch = this->opened_branch_name;
+        const QString scope = this->personal_edit_session->historyScopeKey() +
+            QStringLiteral(":") + branch;
+        this->personal_edit_session->branchHistoryPage(branch, after_revision,
+            [this, scope, after_revision](const QList<QJsonObject> &data,
+                                          const QString &next_cursor, const QString &error)
+        {
+            if (!this->personal_edit_active || this->personal_edit_session == nullptr ||
+                this->personal_edit_session->historyScopeKey() +
+                    QStringLiteral(":") + this->opened_branch_name != scope)
+                return;
+            if (!error.isEmpty())
+            {
+                this->history_dock->failBranchHistoryPage(after_revision, error);
+                return;
+            }
+            QList<HistoryDockEntry> entries;
+            for (const QJsonObject &commit : data)
+            {
+                HistoryDockEntry entry;
+                entry.kind = HistoryDockEntry::Kind::Commit;
+                entry.identity = commit.value(QStringLiteral("id")).toString();
+                entry.first_parent = commit.value(QStringLiteral("firstParent")).toString();
+                entry.title = commit.value(QStringLiteral("message")).toString().simplified();
+                if (entry.title.isEmpty())
+                    entry.title = tr("Commit %1").arg(entry.identity.left(8));
+                entry.details = tr("Immutable revision: %1").arg(entry.identity);
+                if (commit.value(QStringLiteral("checkpointOnly")).toBool())
+                    entry.details += tr("\nSnapshot-only checkpoint: no recorded MODEL actions.");
+                entries.append(entry);
+            }
+            this->history_dock->appendBranchHistoryPage(
+                after_revision, entries, next_cursor);
+        });
+    });
     connect(this->history_dock, &HistoryDock::archivedActionPageRequested,
             this, [this](const QString &revision, int offset)
     {
