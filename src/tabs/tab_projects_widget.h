@@ -192,6 +192,9 @@ private:
     void updateInspectorTabs();
     void activateInspectorRelation(const QString &key);
     void deleteSelection();
+    void deleteInspectedBranch();
+    void deleteInspectedRevision();
+    void discardInspectedHead();
     void browseExamples();
     void createProjectFromExample(const BuiltinExampleRevision &example);
     void applyInspectorEdits();

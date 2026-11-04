@@ -100,11 +100,13 @@ public:
     void branchHistoryPage(const PersonalRepositoryTarget &target,
                            const QString &project_id, const QString &branch_name,
                            const QString &after_revision,
-                           BranchHistoryPageCompletion completion);
+                           BranchHistoryPageCompletion completion,
+                           const QString &draft_id = {});
     void archivedActionPage(const PersonalRepositoryTarget &target,
                             const QString &project_id, const QString &branch_name,
                             const QString &revision_id, int offset,
-                            ArchivedActionPageCompletion completion);
+                            ArchivedActionPageCompletion completion,
+                            const QString &draft_id = {});
 
     explicit PersonalWorkingCopyClient(QObject *parent = nullptr);
 

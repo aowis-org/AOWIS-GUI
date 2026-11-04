@@ -11,7 +11,7 @@
 class QNetworkReply;
 class QJsonObject;
 
-// Project and branch creation. Exactly one write may be in flight. The writer
+// Pinned project and branch metadata/history writes. Exactly one write may be in flight. The writer
 // chooses the UUIDv7 of what it creates, so a request resent by the transport
 // (Qt before 6.10 replays a POST whose connection dropped before the reply)
 // names the same object and DVMDB answers it idempotently. A lost response
@@ -33,6 +33,11 @@ public:
     void createUnbornBranch(const ProjectServerProfile &profile, const QString &project_id,
                             const QString &name, const QStringList &tags,
                             const QString &description, Completion completion);
+    void deleteBranch(const ProjectServerProfile &profile, const QString &project_id,
+                      const QString &branch_id, const QString &expected_head, Completion completion);
+    void truncateBranch(const ProjectServerProfile &profile, const QString &project_id,
+                        const QString &branch_id, const QString &expected_head,
+                        const QString &first_removed, Completion completion);
     // Both operations use compare-and-swap preconditions and refresh after
     // uncertain replies; the UUIDv7 addresses never change on rename.
     void updateBranchProperties(const ProjectServerProfile &profile, const QString &project_id,
@@ -57,6 +62,8 @@ private:
     void sendPinned(const ProjectServerProfile &profile, const QString &endpoint,
                     const QByteArray &method, const QString &path, const QJsonObject &body,
                     std::function<void(QNetworkReply *)> completed);
+    void destructiveWrite(const ProjectServerProfile &profile, const QString &path,
+                          const QJsonObject &body, Completion completion);
     void patchProperties(const ProjectServerProfile &profile, const QString &path,
                          const QJsonObject &body, const QString &expected_response_key,
                          const QString &expected_value, Completion completion);

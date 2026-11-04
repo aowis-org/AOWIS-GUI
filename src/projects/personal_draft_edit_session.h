@@ -43,6 +43,9 @@ public:
     QList<QByteArray> pendingHistoryEvents() const;
     const QJsonObject &historyCursor() const;
     bool canNavigateHistory() const;
+    // Authoritative cursor acknowledgement is required before capturing edits.
+    // Archived positions are writable only when DVMDB confirms a safe fork.
+    bool canCaptureHistoryEdits() const;
     QString historyNavigationStatus() const;
     void navigateHistory(bool backward);
     // Exact GUI-selected coordinate. Eligibility is rechecked before the
@@ -93,6 +96,7 @@ private:
     QString generation_;
     QString base_revision_;
     QJsonObject history_cursor_;
+    bool history_edit_position_verified_ = false;
     bool history_cursor_request_in_flight_ = false;
     bool history_network_qualified_ = false;
     bool history_qualification_in_flight_ = false;

@@ -27,6 +27,24 @@ Every project, branch, revision and private draft uses UUIDv7 identity.
 Branch names are labels and may change. A revision's SHA-256 is integrity
 metadata, never an object ID.
 
+## Deleting HEAD, revisions and branches
+
+The HEAD/Revision **Overview** tab exposes a contextual Delete action. For
+an unborn HEAD it deletes the entire unborn branch. For an existing HEAD it
+discards the one saved, leased private working copy (and its Undo/Redo event
+journal), leaving committed revisions untouched. It fails safely when multiple
+copies exist or another editor holds the lease. For an immutable revision the
+button truncates the selected branch's first-parent history at that revision,
+including later commits. Deleting the root or first local fork commit removes
+the entire branch. Its **Branch** tab also exposes **Delete entire branch**;
+the branch-management inspector offers the same action.
+
+DVMDB pins destructive operations to the expected branch HEAD and refuses
+revision or branch deletion while any working copy for that branch exists.
+Shared immutable ancestry and merged revisions remain stored when needed by
+surviving branches. All destructive actions require explicit confirmation;
+after the response the GUI reloads the authoritative project catalogue.
+
 ## Graph cards and click targets
 
 A newly created project automatically has `main` with **no committed

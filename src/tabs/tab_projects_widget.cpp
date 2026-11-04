@@ -864,7 +864,11 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->project_inspector->delete_project, &QPushButton::clicked,
             this, &ProjectsWidget::deleteSelection);
     connect(this->branch_inspector->delete_branch, &QPushButton::clicked,
-            this, &ProjectsWidget::deleteSelection);
+            this, &ProjectsWidget::deleteInspectedBranch);
+    connect(this->revision_branch_page->delete_branch, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteInspectedBranch);
+    connect(this->revision_network_overview->delete_revision, &QPushButton::clicked,
+            this, &ProjectsWidget::deleteInspectedRevision);
     for (ProjectsInspectorOverview *overview : {
              static_cast<ProjectsInspectorOverview *>(this->database_overview),
              static_cast<ProjectsInspectorOverview *>(this->project_overview),
@@ -2512,6 +2516,27 @@ void ProjectsWidget::updateButtons()
         inspectedRevisionBranch() != nullptr,
         !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty()
             || !saved_commit_state.isEmpty());
+    const ProjectPreviewBranch *deletion_branch = inspectedRevisionBranch();
+    const bool deletion_unborn_head = this->selection_kind == SelectionKind::Head
+        && deletion_branch != nullptr && deletion_branch->head.isEmpty();
+    const bool may_delete = backed && ready && !creating
+        && inspectedRevisionBranch() != nullptr;
+    this->revision_branch_page->delete_branch->setEnabled(may_delete);
+    this->revision_network_overview->delete_revision->setVisible(
+        this->selection_kind == SelectionKind::Revision
+        || this->selection_kind == SelectionKind::Head);
+    this->revision_network_overview->delete_revision->setEnabled(
+        may_delete && (this->selection_kind == SelectionKind::Revision
+            || this->selection_kind == SelectionKind::Head));
+    this->revision_network_overview->delete_revision->setText(
+        this->selection_kind == SelectionKind::Head
+            ? deletion_unborn_head ? tr("Delete unborn HEAD and branch…")
+                                   : tr("Delete HEAD working changes…")
+            : tr("Delete revision and later history…"));
+    this->revision_network_overview->delete_revision->setToolTip(
+        this->selection_kind == SelectionKind::Head && !deletion_unborn_head
+            ? tr("Discard this HEAD's saved private working copy; immutable revisions remain unchanged.")
+            : QString());
     this->revision_inspector->commit_head->setText(saved_commit_state.isEmpty()
         ? tr("Commit") : tr("Reconcile Commit"));
     this->revision_inspector->commit_head->setToolTip(saved_commit_state.isEmpty()
@@ -3997,6 +4022,140 @@ void ProjectsWidget::createBranch()
     rebuildGraph();
     cancelCreation();
     select(SelectionKind::Branch, id);
+}
+
+void ProjectsWidget::deleteInspectedBranch() {
+    if (this->source_writer->isBusy()) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    const ProjectServerProfile *server = currentServer();
+    if (project == nullptr || branch == nullptr || server == nullptr) return;
+    if (!project->database_backed) { deleteSelection(); return; }
+    const QString project_id = project->backend_id;
+    const QString branch_id = branch->id.mid(project->id.size() + 1);
+    const QString expected_head = branch->head;
+    if (!DvmdbIdentity::isUuidV7(branch_id)) return;
+    if (QMessageBox::warning(this, tr("Delete entire branch"),
+        tr("Permanently remove the branch '%1' and its HEAD from this project? "
+           "Its unique history will disappear from the branch graph. "
+           "Immutable revisions still needed by other branches or merges remain stored. "
+           "Deletion cannot be undone. Active working copies must be discarded first.")
+            .arg(branch->name), QMessageBox::Yes | QMessageBox::Cancel,
+        QMessageBox::Cancel) != QMessageBox::Yes) return;
+    this->source_writer->deleteBranch(*server, project_id, branch_id, expected_head,
+        [this](const QString &, const QString &error) {
+            if (!error.isEmpty()) QMessageBox::warning(this, tr("Branch deletion failed"), error);
+            // Refresh even after ambiguous HTTP failure; never fake a deletion.
+            connectSource();
+        });
+    updateButtons();
+}
+
+void ProjectsWidget::deleteInspectedRevision() {
+    if (this->selection_kind == SelectionKind::Head) {
+        const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+        if (branch != nullptr && branch->head.isEmpty()) deleteInspectedBranch();
+        else discardInspectedHead();
+        return;
+    }
+    if (this->selection_kind != SelectionKind::Revision || this->source_writer->isBusy()) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    const ProjectServerProfile *server = currentServer();
+    if (project == nullptr || branch == nullptr || server == nullptr || !project->database_backed)
+        return;
+    const QString project_id = project->backend_id;
+    const QString branch_id = branch->id.mid(project->id.size() + 1);
+    const QString first_removed = this->selected_id;
+    const QString head = branch->head;
+    if (!DvmdbIdentity::isUuidV7(branch_id) || !DvmdbIdentity::isUuidV7(first_removed)
+        || !DvmdbIdentity::isUuidV7(head)) return;
+    if (QMessageBox::warning(this, tr("Delete revision history"),
+        tr("Remove the selected revision and all subsequent first-parent revisions "
+           "on branch '%1'? The branch may be deleted if this is its first revision. "
+           "Shared merge ancestry is preserved. This cannot be undone. "
+           "Active working copies must be discarded first.").arg(branch->name),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
+    this->source_writer->truncateBranch(*server, project_id, branch_id, head, first_removed,
+        [this](const QString &, const QString &error) {
+            if (!error.isEmpty()) QMessageBox::warning(this, tr("Revision deletion failed"), error);
+            connectSource();
+        });
+    updateButtons();
+}
+
+void ProjectsWidget::discardInspectedHead() {
+    if (this->selection_kind != SelectionKind::Head || this->source_writer->isBusy()) return;
+    const ProjectPreviewData *project = currentProject();
+    const ProjectPreviewBranch *branch = inspectedRevisionBranch();
+    if (project == nullptr || branch == nullptr || !project->database_backed) return;
+    const QString project_id = project->backend_id;
+    const QString branch_id = branch->id.mid(project->id.size() + 1);
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if (target.kind == PersonalRepositoryTarget::Kind::Unavailable) {
+        QMessageBox::warning(this, tr("Cannot discard HEAD"),
+            tr("A personal working database must be available to discard HEAD changes."));
+        return;
+    }
+    if (QMessageBox::warning(this, tr("Delete HEAD working changes"),
+        tr("Discard the saved private working copy of branch '%1', including its Undo/Redo "
+           "journal? Committed revisions and other branches remain unchanged. "
+           "This operation cannot be undone.").arg(branch->name),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
+    PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    client->list(target, project_id,
+        [this, client, target, project_id, branch_id](
+            const QList<PersonalWorkingCopyInfo> &drafts, const QString &error) {
+        if (!error.isEmpty()) {
+            QMessageBox::warning(this, tr("Cannot discard HEAD"), error);
+            client->deleteLater();
+            return;
+        }
+        QList<PersonalWorkingCopyInfo> matches;
+        for (const PersonalWorkingCopyInfo &draft : drafts)
+            if (draft.project_id == project_id && draft.branch_id == branch_id)
+                matches.append(draft);
+        if (matches.isEmpty()) {
+            QMessageBox::information(this, tr("HEAD is clean"),
+                tr("No saved working copy exists for this HEAD. Committed history is unchanged."));
+            client->deleteLater();
+            return;
+        }
+        if (matches.size() != 1) {
+            QMessageBox::warning(this, tr("Multiple working copies"),
+                tr("This HEAD has multiple private working copies. Resolve them in "
+                   "Personal working copies before deleting any HEAD state."));
+            client->deleteLater();
+            return;
+        }
+        const PersonalWorkingCopyInfo draft = matches.first();
+        const QString session_id = DvmdbIdentity::newUuidV7();
+        client->acquireLease(target, draft.id, session_id, 30,
+            [this, client, target, draft, session_id](
+                const PersonalWorkingCopyLease &lease, const QString &lease_error) {
+            if (!lease_error.isEmpty()) {
+                QMessageBox::warning(this, tr("HEAD is in use"), lease_error);
+                client->deleteLater();
+                return;
+            }
+            if (lease.generation != draft.generation) {
+                client->releaseLease(target, draft.id, session_id, lease.token,
+                    [this, client](const QString &) {
+                    QMessageBox::warning(this, tr("HEAD changed"),
+                        tr("The working copy changed. Review it before discarding."));
+                    client->deleteLater();
+                });
+                return;
+            }
+            client->discardDraft(target, draft.id, session_id, lease.token,
+                lease.generation, [this, client](const QString &discard_error) {
+                if (!discard_error.isEmpty())
+                    QMessageBox::warning(this, tr("HEAD discard failed"), discard_error);
+                client->deleteLater();
+                connectSource();
+            });
+        });
+    });
 }
 
 void ProjectsWidget::deleteSelection()

@@ -112,10 +112,13 @@ public:
     int archive_page_reads = 0;
     int branch_history_reads = 0;
     bool invalid_branch_history_page = false;
+    bool forked_branch_history = false;
     QStringList branch_history_paths;
     bool invalid_archive_page = false;
     QStringList archive_paths;
     int history_cursor_reads = 0;
+    bool history_selected_archived = false;
+    bool history_can_branch_from_archived = false;
     int history_navigation_requests = 0;
     bool history_require_committed_head = false;
     QJsonObject last_history_navigation;
@@ -185,10 +188,15 @@ public:
                         this->branch_history_paths.append(path);
                         const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
                         const QString after = query.queryItemValue(QStringLiteral("after"));
+                        // Match DVMDB's current wire contract: every Commit
+                        // supplies a logical parent, including an explicit null
+                        // for the oldest action checkpoint. Unlike DAG parents,
+                        // this link can skip abandoned Redo history.
                         const std::function<QJsonObject(const QString &, const QJsonArray &,
-                            const QString &, const QJsonArray &)> commit =
+                            const QString &, const QJsonArray &, const QJsonValue &)> commit =
                             [](const QString &id, const QJsonArray &parents,
-                               const QString &message, const QJsonArray &actions)
+                               const QString &message, const QJsonArray &actions,
+                               const QJsonValue &logical_parent)
                         {
                             return QJsonObject{
                                 {QStringLiteral("revision"), QJsonObject{
@@ -197,26 +205,35 @@ public:
                                     {QStringLiteral("message"), message}}},
                                 {QStringLiteral("actionCount"), actions.size()},
                                 {QStringLiteral("actions"), actions},
+                                {QStringLiteral("logicalParentRevisionId"), logical_parent},
                                 {QStringLiteral("checkpointOnly"), actions.isEmpty()},
                                 {QStringLiteral("operationId"), QJsonValue(QJsonValue::Null)}};
                         };
                         if (after.isEmpty())
                         {
+                            const QJsonObject latest = commit(head_id, QJsonArray{lease_token},
+                                QStringLiteral("Latest water edit"), QJsonArray{draft_id},
+                                this->forked_branch_history ? QJsonValue(entity_id)
+                                                            : QJsonValue(lease_token));
+                            const QJsonObject previous = this->forked_branch_history
+                                ? commit(entity_id, {}, QStringLiteral("Original layout"), {},
+                                         QJsonValue(QJsonValue::Null))
+                                : commit(lease_token, QJsonArray{entity_id},
+                                         QStringLiteral("Previous checkpoint"), {},
+                                         QJsonValue(entity_id));
                             document = QJsonObject{
-                                {QStringLiteral("commits"), QJsonArray{
-                                    commit(head_id, QJsonArray{lease_token},
-                                        QStringLiteral("Latest water edit"), QJsonArray{draft_id}),
-                                    commit(lease_token, QJsonArray{entity_id},
-                                        QStringLiteral("Previous checkpoint"), QJsonArray{})}},
+                                {QStringLiteral("commits"), QJsonArray{latest, previous}},
                                 {QStringLiteral("nextCursor"), this->invalid_branch_history_page
-                                    ? QJsonValue(draft_id) : QJsonValue(lease_token)},
+                                    ? QJsonValue(draft_id) : this->forked_branch_history
+                                        ? QJsonValue(QJsonValue::Null) : QJsonValue(lease_token)},
                                 {QStringLiteral("draft"), QJsonValue(QJsonValue::Null)}};
                         }
                         else
                         {
                             document = QJsonObject{
                                 {QStringLiteral("commits"), QJsonArray{
-                                    commit(entity_id, {}, QStringLiteral("Original layout"), {})}},
+                                    commit(entity_id, {}, QStringLiteral("Original layout"), {},
+                                           QJsonValue(QJsonValue::Null))}},
                                 {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)},
                                 {QStringLiteral("draft"), QJsonValue(QJsonValue::Null)}};
                         }
@@ -445,10 +462,18 @@ public:
                         document = QJsonObject{
                             {QStringLiteral("draftId"), draft_id},
                             {QStringLiteral("generation"), QString::number(this->generation)},
-                            {QStringLiteral("baseRevision"), QJsonValue(QJsonValue::Null)},
-                            {QStringLiteral("journalCount"), QStringLiteral("1")},
-                            {QStringLiteral("actionPosition"), QStringLiteral("0")},
-                            {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+                            {QStringLiteral("baseRevision"), this->history_require_committed_head
+                                ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("journalCount"), QString::number(this->saved_events.size())},
+                            {QStringLiteral("actionPosition"), this->history_selected_archived
+                                ? QStringLiteral("0") : QString::number(this->saved_events.size())},
+                            {QStringLiteral("selectionKind"), this->history_selected_archived
+                                ? QStringLiteral("archived") : QStringLiteral("draft")},
+                            {QStringLiteral("archivedRevisionId"), this->history_selected_archived
+                                ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("canBranchFromHistory"),
+                                this->history_selected_archived &&
+                                this->history_can_branch_from_archived},
                             {QStringLiteral("previousAction"), QJsonValue(QJsonValue::Null)},
                             {QStringLiteral("nextAction"), QJsonObject{
                                 {QStringLiteral("selectionKind"), QStringLiteral("draft")},
@@ -464,7 +489,8 @@ public:
                                 QString::number(this->generation) ||
                             (this->history_require_committed_head
                                 ? request_body.value(QStringLiteral("expectedHead")).toString() != head_id ||
-                                  request_body.value(QStringLiteral("revisionId")).toString() != head_id
+                                  (request_body.contains(QStringLiteral("revisionId")) &&
+                                   request_body.value(QStringLiteral("revisionId")).toString() != head_id)
                                 : !request_body.value(QStringLiteral("expectedHead")).isNull()) ||
                             request_body.value(QStringLiteral("fencingToken")).toString() != lease_token)
                         {
@@ -475,6 +501,8 @@ public:
                         else
                         {
                             ++this->generation;
+                            this->history_selected_archived = request_body.contains(
+                                QStringLiteral("revisionId"));
                             document = draftRecord(this->lease_session);
                         }
                     }
@@ -752,7 +780,8 @@ public:
             {QStringLiteral("id"), draft_id},
             {QStringLiteral("projectId"), project_id},
             {QStringLiteral("branchId"), branch_id},
-            {QStringLiteral("baseRevision"), QJsonValue(QJsonValue::Null)},
+            {QStringLiteral("baseRevision"), this->history_require_committed_head
+                ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
             {QStringLiteral("sessionId"), session.isEmpty() ? head_id : session},
             {QStringLiteral("generation"), QString::number(this->generation)},
             {QStringLiteral("dirty"), this->generation != 0},
@@ -770,6 +799,80 @@ public:
 };
 }
 
+// An archived selection is writable only after the server verifies that a
+// new MODEL edit can safely branch the active History at this coordinate.
+// Navigation and cursor refresh must never invent a synthetic MODEL event.
+bool testArchivedHistoryCaptureGate(QCoreApplication &application)
+{
+    Stub stub;
+    if (!check(stub.listen(), "archived cursor fixture could not listen")) return false;
+    QTemporaryDir root;
+    if (!check(root.isValid(), "archived cursor queue root invalid")) return false;
+    const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+    stub.saved_network_id = network_id;
+    stub.history_selected_archived = true;
+    stub.history_require_committed_head = true;
+    PersonalDraftEditSession session;
+    bool opened = false;
+    bool navigation_complete = false;
+    bool writable_at_navigation_completion = false;
+    QString problem;
+    QObject::connect(&session, &PersonalDraftEditSession::ready, &session,
+                     [&] { opened = true; });
+    QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
+                     &session, [&](const NetworkHydraulic &)
+    {
+        navigation_complete = true;
+        writable_at_navigation_completion = session.canCaptureHistoryEdits();
+    });
+    QObject::connect(&session, &PersonalDraftEditSession::blocked, &session,
+                     [&](const QString &reason) { problem = reason; });
+    session.start(stub.target(), draft_id, network_id, root.path());
+    if (!check(until(application, [&] {
+                    return session.historyCursor().value(QStringLiteral("selectionKind")).toString()
+                        == QStringLiteral("archived") || !problem.isEmpty();
+               }) && opened && problem.isEmpty() && session.isReady() &&
+               !session.canCaptureHistoryEdits() && session.canNavigateHistory(),
+               "archived History allowed editing without a verified fork coordinate")) return false;
+    // A newly verified archived coordinate is reached through the same
+    // public, fenced History navigation used by the editor. Do not bypass the
+    // session state machine by calling its private cursor-refresh helper.
+    // The fixture contains two archived actions; moving to action 1 must
+    // preserve editor capture once the authoritative cursor permits a fork.
+    stub.history_can_branch_from_archived = true;
+    session.navigateHistoryTo(QJsonObject{
+        {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+        {QStringLiteral("revisionId"), head_id},
+        {QStringLiteral("actionPosition"), QStringLiteral("1")}});
+    if (!check(until(application, [&] {
+                    return session.canCaptureHistoryEdits() || !problem.isEmpty();
+               }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
+               session.historyCursor().value(QStringLiteral("canBranchFromHistory")).toBool() &&
+               stub.history_cursor_reads >= 2 && stub.history_navigation_requests == 1,
+               "verified archived History did not authorize a new editing path")) return false;
+
+    navigation_complete = false;
+    writable_at_navigation_completion = true;
+    session.navigateHistoryTo(QJsonObject{
+        {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+        {QStringLiteral("revisionId"), QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("actionPosition"), QStringLiteral("0")}});
+    if (!check(until(application, [&] {
+                    return (navigation_complete && session.canCaptureHistoryEdits()) ||
+                        !problem.isEmpty();
+               }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
+               session.historyCursor().value(QStringLiteral("selectionKind")).toString()
+                   == QStringLiteral("draft") && !writable_at_navigation_completion &&
+               stub.history_navigation_requests == 2 && stub.saved_events.isEmpty(),
+               "return from archived History did not restore writable draft cursor")) return false;
+    bool stopped = false;
+    QObject::connect(&session, &PersonalDraftEditSession::stopped, &session,
+                     [&](const QString &) { stopped = true; });
+    session.stop();
+    return check(until(application, [&] { return stopped; }),
+                 "archived cursor fixture could not release its lease");
+}
+
 // A real HTTP session/controller test, with the same private identity,
 // generation, writer fencing and event-save contracts as the existing fixture.
 // This does NOT assert that the Distribution Editor has been bound to autosave.
@@ -780,11 +883,17 @@ bool testDraftEditSession(QCoreApplication &application)
     QTemporaryDir root;
     if (!check(root.isValid(), "controller fixture queue root invalid")) return false;
     const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+    stub.saved_network_id = network_id;
     PersonalDraftEditSession session;
     bool opened = false;
+    bool editable_before_cursor = false;
     QString problem;
     QObject::connect(&session, &PersonalDraftEditSession::ready,
-                     &session, [&] { opened = true; });
+                     &session, [&]
+    {
+        opened = true;
+        editable_before_cursor = session.canCaptureHistoryEdits();
+    });
     QObject::connect(&session, &PersonalDraftEditSession::blocked,
                      &session, [&](const QString &message) { problem = message; });
     session.start(stub.target(), draft_id, network_id, root.path());
@@ -792,8 +901,14 @@ bool testDraftEditSession(QCoreApplication &application)
                opened && problem.isEmpty() && session.isReady() &&
                session.currentGeneration() == QStringLiteral("0") &&
                session.pendingCount() == 0 &&
-               session.visibleNetwork().uuid == QUuid(network_id),
-               "session did not verify, hydrate and fence the private draft")) return false;
+               session.visibleNetwork().uuid == QUuid(network_id) &&
+               !editable_before_cursor,
+               "session enabled capture before the authoritative History cursor")) return false;
+    if (!check(until(application, [&] {
+                    return session.canCaptureHistoryEdits() || !problem.isEmpty();
+               }) && session.canCaptureHistoryEdits() && problem.isEmpty() &&
+               stub.history_cursor_reads >= 1,
+               "session did not authorize edit capture from the live draft cursor")) return false;
 
     NetworkHydraulic live = session.visibleNetwork();
     HydraulicNetworkEditor editor(live);
@@ -859,6 +974,7 @@ bool testDraftEditSession(QCoreApplication &application)
     if (!check(rejected.listen(), "rejection fixture could not listen")) return false;
     QTemporaryDir failed_root;
     const QString failed_network = PersonalWorkingCopyClient::newSessionUuidV7();
+    rejected.saved_network_id = failed_network;
     PersonalDraftEditSession first_attempt;
     bool failed_open = false;
     QString failure;
@@ -869,6 +985,8 @@ bool testDraftEditSession(QCoreApplication &application)
     first_attempt.start(rejected.target(), draft_id, failed_network, failed_root.path());
     if (!check(until(application, [&] { return failed_open || !failure.isEmpty(); }) &&
                failed_open, "rejected Save fixture session did not start")) return false;
+    if (!check(until(application, [&] { return first_attempt.canCaptureHistoryEdits(); }),
+               "rejected Save fixture did not verify a writable draft cursor")) return false;
     NetworkHydraulic retry_live = first_attempt.visibleNetwork();
     HydraulicNetworkEditor retry_editor(retry_live);
     HydraulicEditTransactionCapture retry_capture(QStringLiteral("hydraulic.junction.create"));
@@ -1028,6 +1146,7 @@ bool testDurableCommitRecovery(QCoreApplication &application)
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    if (!testArchivedHistoryCaptureGate(application)) return 1;
     if (!testDraftEditSession(application)) return 1;
     if (!testDurableCommitRecovery(application)) return 1;
     Stub stub;
@@ -1103,6 +1222,27 @@ int main(int argc, char **argv)
                !history_error.isEmpty(),
                "branch History accepted a forged continuation cursor")) return 1;
     history_stub.invalid_branch_history_page = false;
+    // A new edit after archived Undo can skip a committed checkpoint in
+    // the logical History while leaving its immutable DAG parent intact.
+    history_stub.forked_branch_history = true;
+    history_done = false;
+    client.branchHistoryPage(history_stub.target(), project_id,
+        QStringLiteral("main"), QString(),
+        [&](const QList<QJsonObject> &entries, const QString &next, const QString &failure)
+    {
+        branch_commits = entries;
+        branch_next = next;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               branch_commits.size() == 2 && branch_next.isEmpty() &&
+               branch_commits.first().value(QStringLiteral("id")).toString() == head_id &&
+               branch_commits.first().value(QStringLiteral("firstParent")).toString() == entity_id &&
+               branch_commits.last().value(QStringLiteral("id")).toString() == entity_id &&
+               branch_commits.last().value(QStringLiteral("firstParent")).toString().isEmpty(),
+               "branch History resurrected an abandoned Redo checkpoint")) return 1;
+    history_stub.forked_branch_history = false;
     // Original Commit actions are paged from the private repository and
     // validated by revision and offset. A malformed page never reaches UI.
     history_done = false;

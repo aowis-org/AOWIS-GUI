@@ -335,6 +335,24 @@ MainWindow::MainWindow(QWidget *parent)
     // A private draft can be edited only through the fenced session. The status
     // bar offers an explicit way to end editing without discarding queued edits.
     this->personal_edit_session = new PersonalDraftEditSession(this);
+    // The mode tabs remain interactive. An archived History selection is
+    // navigable but not editable: reject attempts to re-enter editor tools
+    // before an authoritative draft cursor has restored capture permission.
+    connect(this->map_workspace, &MapWorkspaceWidget::currentModeChanged,
+            this, [this](int mode)
+    {
+        if (mode != MapWorkspaceWidget::DistributionEditor ||
+            !this->personal_edit_active || this->personal_edit_blocked ||
+            this->personal_edit_session->canCaptureHistoryEdits())
+            return;
+        QTimer::singleShot(0, this, [this]
+        {
+            if (this->personal_edit_active && !this->personal_edit_blocked &&
+                !this->personal_edit_session->canCaptureHistoryEdits() &&
+                this->map_workspace->isDistributionEditorActive())
+                this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
+        });
+    });
     this->personal_edit_guard = new QTimer(this);
     this->personal_edit_guard->setInterval(250);
     this->personal_edit_stop_button = new QPushButton(tr("Stop private editing"), this);
@@ -373,9 +391,11 @@ MainWindow::MainWindow(QWidget *parent)
         this->hydraulic_data->replaceNetworkHydraulic(
             this->personal_edit_session->visibleNetwork(), {});
         this->immutable_network_read_only = false;
+        // Keep the Distribution Editor active while browsing History.
+        // Logical edit capture is enabled only after cursor verification.
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionEditor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
-        this->hydraulic_data->setLogicalEditCaptureEnabled(true);
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
         this->personal_edit_guard->start();
         this->personal_edit_stop_button->setEnabled(true);
@@ -421,7 +441,11 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::historyCursorChanged,
-            this, &MainWindow::refreshHistoryDock);
+            this, [this]
+    {
+        synchronizePersonalHistoryEditMode();
+        refreshHistoryDock();
+    });
     connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationStarted,
             this, [this]
     {
@@ -435,7 +459,9 @@ MainWindow::MainWindow(QWidget *parent)
     {
         if (!this->personal_edit_active || this->personal_edit_blocked) return;
         this->hydraulic_data->replaceNetworkHydraulic(network, {});
-        this->hydraulic_data->setLogicalEditCaptureEnabled(true);
+        // Rehydration is not edit permission. Wait for the authoritative cursor
+        // before restoring capture or the Distribution Editor.
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
         this->personal_edit_guard->start();
         checkPersonalDraftModel();
@@ -1212,10 +1238,19 @@ void MainWindow::refreshHistoryDock()
         appendEvents(this->personal_edit_session->pendingHistoryEvents(),
                      HistoryDockEntry::Kind::PendingAction);
     }
-    this->history_dock->setArchiveScope(opened && this->personal_edit_session != nullptr &&
+    QString historyScope = opened && this->personal_edit_session != nullptr &&
         !this->opened_branch_name.isEmpty()
         ? this->personal_edit_session->historyScopeKey() + QStringLiteral(":") +
-            this->opened_branch_name : QString());
+            this->opened_branch_name : QString();
+    if (!historyScope.isEmpty())
+    {
+        const QJsonObject authoritative = this->personal_edit_session->historyCursor();
+        const QString fork = authoritative.value(QStringLiteral("forkRevisionId")).toString();
+        if (!fork.isEmpty())
+            historyScope += QStringLiteral(":fork:") + fork + QStringLiteral(":") +
+                authoritative.value(QStringLiteral("forkActionPosition")).toString();
+    }
+    this->history_dock->setArchiveScope(historyScope);
     this->history_dock->setTimeline(context, actions, this->personal_edit_active,
                                     this->personal_edit_blocked);
     this->history_dock->setNavigationState(
@@ -1544,16 +1579,45 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
     });
 }
 
+void MainWindow::synchronizePersonalHistoryEditMode()
+{
+    if (!this->personal_edit_active || this->personal_edit_blocked ||
+        this->personal_edit_session == nullptr || this->map_workspace == nullptr)
+        return;
+    if (!this->personal_edit_session->canCaptureHistoryEdits())
+    {
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+        if (this->personal_edit_session->isReady())
+        {
+            this->personal_edit_guard->start();
+            this->top_control_bar->setNetworkStatus(tr("Verifying writable History position…"));
+        }
+        return;
+    }
+    if (!this->hydraulic_data->logicalEditCaptureEnabled())
+    {
+        this->hydraulic_data->setLogicalEditCaptureEnabled(true);
+        this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
+        this->personal_edit_guard->start();
+        checkPersonalDraftModel();
+    }
+    if (!this->personal_edit_blocked)
+        this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
+            ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
+            : tr("Autosaved"));
+}
+
 void MainWindow::checkPersonalDraftModel()
 {
     if (!this->personal_edit_active || this->personal_edit_blocked)
         return;
-    // Only this session enables capture, and the checks run only after it is
-    // ready. Capture switched off underneath it (a model replacement) means
-    // later edits would be neither saved nor detected: block instead.
-    if (!this->hydraulic_data->logicalEditCaptureEnabled())
+    // Capture is guarded by the verified History cursor. It must
+    // equal the session's authoritative permission; compare canonical states
+    // even while capture is disabled to detect accidental widget mutations.
+    if (this->hydraulic_data->logicalEditCaptureEnabled() !=
+        this->personal_edit_session->canCaptureHistoryEdits())
     {
-        blockPersonalDraftEditing(tr("Edit capture was switched off while the private draft was open."));
+        blockPersonalDraftEditing(tr("Edit capture does not match the verified History position."));
         return;
     }
     if (!this->personal_edit_session->isReady())

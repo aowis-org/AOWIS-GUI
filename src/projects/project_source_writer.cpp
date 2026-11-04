@@ -275,6 +275,89 @@ void ProjectSourceWriter::updateRevisionMessage(
         QStringLiteral("revision"), revision_id, std::move(completion));
 }
 
+void ProjectSourceWriter::deleteBranch(const ProjectServerProfile &profile,
+        const QString &project_id, const QString &branch_id, const QString &expected_head,
+        Completion completion) {
+    if (!DvmdbIdentity::isUuidV7(project_id) || !DvmdbIdentity::isUuidV7(branch_id)
+        || (!expected_head.isEmpty() && !DvmdbIdentity::isUuidV7(expected_head))) {
+        if (completion) completion({}, tr("Invalid branch deletion identity."));
+        return;
+    }
+    destructiveWrite(profile, QStringLiteral("/projects/%1/branch-ids/%2/delete")
+        .arg(project_id, branch_id), QJsonObject{{QStringLiteral("expectedHead"),
+        expected_head.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(expected_head)}},
+        std::move(completion));
+}
+
+void ProjectSourceWriter::truncateBranch(const ProjectServerProfile &profile,
+        const QString &project_id, const QString &branch_id, const QString &expected_head,
+        const QString &first_removed, Completion completion) {
+    if (!DvmdbIdentity::isUuidV7(project_id) || !DvmdbIdentity::isUuidV7(branch_id)
+        || !DvmdbIdentity::isUuidV7(expected_head)
+        || !DvmdbIdentity::isUuidV7(first_removed)) {
+        if (completion) completion({}, tr("Invalid revision deletion identity."));
+        return;
+    }
+    destructiveWrite(profile, QStringLiteral("/projects/%1/branch-ids/%2/truncate")
+        .arg(project_id, branch_id), QJsonObject{
+            {QStringLiteral("expectedHead"), expected_head},
+            {QStringLiteral("firstRemoved"), first_removed}}, std::move(completion));
+}
+
+void ProjectSourceWriter::destructiveWrite(const ProjectServerProfile &profile,
+        const QString &path, const QJsonObject &body, Completion completion) {
+    if (this->busy) {
+        if (completion) completion({}, tr("Another database write is in progress."));
+        return;
+    }
+    const QString validation = validateProfile(profile);
+    if (!validation.isEmpty()) {
+        if (completion) completion({}, validation);
+        return;
+    }
+    ProjectServerProfile request_profile = profile;
+    if (profile.connection_type == QStringLiteral("local")) {
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+        QString error;
+        const QString endpoint = embeddedDvmdbEndpoint(profile.local_path, profile.personal,
+                                                       nullptr, &error);
+        if (endpoint.isEmpty()) {
+            if (completion) completion({}, error);
+            return;
+        }
+        request_profile.connection_type = QStringLiteral("remote");
+        request_profile.endpoint = endpoint;
+#else
+        if (completion) completion({}, tr("Embedded DVMDB is unavailable."));
+        return;
+#endif
+    }
+    this->busy = true;
+    this->completion = std::move(completion);
+    sendPinned(profile, request_profile.endpoint, "POST", path, body,
+        [this](QNetworkReply *pending) {
+        if (this->reply == pending) this->reply.clear();
+        const int status = pending->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray bytes = pending->readAll();
+        const QString network_error = pending->errorString();
+        const bool ok = pending->error() == QNetworkReply::NoError && status == 200;
+        pending->deleteLater();
+        if (!ok) {
+            const QJsonObject data = QJsonDocument::fromJson(bytes).object();
+            const QString message = data.value(QStringLiteral("error")).toObject()
+                .value(QStringLiteral("message")).toString();
+            finish({}, message.isEmpty() ? tr("Deletion failed (HTTP %1: %2). Refresh before retrying.")
+                   .arg(status).arg(network_error) : message);
+            return;
+        }
+        if (bytes.size() > 1024 * 1024 || !QJsonDocument::fromJson(bytes).isObject()) {
+            finish({}, tr("Deletion reply was invalid. Refresh before another write."));
+            return;
+        }
+        finish(QStringLiteral("deleted"), {});
+    });
+}
+
 void ProjectSourceWriter::patchProperties(const ProjectServerProfile &profile,
         const QString &path, const QJsonObject &body, const QString &expected_response_key,
         const QString &expected_value, Completion completion)

@@ -22,10 +22,13 @@ Prove with a real single-network editor session and separate DVMDB daemon:
 2. Confirm autosaved MODEL events and exact canonical network equality;
    Undo and Redo several active-draft actions.
 3. Create two genuine local Commits, navigate backward and forward over
-   their markers, jump to an archived action and return to the draft.
-4. Undo, make a **new** edit, verify the former Redo suffix is no longer
-   available, and Commit only eligible actions. The old immutable revisions
-   must remain unchanged.
+   their markers, jump to an archived action while staying in Distribution Editor, then
+   return to the draft (capture remains fenced until cursor verification).
+4. Undo past one or more Commits, make a **new** edit without leaving
+   Distribution Editor, verify the former Redo suffix is no longer available,
+   and Commit only eligible actions. The old immutable revisions
+   and original Commit archives must remain unchanged, while the active
+   action timeline follows the new logical fork.
 5. Restart the GUI **and** DVMDB during each relevant cursor state, reopen
    the same personal repository/branch/draft and verify exact model bytes,
    action IDs, journal position and selected network.

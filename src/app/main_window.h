@@ -126,6 +126,7 @@ private:
     void stopPersonalDraftEditing();
     void blockPersonalDraftEditing(const QString &reason);
     void checkPersonalDraftModel();
+    void synchronizePersonalHistoryEditMode();
 
     HydraulicData *hydraulic_data = nullptr;
     PersonalDraftEditSession *personal_edit_session = nullptr;

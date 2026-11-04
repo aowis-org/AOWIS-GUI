@@ -56,6 +56,7 @@ void PersonalDraftEditSession::start(
         return;
     }
     this->saved_history_events_.clear();
+    this->history_edit_position_verified_ = false;
     this->target_ = target;
     this->draft_id_ = draft_id;
     this->network_id_ = network_id;
@@ -147,6 +148,12 @@ bool PersonalDraftEditSession::appendTransaction(const QByteArray &encoded_event
         this->state_ != State::Renewing)
     {
         if (error) *error = QStringLiteral("Personal draft writer is not ready.");
+        return false;
+    }
+    if (!this->history_edit_position_verified_)
+    {
+        if (error) *error = QStringLiteral(
+            "Editing requires a verified DVMDB History position.");
         return false;
     }
     if (!this->stage_.append(encoded_event, error))
@@ -313,7 +320,7 @@ void PersonalDraftEditSession::branchHistoryPage(
         return;
     }
     this->client_.branchHistoryPage(this->target_, this->project_id_,
-        branch_name, after_revision, std::move(completion));
+        branch_name, after_revision, std::move(completion), this->draft_id_);
 }
 
 void PersonalDraftEditSession::archivedActionPage(
@@ -327,12 +334,18 @@ void PersonalDraftEditSession::archivedActionPage(
         return;
     }
     this->client_.archivedActionPage(this->target_, this->project_id_,
-        branch_name, revision_id, offset, std::move(completion));
+        branch_name, revision_id, offset, std::move(completion), this->draft_id_);
 }
 
 const QJsonObject &PersonalDraftEditSession::historyCursor() const
 {
     return this->history_cursor_;
+}
+
+bool PersonalDraftEditSession::canCaptureHistoryEdits() const
+{
+    return isReady() && !this->stop_requested_ &&
+        this->history_edit_position_verified_;
 }
 
 bool PersonalDraftEditSession::canNavigateHistory() const
@@ -410,17 +423,29 @@ void PersonalDraftEditSession::refreshHistoryCursor()
             this->stage_.pendingCount() != 0 || this->generation_ != generation)
             return;
         this->history_cursor_ = {};
+        // A failed or inconsistent authoritative read must not grant edit capture.
+        this->history_edit_position_verified_ = false;
         if (error.isEmpty() && cursor.value(QStringLiteral("generation")).toString() == generation &&
             cursor.value(QStringLiteral("baseRevision")).toString() == this->base_revision_)
         {
             this->history_cursor_ = cursor;
-            if (cursor.value(QStringLiteral("selectionKind")).toString() == QStringLiteral("draft"))
+            const QString kind = cursor.value(QStringLiteral("selectionKind")).toString();
+            if (kind == QStringLiteral("draft"))
             {
                 bool valid = false;
                 const qsizetype position = cursor.value(
                     QStringLiteral("actionPosition")).toString().toLongLong(&valid);
                 if (valid && position >= 0 && position <= this->saved_history_events_.size())
+                {
                     this->selected_draft_position_ = position;
+                    this->history_edit_position_verified_ = true;
+                }
+            }
+            else if (kind == QStringLiteral("archived") &&
+                     cursor.value(QStringLiteral("canBranchFromHistory")).toBool(false))
+            {
+                this->selected_draft_position_ = 0;
+                this->history_edit_position_verified_ = true;
             }
         }
         emit historyCursorChanged();
@@ -464,6 +489,7 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
     }
     else return;
     this->state_ = State::Navigating;
+    this->history_edit_position_verified_ = false;
     this->request_in_flight_ = true;
     this->history_cursor_ = {};
     emit historyCursorChanged();
@@ -557,6 +583,7 @@ void PersonalDraftEditSession::fail(const QString &message)
 {
     this->renew_timer_.stop();
     this->state_ = State::Blocked;
+    this->history_edit_position_verified_ = false;
     this->history_cursor_ = {};
     emit historyCursorChanged();
     emit blocked(message);
@@ -605,6 +632,7 @@ void PersonalDraftEditSession::resetLocal()
     this->stage_.close();
     this->saved_history_events_.clear();
     this->history_cursor_ = {};
+    this->history_edit_position_verified_ = false;
     this->history_cursor_request_in_flight_ = false;
     this->history_network_qualified_ = false;
     this->history_qualification_in_flight_ = false;

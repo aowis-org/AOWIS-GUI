@@ -660,7 +660,7 @@ void PersonalWorkingCopyClient::reopen(const PersonalRepositoryTarget &target,
 void PersonalWorkingCopyClient::branchHistoryPage(
     const PersonalRepositoryTarget &target, const QString &project_id,
     const QString &branch_name, const QString &after_revision,
-    BranchHistoryPageCompletion completion)
+    BranchHistoryPageCompletion completion, const QString &draft_id)
 {
     if (!DvmdbIdentity::isUuidV7(project_id) || branch_name.isEmpty() ||
         branch_name.size() > 200 || (!after_revision.isEmpty() &&
@@ -674,6 +674,13 @@ void PersonalWorkingCopyClient::branchHistoryPage(
         QStringLiteral("/branches/") + branch_path +
         QStringLiteral("/action-history?limit=10");
     if (!after_revision.isEmpty()) path += QStringLiteral("&after=") + after_revision;
+    if (!draft_id.isEmpty()) {
+        if (!DvmdbIdentity::isUuidV7(draft_id)) {
+            completion({}, {}, QStringLiteral("Invalid History draft identity."));
+            return;
+        }
+        path += QStringLiteral("&draftId=") + draft_id;
+    }
     request(target, "GET", path, {},
         [completion = std::move(completion), after_revision](
             const QJsonObject &body, const QString &error)
@@ -734,6 +741,14 @@ void PersonalWorkingCopyClient::branchHistoryPage(
                 }
                 if (parent.isEmpty()) parent = value.toString();
             }
+            const QJsonValue logical_value = entry.value(QStringLiteral("logicalParentRevisionId"));
+            if (!logical_value.isNull() && (!logical_value.isString() ||
+                !DvmdbIdentity::isUuidV7(logical_value.toString())))
+            { invalid(); return; }
+            // The History lineage can skip immutable DAG parents after a new
+            // edit abandons the redo path. Keep the raw DAG parent separate.
+            if (entry.contains(QStringLiteral("logicalParentRevisionId")))
+                parent = logical_value.isNull() ? QString() : logical_value.toString();
             QSet<QString> action_ids;
             for (const QJsonValue &value : actions)
             {
@@ -766,7 +781,7 @@ void PersonalWorkingCopyClient::branchHistoryPage(
 void PersonalWorkingCopyClient::archivedActionPage(
     const PersonalRepositoryTarget &target, const QString &project_id,
     const QString &branch_name, const QString &revision_id, int offset,
-    ArchivedActionPageCompletion completion)
+    ArchivedActionPageCompletion completion, const QString &draft_id)
 {
     // Branch names are not UUIDs. Encode the entire path segment, including
     // spaces and slashes, rather than accepting a path supplied by the caller.
@@ -778,10 +793,17 @@ void PersonalWorkingCopyClient::archivedActionPage(
         return;
     }
     const QString branch_path = QString::fromLatin1(QUrl::toPercentEncoding(branch_name));
-    const QString path = QStringLiteral("/projects/") + project_id +
+    QString path = QStringLiteral("/projects/") + project_id +
         QStringLiteral("/branches/") + branch_path +
         QStringLiteral("/action-history/") + revision_id +
         QStringLiteral("/events?offset=%1&limit=50").arg(offset);
+    if (!draft_id.isEmpty()) {
+        if (!DvmdbIdentity::isUuidV7(draft_id)) {
+            completion({}, -1, -1, QStringLiteral("Invalid History draft identity."));
+            return;
+        }
+        path += QStringLiteral("&draftId=") + draft_id;
+    }
     request(target, "GET", path, {},
         [completion = std::move(completion), revision_id, offset](
             const QJsonObject &body, const QString &error)

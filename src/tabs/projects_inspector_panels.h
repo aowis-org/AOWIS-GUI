@@ -360,6 +360,9 @@ public:
         actions->addWidget(this->import_network);
         actions->addWidget(this->export_network);
         column->addLayout(actions);
+        this->delete_revision = new QPushButton(tr("Delete revision and later history…"), this);
+        this->delete_revision->setObjectName(QStringLiteral("projectsRevisionOverviewDelete"));
+        column->addWidget(this->delete_revision);
         column->addStretch(1);
         clearCounts();
     }
@@ -386,6 +389,7 @@ public:
     QList<QLabel *> counts;
     QLabel *other_counts = nullptr;
     QPushButton *open_network = nullptr;
+    QPushButton *delete_revision = nullptr;
     QPushButton *import_network = nullptr;
     QPushButton *export_network = nullptr;
 };
@@ -416,9 +420,13 @@ public:
         this->description->setMaximumHeight(170);
         form->addRow(tr("Description"), this->description);
         column->addLayout(form);
+        this->delete_branch = new QPushButton(tr("Delete entire branch…"), this);
+        this->delete_branch->setObjectName(QStringLiteral("projectsRevisionBranchDelete"));
+        column->addWidget(this->delete_branch);
         column->addStretch(1);
     }
 
+    QPushButton *delete_branch = nullptr;
     QLineEdit *name = nullptr;
     QLineEdit *tags = nullptr;
     QTextEdit *description = nullptr;
@@ -555,7 +563,7 @@ public:
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from an explicitly chosen revision"));
         this->delete_branch = addButton(tr("Delete branch…"),
-            QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview branch"));
+            QStringLiteral("projectInspectorDeleteButton"), tr("Delete the selected branch and its unshared branch history"));
         moveToFullWidth(this->working_copies);
     }
     QPushButton *working_copies = nullptr;
@@ -568,7 +576,8 @@ public:
         this->working_copies->setEnabled(!busy);
         this->create_branch->setVisible(!creating);
         this->create_branch->setEnabled(ready);
-        this->delete_branch->setVisible(!creating && preview);
+        this->delete_branch->setVisible(!creating && (preview || backed));
+        this->delete_branch->setEnabled(!busy && (preview || backed));
         setCreationState(creating, busy, valid);
     }
 };

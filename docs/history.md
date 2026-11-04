@@ -98,11 +98,14 @@ The new edit and remaining applied prefix are saved atomically as the new
 active journal path. **Immutable Commits and their permanent archives are
 unaffected**; draft Redo is not a substitute for version-control branching.
 
-When browsing an older **archived** action while an active draft still has
-Redo frames, DVMDB may suspend and retain the active journal. Ordinary
-**Save and Commit are blocked while that archived selection is active**;
-return to an eligible live draft state before starting a new edit. This
-avoids silently rewriting the remembered Redo path.
+When browsing an older **archived** action, the editor remains in its
+selected **Distribution Editor** mode. Undo/Redo can continue across Commit
+markers in either direction. On the first new accepted MODEL edit, DVMDB
+atomically starts a forked action path at that coordinate and discards the
+abandoned forward Redo steps. All immutable Commits, their original MODEL
+action archives and their revision DAG ancestry remain untouched. The next
+Commit records the fork provenance so later History reads follow the new
+action path rather than replaying the abandoned suffix.
 
 ## When navigation is disabled
 
@@ -113,13 +116,12 @@ navigation response is unresolved, or the server cannot reconstruct the
 target. The GUI does not execute an optimistic local-only Undo then hope
 that it matches the persisted database.
 
-The current executable navigation adapter supports **one existing hydraulic
-network with a committed base** and verified archived MODEL actions. It does
-not yet support the first/unborn draft's action history or navigating several
-independent networks in one draft. **DVMDB may still store multiple networks
-per revision**; History does not restrict the storage model. The visible
-Commit list is currently derived from the Projects preview, so old ancestry
-may be omitted until independent full paging is implemented. Keyboard
+The current executable navigation adapter supports **one unambiguous
+hydraulic network**, including an initialized unborn-first-draft seed and
+verified archived MODEL actions. Ambiguous original deletion ordering still
+fails closed. **DVMDB may store multiple networks per revision**; History
+does not restrict the storage model. The dock pages complete first-parent
+Commit ancestry independently of the Projects preview. Keyboard
 shortcuts are not wired; use the dock controls.
 
 ## What survives restart?

@@ -133,9 +133,17 @@ are informational until a separate metadata-history contract is designed.
 After an accepted History navigation, `PersonalDraftEditSession` reopens
 DVMDB and rehydrates the authoritative network. `MainWindow` disables
 logical edit capture before navigation, replaces the canonical network and
-resumes capture only after the stage has been reset and the network has
-passed its consistency check. This avoids recording a synthetic second
-MODEL action. Full 2D/3D, selection and inspector acceptance remains open.
+resumes capture only after the stage has been reset, the network has
+passed its consistency check, **and a fresh authoritative cursor confirms a
+writable draft position**. Browsing archived actions and checkpoints never changes the selected
+editor/monitor mode. After authoritative cursor verification the Distribution
+Editor may continue editing at an archived position. Its first accepted MODEL
+Save starts a new logical editing path, invalidating the abandoned Redo tail. On initial reopen, edit capture waits for
+the same cursor verification, so a previously selected archived state cannot
+be edited against an unverified cursor. The model consistency guard continues comparing
+canonical state during History navigation. This avoids recording a
+synthetic second MODEL action. Full 2D/3D, selection and inspector acceptance
+remains open.
 Regular editor mutations still create normal MODEL frames through
 `HydraulicEditTransactionCapture` and the private queue.
 Network-root metadata and 18 collections participate in the same atomic
@@ -154,9 +162,10 @@ state only from the matching repository/project/branch/draft/network scope.
 DVMDB retains permanent indexed local-Commit MODEL action archives, verifies
 canonical reconstruction and provides fenced HTTP cursor navigation. An
 active draft journal may be suspended while browsing committed actions;
-its unapplied Redo frames are retained, and ordinary editing remains blocked
-until the draft is returned to an eligible position. New edits after Undo
-atomically replace the abandoned active-journal Redo suffix. The GUI
+its unapplied Redo frames are retained until a new edit. An accepted MODEL
+Save from a verified archived position starts a forked journal and invalidates
+the forward Redo suffix, without deleting any immutable Commit. This does
+not switch the GUI into Distribution Monitor mode. The GUI
 wires adjacent Undo/Redo to that controller for eligible private drafts, but
 **the current tests have not yet proved the complete GUI + server + restart
 workflow**. The dock now independently pages the entire private branch's first-parent
