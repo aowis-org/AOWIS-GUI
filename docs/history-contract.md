@@ -5,8 +5,10 @@ This document specifies the behavior of the already implemented **read-only
 History dock** once HIST-01–04 make its actions safe. The authoritative
 persistence/recovery design is in the
 [DVMDB history contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md).
-The [History roadmap](history-roadmap.md) lists remaining work; this is a
-future interaction contract, **not a description of working Undo/Redo**.
+The [History roadmap](history-roadmap.md) lists remaining work. This page
+specifies both the currently wired adjacent navigation and the intended
+complete timeline. See [Projects workspace](projects-workspace.md) for
+observable GUI behavior.
 
 ## Scope and ordering
 
@@ -77,14 +79,15 @@ are informational until a separate metadata-history contract is designed.
 - The dock is movable/closable and follows map fullscreen behavior. It
   refreshes when the active draft, branch, project, or saved generation
   changes, but must not silently switch scope during pending navigation.
-- Undo/Redo buttons, normal keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z or
-  Ctrl+Y) and timeline row navigation are enabled **only** once the actual
-  controller and backend have advertised safe capability. Disabled controls
-  must say why (no editable draft, pending Save, incomplete history, stale
-  writer, missing replay target, etc.).
-- A click on a Commit marker targets the exact recorded snapshot. A click on
-  an action targets the state **after that action**, not the state before.
-  Clicking the already-current marker is a no-op.
+- **Undo/Redo buttons are wired today** to DVMDB's server-resolved adjacent
+  action coordinates. They are enabled only for a ready private writer, no
+  pending Save, a verified generation/HEAD cursor, a valid lease and an
+  eligible target. Direct row jumps and keyboard shortcuts are not yet wired.
+  An unavailable position must not issue a write.
+- **Future direct jumps:** a click on a Commit marker should select its
+  exact snapshot, and a click on an action should select the state **after**
+  that action. Arbitrary row selection is currently disabled; only adjacent
+  server-provided Undo/Redo coordinates are executable.
 - Load long histories by pages at a stable history watermark, preserving
   scroll position and selected cursor. Never truncate silently to the
   draft's current journal capacity or show a first page as the entire past.
@@ -95,11 +98,14 @@ are informational until a separate metadata-history contract is designed.
 
 ## Integration with the live editor
 
-`HydraulicData` must gain an explicit **apply accepted history transition**
-path that installs the canonical network and refreshes 2D/3D, selection,
-inspectors and network summaries without re-capturing it as a second
-independent user action. Regular editor mutations still create normal MODEL
-frames through `HydraulicEditTransactionCapture` and the private queue.
+After an accepted History navigation, `PersonalDraftEditSession` reopens
+DVMDB and rehydrates the authoritative network. `MainWindow` disables
+logical edit capture before navigation, replaces the canonical network and
+resumes capture only after the stage has been reset and the network has
+passed its consistency check. This avoids recording a synthetic second
+MODEL action. Full 2D/3D, selection and inspector acceptance remains open.
+Regular editor mutations still create normal MODEL frames through
+`HydraulicEditTransactionCapture` and the private queue.
 Network-root metadata and 18 collections participate in the same atomic
 user action where necessary. Invalid hydraulic *solvability* alone does not
 block navigation; canonical codec, reference identity and membership guards
@@ -111,12 +117,12 @@ must not accidentally apply an old result to whatever network happened to
 be opened next. Reopen reloads the authoritative cursor and reconstructs
 state only from the matching repository/project/branch/draft/network scope.
 
-## HIST-00 acceptance and implementation boundary
+## Current acceptance boundary
 
-These decisions settle the interaction semantics for the History roadmap.
-HIST-00 does **not** implement a persistent history archive, MODEL inverse
-codec, cursor, REST navigation routes or enabled GUI controls. The current
-`HistoryDock` remains deliberately read-only. The next work is HIST-01
-transaction inversion in the MODEL ownership layer and HDB-01 durable
-archive/checkpoint storage; these may be developed independently but must
-converge on the [DVMDB history contract](../../AOWIS-SERVER-DVMDB/docs/history-contract.md).
+DVMDB retains permanent indexed local-Commit MODEL action archives, verifies
+canonical reconstruction and provides fenced HTTP cursor navigation. The GUI
+wires adjacent Undo/Redo to that controller for eligible private drafts, but
+**the current tests have not yet proved the complete GUI + server + restart
+workflow**. The visual list does not yet expand permanent archived action
+frames, and direct jumps, shortcuts and unborn-base navigation remain
+outstanding. See the [History roadmap](history-roadmap.md).

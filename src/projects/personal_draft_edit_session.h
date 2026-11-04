@@ -4,6 +4,7 @@
 #include "projects/personal_working_copy_client.h"
 
 #include <QObject>
+#include <QJsonObject>
 #include <QTimer>
 
 // Owns the fenced HTTP writer for ONE verified private hydraulic draft.
@@ -40,6 +41,10 @@ public:
     const NetworkHydraulic &visibleNetwork() const;
     QList<QByteArray> savedHistoryEvents() const;
     QList<QByteArray> pendingHistoryEvents() const;
+    const QJsonObject &historyCursor() const;
+    bool canNavigateHistory() const;
+    QString historyNavigationStatus() const;
+    void navigateHistory(bool backward);
 
 signals:
     void ready();
@@ -47,9 +52,13 @@ signals:
     void saveConfirmed(const QString &generation, bool recovered);
     void blocked(const QString &message);
     void stopped(const QString &error);
+    void historyCursorChanged();
+    void historyNavigationStarted();
+    void historyNavigationCompleted(const NetworkHydraulic &network);
 
 private:
-    enum class State { Idle, Starting, Ready, Submitting, Renewing, Blocked, Stopping };
+    enum class State { Idle, Starting, Ready, Submitting, Renewing, Navigating, Blocked, Stopping };
+    void refreshHistoryCursor();
     void scheduleFlush();
     void flush();
     void renew();
@@ -69,6 +78,12 @@ private:
     QString queue_root_;
     QString session_id_;
     QString generation_;
+    QString base_revision_;
+    QJsonObject history_cursor_;
+    bool history_cursor_request_in_flight_ = false;
+    bool history_network_qualified_ = false;
+    bool history_qualification_in_flight_ = false;
+    qsizetype selected_draft_position_ = 0;
     QString fencing_token_;
     QString lease_expiry_;
     State state_ = State::Idle;

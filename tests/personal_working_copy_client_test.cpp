@@ -109,6 +109,9 @@ public:
     int network_read_count = 0;
     int network_summary_count = 0;
     QString saved_network_id;
+    int history_cursor_reads = 0;
+    int history_navigation_requests = 0;
+    QJsonObject last_history_navigation;
     int network_import_count = 0;
     QJsonObject last_network_import;
     bool drop_next_save_acknowledgement = false;
@@ -359,6 +362,43 @@ public:
                         document = QJsonObject{{QStringLiteral("token"), lease_token},
                             {QStringLiteral("generation"), QString::number(this->generation)},
                             {QStringLiteral("expiresAtMs"), QStringLiteral("1800000000000")}};
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/history/cursor "))
+                    {
+                        ++this->history_cursor_reads;
+                        document = QJsonObject{
+                            {QStringLiteral("draftId"), draft_id},
+                            {QStringLiteral("generation"), QString::number(this->generation)},
+                            {QStringLiteral("baseRevision"), QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("journalCount"), QStringLiteral("1")},
+                            {QStringLiteral("actionPosition"), QStringLiteral("0")},
+                            {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+                            {QStringLiteral("previousAction"), QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("nextAction"), QJsonObject{
+                                {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+                                {QStringLiteral("revisionId"), QJsonValue(QJsonValue::Null)},
+                                {QStringLiteral("actionPosition"), QStringLiteral("1")}}}};
+                    }
+                    else if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/history/navigate "))
+                    {
+                        ++this->history_navigation_requests;
+                        this->last_history_navigation = request_body;
+                        if (request_body.value(QStringLiteral("expectedGeneration")).toString() !=
+                                QString::number(this->generation) ||
+                            !request_body.value(QStringLiteral("expectedHead")).isNull() ||
+                            request_body.value(QStringLiteral("fencingToken")).toString() != lease_token)
+                        {
+                            status = 409;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("conflict"), QStringLiteral("stale History cursor")));
+                        }
+                        else
+                        {
+                            ++this->generation;
+                            document = draftRecord(this->lease_session);
+                        }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
                              request_line.contains("/networks/summary "))
@@ -915,6 +955,61 @@ int main(int argc, char **argv)
     Stub stub;
     if (!check(stub.listen(), "could not start private DVMDB fixture")) return 1;
     PersonalWorkingCopyClient client;
+    // Cursor coordinates must come from DVMDB, with no client-supplied native overlay.
+    Stub history_stub;
+    if (!check(history_stub.listen(), "could not start History navigation fixture")) return 1;
+    history_stub.lease_session = head_id;
+    bool history_done = false;
+    QString history_error;
+    QJsonObject cursor;
+    client.historyCursor(history_stub.target(), draft_id,
+        [&](const QJsonObject &response, const QString &failure)
+    {
+        cursor = response;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               cursor.value(QStringLiteral("nextAction")).isObject() &&
+               history_stub.history_cursor_reads == 1,
+               "History cursor was not read from private DVMDB")) return 1;
+    history_done = false;
+    PersonalWorkingCopyInfo navigated;
+    const QString history_operation = PersonalWorkingCopyClient::newSessionUuidV7();
+    client.navigateHistory(history_stub.target(), draft_id, history_operation, head_id,
+        lease_token, QStringLiteral("0"), QString(),
+        cursor.value(QStringLiteral("nextAction")).toObject(),
+        [&](const PersonalWorkingCopyInfo &draft, const QString &failure)
+    {
+        navigated = draft;
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(until(application, [&] { return history_done; }) && history_error.isEmpty() &&
+               navigated.generation == QStringLiteral("1") &&
+               history_stub.history_navigation_requests == 1 &&
+               history_stub.last_history_navigation.value(QStringLiteral("operationId")).toString()
+                   == history_operation &&
+               history_stub.last_history_navigation.value(QStringLiteral("actionPosition")).toString()
+                   == QStringLiteral("1") &&
+               history_stub.last_history_navigation.value(QStringLiteral("expectedHead")).isNull() &&
+               !history_stub.last_history_navigation.contains(QStringLiteral("changes")),
+               "History navigation did not send a fenced server-built boundary request")) return 1;
+    history_done = false;
+    client.navigateHistory(history_stub.target(), draft_id,
+        PersonalWorkingCopyClient::newSessionUuidV7(), head_id, lease_token,
+        QStringLiteral("1"), QString(),
+        QJsonObject{{QStringLiteral("selectionKind"), QStringLiteral("archived")},
+                    {QStringLiteral("revisionId"), QStringLiteral("not-an-id")},
+                    {QStringLiteral("actionPosition"), QStringLiteral("0")}},
+        [&](const PersonalWorkingCopyInfo &, const QString &failure)
+    {
+        history_error = failure;
+        history_done = true;
+    });
+    if (!check(history_done && !history_error.isEmpty() &&
+               history_stub.history_navigation_requests == 1,
+               "invalid archived target was transmitted to the server")) return 1;
     // Bootstrap a first network on an independent unborn draft. It must be
     // represented as kind-100 candidate data, with no synthetic commit.
     Stub bootstrap;

@@ -3,7 +3,10 @@
 This is the **current implementation**, not a list of older capture stages.
 See [autosave and recovery](personal-working-copy-save.md) for transport and
 [the remaining roadmap](dvmdb-integration-roadmap.md) for qualification work.
-There is **no operational general Undo/Redo system** yet, even though MODEL
+The private History dock now supports adjacent DVMDB-verified single-network
+Undo/Redo selections, but **general Undo/Redo is not yet fully accepted**:
+there is no arbitrary jump, unborn-base support or GUI end-to-end qualification.
+MODEL
 transactions carry reversible before/after images. See the separate
 [History roadmap](history-roadmap.md).
 

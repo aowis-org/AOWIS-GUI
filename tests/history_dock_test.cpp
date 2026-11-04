@@ -62,9 +62,50 @@ int main(int argc, char **argv)
                  list->item(2)->text().contains(QStringLiteral("Change diameter")) &&
                  list->item(3)->text().contains(QStringLiteral("Current private working state")) &&
                  context_label->text().contains(QStringLiteral("main")) &&
-                 notice->text().contains(QStringLiteral("not implemented")) &&
+                 notice->text().contains(QStringLiteral("unavailable")) &&
                  !undo->isEnabled() && !redo->isEnabled(),
-                 "dock omitted real checkpoints or made placeholders interactive")) return 1;
+                 "dock enabled navigation without an authoritative cursor")) return 1;
+    // Only DVMDB's explicit adjacent coordinates enable these controls.
+    int undo_requested = 0;
+    int redo_requested = 0;
+    QObject::connect(&dock, &HistoryDock::undoRequested, &dock,
+                     [&undo_requested] { ++undo_requested; });
+    QObject::connect(&dock, &HistoryDock::redoRequested, &dock,
+                     [&redo_requested] { ++redo_requested; });
+    const QJsonObject cursor{
+        {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+        {QStringLiteral("actionPosition"), QStringLiteral("1")},
+        {QStringLiteral("journalCount"), QStringLiteral("2")},
+        {QStringLiteral("previousAction"), QJsonObject{
+            {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+            {QStringLiteral("actionPosition"), QStringLiteral("0")}}},
+        {QStringLiteral("nextAction"), QJsonObject{
+            {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+            {QStringLiteral("actionPosition"), QStringLiteral("2")}}}};
+    dock.setNavigationState(cursor, true);
+    if (!require(undo->isEnabled() && redo->isEnabled() && list->count() == 4 &&
+                 list->item(2)->text().contains(QStringLiteral("Selected draft position 1")),
+                 "dock ignored server cursor or misplaced the selected action")) return 1;
+    undo->click();
+    redo->click();
+    if (!require(undo_requested == 1 && redo_requested == 1,
+                 "enabled History controls did not request the adjacent actions")) return 1;
+    dock.setNavigationState(cursor, false);
+    undo->click();
+    redo->click();
+    if (!require(!undo->isEnabled() && !redo->isEnabled() &&
+                 undo_requested == 1 && redo_requested == 1,
+                 "unavailable History navigation emitted an action")) return 1;
+    const QJsonObject archived{
+        {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+        {QStringLiteral("archivedRevisionId"), commit.identity},
+        {QStringLiteral("archivedActionPosition"), QStringLiteral("1")},
+        {QStringLiteral("previousAction"), QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("nextAction"), QJsonValue(QJsonValue::Null)}};
+    dock.setNavigationState(archived, true);
+    if (!require(!undo->isEnabled() && !redo->isEnabled() &&
+                 list->item(1)->text().contains(QStringLiteral("Archived action")),
+                 "archived cursor marker or eligibility is wrong")) return 1;
     window.show();
     dock.show();
     application.processEvents();

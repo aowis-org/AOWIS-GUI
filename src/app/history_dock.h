@@ -2,14 +2,15 @@
 
 #include <QDockWidget>
 #include <QList>
+#include <QJsonObject>
 #include <QString>
 
 class QLabel;
 class QListWidget;
 class QPushButton;
 
-// A display-only view of history that is actually available today. Prior
-// committed *actions* are not recoverable from DVMDB's bounded draft journal.
+// The visible revision markers come from Projects, while navigability and
+// the active position come only from the authoritative private DVMDB cursor.
 struct HistoryDockEntry
 {
     enum class Kind { Commit, SavedAction, PendingAction };
@@ -27,11 +28,11 @@ struct HistoryDockContext
     bool incomplete_ancestry = false;
 };
 
-// HIST-UI: no navigation, inversion, undo or redo is implemented here.
-// Never advertise actions as functional until the authoritative history
-// controller is available. The main window owns and docks this widget.
+// The buttons request only adjacent backend-approved positions. They never
+// invent history from displayed labels or change immutable revisions.
 class HistoryDock final : public QDockWidget
 {
+    Q_OBJECT
 public:
     explicit HistoryDock(QWidget *parent = nullptr);
 
@@ -40,6 +41,12 @@ public:
     void setTimeline(const HistoryDockContext &context,
                      const QList<HistoryDockEntry> &actions, bool editing, bool blocked);
     void clearDraftActions();
+    void setNavigationState(const QJsonObject &cursor, bool available,
+                            const QString &unavailable_reason = QString());
+
+signals:
+    void undoRequested();
+    void redoRequested();
 
 private:
     void rebuild();
@@ -48,6 +55,9 @@ private:
     QList<HistoryDockEntry> actions_;
     bool editing_ = false;
     bool blocked_ = false;
+    bool navigation_available_ = false;
+    QJsonObject navigation_cursor_;
+    QString navigation_unavailability_reason_;
     QLabel *context_label_ = nullptr;
     QLabel *notice_label_ = nullptr;
     QListWidget *timeline_ = nullptr;

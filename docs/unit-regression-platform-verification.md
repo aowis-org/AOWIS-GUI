@@ -20,7 +20,7 @@ Existing and expanded regression coverage includes:
 | Contract | Automated evidence | Remaining acceptance |
 | --- | --- | --- |
 | No-op and profile-switch precision | `numeric_property_binding_test.cpp`, `unit_numeric_spin_box_test.cpp`, `slider_number_control_test.cpp` | Repeat on production inspector fields with values beyond displayed precision |
-| Independent coordinate-axis edits | `coordinate_property_binding_test.cpp`, `coordinate_numeric_spin_box_test.cpp` | Select/switch real nodes and Demand Points; verify altitude preservation. Undo/Redo is future History work. |
+| Independent coordinate-axis edits | `coordinate_property_binding_test.cpp`, `coordinate_numeric_spin_box_test.cpp` | Select/switch real nodes and Demand Points; verify altitude preservation. DVMDB-backed adjacent Undo/Redo is wired for eligible single-network private drafts; end-to-end Qt acceptance remains open. |
 | Emitter coefficient and exponent | `emitter_coefficient_binding_test.cpp`, `emitter_numeric_spin_box_test.cpp` | Edit on actual enabled junctions with mixed network exponent constraints |
 | Visible/hidden unit generations | `unit_aware_view_test.cpp` | This step adds hidden nested-page, 500 profile-change coalescing, and destroyed-owner checks; still test real dock/tab lifecycles |
 | Typed table cells and filters | `unit_table_presentation_test.cpp` | Edit/filter/sort across every live entity column and user clipboard/export behavior |

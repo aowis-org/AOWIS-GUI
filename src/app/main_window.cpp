@@ -109,6 +109,10 @@ MainWindow::MainWindow(QWidget *parent)
     this->history_dock = new HistoryDock(this);
     addDockWidget(Qt::LeftDockWidgetArea, this->history_dock);
     this->history_dock->hide();
+    connect(this->history_dock, &HistoryDock::undoRequested,
+            this, [this] { this->personal_edit_session->navigateHistory(true); });
+    connect(this->history_dock, &HistoryDock::redoRequested,
+            this, [this] { this->personal_edit_session->navigateHistory(false); });
     addToolBar(Qt::TopToolBarArea, this->top_control_bar);
 
     const QList<QDockWidget *> right_docks = findChildren<QDockWidget *>(QString(), Qt::FindDirectChildrenOnly);
@@ -315,6 +319,32 @@ MainWindow::MainWindow(QWidget *parent)
                 : tr("Autosaved"));
             statusBar()->showMessage(tr("Private draft saved to DVMDB."), 5000);
         }
+    });
+    connect(this->personal_edit_session, &PersonalDraftEditSession::historyCursorChanged,
+            this, &MainWindow::refreshHistoryDock);
+    connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationStarted,
+            this, [this]
+    {
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+        this->personal_edit_guard->stop();
+        this->top_control_bar->setNetworkStatus(tr("Navigating History…"));
+        refreshHistoryDock();
+    });
+    connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationCompleted,
+            this, [this](const NetworkHydraulic &network)
+    {
+        if (!this->personal_edit_active || this->personal_edit_blocked) return;
+        this->hydraulic_data->replaceNetworkHydraulic(network, {});
+        this->hydraulic_data->setLogicalEditCaptureEnabled(true);
+        this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
+        this->personal_edit_guard->start();
+        checkPersonalDraftModel();
+        if (!this->personal_edit_blocked)
+        {
+            this->top_control_bar->setNetworkStatus(tr("History position saved"));
+            statusBar()->showMessage(tr("Editor reloaded from verified DVMDB History state."), 5000);
+        }
+        refreshHistoryDock();
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::blocked,
             this, &MainWindow::blockPersonalDraftEditing);
@@ -1084,6 +1114,15 @@ void MainWindow::refreshHistoryDock()
     }
     this->history_dock->setTimeline(context, actions, this->personal_edit_active,
                                     this->personal_edit_blocked);
+    this->history_dock->setNavigationState(
+        opened && this->personal_edit_session != nullptr
+            ? this->personal_edit_session->historyCursor() : QJsonObject{},
+        opened && !this->personal_edit_blocked &&
+            this->personal_edit_session != nullptr &&
+            this->personal_edit_session->canNavigateHistory(),
+        opened && this->personal_edit_session != nullptr
+            ? this->personal_edit_session->historyNavigationStatus()
+            : tr("Open a private draft to enable History navigation."));
 }
 
 void MainWindow::toggleRightDockArea()

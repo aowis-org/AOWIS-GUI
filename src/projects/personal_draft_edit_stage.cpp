@@ -161,6 +161,18 @@ bool PersonalDraftEditStage::open(
     return true;
 }
 
+bool PersonalDraftEditStage::resetVerifiedNetwork(
+    const NetworkHydraulic &network, QString *error)
+{
+    if (error) error->clear();
+    if (!isOpen() || this->blocked_ || !this->queue_.pending().isEmpty() ||
+        network.uuid.isNull() || network.uuid != this->persisted_.uuid)
+        return fail(error, QStringLiteral("History cannot replace a busy or mismatched private draft."));
+    this->persisted_ = network;
+    this->visible_ = network;
+    return true;
+}
+
 void PersonalDraftEditStage::close()
 {
     this->queue_.close();

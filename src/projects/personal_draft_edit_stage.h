@@ -27,6 +27,9 @@ public:
               const QByteArray &last_journal_event = QByteArray(),
               QString *error = nullptr);
     void close();
+    // After a verified server-side History navigation: the queue must be empty
+    // and its lock remains held throughout the replacement.
+    bool resetVerifiedNetwork(const NetworkHydraulic &network, QString *error = nullptr);
 
     // Stage a newly captured MODEL event, then write it to the local durable
     // queue. The visible staged snapshot advances only after local durability.

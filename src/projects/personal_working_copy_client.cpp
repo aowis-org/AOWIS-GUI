@@ -70,6 +70,25 @@ bool decimal(const QString &value)
     return true;
 }
 
+bool validHistoryCoordinate(const QJsonValue &value)
+{
+    if (value.isNull()) return true;
+    if (!value.isObject()) return false;
+    const QJsonObject coordinate = value.toObject();
+    const QString kind = coordinate.value(QStringLiteral("selectionKind")).toString();
+    const QString position = coordinate.value(QStringLiteral("actionPosition")).toString();
+    const QJsonValue revision = coordinate.value(QStringLiteral("revisionId"));
+    if (!decimal(position) ||
+        (kind != QStringLiteral("draft") && kind != QStringLiteral("archived")))
+        return false;
+    bool numeric = false;
+    const qulonglong count = position.toULongLong(&numeric);
+    if (!numeric || count > 4096) return false;
+    if (kind == QStringLiteral("archived"))
+        return revision.isString() && DvmdbIdentity::isUuidV7(revision.toString());
+    return revision.isNull();
+}
+
 // Commit authorship must name the same person on every Commit. Until the
 // security concept defines user identities, this installation keeps one
 // UUIDv7, created on first use, and the operating-system account name.
@@ -635,6 +654,90 @@ void PersonalWorkingCopyClient::reopen(const PersonalRepositoryTarget &target,
             return;
         }
         completion(draft, QString());
+    });
+}
+
+void PersonalWorkingCopyClient::historyCursor(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    HistoryCursorCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id))
+    {
+        completion({}, QStringLiteral("Invalid draft UUIDv7."));
+        return;
+    }
+    request(target, "GET", QStringLiteral("/working-copies/") + draft_id
+            + QStringLiteral("/history/cursor"), {},
+        [completion = std::move(completion), draft_id](const QJsonObject &body,
+                                                        const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, error); return; }
+        const QJsonValue generation = body.value(QStringLiteral("generation"));
+        const QJsonValue position = body.value(QStringLiteral("actionPosition"));
+        const QJsonValue journalCount = body.value(QStringLiteral("journalCount"));
+        const QJsonValue previous = body.value(QStringLiteral("previousAction"));
+        const QJsonValue next = body.value(QStringLiteral("nextAction"));
+        const QJsonValue base = body.value(QStringLiteral("baseRevision"));
+        if (body.value(QStringLiteral("draftId")).toString() != draft_id ||
+            !generation.isString() || !decimal(generation.toString()) ||
+            !position.isString() || !decimal(position.toString()) ||
+            !journalCount.isString() || !decimal(journalCount.toString()) ||
+            !validHistoryCoordinate(previous) ||
+            !validHistoryCoordinate(next) ||
+            (!base.isNull() && (!base.isString() ||
+                                !DvmdbIdentity::isUuidV7(base.toString()))))
+        {
+            completion({}, QStringLiteral("Invalid DVMDB History cursor response."));
+            return;
+        }
+        completion(body, {});
+    });
+}
+
+void PersonalWorkingCopyClient::navigateHistory(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &operation_id, const QString &session_id,
+    const QString &fencing_token, const QString &generation,
+    const QString &expected_head, const QJsonObject &coordinate,
+    DraftCompletion completion)
+{
+    const QString kind = coordinate.value(QStringLiteral("selectionKind")).toString();
+    const QString position = coordinate.value(QStringLiteral("actionPosition")).toString();
+    const QString revision = coordinate.value(QStringLiteral("revisionId")).toString();
+    if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(operation_id) ||
+        !DvmdbIdentity::isUuidV7(session_id) || !DvmdbIdentity::isUuidV7(fencing_token) ||
+        !decimal(generation) || !decimal(position) ||
+        (kind != QStringLiteral("draft") && kind != QStringLiteral("archived")) ||
+        (kind == QStringLiteral("archived") && !DvmdbIdentity::isUuidV7(revision)) ||
+        (kind == QStringLiteral("archived") && expected_head.isEmpty()) ||
+        (!expected_head.isEmpty() && !DvmdbIdentity::isUuidV7(expected_head)) ||
+        !validHistoryCoordinate(QJsonValue(coordinate)))
+    {
+        completion({}, QStringLiteral("Invalid fenced History navigation request."));
+        return;
+    }
+    QJsonObject body{{QStringLiteral("operationId"), operation_id},
+                     {QStringLiteral("sessionId"), session_id},
+                     {QStringLiteral("fencingToken"), fencing_token},
+                     {QStringLiteral("expectedGeneration"), generation},
+                     {QStringLiteral("expectedHead"), expected_head.isEmpty()
+                         ? QJsonValue(QJsonValue::Null) : QJsonValue(expected_head)},
+                     {QStringLiteral("actionPosition"), position}};
+    if (kind == QStringLiteral("archived"))
+        body.insert(QStringLiteral("revisionId"), revision);
+    request(target, "POST", QStringLiteral("/working-copies/") + draft_id
+            + QStringLiteral("/history/navigate"), body,
+        [completion = std::move(completion), draft_id](const QJsonObject &response,
+                                                        const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, error); return; }
+        PersonalWorkingCopyInfo draft;
+        if (!parseDraft(response, draft) || draft.id != draft_id)
+        {
+            completion({}, QStringLiteral("Invalid DVMDB History publication response."));
+            return;
+        }
+        completion(draft, {});
     });
 }
 

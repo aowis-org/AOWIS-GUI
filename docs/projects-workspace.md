@@ -15,7 +15,7 @@ workflow see [quickstart](dvmdb-quickstart.md); for graph semantics see
 | Revisions (left) | Immutable committed revisions; absent for a branch with no commits |
 | Graph (center) | Server and project cards, **immutable revision cards** and **writable HEAD cards**; no independent branch cards |
 | Inspector (right) | Context-sensitive Overview and management tabs for Database, Project, Branch, HEAD or Revision |
-| History dock (main window, left) | Read-only commit checkpoints and current-draft events; opens from the toolbar without leaving the editor. Undo/Redo is not yet functional |
+| History dock (main window, left) | Commit checkpoints and saved/pending draft events; the toolbar opens it without leaving the editor. Adjacent Undo/Redo uses DVMDB-verified cursor targets in a ready private session; committed action frames are not yet expanded in the list |
 
 The personal database has a crown in the navigator and a gold server card in
 the graph. A visibility checkbox is a graph/list filter, **not** a
@@ -159,14 +159,24 @@ revision previews. The branch dropdown always has a **[none]** placeholder:
   must not replace the in-memory model.
 
 **History action (current):** The toolbar's **Open revision history in
-Projects** button opens the **History** dock on the left of the current
-workspace, even while editing the hydraulic network. It shows the selected
-branch's first-parent committed revision markers, current-state marker and,
-when the private editor is active, the saved and pending draft MODEL events.
-No persisted edit actions preceding a Commit can be recovered from the
-current API. Undo, Redo and jump-to-entry are therefore disabled; these are
-future features specified in the [History roadmap](history-roadmap.md).
-The separate Projects revision graph continues to display the actual DAG.
+Projects** action opens the left **History** dock without leaving the hydraulic
+editor. The dock shows the selected branch's first-parent Commit markers,
+saved and pending draft MODEL events, and the **authoritative position** from
+DVMDB when a private draft is open. Undo and Redo request only the adjacent
+coordinates returned by `GET /working-copies/{draft}/history/cursor` and use
+fenced `POST /working-copies/{draft}/history/navigate`.
+
+Navigation is disabled while a private Save is pending, the writer is blocked,
+the cursor cannot be verified, the lease needs renewal, or the backend offers
+no eligible adjacent action. On success the full saved network is reloaded,
+editor logical capture is restored, and the dock reads the new cursor. On
+an uncertain response, editing is blocked until the draft can be reopened;
+the GUI never assumes an HTTP operation succeeded. **Direct jumping by
+clicking an arbitrary entry, expanded archived action descriptions and normal
+keyboard shortcuts remain future work.** Multi-network and unborn-base
+draft navigation are intentionally not supported by the current DVMDB adapter;
+this does **not** restrict what DVMDB can store. The separate Projects revision
+graph continues to display the full immutable DAG.
 
 The toolbar status area now indicates **No network**, **Opening…**,
 **Saving · N pending**, **Autosaved**, **Read-only**, or **Open failed**.

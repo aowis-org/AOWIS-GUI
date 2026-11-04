@@ -84,6 +84,7 @@ public:
     using ListCompletion = std::function<void(const QList<PersonalWorkingCopyInfo> &, const QString &)>;
     using LeaseCompletion = std::function<void(const PersonalWorkingCopyLease &, const QString &)>;
     using Completion = std::function<void(const QString &)>;
+    using HistoryCursorCompletion = std::function<void(const QJsonObject &, const QString &)>;
 
     explicit PersonalWorkingCopyClient(QObject *parent = nullptr);
 
@@ -99,6 +100,14 @@ public:
                 DraftCompletion completion);
     void reopen(const PersonalRepositoryTarget &target, const QString &draft_id,
                 DraftCompletion completion);
+    // Cursor and adjacency come from DVMDB, never from the GUI's cached timeline.
+    void historyCursor(const PersonalRepositoryTarget &target, const QString &draft_id,
+                       HistoryCursorCompletion completion);
+    void navigateHistory(const PersonalRepositoryTarget &target, const QString &draft_id,
+                         const QString &operation_id, const QString &session_id,
+                         const QString &fencing_token, const QString &generation,
+                         const QString &expected_head, const QJsonObject &coordinate,
+                         DraftCompletion completion);
     // Every write is explicitly scoped to the personal repository. A save
     // acknowledges only the exact next generation; uncertain network failures
     // must be resolved by reopen(), never by blindly replaying a batch.
