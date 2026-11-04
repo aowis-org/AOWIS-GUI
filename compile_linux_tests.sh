@@ -38,9 +38,17 @@ run_suite()
     # CTest 3.21 can return success when a label matches zero tests. Verify the
     # selection explicitly instead of requiring newer --no-tests=error support.
     local registered
-    registered=$(ctest --test-dir "${build_dir}" -N -L '^aowis$')
+    registered=$(ctest --test-dir "${build_dir}" -N -L '^aowis$' 2>&1)
     if ! grep -Eq 'Total Tests: [1-9][0-9]*' <<< "${registered}"; then
         echo "ERROR: no aowis tests registered in ${build_dir}" >&2
+        echo "${registered}" >&2
+        return 1
+    fi
+    # CTest registers tests even when their executable was not built. Fail
+    # before running a long suite instead of reporting misleading Not Run
+    # results at the end.
+    if grep -Eq 'Could not find executable|Unable to find executable' <<< "${registered}"; then
+        echo "ERROR: aowis test executables are missing from ${build_dir}" >&2
         echo "${registered}" >&2
         return 1
     fi

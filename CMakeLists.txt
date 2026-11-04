@@ -1646,8 +1646,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_custom_target(aowis-tests
         DEPENDS
             aowis-personal-repository-settings-tests
+            aowis-personal-commit-intent-store-tests
             aowis-personal-working-copy-client-tests
             aowis-personal-edit-queue-tests
+            aowis-history-dock-tests
             aowis-compound-dag-layout-tests
             aowis-layered-dag-layout-tests
             aowis-project-revision-graph-tests
@@ -1660,6 +1662,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             aowis-map-workspace-diagnostics-tests
             aowis-map-mode-tool-panel-tests
             aowis-map-mode-tab-bar-tests
+            aowis-map-canvas-projection-tests
+            aowis-map-canvas-preview-tests
             aowis-map-workspace-viewport-page-tests
             aowis-map-provider-fallback-tests
             aowis-bgfx-2d-projection-tests
@@ -1684,6 +1688,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             aowis-map-globe-retained-origin-tests
             aowis-map-globe-icon-draw-order-tests
             aowis-map-globe-demand-drape-tests
+            aowis-map-globe-pipe-bend-drape-tests
             aowis-unit-model-header-authority-tests
             aowis-emitter-coefficient-binding-tests
             aowis-emitter-numeric-spin-box-tests
