@@ -410,8 +410,6 @@ qt_add_executable(aowis-server-gui
     src/map/render/map_globe_picking.cpp
     src/map/render/map_icon_atlas.h
     src/map/render/map_icon_atlas.cpp
-    src/map/render/map_node_declutter.h
-    src/map/render/map_node_declutter.cpp
 
     # Entity inspectors
     src/entity_inspector/entity_inspector_demand_point.cpp
@@ -524,11 +522,7 @@ target_link_libraries(aowis-server-gui
 
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
-    src/map/bgfx/map_bgfx_2d_scene.h
-    src/map/bgfx/map_bgfx_2d_scene_variants.h
-    src/map/bgfx/map_bgfx_2d_mesh.h
-    src/map/bgfx/map_bgfx_2d_gpu.h
-    src/map/bgfx/map_bgfx_2d_gpu.cpp
+    src/map/bgfx/map_bgfx_2d_snapshot_adapter.h
     src/map/bgfx/map_bgfx_entity_style.h
     src/map/bgfx/map_bgfx_entity_style.cpp
     src/map/bgfx/map_bgfx_2d_symbology.h
@@ -1067,24 +1061,22 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-bgfx-2d-imagery-atlas PROPERTIES LABELS "aowis")
 
     # The bgfx scene declutters coincident nodes with the shared routine.
-    add_executable(aowis-bgfx-2d-scene-tests tests/bgfx_2d_scene_test.cpp
-        src/map/render/map_node_declutter.cpp)
+    add_executable(aowis-bgfx-2d-scene-tests tests/bgfx_2d_scene_test.cpp)
     target_include_directories(aowis-bgfx-2d-scene-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
-    target_link_libraries(aowis-bgfx-2d-scene-tests PRIVATE Qt6::Core AOWIS::ServerModel)
+    target_link_libraries(aowis-bgfx-2d-scene-tests PRIVATE Qt6::Core AOWIS::ServerModel AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-2d-scene COMMAND aowis-bgfx-2d-scene-tests)
     set_tests_properties(aowis-bgfx-2d-scene PROPERTIES LABELS "aowis")
 
     # Chunked thick-line mesh: chunking, antimeridian wrap, view culling, and
     # the line quad encoding against a CPU mirror of vs_line_2d.sc.
-    add_executable(aowis-bgfx-2d-mesh-tests tests/bgfx_2d_mesh_test.cpp
-        src/map/render/map_node_declutter.cpp)
+    add_executable(aowis-bgfx-2d-mesh-tests tests/bgfx_2d_mesh_test.cpp)
     target_include_directories(aowis-bgfx-2d-mesh-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     # Qt6::Gui only for QRgb/QColor in the symbology mapping header.
-    target_link_libraries(aowis-bgfx-2d-mesh-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::ServerModel)
+    target_link_libraries(aowis-bgfx-2d-mesh-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-2d-mesh COMMAND aowis-bgfx-2d-mesh-tests)
     set_tests_properties(aowis-bgfx-2d-mesh PROPERTIES LABELS "aowis")
 
@@ -1104,12 +1096,11 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # bgfx 2D picking (click selection, hover) and highlight subsets.
-    add_executable(aowis-bgfx-2d-picking-tests tests/bgfx_2d_picking_test.cpp
-        src/map/render/map_node_declutter.cpp)
+    add_executable(aowis-bgfx-2d-picking-tests tests/bgfx_2d_picking_test.cpp)
     target_include_directories(aowis-bgfx-2d-picking-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
-    target_link_libraries(aowis-bgfx-2d-picking-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::ServerModel)
+    target_link_libraries(aowis-bgfx-2d-picking-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-2d-picking COMMAND aowis-bgfx-2d-picking-tests)
     set_tests_properties(aowis-bgfx-2d-picking PROPERTIES LABELS "aowis")
 
@@ -1219,8 +1210,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # priorities, values, viewport edges, rasterization budget, stability.
     add_executable(aowis-bgfx-labels-tests tests/bgfx_labels_test.cpp
         src/map/bgfx/map_bgfx_labels.cpp
-        src/map/bgfx/map_bgfx_hud.cpp
-        src/map/render/map_node_declutter.cpp)
+        src/map/bgfx/map_bgfx_hud.cpp)
     target_include_directories(aowis-bgfx-labels-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
@@ -1422,13 +1412,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_globe_retained_origin_test.cpp
         src/map/render/map_globe_network_scene.cpp
         src/map/render/map_icon_atlas.cpp
-        src/map/render/map_node_declutter.cpp
-        src/geo/geo_wgs84_ellipsoid.cpp)
+            src/geo/geo_wgs84_ellipsoid.cpp)
     target_include_directories(aowis-map-globe-retained-origin-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-retained-origin-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
     add_test(NAME aowis-map-globe-retained-origin
         COMMAND aowis-map-globe-retained-origin-tests)
     set_tests_properties(aowis-map-globe-retained-origin PROPERTIES
@@ -1452,13 +1441,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_globe_demand_drape_test.cpp
         src/map/render/map_globe_network_scene.cpp
         src/map/render/map_icon_atlas.cpp
-        src/map/render/map_node_declutter.cpp
-        src/geo/geo_wgs84_ellipsoid.cpp)
+            src/geo/geo_wgs84_ellipsoid.cpp)
     target_include_directories(aowis-map-globe-demand-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-demand-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
     add_test(NAME aowis-map-globe-demand-drape
         COMMAND aowis-map-globe-demand-drape-tests)
     set_tests_properties(aowis-map-globe-demand-drape PROPERTIES
@@ -1470,13 +1458,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_globe_pipe_bend_drape_test.cpp
         src/map/render/map_globe_network_scene.cpp
         src/map/render/map_icon_atlas.cpp
-        src/map/render/map_node_declutter.cpp
-        src/geo/geo_wgs84_ellipsoid.cpp)
+            src/geo/geo_wgs84_ellipsoid.cpp)
     target_include_directories(aowis-map-globe-pipe-bend-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-pipe-bend-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
     add_test(NAME aowis-map-globe-pipe-bend-drape
         COMMAND aowis-map-globe-pipe-bend-drape-tests)
     set_tests_properties(aowis-map-globe-pipe-bend-drape PROPERTIES
@@ -1532,9 +1519,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/map/render/map_globe_tank_model.cpp
         src/map/render/map_globe_tank_model.h
         src/map/render/map_globe_vertical_transform.h
-        src/map/render/map_node_declutter.cpp
-        src/map/render/map_node_declutter.h
-        src/map/render/map_render_cache_math.cpp
+                src/map/render/map_render_cache_math.cpp
         src/map/render/map_render_cache_math.h
         src/map/render/map_terrain_mesh_scheduler.cpp
         src/map/render/map_terrain_mesh_scheduler.h
@@ -1550,7 +1535,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             Qt6::Gui
             AOWIS::ServerModel
             GeographicLib_STATIC
-    )
+     AOWIS::RenderCore)
     add_test(
         NAME aowis-map-render-neutral
         COMMAND aowis-map-render-neutral-tests
@@ -1776,78 +1761,26 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             LABELS "aowis"
     )
 
-    # Every executable behind an 'aowis'-labelled test must be listed here:
-    # compile_linux_tests.sh builds only this target, and a missing entry
-    # shows up as "Not Run" in CTest.
-    add_custom_target(aowis-tests
-        DEPENDS
-            aowis-personal-repository-settings-tests
-            aowis-personal-commit-intent-store-tests
-            aowis-personal-working-copy-client-tests
-            aowis-personal-edit-queue-tests
-            aowis-history-dock-tests
-            aowis-compound-dag-layout-tests
-            aowis-layered-dag-layout-tests
-            aowis-project-revision-graph-tests
-            aowis-projects-inspector-dock-tests
-            aowis-project-source-reader-tests
-            aowis-project-source-writer-tests
-            aowis-projects-multi-source-tests
-            aowis-map-workspace-contract-tests
-            aowis-map-bgfx-layer-visibility-tests
-            aowis-map-workspace-diagnostics-tests
-            aowis-map-mode-tool-panel-tests
-            aowis-map-mode-tab-bar-tests
-            aowis-map-canvas-projection-tests
-            aowis-map-canvas-preview-tests
-            aowis-map-workspace-viewport-page-tests
-            aowis-map-provider-fallback-tests
-            aowis-bgfx-2d-projection-tests
-            aowis-bgfx-2d-imagery-layout-tests
-            aowis-bgfx-2d-imagery-atlas-tests
-            aowis-bgfx-2d-scene-tests
-            aowis-bgfx-2d-mesh-tests
-            aowis-bgfx-entity-style-tests
-            aowis-bgfx-2d-picking-tests
-            aowis-bgfx-hud-tests
-            aowis-bgfx-editor-overlay-tests
-            aowis-map-bgfx-globe-icon-index-tests
-            aowis-map-bgfx-globe-height-cache-tests
-            aowis-map-bgfx-globe-icon-benchmark
-            aowis-bgfx-labels-tests
-            aowis-unit-cross-surface-acceptance-tests
-            aowis-valve-setting-sort-policy-tests
-            aowis-unit-presentation-benchmark
-            aowis-map-camera-invalidation-tests
-            aowis-map-zoom-animation-tests
-            aowis-map-retained-network-scene-tests
-            aowis-map-globe-retained-origin-tests
-            aowis-map-globe-icon-draw-order-tests
-            aowis-map-globe-demand-drape-tests
-            aowis-map-globe-pipe-bend-drape-tests
-            aowis-unit-model-header-authority-tests
-            aowis-emitter-coefficient-binding-tests
-            aowis-emitter-numeric-spin-box-tests
-            aowis-coordinate-property-binding-tests
-            aowis-coordinate-numeric-spin-box-tests
-            aowis-unit-profile-storage-tests
-            aowis-unit-aware-view-tests
-            aowis-numeric-property-binding-tests
-            aowis-numeric-editor-adapters-tests
-            aowis-numeric-text-tests
-            aowis-unit-numeric-spin-box-tests
-            aowis-unit-table-presentation-tests
-            aowis-map-render-neutral-tests
-            aowis-hydraulic-network-editor-tests
-            aowis-hydraulic-libraries-widget-tests
-            aowis-hydraulic-controls-widget-tests
-            aowis-hydraulic-edit-transaction-tests
-            aowis-demand-point-tests
-            aowis-pipe-material-tests
-            aowis-epanet-js-reader-tests
-            aowis-epanet-js-converter-tests
-            aowis-epanet-js-integration-tests
-    )
+    # Build all locally declared AOWIS test executables, not a manually
+    # maintained list. A stale list let Ninja report success while CTest then
+    # complained about unbuilt test executables (many pages of "Not Run").
+    # Test executables follow the -tests or -benchmark naming convention.
+    # Test scripts (Python/Bash) do not require a compiled target here.
+    get_property(_aowis_local_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+    set(_aowis_test_executables)
+    foreach(_aowis_candidate IN LISTS _aowis_local_targets)
+        if(_aowis_candidate MATCHES "^aowis-.*-(tests|benchmark)$")
+            get_target_property(_aowis_candidate_type
+                "${_aowis_candidate}" TYPE)
+            if(_aowis_candidate_type STREQUAL "EXECUTABLE")
+                list(APPEND _aowis_test_executables "${_aowis_candidate}")
+            endif()
+        endif()
+    endforeach()
+    if(NOT _aowis_test_executables)
+        message(FATAL_ERROR "No AOWIS test executable targets were registered")
+    endif()
+    add_custom_target(aowis-tests DEPENDS ${_aowis_test_executables})
     if(TARGET aowis-model-unit-conversion-test)
         add_dependencies(aowis-tests aowis-model-unit-conversion-test)
     endif()

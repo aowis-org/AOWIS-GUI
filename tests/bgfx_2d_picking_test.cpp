@@ -1,3 +1,4 @@
+#include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
 #include "map/bgfx/map_bgfx_2d_scene.h"
 #include "map/bgfx/map_bgfx_2d_mesh.h"
 #include "map/bgfx/map_bgfx_2d_picking.h"
@@ -60,7 +61,7 @@ struct TestNetwork
     {
         this->snapshot.geometry_revision = 1;
         this->retained.setSnapshot(this->snapshot);
-        this->scene.prepare(this->retained);
+        this->scene.prepare(mapBgfx2dNetworkInput(this->retained));
         return this->scene;
     }
 };
@@ -208,7 +209,7 @@ int main()
         req(mesh.prepare(declutter_scene, MapBgfx2dMesh::IconLookup()), "initial mesh");
         const quint64 first_id = declutter_scene.preparationId();
         declutter_scene.setDeclutteringEnabled(false);
-        req(declutter_scene.prepare(coincident.retained), "declutter toggle re-prepares");
+        req(declutter_scene.prepare(mapBgfx2dNetworkInput(coincident.retained)), "declutter toggle re-prepares");
         req(declutter_scene.preparationId() != first_id, "new preparation id");
         req(mesh.prepare(declutter_scene, MapBgfx2dMesh::IconLookup()),
             "mesh rebuilt after the declutter toggle (same geometry revision)");
@@ -218,7 +219,7 @@ int main()
                 && raw_inlet->position.x == raw_outlet->position.x
                 && raw_inlet->position.y == raw_outlet->position.y,
             "without decluttering coincident nodes stay coincident");
-        req(!declutter_scene.prepare(coincident.retained)
+        req(!declutter_scene.prepare(mapBgfx2dNetworkInput(coincident.retained))
                 && !mesh.prepare(declutter_scene, MapBgfx2dMesh::IconLookup()),
             "no rebuild without a change");
     }

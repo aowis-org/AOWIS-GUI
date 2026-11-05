@@ -25,8 +25,8 @@ enum class Counter : size_t
     // MapModel camera changes.
     ZoomChange,
     CenterChange,
-    // Presented bgfx frames; the duration is the CPU time of building and
-    // submitting one (bgfx::frame() included), not GPU time.
+    // Presented bgfx frames: wall time for frame preparation plus
+    // bgfx::frame(), including any VSync/compositor wait; not GPU time.
     Frame,
     // MapGlobeNetworkScene work.
     DemandAttachmentsPrepared,
@@ -49,6 +49,15 @@ enum class Counter : size_t
     GlobeTerrainHeightSample,   // actual terrain sampler invocation
     GlobeTerrainHeightUnavailableReuse, // missing terrain retry deferred
     GlobeTerrainHeightEviction, // bounded height cache evicted oldest entry
+    // Optional 2D frame breakdown. The bgfx present step includes VSync
+    // waiting, so these separate CPU work from compositor throttling.
+    Bgfx2dImagery,
+    Bgfx2dMeshSync,
+    Bgfx2dStyleSync,
+    Bgfx2dNetworkDraw,
+    Bgfx2dLabels,
+    BgfxHud,
+    BgfxPresent,
     Count
 };
 
@@ -62,7 +71,10 @@ inline constexpr std::array<const char *, static_cast<std::size_t>(Counter::Coun
     "globe_editor_icon_index_query", "globe_editor_icon_projection",
     "globe_editor_icon_draw", "globe_terrain_height_cache_hit",
     "globe_terrain_height_sample", "globe_terrain_height_unavailable_reuse",
-    "globe_terrain_height_eviction"
+    "globe_terrain_height_eviction",
+    "bgfx_2d_imagery", "bgfx_2d_mesh_sync", "bgfx_2d_style_sync",
+    "bgfx_2d_network_draw", "bgfx_2d_labels", "bgfx_hud",
+    "bgfx_present"
 }};
 
 using Clock = std::chrono::steady_clock;

@@ -325,3 +325,17 @@ left-drag, middle-button globe orbit (including pointer lock), or editor drag;
 alt-tab or activate another window before releasing. Returning to the map must
 not resume the old gesture or leave a cursor grab active. Repeat on X11 and
 Wayland when available.
+
+### Shared production 2D network implementation
+
+`AOWIS-GUI-Render` now owns `MapBgfx2dNetworkInput`, `MapBgfx2dSceneVariants`,
+`MapBgfx2dMesh`, `MapBgfx2dGpu`, and the shared node decluttering algorithm.
+`AOWIS::RenderNetwork` provides CPU scene and mesh staging without bgfx, and
+`AOWIS::RenderCore` supplies GPU network submission.
+The GUI's `map_bgfx_2d_snapshot_adapter.h` translates its retained snapshot to
+render IDs, entity class codes, geodetic positions and link endpoint identity.
+That conversion runs on geometry revision changes / first-time view variant
+preparation, never during camera, HUD or hydraulic value updates. Shader value
+texture/palette binding remains host-owned through `MapBgfx2dStyleBinding`,
+implemented by the GUI `MapBgfxEntityStyle` and suitable for a future Mobile
+backend. This does not change the 3D globe renderer or the Mobile EGL loop.

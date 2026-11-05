@@ -3,6 +3,7 @@
 
 #include "map/render/map_network_render_symbology.h"
 #include "network/network_render_snapshot.h"
+#include "map/bgfx/map_bgfx_2d_style_binding.h"
 
 #include <QHash>
 #include <QSet>
@@ -36,31 +37,11 @@
 // ramp bucket of (value - minimum) / (maximum - minimum), 0.5 for an empty
 // range. Icons: the default fill while not colourised, the "unavailable" fill
 // without a value.
-class MapBgfxEntityStyle
+class MapBgfxEntityStyle : public MapBgfx2dStyleBinding
 {
 public:
-    // How a draw colours its geometry (u_entity_mode.x).
-    enum class Mode
-    {
-        // Vertex colours as given (globe highlight outlines).
-        VertexColor = 0,
-        // The symbology of the referenced entity.
-        Symbology = 1,
-        // 2D selection outline: the selection colour.
-        Selection = 2,
-        // 2D simulation diagnostics: red, grey while stale.
-        Diagnostic = 3,
-        // 2D heatmap spots: the heatmap ramp, no spot without a value.
-        Heatmap = 4
-    };
-    // Which entity texture a draw's primitives reference where the vertex
-    // does not say so itself (u_entity_mode.y): 2D links vs. demand point
-    // attachments (the attachment takes its demand point's colour).
-    enum class Table
-    {
-        Nodes = 0,
-        Links = 1
-    };
+    using Mode = MapBgfx2dStyleBinding::Mode;
+    using Table = MapBgfx2dStyleBinding::Table;
 
     // Flag bits of texel.z (an integer stored in a float; mirrored in
     // entity_style.sh).
@@ -88,7 +69,7 @@ public:
     MapBgfxEntityStyle();
     bool initialize();
     void release();
-    bool ready() const;
+    bool ready() const override;
 
     // --- Inputs (cheap; uploads happen in synchronize()) ------------------
     // Entity classes of the network (junction, device link, icon).
@@ -114,7 +95,8 @@ public:
     const QVector<float> &nodeTexels() const { return this->nodes.texels; }
     const QVector<float> &linkTexels() const { return this->links.texels; }
     // Textures and uniforms of the next submit (bgfx forgets both after it).
-    void bind(Mode mode, Table table = Table::Nodes, bool tint_selected_icons = false) const;
+    void bind(Mode mode, Table table = Table::Nodes,
+              bool tint_selected_icons = false) const override;
 
     // Diagnostics (benchmarks, tests).
     quint64 textureUploadCount() const { return this->texture_upload_count; }

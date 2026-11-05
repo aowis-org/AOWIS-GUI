@@ -1,3 +1,4 @@
+#include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
 #include "map/bgfx/map_bgfx_2d_scene.h"
 #include "map/bgfx/map_bgfx_2d_scene_variants.h"
 #include "map/bgfx/map_bgfx_2d_mesh.h"
@@ -55,7 +56,7 @@ int main()
     MapRetainedNetworkScene retained;
     MapBgfx2dScene prepared;
     if (!check(retained.setSnapshot(snapshot).geometry_changed, "initial snapshot")
-        || !check(prepared.prepare(retained), "first geometry preparation")
+        || !check(prepared.prepare(mapBgfx2dNetworkInput(retained)), "first geometry preparation")
         || !check(prepared.linkSegmentCount() == 2, "all pipe segments retained")
         || !check(prepared.linkPolylines().size() == 1, "pipe kept as one polyline")
         || !check(prepared.networkNodes().size() == 1, "junction retained")
@@ -125,7 +126,7 @@ int main()
         const MapBgfx2d::ScreenPoint point = MapBgfx2d::screenFromWorld(
             view, prepared.attachments().first().start);
         if (!check(std::isfinite(point.x) && std::isfinite(point.y), "finite camera transform")
-            || !check(!prepared.prepare(retained), "camera movement regenerated geometry")
+            || !check(!prepared.prepare(mapBgfx2dNetworkInput(retained)), "camera movement regenerated geometry")
             || !check(!mesh.prepare(prepared, no_icons), "camera movement regenerated GPU mesh"))
             return 1;
     }
@@ -135,14 +136,14 @@ int main()
 
     snapshot.visual_revision = 1;
     if (!check(retained.setSnapshot(snapshot).visual_changed, "visual revision observed")
-        || !check(!prepared.prepare(retained), "visual update regenerated geometry")
+        || !check(!prepared.prepare(mapBgfx2dNetworkInput(retained)), "visual update regenerated geometry")
         || !check(!mesh.prepare(prepared, no_icons), "visual update regenerated GPU mesh"))
         return 1;
 
     snapshot.geometry_revision = 2;
     snapshot.nodes[0].coordinate_wgs84 = coordinate(18.4, 12.0);
     if (!check(retained.setSnapshot(snapshot).geometry_changed, "geometry revision observed")
-        || !check(prepared.prepare(retained), "geometry revision did not prepare")
+        || !check(prepared.prepare(mapBgfx2dNetworkInput(retained)), "geometry revision did not prepare")
         || !check(prepared.preparationCount() == 2, "unexpected geometry preparation count")
         || !check(mesh.prepare(prepared, no_icons), "geometry revision did not rebuild GPU mesh")
         || !check(mesh.preparationCount() == 2, "GPU mesh revision count"))
@@ -158,7 +159,7 @@ int main()
     snapshot.nodes.append(coincident);
     snapshot.geometry_revision = 3;
     if (!check(retained.setSnapshot(snapshot).geometry_changed, "new variant geometry revision")
-        || !check(variants.prepare(retained), "monitor variant was not prepared")
+        || !check(variants.prepare(mapBgfx2dNetworkInput(retained)), "monitor variant was not prepared")
         || !check(variants.active().declutteringEnabled(), "monitor decluttering disabled"))
         return 1;
     const quint64 monitor_preparation_id = variants.active().preparationId();
@@ -168,7 +169,7 @@ int main()
                   || variants.active().networkNodes()[0].position.y
                       != variants.active().networkNodes()[1].position.y,
                   "monitor failed to separate coincident nodes")
-        || !check(variants.setDeclutteringEnabled(false, retained), "editor variant not prepared")
+        || !check(variants.setDeclutteringEnabled(false, mapBgfx2dNetworkInput(retained)), "editor variant not prepared")
         || !check(!variants.active().declutteringEnabled(), "editor decluttering still enabled"))
         return 1;
     const quint64 editor_preparation_id = variants.active().preparationId();
@@ -181,12 +182,12 @@ int main()
     for (int iteration = 0; iteration < 100; ++iteration)
     {
         const bool monitor_mode = iteration % 2 == 0;
-        if (!check(!variants.setDeclutteringEnabled(monitor_mode, retained),
+        if (!check(!variants.setDeclutteringEnabled(monitor_mode, mapBgfx2dNetworkInput(retained)),
                    "mode switch recalculated cached geometry")
             || !check(variants.active().preparationId()
                           == (monitor_mode ? monitor_preparation_id : editor_preparation_id),
                        "mode switch lost cached variant identity")
-            || !check(!variants.prepare(retained), "same revision regenerated geometry"))
+            || !check(!variants.prepare(mapBgfx2dNetworkInput(retained)), "same revision regenerated geometry"))
             return 1;
     }
     // New geometry discards both old presentations. Only the active one is
@@ -194,10 +195,10 @@ int main()
     snapshot.geometry_revision = 4;
     snapshot.nodes[0].coordinate_wgs84 = coordinate(19.0, 13.0);
     if (!check(retained.setSnapshot(snapshot).geometry_changed, "variant geometry update")
-        || !check(variants.prepare(retained), "active variant did not refresh")
+        || !check(variants.prepare(mapBgfx2dNetworkInput(retained)), "active variant did not refresh")
         || !check(variants.active().preparationId() != editor_preparation_id,
                   "active variant retained obsolete geometry")
-        || !check(variants.setDeclutteringEnabled(true, retained),
+        || !check(variants.setDeclutteringEnabled(true, mapBgfx2dNetworkInput(retained)),
                   "stale monitor variant was not refreshed")
         || !check(variants.active().preparationId() != monitor_preparation_id,
                   "stale monitor variant identity was reused"))

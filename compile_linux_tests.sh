@@ -35,26 +35,14 @@ run_suite()
     echo "=== AOWIS Linux unit tests: ${build_type:-existing configuration} ==="
     cmake "${cmake_args[@]}"
     cmake --build "${build_dir}" --target aowis-tests --parallel
-    # CTest 3.21 can return success when a label matches zero tests. Verify the
-    # selection explicitly instead of requiring newer --no-tests=error support.
-    local registered
-    registered=$(ctest --test-dir "${build_dir}" -N -L '^aowis$' 2>&1)
-    if ! grep -Eq 'Total Tests: [1-9][0-9]*' <<< "${registered}"; then
-        echo "ERROR: no aowis tests registered in ${build_dir}" >&2
-        echo "${registered}" >&2
-        return 1
-    fi
-    # CTest registers tests even when their executable was not built. Fail
-    # before running a long suite instead of reporting misleading Not Run
-    # results at the end.
-    if grep -Eq 'Could not find executable|Unable to find executable' <<< "${registered}"; then
-        echo "ERROR: aowis test executables are missing from ${build_dir}" >&2
-        echo "${registered}" >&2
-        return 1
-    fi
+    # JSON inspection avoids CTest -N's dozens of repeated "looked in" paths
+    # for every unbuilt executable. The preflight prints only missing test names.
+    python3 "${PROJECT_DIR}/tools/ctest_preflight.py" "${build_dir}"
+    # Normal CTest output includes per-test results and a final summary.
+    # Verbose mode produces far too much noise; output from successful tests
+    # stays hidden while failed tests include their diagnostics.
     ctest \
         --test-dir "${build_dir}" \
-        --verbose \
         --output-on-failure \
         --timeout 30 \
         -L '^aowis$'

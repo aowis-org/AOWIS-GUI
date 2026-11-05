@@ -1,3 +1,4 @@
+#include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
 #include "map/bgfx/map_bgfx_2d_scene.h"
 #include "map/bgfx/map_bgfx_2d_mesh.h"
 #include "map/bgfx/map_bgfx_2d_symbology.h"
@@ -95,7 +96,7 @@ struct TestScene
     {
         this->snapshot.geometry_revision = 1;
         this->retained.setSnapshot(this->snapshot);
-        this->scene.prepare(this->retained);
+        this->scene.prepare(mapBgfx2dNetworkInput(this->retained));
         return this->scene;
     }
 };
@@ -121,8 +122,9 @@ MapBgfx2d::WorldPoint worldOf(const MapBgfx2dMeshChunk &chunk, const QVector<Ver
 }
 
 // Fake atlas: tanks and pumps have an icon, everything else none.
-MapBgfx2dIconSprite fakeSprite(InfrastructureEntity entity_type)
+MapBgfx2dIconSprite fakeSprite(quint8 entity_code)
 {
+    const InfrastructureEntity entity_type = static_cast<InfrastructureEntity>(entity_code);
     MapBgfx2dIconSprite sprite;
     sprite.valid = entity_type == InfrastructureEntity::Tank
         || entity_type == InfrastructureEntity::Pump;

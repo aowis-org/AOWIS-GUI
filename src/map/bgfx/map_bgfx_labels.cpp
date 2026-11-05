@@ -286,11 +286,11 @@ bool MapBgfxLabels::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
     for (const NodeOnScreen &on_screen : nodes_on_screen)
     {
         const MapBgfx2dPoint &node = nodes.at(on_screen.scene_index);
-        const int node_priority = priority(node.entity_type, false);
+        const int node_priority = priority(static_cast<InfrastructureEntity>(node.entity_type), false);
         if (node_priority > lowest_priority)
             continue;
         const MapBgfxHudRect symbol =
-            symbolAt(inputs.node_symbol, node.entity_type, on_screen.x, on_screen.y);
+            symbolAt(inputs.node_symbol, static_cast<InfrastructureEntity>(node.entity_type), on_screen.x, on_screen.y);
         const qsizetype obstacle = insertObstacle(symbol);
         if (!label_nodes)
             continue;
@@ -317,7 +317,7 @@ bool MapBgfxLabels::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
     const QVector<MapBgfx2dPolyline> &links = inputs.scene->linkPolylines();
     for (const MapBgfx2dPolyline &polyline : links)
     {
-        const int link_priority = priority(polyline.entity_type, true);
+        const int link_priority = priority(static_cast<InfrastructureEntity>(polyline.entity_type), true);
         if (link_priority > lowest_priority)
             continue;
         const quint64 key = MapBgfx2dScene::entityKey(polyline.entity_type, polyline.render_id);
@@ -405,7 +405,7 @@ bool MapBgfxLabels::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
         }
         // Short pipes get no label (they would only crowd their nodes);
         // pumps and valves always do, like their icon.
-        if (polyline.entity_type == InfrastructureEntity::Pipe
+        if (polyline.pipe
                 ? visible_length < MinimumLinkLengthPx : !(visible_length > 0.0))
             continue;
         double remaining = 0.5 * visible_length;
@@ -430,7 +430,7 @@ bool MapBgfxLabels::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
             remaining -= part.length;
         }
         const MapBgfxHudRect symbol =
-            symbolAt(inputs.link_symbol, polyline.entity_type, middle.x, middle.y);
+            symbolAt(inputs.link_symbol, static_cast<InfrastructureEntity>(polyline.entity_type), middle.x, middle.y);
         const qsizetype obstacle = insertObstacle(symbol);
         if (!label_links)
             continue;

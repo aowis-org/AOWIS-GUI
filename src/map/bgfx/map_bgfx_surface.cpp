@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_surface.h"
+#include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
 #include "map/core/map_input_focus_policy.h"
 
 #include "map/bgfx/bgfx_device_manager.h"
@@ -349,6 +350,9 @@ MapBgfxSurface::MapBgfxSurface(MapModel *model, QWidget *parent)
     });
     this->hud_clock.start();
     this->debug_overlay_enabled = qEnvironmentVariableIntValue("AOWIS_BGFX_DEBUG") != 0;
+    if (this->debug_overlay_enabled && MapRenderDiagnostics::enabled())
+        qWarning() << "2D performance diagnostics: AOWIS_BGFX_DEBUG forces continuous redraws;"
+                      " disable it for normal frame pacing measurements";
     this->frame_timer.setTimerType(Qt::PreciseTimer);
     connect(&this->frame_timer, &QTimer::timeout, this, &MapBgfxSurface::renderFrame);
 
@@ -887,7 +891,7 @@ void MapBgfxSurface::setNetworkSnapshot(const NetworkRenderSnapshot &snapshot)
         syncGlobeCameraHeight(true);
         this->globe_surface->requestTerrainForCurrentView(globeViewportSize());
     }
-    if (update.geometry_changed && this->prepared_2d_scenes.prepare(this->retained_scene))
+    if (update.geometry_changed && this->prepared_2d_scenes.prepare(mapBgfx2dNetworkInput(this->retained_scene)))
     {
         MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::Bgfx2dScenePrepared);
         qInfo() << "bgfx retained geometry prepared" << snapshot.geometry_revision
@@ -910,7 +914,7 @@ void MapBgfxSurface::setNodeDeclutteringEnabled(bool enabled)
     // Editor and monitor share one retained geometry revision but need two
     // node placements. Cache both derived scenes; revisiting an unchanged
     // variant must not perform another CPU geometry preparation.
-    if (this->prepared_2d_scenes.setDeclutteringEnabled(enabled, this->retained_scene))
+    if (this->prepared_2d_scenes.setDeclutteringEnabled(enabled, mapBgfx2dNetworkInput(this->retained_scene)))
         MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::Bgfx2dScenePrepared);
     this->globe_network.setNodeDeclutteringEnabled(enabled);
 }
@@ -2075,6 +2079,7 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
 void MapBgfxSurface::renderLabels(const QSizeF &logical, const MapBgfx2d::Camera &network_camera,
                                   const MapBgfx2dSymbology::Sizes &sizes)
 {
+    const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dLabels);
     if (!this->label_settings.anyEnabled() || !this->label_gpu.ready()
         || !this->retained_scene.hasSnapshot() || !this->prepared_2d_scenes.active().isPrepared())
     {
@@ -2186,6 +2191,7 @@ void MapBgfxSurface::renderLabels(const QSizeF &logical, const MapBgfx2d::Camera
 
 void MapBgfxSurface::renderHud(const QSizeF &logical, const MapBgfx2d::Camera &camera)
 {
+    const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::BgfxHud);
     if (!this->hud_gpu.ready())
         return;
 #ifdef Q_OS_WASM
@@ -2779,9 +2785,9 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         {
             // Icon placement comes from the shared QRhi atlas layout. Atlas v
             // runs downwards (uv_rect.top() < bottom()); see appendIcon().
-            const MapBgfx2dMesh::IconLookup icon_lookup = [](InfrastructureEntity entity_type)
+            const MapBgfx2dMesh::IconLookup icon_lookup = [](quint8 entity_code)
             {
-                const MapIconAtlasEntry entry = mapIconAtlasEntry(entity_type);
+                const MapIconAtlasEntry entry = mapIconAtlasEntry(static_cast<InfrastructureEntity>(entity_code));
                 MapBgfx2dIconSprite sprite;
                 sprite.valid = entry.valid;
                 sprite.u0 = float(entry.uv_rect.left());
@@ -2792,7 +2798,12 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
                 sprite.half_height_ratio = float(entry.height_ratio * 0.5);
                 return sprite;
             };
-            if (!this->gpu_2d_scene.synchronize(this->prepared_2d_scenes.active(), icon_lookup)) {
+            bool mesh_ready = false;
+            {
+                const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dMeshSync);
+                mesh_ready = this->gpu_2d_scene.synchronize(this->prepared_2d_scenes.active(), icon_lookup);
+            }
+            if (!mesh_ready) {
                 fail(QStringLiteral("bgfx network vertex-buffer upload failed"));
                 return;
             }
@@ -2803,9 +2814,12 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
             // Colours: entity data textures, uploaded only when values,
             // visibility, selection or diagnostics changed (never per frame, and
             // never a vertex buffer).
-            this->entity_style.setIconDefaultFill(this->symbology.icon_default_fill_color);
-            synchronizeEntityStyle();
-            synchronizeHighlights();
+            {
+                const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dStyleSync);
+                this->entity_style.setIconDefaultFill(this->symbology.icon_default_fill_color);
+                synchronizeEntityStyle();
+                synchronizeHighlights();
+            }
             // Sizes are uniforms from the continuous camera: metre-based widths
             // scale smoothly with the zoom.
             const MapBgfx2dSymbology::Sizes sizes = MapBgfx2dSymbology::sizes(
@@ -2829,7 +2843,11 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
                 network_view.center.x -= this->network_screen_translation.x() / view.world_pixels;
                 network_view.center.y -= this->network_screen_translation.y() / view.world_pixels;
             }
-            this->network_frame_stats = this->gpu_2d_scene.draw(this->map_view_id, network_view, style, this->entity_style);
+            {
+                const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dNetworkDraw);
+                this->network_frame_stats = this->gpu_2d_scene.draw(
+                    this->map_view_id, network_view, style, this->entity_style);
+            }
             if (layers.editor_overlay_2d)
                 renderOverlay(logical, view);
             // Labels above the network and the editor's icons, below the HUD.
@@ -2866,35 +2884,38 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
     if (this->debug_overlay_enabled)
         renderDebugOverlay();
     bool submitted = false;
+    {
+        const MapRenderDiagnostics::Scope present_timing(MapRenderDiagnostics::Counter::BgfxPresent);
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-    if (this->three_view_probes[0].attached || this->three_view_probes[1].attached)
-    {
-        // All currently exposed maps submit their independent camera/view
-        // into separate native swapchains in ONE global bgfx frame.
-        std::vector<BgfxFrameCoordinator::RenderWork> work;
-        work.push_back({this, {}});
-        for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+        if (this->three_view_probes[0].attached || this->three_view_probes[1].attached)
         {
-            ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
-            if (probe.attached && probe.window != nullptr && probe.window->isExposed())
-                work.push_back({probe.window, [this, index]() { drawThreeViewProbe(index); }});
+            // All currently exposed maps submit their independent camera/view
+            // into separate native swapchains in ONE global bgfx frame.
+            std::vector<BgfxFrameCoordinator::RenderWork> work;
+            work.push_back({this, {}});
+            for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+            {
+                ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+                if (probe.attached && probe.window != nullptr && probe.window->isExposed())
+                    work.push_back({probe.window, [this, index]() { drawThreeViewProbe(index); }});
+            }
+            submitted = BgfxDeviceManager::shared().frames().renderAndPresent(work);
         }
-        submitted = BgfxDeviceManager::shared().frames().renderAndPresent(work);
-    }
-    else if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr)
-    {
-        // One and only one bgfx::frame() for both independently targeted views.
-        // The map has already queued its draws; the probe submits a second
-        // clear into the other window's framebuffer before the global frame.
-        submitted = BgfxDeviceManager::shared().frames().renderAndPresent({
-            {this, {}},
-            {this->multi_view_probe_window, [this]() { drawMultiViewProbe(); }}
-        });
-    }
-    else
+        else if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr)
+        {
+            // One and only one bgfx::frame() for both independently targeted views.
+            // The map has already queued its draws; the probe submits a second
+            // clear into the other window's framebuffer before the global frame.
+            submitted = BgfxDeviceManager::shared().frames().renderAndPresent({
+                {this, {}},
+                {this->multi_view_probe_window, [this]() { drawMultiViewProbe(); }}
+            });
+        }
+        else
 #endif
-    {
-        submitted = BgfxDeviceManager::shared().frames().present(this);
+        {
+            submitted = BgfxDeviceManager::shared().frames().present(this);
+        }
     }
     if (!submitted)
     {
@@ -3068,6 +3089,7 @@ void MapBgfxSurface::setBackgroundOpacity(int opacity)
 
 void MapBgfxSurface::renderImagery(const QSizeF &logical)
 {
+    const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dImagery);
     this->imagery_quad_count = 0;
     this->imagery_uploads_pending = false;
     const MapBgfx2d::WorldPoint center = MapBgfx2d::worldFromWgs84(

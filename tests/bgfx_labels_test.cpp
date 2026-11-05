@@ -1,3 +1,4 @@
+#include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
 #include "map/bgfx/map_bgfx_labels.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
@@ -129,7 +130,7 @@ struct Harness
         ++this->snapshot.geometry_revision;
         this->retained.setSnapshot(this->snapshot);
         this->scene.setDeclutteringEnabled(false);
-        this->scene.prepare(this->retained);
+        this->scene.prepare(mapBgfx2dNetworkInput(this->retained));
     }
     bool build(const MapBgfx2d::Camera &view)
     {
@@ -372,7 +373,7 @@ void testRename()
     ++harness.snapshot.visual_revision;
     const MapRetainedNetworkUpdate update = harness.retained.setSnapshot(harness.snapshot);
     req(!update.geometry_changed && update.visual_changed, "rename: visual update only");
-    harness.scene.prepare(harness.retained);
+    harness.scene.prepare(mapBgfx2dNetworkInput(harness.retained));
     req(harness.scene.preparationId() == preparation, "rename: no re-preparation");
     harness.build(view);
     req(harness.find("NEW") != nullptr && harness.find("OLD") == nullptr,

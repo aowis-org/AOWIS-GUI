@@ -2,6 +2,7 @@
 #define MAP_BGFX_2D_PICKING_H
 
 #include "map/bgfx/map_bgfx_2d_mesh.h"
+#include "common/_enums_structs.h"
 
 #include <algorithm>
 #include <cmath>
@@ -91,21 +92,21 @@ inline Hit pick(const MapBgfx2dScene &scene, const MapBgfx2d::Camera &camera,
         Hit best;
         for (const MapBgfx2dPoint &point : scene.networkNodes())
         {
-            if (point.entity_type == InfrastructureEntity::Junction
-                || !options.has_icon(point.entity_type))
+            if (point.junction
+                || !options.has_icon(static_cast<InfrastructureEntity>(point.entity_type)))
                 continue;
             const double distance = screenDistance(
                 position, MapBgfx2d::screenFromWorld(camera, point.position));
             if (distance <= icon_radius && distance < best_distance)
             {
                 best_distance = distance;
-                best = {point.render_id, point.entity_type};
+                best = {point.render_id, static_cast<InfrastructureEntity>(point.entity_type)};
             }
         }
         for (const MapBgfx2dPolyline &polyline : scene.linkPolylines())
         {
-            if (polyline.entity_type == InfrastructureEntity::Pipe
-                || !options.has_icon(polyline.entity_type))
+            if (polyline.pipe
+                || !options.has_icon(static_cast<InfrastructureEntity>(polyline.entity_type)))
                 continue;
             MapBgfx2d::WorldPoint middle;
             if (!MapBgfx2dMesh::polylineMiddle(polyline, &middle))
@@ -115,7 +116,7 @@ inline Hit pick(const MapBgfx2dScene &scene, const MapBgfx2d::Camera &camera,
             if (distance <= icon_radius && distance < best_distance)
             {
                 best_distance = distance;
-                best = {polyline.render_id, polyline.entity_type};
+                best = {polyline.render_id, static_cast<InfrastructureEntity>(polyline.entity_type)};
             }
         }
         if (best.isValid())
@@ -130,14 +131,14 @@ inline Hit pick(const MapBgfx2dScene &scene, const MapBgfx2d::Camera &camera,
         Hit best;
         for (const MapBgfx2dPoint &point : scene.networkNodes())
         {
-            if (!options.show_junctions && point.entity_type == InfrastructureEntity::Junction)
+            if (!options.show_junctions && point.junction)
                 continue;
             const double distance = screenDistance(
                 position, MapBgfx2d::screenFromWorld(camera, point.position));
             if (distance <= best_distance)
             {
                 best_distance = distance;
-                best = {point.render_id, point.entity_type};
+                best = {point.render_id, static_cast<InfrastructureEntity>(point.entity_type)};
             }
         }
         if (best.isValid())
@@ -161,7 +162,7 @@ inline Hit pick(const MapBgfx2dScene &scene, const MapBgfx2d::Camera &camera,
             if (distance <= best_distance)
             {
                 best_distance = distance;
-                best = {polyline.render_id, polyline.entity_type};
+                best = {polyline.render_id, static_cast<InfrastructureEntity>(polyline.entity_type)};
             }
         }
     }

@@ -12,12 +12,14 @@ The pinned `external/AOWIS-GUI-Render` Git submodule provides the shared
 `AOWIS::RenderGeometry` CMake targets. The renderer owns the bgfx device,
 frame/target coordination, imagery and HUD GPU helpers, shader resources,
 continuous Mercator projection, secondary-view camera, globe icon index,
-terrain-height cache, imagery fallback UV math, and pan reuse helper.
+terrain-height cache, imagery fallback UV math, pan reuse helper,
+retained 2D scene preparation, mesh/chunk staging and bgfx network draw submission.
 Shared shader resources are explicitly registered by the library.
 
 The GUI executable owns the QWidget/QWindow surface adapter,
-`BgfxQtNativeSurface`, hydraulic model/data services, network snapshots and
-scene preparation, 2D/3D GPU draw controllers, editor tools and Projects UI.
+`BgfxQtNativeSurface`, hydraulic model/data services, authoritative network snapshots and
+`map_bgfx_2d_snapshot_adapter.h`, entity styles, the still-GUI-specific 3D
+scene controller, editor tools and Projects UI.
 See the [rendering architecture](../../../docs/rendering-architecture.md#shared-renderer-build-boundary).
 
 Desktop native Qt windows are captured through `BgfxQtNativeSurface` into the
@@ -50,8 +52,11 @@ selected for the active backend; Qt ShaderTools is not required.
 
 ## Retained 2D network GPU drawing
 
-* Inputs: `MapRetainedNetworkScene` and `MapBgfx2dScene` remain the
-  authoritative network/geometry-revision sources.
+* Inputs: GUI `MapRetainedNetworkScene` remains authoritative; the GUI
+  adapts geometry-only revisions into Render's `MapBgfx2dNetworkInput`.
+  Render owns `MapBgfx2dScene`, CPU mesh preparation and `MapBgfx2dGpu` GPU
+  draw submission. `MapBgfxEntityStyle` still lives in the GUI and implements
+  Render's `MapBgfx2dStyleBinding` for entity textures and colors.
 * **Spatial chunks** (`map_bgfx_2d_mesh.h`): primitives are grouped by a fixed
   world grid (zoom-12 cells, ~9.8 km). Each chunk has its own local origin
   (float error ~0.002 px at zoom 19 for networks of any extent) and bounds
