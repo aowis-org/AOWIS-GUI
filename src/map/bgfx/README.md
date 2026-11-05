@@ -1,4 +1,4 @@
-# bgfx map (Map Monitor and Map Editor)
+# bgfx Maps renderer (2D, globe and shared workspace)
 
 The shared production map surface draws the Map Monitor and Map Editor on
 desktop and WASM; it is always built. The same process-wide bgfx device and
@@ -22,6 +22,17 @@ physical pixels). `BgfxNativeTargetRegistry` consumes that descriptor for
 secondary swapchains and rejects a resized target whose native identity has
 changed. Release the old swapchain **before** destroying or reparenting its
 Wayland surface. The WebAssembly canvas/context remains a separate path.
+
+**Swapchain depth is not optional for the globe.** The current pinned bgfx
+`Init` defaults to D24S8, but a default-created `SwapChain` has none.
+`BgfxNativeSurface::configurePrimary()` preserves the primary Init defaults;
+`swapChain()` and `resizeSwapChain()` request D24S8 explicitly for secondary
+windows and resizing. `MapBgfxSurface::synchronizeGeometry()` uses that resize
+descriptor, including after tab hide/show and window resizes. Loss of this
+depth buffer makes LOD tile skirts draw over foreground terrain, producing
+vertical imagery stripes. The skirts themselves must remain.
+See [Renderer library readiness](../../../docs/renderer-extraction-readiness.md)
+for the compiled target and independent link test.
 
 The map has no CPU renderer fallback: if bgfx cannot start, Map Monitor
 reports a GPU status instead of painting the map with QPainter.
@@ -49,8 +60,7 @@ selected for the active backend; Qt ShaderTools is not required.
 * **Nodes**: unit-corner quads scaled by a size uniform and cut to
   antialiased circles in `fs_marker_2d.sc`. Every snapshot node is drawn once,
   including demand points (entity `DemandPoint`); the attachment list only
-  provides the attachment lines. (Before slice 4b demand points were also
-  taken from the attachment list and drawn twice.)
+  provides the attachment lines. 
 * **Declutter** (`MapBgfx2dScene`): coincident nodes (pump/valve inlet and
   outlet digitized at one coordinate) are spread with the shared
   `computeNodeDeclutterOffsets()` at 1 m, same as QRhi and the globe. Link
@@ -116,7 +126,7 @@ selected for the active backend; Qt ShaderTools is not required.
   maximum. Measured on 360 k nodes / 720 k pipes: resolve 678 ms -> 50 ms
   per step, the render side 308 ms -> 17 ms (colour streams vs data
   textures), a palette or range change 0.07 ms instead of a full resolve.
-* **Heatmap** (slice 4c, `fs_heatmap_2d.sc`): one spot per node (incl. demand
+* **Heatmap** (`fs_heatmap_2d.sc`): one spot per node (incl. demand
   points, at the decluttered position) with a heatmap value. No extra
   geometry: the heatmap pass draws the node marker quads with
   `vs_network_2d.sc` in the heatmap mode, the radius as size uniform (the
@@ -136,14 +146,14 @@ selected for the active backend; Qt ShaderTools is not required.
 * Shaders are compiled per renderer family and embedded in Qt resources
   (see "Renderer selection").
 
-* **Picking** (slice 5, `map_bgfx_2d_picking.h`): `hitTest()` for click
+* **Picking** (`map_bgfx_2d_picking.h`): `hitTest()` for click
   selection and the hover cursor, with the flat QRhi priorities and radii
   (icons max(12, size/2 + 6) px, nodes incl. demand points max(10, r + 5) px,
   links max(8, w/2 + 5) px), but against what bgfx draws: decluttered
   positions, link icons at the middle of the link length, sizes from the
   continuous zoom and the model's current camera. Hidden icons/junctions are
   not pickable. CPU pass in screen space on click/mouse move only.
-* **Highlights** (slice 5): selection (0,190,255) and simulation errors (red,
+* **Highlights**: selection (0,190,255) and simulation errors (red,
   stale results grey) as in QRhi: wider copies of the entity drawn on top of
   links resp. nodes (link width + 2 px, + 6 px when the selected entity has an
   error; node radius + 2 / + 5 px). Small separate meshes built from
@@ -179,7 +189,7 @@ the footer's map readouts are coalesced to at most one update per 100 ms
 (each label change relayouts the status bar). WASM builds drop the function
 name section by default (`AOWIS_WASM_FUNCTION_NAMES=ON` to keep it).
 
-## Native HUD (slices 6a, 6b)
+## Native HUD
 
 QWidgets cannot sit on top of bgfx's native window, so the HUD is drawn by
 bgfx itself, last in the map view (always on top), as one indexed draw per
@@ -236,7 +246,7 @@ frame:
   editor's canvas, plus the native window's activation where the platform
   allows it; Wayland never activates a subsurface by itself; WASM: the
   containers focus the map / canvas on every press, also one the HUD takes).
-* Map legend (slice 6b), bottom right, like `EntityMapLegendHud`: node /
+* Map legend, bottom right, like `EntityMapLegendHud`: node /
   link / heatmap metric combos (list opens on press, below or above the
   combo and tall enough for every entry; only when neither side has room it
   scrolls, with a scroll bar: drag the thumb, click the track to page, wheel),
@@ -328,7 +338,7 @@ menu's `MapNavigationWidget`, all off by default).
   snapshot on `signalNodeChanged` / `signalLinkChanged` /
   `signalDemandPointChanged`.
 
-## Map editor (Phase 2)
+## Map editor rendering
 
 The Map Editor uses a second `MapBgfxSurface`, and only bgfx. It draws the
 imagery, the static network in the editor look (black pipes, brown device
@@ -450,7 +460,7 @@ per-batch origins and culling are still mandatory for larger extents.
 Do not reintroduce integer-zoom geometry caching on this new GPU path. Imagery
 LOD will remain independent from retained network geometry.
 
-## Globe (Phase 3)
+## Globe and terrain rendering
 
 Globe mode draws on bgfx; the QRhi globe it replaces was removed with the
 rest of QRhi. "QRhi" below names the behaviour that was ported. The HUD
@@ -558,7 +568,7 @@ Performance is judged against the previous commit on the **same machine**, not
 against absolute CPU time limits embedded in CTest. The benchmark does not introduce
 zoom-bucket invalidation or a network geometry rebuild on camera movement.
 
-Slice 1, the terrain surface (`map_bgfx_globe_surface.*`):
+Terrain surface (`map_bgfx_globe_surface.*`):
 
 * CPU work is the backend-neutral `MapGlobeSurfacePreparation` the QRhi globe
   uses: quadtree leaves with horizon and view-cone culling, ellipsoid and polar
@@ -717,7 +727,7 @@ Slice 1, the terrain surface (`map_bgfx_globe_surface.*`):
   their vec3 positions in `varying_globe.def.sc`; the 2D shaders keep
   `varying.def.sc` (and byte-identical binaries).
 
-Slice 2, terrain-aware navigation (`src/map/render/map_globe_terrain_navigation.*`,
+Terrain-aware navigation (`src/map/render/map_globe_terrain_navigation.*`,
 backend-neutral, the port of MapRhiWidget's terrain code):
 
 * Camera height: the orbit rig's vertical offset follows the DEM
@@ -751,7 +761,7 @@ backend-neutral, the port of MapRhiWidget's terrain code):
 * A vertical exaggeration change rebuilds the terrain meshes (vertex
   patches); a network opened in Globe mode requests its DEM tiles at once.
 
-Slice 3, the network on the globe (`map_bgfx_globe_network.*`):
+Network on the globe (`map_bgfx_globe_network.*`):
 
 * Geometry is the backend-neutral `MapGlobeNetworkScene` of the QRhi globe
   (WGS84 placement relative to a retained network origin, adaptive geodesic
@@ -800,11 +810,11 @@ Slice 3, the network on the globe (`map_bgfx_globe_network.*`):
   attachment lines end on the junction / pipe at its own elevation
   (`NetworkRenderDemandPointAttachment::attachment_elevation_m`).
 * The underground mode is set through `setUndergroundMode()` (default
-  X-Ray) from the globe HUD's buttons (slice 5). X-Ray
+  X-Ray) from the globe HUD's buttons (globe HUD). X-Ray
   classification runs 500 ms after the last camera change or DEM arrival,
   once no terrain mesh is being built, like the QRhi globe.
 
-Slice 3b, the globe heatmap (`map_bgfx_globe_surface.*`):
+Globe heatmap (`map_bgfx_globe_surface.*`):
 
 * Markers, radius and solid centre as `MapRhiWidget::syncGlobeHeatmapOverlay()`
   (node positions, ramp colours of the heatmap metric; a pixel radius is
@@ -812,9 +822,9 @@ Slice 3b, the globe heatmap (`map_bgfx_globe_surface.*`):
   `MapGlobeHeatmapScene` gives each window tile its stamps in the tile's
   256 px space.
 * GPU bake: atlas pages of 2048 x 2048 (64 cells, up to 4 pages, created as
-  needed) rendered in four bake views reserved alongside the map view (initially
-  1-4), which `bgfx::setViewOrder()` puts
-  before the map view 0. Per cell a clear quad (no blending), then the stamp
+  needed) rendered in four bake views reserved alongside the current map
+  view. `bgfx::setViewOrder()` presents those bake passes before the map pass.
+  View IDs are allocated process-wide, not permanently fixed to 0–4. Per cell a clear quad (no blending), then the stamp
   quads (`vs/fs_globe_heatmap_bake`, premultiplied source-over, clamped to
   the cell). The bake's Y follows `Caps::originBottomLeft`, so the cell is
   sampled with the tile's own v-down texture coordinates on every backend.
@@ -823,7 +833,7 @@ Slice 3b, the globe heatmap (`map_bgfx_globe_surface.*`):
   `vs/fs_globe_surface_heatmap` (the imagery, then the heatmap with the
   symbology opacity: rgb * (1 - a * opacity) + heat * opacity).
 
-Slice 4, globe picking (`MapBgfxGlobeNetwork::hitTest()`, used by
+Globe picking (`MapBgfxGlobeNetwork::hitTest()`, used by
 `MapBgfxSurface::hitTest()` in Globe mode for clicks and hover): the rules of
 `MapRhiWidget::globeHitTest()`. Tank/reservoir 3D models by screen ray
 against their triangles, then junction spheres (projected radius), icons
@@ -834,7 +844,7 @@ one the network is drawn with; pending inputs are applied first. Picking
 deliberately reaches entities behind or under the terrain (as the QRhi
 globe): buried and hidden parts of the network stay selectable.
 
-Slice 5, the globe HUD (`map_bgfx_hud.*`, `map_bgfx_globe_hud_controller.*`):
+Globe HUD (`map_bgfx_hud.*`, `map_bgfx_globe_hud_controller.*`):
 the QWidget globe HUD drawn by the native HUD, with the same behaviour.
 
 * Layout: "wireframe" and "map" toggles next to the 2D/3D switch, the

@@ -13,7 +13,8 @@ is not described in terms of historical development stages.
 | [DVMDB quickstart](dvmdb-quickstart.md) | Project creation, open/import/export, autosave and Commit |
 | [Distribution Editor](distribution-editor.md) | Shared 2D/3D hydraulic editing, terrain, UI and limitations |
 | [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 18 collections |
-| [Rendering architecture](rendering-architecture.md) | Process-wide bgfx device, view IDs, native targets, frame coordination, Projects graph, three-map diagnostics and tests |
+| [Rendering architecture](rendering-architecture.md) | Current Maps/Projects GPU ownership, views, native targets, depth attachments, frame coordination and input contracts |
+| [Renderer library readiness](renderer-extraction-readiness.md) | Actual `AOWIS::RenderCore` CMake boundary, source inventory, independent link test, extraction constraints and remaining acceptance |
 | [Map workspace architecture](map-workspace-architecture.md) | One shared map across five modes, controllers and native surface ownership |
 | [Projects graph layout](project-graph-layout.md) | Cards, ancestry, picking, GPU fallback and BVH culling |
 | [Projects graph performance](project-graph-performance.md) | CPU benchmark method, current scaling results and limits |
@@ -47,7 +48,8 @@ extension, not current UI behavior.
 ## Verification and next work
 
 - [Verification status](verification-status.md): evidence versus source
-  implementation and exact targeted regression commands.
+  implementation; current renderer library/depth/focus regression matrix and
+  focused GUI/History test commands.
 - [History acceptance](history-roadmap.md): only remaining integration,
   crash/power-loss and platform qualification; no new History subsystem planned.
 - [GUI–DVMDB integration roadmap](dvmdb-integration-roadmap.md): next product

@@ -120,9 +120,8 @@ edge-panning routes.
 
 `MapModeToolPanel` owns scrolling and the mode-selector UI but never owns a
 map model, native window or renderer. Mode tools and the monitor viewport are
-siblings in the workspace page. The controller currently retains the behavior
-of the old monitor until its responsibilities can be extracted into a
-non-widget controller when completing the single-viewport migration.
+siblings in the workspace page. The mode controller owns monitoring behavior; this does not create
+another GPU renderer or another independent camera.
 
 `MapWorkspaceWidget::activeMap()` and `activeModel()` provide *non-owning*
 navigation access to the single shared map in **all five** modes. MainWindow
@@ -146,8 +145,14 @@ view rather than assuming the map is view 0.
 `BgfxNativeTargetRegistry` binds the primary default backbuffer and owns
 secondary native swapchain framebuffers. Secondary resizing and teardown do
 not reset the device. Its GPU handles and view reservations are valid only
-within the active device generation; secondaries are released before device
-shutdown. Native swapchains require `BGFX_CAPS_SWAP_CHAIN`.
+within the active device generation; the manager retires secondary clients
+before owner shutdown. Native swapchains require `BGFX_CAPS_SWAP_CHAIN`.
+`BgfxQtNativeSurface` captures the Qt-created display/window into the
+Qt-independent `BgfxNativeSurface` descriptor. `BgfxNativeSurface` preserves
+the primary `bgfx::Init` depth format and explicitly requests D24S8 on new
+secondary targets and primary resets. **Terrain tile skirts need working
+depth testing**; they must not be removed to conceal a missing depth buffer.
+The user confirmed the resulting vertical-stripe regression was corrected.
 
 `MapBgfxSurface` still owns the production map's GPU geometry, textures,
 terrain, HUD, and animation/tile clock; controller and Maps-mode switches do

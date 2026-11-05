@@ -1,9 +1,11 @@
 # Rendering architecture
 
-This is the **current renderer contract** for AOWIS-SERVER-GUI (5 November
-2026). It covers the production Maps workspace, the native Linux Projects
-revision graph, and opt-in multi-window diagnostics. It describes the code in
-this repository rather than a sequence of implementation patches.
+This is the **current renderer contract** for the 5 November 2026 GUI source.
+It covers the production Maps workspace, native Linux Projects revision graph,
+internal renderer library, and opt-in multi-window diagnostics. It describes
+current behavior and ownership rather than implementation stages. For the
+source/dependency boundary and extraction handoff, see
+[Renderer library readiness](renderer-extraction-readiness.md).
 
 ## What renders where
 
@@ -42,6 +44,13 @@ widget, layout and Inspector routing. In particular, the QWidget class is
 **not** being presented as a portable render API. Globe/network integration
 and GUI-bound helpers stay in this repository until their inputs can be
 separated without changing map behavior.
+
+**The internal static library is not a portable, Qt-free render engine.**
+It currently links `Qt6::Gui` for shared atlas/text and resource facilities,
+and has public source includes in the GUI tree. Its `MapBgfx*` types are still
+part of the build-facing interface. This is a verified **compilation/link
+boundary in the CMake source**, not yet a separately user-verified native
+link result or a stable SDK.
 
 Shader resources are owned by the internal static library rather than the
 GUI executable. `aowis_bgfx_add_shaders(aowis-render-core)` embeds whichever
@@ -103,12 +112,19 @@ windows. It runs in the GUI/Qt host, not the reusable device/target layer.
 **type**, and **physical pixel** dimensions; it carries no QWindow or QWidget.
 The same descriptor supplies `bgfx::Init` for a primary surface and a complete
 `bgfx::SwapChain` for secondary targets (including its display field). **Depth
-attachments are mandatory for 3D:** `bgfx::Init` defaults to D24S8, whereas a
-standalone `bgfx::SwapChain` defaults to *no depth*. The Qt adapter must not
-replace the primary Init defaults with a bare SwapChain; secondary targets and
-primary resets must explicitly request D24S8. Otherwise tile skirts can
-appear over nearer terrain despite the globe's depth-test/write state. An
-unavailable Wayland `wl_surface` must be retried after expose; a native window
+attachments are mandatory for 3D:** the pinned `bgfx::Init` defaults to D24S8,
+whereas a freshly constructed `bgfx::SwapChain` has *no depth attachment*.
+`BgfxNativeSurface::configurePrimary()` therefore modifies the existing Init
+swapchain **in place**, preserving its depth format and other defaults;
+`BgfxNativeSurface::swapChain()` and `resizeSwapChain()` explicitly use D24S8.
+`MapBgfxSurface::synchronizeGeometry()` uses `resizeSwapChain()` for
+`bgfx::reset()`; it must not use a bare default descriptor. This is a
+**rendering correctness contract**, not an optional terrain tweak: disabling
+depth makes imagery-coloured tile skirts show through nearer ground despite
+`BGFX_STATE_DEPTH_TEST_LEQUAL` and `BGFX_STATE_WRITE_Z`. Skirt geometry remains
+necessary to conceal seams between terrain LODs.
+
+An unavailable Wayland `wl_surface` must be retried after expose; a native window
 or display **replacement** must release the old framebuffer before Qt destroys
 the old surface, then attach a new one. Resize deliberately rejects a changed
 native identity instead of issuing a bgfx command against a stale handle.
@@ -220,17 +236,20 @@ From the configured Linux GUI source directory:
 ```bash
 cmake --build build-linux-tests --target \
   aowis-server-gui \
+  aowis-render-core \
+  aowis-render-core-link-tests \
   aowis-bgfx-device-manager-tests \
   aowis-bgfx-frame-coordinator-tests \
   aowis-bgfx-native-target-registry-tests \
   aowis-bgfx-three-view-camera-tests \
+  aowis-map-input-focus-policy-tests \
   aowis-project-graph-render-policy-tests \
   aowis-project-graph-bgfx-scene-tests \
   aowis-project-revision-graph-tests \
   aowis-project-graph-performance-benchmark -j 8
 
 ctest --test-dir build-linux-tests --output-on-failure \
-  -R '^(aowis-bgfx-device-manager|aowis-bgfx-frame-coordinator|aowis-bgfx-native-target-registry|aowis-bgfx-three-view-camera|aowis-project-graph-render-policy|aowis-project-graph-bgfx-scene|aowis-project-revision-graph|aowis-project-graph-performance-smoke)$'
+  -R '^(aowis-render-core-link|aowis-bgfx-device-manager|aowis-bgfx-frame-coordinator|aowis-bgfx-native-target-registry|aowis-bgfx-three-view-camera|aowis-map-input-focus-policy|aowis-project-graph-render-policy|aowis-project-graph-bgfx-scene|aowis-project-revision-graph|aowis-project-graph-performance-smoke)$'
 ```
 
 Check native rendering separately from headless logic tests:
@@ -248,6 +267,10 @@ AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
 
 # Isolate the graph's QPainter fallback.
 AOWIS_PROJECTS_BGFX_GRAPH=0 ./build-linux-tests/aowis-server-gui
+
+# Force Vulkan as the first bgfx owner for controlled backend comparison.
+AOWIS_PROJECTS_BGFX_GRAPH=0 AOWIS_BGFX_RENDERER=vulkan \
+  ./build-linux-tests/aowis-server-gui
 ```
 
 For the independent-map diagnostic, verify all three simultaneously visible
@@ -259,25 +282,35 @@ running real GPU frames**. The graph scene and performance tests likewise
 exercise CPU paths rather than native presentation.
 
 **Reported native evidence (5 November 2026):** the user observed three
-simultaneously rendered, independently pannable/zoomable map views and clean
-secondary attach/detach with Vulkan. A second run with Projects' GPU graph
+simultaneously rendered, independently pannable/zoomable maps and clean
+secondary attach/detach with Vulkan; a separate run with Projects' GPU graph
 disabled explicitly logged `Map Monitor renderer: "bgfx / OpenGL 4.3"` and
-attached/detached the two extra views. The Projects graph was also observed
-initializing as primary Vulkan view 0 and as secondary view 5 after Maps.
+attached/detached the two extra views. Projects was observed as both primary
+Vulkan view 0 and secondary view 5 after Maps. Following the internal-library
+and native-surface changes, a reported 3D globe regression exposed the loss of
+a swapchain depth attachment: terrain skirts appeared as vertical imagery
+stripes. The corrected D24S8 handling is present in this source, and the user
+subsequently confirmed the visual problem was fixed. The corrective source
+contains regression coverage in `bgfx_native_target_registry_test.cpp`.
+That confirmation is **visual evidence**, not a substitute for recording a
+fresh complete CTest run and Vulkan/OpenGL native acceptance after the final
+patch.
 The graph's 10k-revision CPU benchmark showed ~403 ms layout, ~91 ms one-time
 index build, and ~3.5 ms median repeated scene preparation with 10 visible
 cards and 15 indexed candidates. Relevant Projects graph CTests were reported
 passing. These observations do **not** measure GPU frame pacing or establish
-Windows/WASM multi-window support, and the full three-view CTest selection
-has not been separately reported in the provided logs.
+Windows/WASM multi-window support. Complete post-library-split CTest and
+native regression results are still separate acceptance evidence; see
+[Verification status](verification-status.md).
 
 ## Scope and extension boundary
 
 This repository currently contains the shared renderer infrastructure and
 its native Linux diagnostics. It **does not** contain a standalone
-`AOWIS-RENDER` library or an extracted, platform-neutral renderer API. An
-independent renderer-library extraction is **deferred**; do not treat it as
-already implemented or begin that work as part of renderer documentation.
+`AOWIS-RENDER` library or an extracted, platform-neutral renderer API. The separate-repository renderer extraction is **not implemented**. Its
+current source boundary, known coupling and outstanding qualification are
+recorded in [Renderer library readiness](renderer-extraction-readiness.md).
+Do not confuse the internal static target with a stable public library.
 
 Future QtQuick/mobile or production multi-map integration must preserve the
 same single-device, explicit view-ID, target-lifetime, frame batching and

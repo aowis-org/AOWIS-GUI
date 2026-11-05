@@ -91,10 +91,19 @@ for efficient large-history navigation. The normal Maps workspace retains one
 shared viewport; two additional independent 2D map windows can be enabled
 for diagnostics with `AOWIS_BGFX_THREE_VIEW_PROBE=1`.
 
-See the [rendering architecture and validation guide](docs/rendering-architecture.md),
-[Projects graph semantics](docs/project-graph-layout.md), and
-[graph performance benchmark](docs/project-graph-performance.md). The
-independent renderer-library extraction is intentionally deferred.
+The GUI links an **internal static `AOWIS::RenderCore` target** for shared
+bgfx device/frame/target ownership, imagery and HUD GPU helpers, and embedded
+shaders. Native Qt window hosting, map/editor behavior, and Projects interaction
+remain in the GUI. `AOWIS-RENDER` is **not** a separate repository yet. All
+native map swapchains require a depth attachment; otherwise 3D terrain skirts
+can incorrectly occlude nearer ground. Native input focus loss cancels active
+navigation/drag state rather than leaving keys or pointer capture stuck.
+
+See the [rendering architecture](docs/rendering-architecture.md),
+[renderer extraction-readiness guide](docs/renderer-extraction-readiness.md),
+[Projects graph semantics](docs/project-graph-layout.md),
+[graph performance benchmark](docs/project-graph-performance.md), and
+[verification status](docs/verification-status.md).
 
 ## Hydraulic Distribution Editor
 
