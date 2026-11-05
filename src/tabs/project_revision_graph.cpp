@@ -1,4 +1,7 @@
 #include "tabs/project_revision_graph.h"
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+#include "tabs/project_graph_bgfx_viewport.h"
+#endif
 #include "projects/dvmdb_identity.h"
 #include "tabs/project_revision_card_geometry.h"
 #include "tabs/project_branch_visual_link.h"
@@ -94,6 +97,12 @@ ProjectRevisionGraph::ProjectRevisionGraph(QWidget *parent)
             this->automatic_fit = false;
         }
     });
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE) && defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    // Experimental GPU-backed graph presentation; do not change the widget's
+    // existing layout, hit testing or navigation event ownership.
+    if (qEnvironmentVariableIntValue("AOWIS_PROJECTS_BGFX_GRAPH") != 0)
+        this->gpu_view = new ProjectGraphBgfxViewport(this);
+#endif
     // Navigation bindings are shared with the map, but no overlay or
     // hover tooltip is drawn over the revision graph.
     connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged, this,
@@ -373,7 +382,7 @@ void ProjectRevisionGraph::setShowFullTree(bool full_tree)
     else
     {
         clampCamera();
-        update();
+        requestGraphRedraw();
     }
 }
 
@@ -416,7 +425,7 @@ void ProjectRevisionGraph::expandHiddenAncestors(const QString &parent_id)
     else
     {
         clampCamera();
-        update();
+        requestGraphRedraw();
     }
 }
 
@@ -498,7 +507,7 @@ void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes)
         // Bounds may change with source visibility or incoming revisions.
         // Keep the zoom and viewport anchor whenever the new bounds allow it.
         clampCamera();
-        update();
+        requestGraphRedraw();
     }
 }
 
@@ -513,7 +522,7 @@ void ProjectRevisionGraph::setTopDown(bool top_down)
     else
     {
         clampCamera();
-        update();
+        requestGraphRedraw();
     }
 }
 
@@ -576,7 +585,7 @@ void ProjectRevisionGraph::setSelection(const QString &revision_id)
         }
     }
     // Selection highlights a node but never pans or fits the camera.
-    update();
+    requestGraphRedraw();
 }
 
 QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
@@ -709,7 +718,7 @@ void ProjectRevisionGraph::scheduleInitialFit()
     // negotiating their final sizes.
     if (isVisible())
         this->initial_fit_timer.start();
-    update();
+    requestGraphRedraw();
 }
 
 void ProjectRevisionGraph::fitGraph()
@@ -728,7 +737,7 @@ void ProjectRevisionGraph::fitGraph()
     {
         this->zoom = 1.0;
         this->offset = QPointF(width() / 2.0, height() / 2.0);
-        update();
+        requestGraphRedraw();
         return;
     }
 
@@ -745,12 +754,16 @@ void ProjectRevisionGraph::fitGraph()
                                   (height() - 32.0) / bounds.height()), 1.5);
     this->offset = QPointF(width() / 2.0, height() / 2.0) - bounds.center() * this->zoom;
     clampCamera();
-    update();
+    requestGraphRedraw();
 }
 
 void ProjectRevisionGraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->onShown();
+#endif
     if (this->pending_fit)
         scheduleInitialFit();
 }
@@ -758,6 +771,10 @@ void ProjectRevisionGraph::showEvent(QShowEvent *event)
 void ProjectRevisionGraph::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->resize();
+#endif
     if (this->pending_fit)
     {
         // The first visible geometry may still be a placeholder. Defer the
@@ -780,7 +797,7 @@ void ProjectRevisionGraph::resizeEvent(QResizeEvent *event)
         // An invalid old size is not a new graph load. Preserve a camera
         // the user has already positioned instead of doing a second fit.
         clampCamera();
-        update();
+        requestGraphRedraw();
         return;
     }
 
@@ -789,12 +806,16 @@ void ProjectRevisionGraph::resizeEvent(QResizeEvent *event)
     this->offset += QPointF((event->size().width() - event->oldSize().width()) / 2.0,
                             (event->size().height() - event->oldSize().height()) / 2.0);
     clampCamera();
-    update();
+    requestGraphRedraw();
 }
 
 void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event)
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr && this->gpu_view->active())
+        return;
+#endif
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
@@ -1173,7 +1194,7 @@ void ProjectRevisionGraph::updateNavigation()
             this->zoom = next_zoom;
             this->offset = this->zoom_anchor - this->zoom_graph_anchor * this->zoom;
             clampCamera();
-            update();
+            requestGraphRedraw();
         }
     }
 
@@ -1198,7 +1219,7 @@ void ProjectRevisionGraph::updateNavigation()
             this->offset += pan_delta;
             this->zoom_anchor += pan_delta;
             clampCamera();
-            update();
+            requestGraphRedraw();
         }
     }
 
@@ -1278,7 +1299,7 @@ void ProjectRevisionGraph::mouseMoveEvent(QMouseEvent *event)
                     this->mouse_pan_velocity = this->mouse_pan_velocity * (1.0 - mouse_velocity_smoothing)
                         + measured_velocity * mouse_velocity_smoothing;
             }
-            update();
+            requestGraphRedraw();
         }
         event->accept();
         return;
@@ -1504,6 +1525,19 @@ void ProjectRevisionGraph::focusOutEvent(QFocusEvent *event)
 
 void ProjectRevisionGraph::hideEvent(QHideEvent *event)
 {
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->onHidden();
+#endif
     stopNavigation();
     QWidget::hideEvent(event);
+}
+
+void ProjectRevisionGraph::requestGraphRedraw()
+{
+    QWidget::update();
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->requestRedraw();
+#endif
 }

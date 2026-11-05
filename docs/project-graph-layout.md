@@ -92,8 +92,8 @@ including after keyboard panning and a delayed page resize.
 
 ## Rendering implementation
 
-The interactive Projects revision graph currently uses the QWidget/QPainter
-presentation path. Its existing graph layout, input events, first-load fit,
+The interactive Projects revision graph uses the QWidget/QPainter presentation
+path by default. Its existing graph layout, input events, first-load fit,
 inertial pan/zoom, selection and inspector signals are independent of the
 presentation backend.
 
@@ -102,8 +102,29 @@ same typed nodes and ancestry/structural/HEAD routes into the shared
 `MapBgfxHudCanvas` triangle and text-atlas representation. It requires no
 second bgfx instance, graphics device, native window or new shaders. The
 `aowis-project-graph-bgfx-scene` CPU test checks this representation in a
-headless Qt build. The class is not yet used to present the actual Projects
-tab: that still requires an embedded native render target and a process-wide
-frame submission path. Its current transient geometry also does not yet
-provide the retained buffers and multi-scale LOD required for very large
-revision graphs.
+headless Qt build. An **opt-in Linux native GPU bridge** (`ProjectGraphBgfxViewport`) now embeds
+a QWindow inside the existing Projects graph. It reserves a secondary native
+swapchain and a unique view ID on the process-global bgfx device, uses the
+shared HUD shader/atlas to draw the scene, and submits through the existing
+frame coordinator. Events are forwarded to the unchanged graph widget. This
+path can be exercised with:
+
+```bash
+AOWIS_PROJECTS_BGFX_GRAPH=1 ./build-linux-tests/aowis-server-gui
+```
+
+**Step 3B limitations:** this is deliberately a live GPU integration probe,
+not yet the default Projects renderer. **Open Maps once to initialize bgfx,
+then open Projects.** If the device is not initialized, the GUI remains on
+QPainter and will never attempt a second `bgfx::init()`. If the backend does
+not support secondary native swapchains, the shader initialization fails or
+a GPU target cannot be allocated, the graph remains on QPainter. On leaving
+the Projects view, the native target and its GPU resources are released. The
+graph's node/edge data are rebuilt from CPU on each navigation redraw.
+
+The remaining step-3 work is moving device startup out of the map viewport so
+the graph can initialize bgfx even when Projects is opened first, and proving
+fully reliable focus, tab-switch and shutdown behavior on Linux and WASM.
+The transient draw list does **not** yet provide the persistent buffers,
+spatial-index culling or multi-scale LOD required for very large revision
+graphs; those are step-4 performance work.

@@ -259,6 +259,8 @@ qt_add_executable(aowis-server-gui
     src/tabs/project_revision_graph.h
     src/tabs/project_graph_bgfx_scene.cpp
     src/tabs/project_graph_bgfx_scene.h
+    src/tabs/project_graph_bgfx_viewport.cpp
+    src/tabs/project_graph_bgfx_viewport.h
     src/tabs/project_graph_placement.h
     src/tabs/tab_map_workspace.cpp
     src/tabs/map_workspace_viewport_page.cpp
@@ -510,6 +512,7 @@ if(AOWIS_BGFX_SHADER_TOOLS)
     include(cmake/aowis_bgfx_shaderc.cmake)
 endif()
 aowis_bgfx_add_shaders(aowis-server-gui)
+target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_2d_projection.h
     src/map/bgfx/map_bgfx_2d_scene.h

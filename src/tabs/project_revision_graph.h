@@ -59,10 +59,13 @@ class QKeyEvent;
 class QMouseEvent;
 class QWheelEvent;
 
-// Intentionally renderer-independent. The existing map surface owns the process-
-// global bgfx renderer; a second independent bgfx::init would be unsafe.
-// This widget is a functional pan/zoom/select fallback until a shared bgfx
-// graph view can be implemented without disturbing the map presentation loop.
+// The graph owns the canonical layout, camera and input state. The optional
+// Linux GPU viewport is a presentation adapter; QPainter remains the fallback
+// until a bgfx device can be acquired independently of the Maps tab.
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+class ProjectGraphBgfxViewport;
+#endif
+
 class ProjectRevisionGraph final : public QWidget
 {
     Q_OBJECT
@@ -109,6 +112,10 @@ protected:
     void hideEvent(QHideEvent *event) override;
 
 private:
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    friend class ProjectGraphBgfxViewport;
+#endif
+    void requestGraphRedraw();
     struct Omission
     {
         QString hidden_parent_id;
@@ -141,6 +148,9 @@ private:
                                   const NavigationKeyIdentity &second);
     void setZoomAnchor(const QPointF &anchor);
     QPointF keyboardDirection() const;
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    ProjectGraphBgfxViewport *gpu_view = nullptr;
+#endif
     QVector<ProjectGraphNode> source_nodes;
     QVector<ProjectGraphNode> nodes;
     QVector<Omission> omissions;
