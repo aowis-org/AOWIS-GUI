@@ -123,21 +123,38 @@ void run(QCoreApplication& app, const QString& executable) {
         QNetworkAccessManager manager;
         const Reply tracking = request(manager, endpoint, "GET", "/repository/tracking");
         const QString repository = tracking.body.value("repositoryId").toString();
-        check(tracking.status == 200 && DvmdbIdentity::isUuidV7(repository),
-              "cannot read real DVMDB repository identity");
-        check(request(manager, endpoint, "POST", "/repository/role",
-              QJsonObject{{"expectedRepositoryId", repository}, {"role", "private"}}).status == 200,
-              "cannot configure real DVMDB personal repository");
+        check(tracking.status == 200 && DvmdbIdentity::isUuidV7(repository)
+              && tracking.body.value("role").toString() == QStringLiteral("unconfigured"),
+              "fresh DVMDB did not report unconfigured repository role");
         ProjectServerProfile profile;
         profile.id = repository;
         profile.connection_type = QStringLiteral("remote");
         profile.endpoint = endpoint;
         profile.auth_mode = QStringLiteral("None");
-        profile.personal = true;
         ProjectSourceWriter writer;
         QString project;
         QString error;
         bool done = false;
+        // A brand-new server must accept its first project without being
+        // permanently configured as shared (or private) by the metadata writer.
+        QString firstProject;
+        writer.createProject(profile, QStringLiteral("Initial unconfigured project"),
+                             [&](const QString& value, const QString& failure) {
+            firstProject = value; error = failure; done = true;
+        });
+        check(await(app, [&] { return done; }) && error.isEmpty()
+              && DvmdbIdentity::isUuidV7(firstProject),
+              "GUI cannot create the first project on an unconfigured live DVMDB");
+        const Reply afterCreate = request(manager, endpoint, "GET", "/repository/tracking");
+        check(afterCreate.status == 200 && afterCreate.body.value("role").toString()
+              == QStringLiteral("unconfigured")
+              && request(manager, endpoint, "GET", "/projects/" + firstProject).status == 200,
+              "first project write changed repository role or failed to persist");
+        check(request(manager, endpoint, "POST", "/repository/role",
+              QJsonObject{{"expectedRepositoryId", repository}, {"role", "private"}}).status == 200,
+              "cannot configure live DVMDB as personal after creating first project");
+        profile.personal = true;
+        done = false;
         writer.createProject(profile, QStringLiteral("Integration deletion"),
                              [&](const QString& value, const QString& failure) {
             project = value; error = failure; done = true;

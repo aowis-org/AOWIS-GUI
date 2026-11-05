@@ -102,7 +102,7 @@ int main(int argc, char **argv)
                 if (path == "/dvmdb/v1/projects")
                     payload = QJsonDocument(QJsonObject{
                         {QStringLiteral("id"), json.object().value(QStringLiteral("id"))},
-                        {QStringLiteral("name"), QStringLiteral("Water Project")}}).toJson(QJsonDocument::Compact);
+                        {QStringLiteral("name"), json.object().value(QStringLiteral("name"))}}).toJson(QJsonDocument::Compact);
                 else if (method == "PATCH" && path == QStringLiteral("/dvmdb/v1/projects/%1")
                     .arg(project_identity).toUtf8())
                 {
@@ -343,6 +343,43 @@ int main(int argc, char **argv)
         [&](const QString &, const QString &error) { failure = error; done = true; });
     if (!require(done && !failure.isEmpty() && requested_paths.size() == before_invalid_delete,
         "invalid revision truncation reached server")) return 1;
+
+    // A newly created DVMDB starts with role=unconfigured. Metadata writes
+    // must work without irreversibly turning that repository into "shared";
+    // the user can still designate it as personal in the Inspector later.
+    const int before_unconfigured = requested_paths.size();
+    const int before_unconfigured_lookups = identity_lookups;
+    observed_role = QStringLiteral("unconfigured");
+    done = false;
+    writer.createProject(profile, QStringLiteral("First project on new database"),
+                         [&](const QString &id, const QString &error) {
+        created = id; failure = error; done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty()
+                 && DvmdbIdentity::isUuidV7(created)
+                 && requested_paths.size() == before_unconfigured + 1
+                 && requested_paths.last() == QStringLiteral("/dvmdb/v1/projects")
+                 && request_bodies.last().value(QStringLiteral("name"))
+                    == QStringLiteral("First project on new database")
+                 && pinned_headers.last() == repository_id
+                 && identity_lookups == before_unconfigured_lookups + 1
+                 && observed_role == QStringLiteral("unconfigured"),
+                 "new unconfigured repository refused first project or silently changed role")) return 1;
+
+    // The same unconfigured repository must *not* qualify as a personal draft
+    // target until the Server Inspector explicitly configures private role.
+    const int before_personal_rejection = requested_paths.size();
+    profile.personal = true;
+    done = false;
+    writer.createProject(profile, QStringLiteral("Must configure private role"),
+                         [&](const QString &, const QString &error) {
+        failure = error; done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.contains("role")
+                 && requested_paths.size() == before_personal_rejection,
+                 "unconfigured repository was accepted as an explicit personal repository")) return 1;
+    profile.personal = false;
+    observed_role = QStringLiteral("shared");
 
     // Every metadata mutation must refuse a replaced endpoint before sending
     // a write; the same guard also rejects mismatched roles and codecs.

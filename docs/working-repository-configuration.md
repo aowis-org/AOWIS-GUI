@@ -15,6 +15,15 @@ repository may explicitly configure its role as `private`; a `shared`
 repository cannot silently become a personal writable repository.
 A source with unverified/pending identity cannot be selected.
 
+A newly initialized DVMDB may still report `unconfigured`. Project and
+branch **metadata** can be created there before choosing a repository role;
+this does not automatically set `shared` and does not make the database a
+personal editing target. If the repository is later designated personal,
+the Inspector explicitly configures it as `private`. Working-copy edits and
+local Commits still require that private designation. Metadata writes to an
+already-private repository that is not selected as personal are blocked by
+the GUI's repository-role preflight.
+
 The sidebar shows a **♛** for the selected database. The corresponding
 Projects graph server card becomes **gold**, retaining its normal left-hand
 server icon and displaying a crown to the right of the server name.
