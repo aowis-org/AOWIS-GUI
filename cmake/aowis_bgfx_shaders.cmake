@@ -242,7 +242,7 @@ function(aowis_bgfx_add_shaders target)
                 set_source_files_properties("${aowis_binary}" PROPERTIES
                     QT_RESOURCE_ALIAS "${aowis_alias}")
             endforeach()
-            qt_add_resources(${target} "aowis-bgfx-shaders-${aowis_family}"
+            qt_add_resources(${target} "aowis_bgfx_shaders_${aowis_family}"
                 PREFIX "/aowis/map/bgfx/${aowis_family}"
                 FILES ${aowis_family_binaries})
             list(APPEND aowis_embedded_families "${aowis_family}")
@@ -252,6 +252,20 @@ function(aowis_bgfx_add_shaders target)
     if(NOT aowis_embedded_families)
         message(FATAL_ERROR "No bgfx shader family is available for ${AOWIS_BGFX_RENDERERS}")
     endif()
+    # The static archive does not link its qrc-generated translation units
+    # merely because the executable uses QFile. Generate strong references
+    # to each compiled family so resource registration works in any host.
+    set(aowis_shader_init_commands "")
+    foreach(aowis_family IN LISTS aowis_embedded_families)
+        string(APPEND aowis_shader_init_commands
+            "    Q_INIT_RESOURCE(aowis_bgfx_shaders_${aowis_family});\n")
+    endforeach()
+    set(aowis_shader_init_cpp "${CMAKE_CURRENT_BINARY_DIR}/aowis_bgfx_embedded_shaders.cpp")
+    configure_file("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bgfx_embedded_shaders.cpp.in"
+        "${aowis_shader_init_cpp}" @ONLY)
+    target_sources(${target} PRIVATE "${aowis_shader_init_cpp}")
+    list(GET aowis_embedded_families 0 AOWIS_BGFX_TEST_SHADER_FAMILY)
+    set(AOWIS_BGFX_TEST_SHADER_FAMILY "${AOWIS_BGFX_TEST_SHADER_FAMILY}" PARENT_SCOPE)
     message(STATUS "AOWIS bgfx shader families embedded: ${aowis_embedded_families}")
     if(aowis_regenerated_binaries)
         # rcc must not read the binaries before shaderc wrote them.

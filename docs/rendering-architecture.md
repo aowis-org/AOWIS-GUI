@@ -22,6 +22,48 @@ The map itself has **no QPainter renderer fallback**. On an unsupported or
 failed bgfx backend it reports a renderer status. QPainter fallback applies to
 the **Projects graph**, not the Maps renderer.
 
+## Internal renderer build boundary (pre-extraction)
+
+The normal application now links **`AOWIS::RenderCore`**, an internal static
+CMake target (`aowis-render-core`). This is a real separate linkable target,
+not a renamed list of executable sources and **not** the external
+`AOWIS-RENDER` repository. It contains the process-global bgfx device,
+frame coordinator, native target registry, reusable imagery atlas/uploaders,
+HUD GPU/text atlas, and compiled shader resources. It
+exports the current source include root and links its public bgfx/Qt Gui
+requirements. The library intentionally retains some existing `MapBgfx*`
+interfaces; extraction into a cleaner standalone repository is separate work.
+
+The **GUI executable** still owns `MapBgfxSurface`, the Qt native surface
+adapter (`BgfxQtNativeSurface`), `MapModel` and map repositories, the
+hydraulic network GPU and entity-style preparation, the globe UI/controller,
+and the Projects
+widget, layout and Inspector routing. In particular, the QWidget class is
+**not** being presented as a portable render API. Globe/network integration
+and GUI-bound helpers stay in this repository until their inputs can be
+separated without changing map behavior.
+
+Shader resources are owned by the internal static library rather than the
+GUI executable. `aowis_bgfx_add_shaders(aowis-render-core)` embeds whichever
+shader families are compiled for the selected backend. A generated library
+translation unit explicitly calls `Q_INIT_RESOURCE()` for each included
+family. `MapBgfxBackend::shaderResourcePath()` initializes these resources
+before checking or loading a shader, including **before `bgfx::init()`** when
+the backend is being selected. This is required for static libraries: a
+Qt resource object is not guaranteed to be linked solely because a host uses
+`QFile`. Resource URL paths are unchanged.
+
+An executable linking **only** `AOWIS::RenderCore` (no GUI application
+sources) is tested by `aowis-render-core-link`. The test verifies that device
+manager symbols resolve and at least one embedded shader can be opened and
+read without creating a GPU device. Build with
+`cmake --build build-linux-tests --target aowis-render-core-link-tests
+ aowis-server-gui` and run
+`ctest --test-dir build-linux-tests --output-on-failure
+ -R '^aowis-render-core-link$'`. This proves the **current internal link
+boundary and resource registration**, not complete future standalone
+portability or GPU runtime correctness.
+
 ## Process-wide bgfx device and frame contracts
 
 All bgfx calls are coordinated on the application's common GUI/render thread.
@@ -60,7 +102,12 @@ windows. It runs in the GUI/Qt host, not the reusable device/target layer.
 `BgfxNativeSurface` carries native **window**, **display**, window-handle
 **type**, and **physical pixel** dimensions; it carries no QWindow or QWidget.
 The same descriptor supplies `bgfx::Init` for a primary surface and a complete
-`bgfx::SwapChain` for secondary targets (including its display field). An
+`bgfx::SwapChain` for secondary targets (including its display field). **Depth
+attachments are mandatory for 3D:** `bgfx::Init` defaults to D24S8, whereas a
+standalone `bgfx::SwapChain` defaults to *no depth*. The Qt adapter must not
+replace the primary Init defaults with a bare SwapChain; secondary targets and
+primary resets must explicitly request D24S8. Otherwise tile skirts can
+appear over nearer terrain despite the globe's depth-test/write state. An
 unavailable Wayland `wl_surface` must be retried after expose; a native window
 or display **replacement** must release the old framebuffer before Qt destroys
 the old surface, then attach a new one. Resize deliberately rejects a changed

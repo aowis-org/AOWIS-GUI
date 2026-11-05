@@ -30,6 +30,10 @@
 // and the surface falls through to the next one.
 namespace MapBgfxBackend
 {
+// Forces Qt resource registration even when the shader archive is linked as
+// a static library. Safe before bgfx::init(), and idempotent for all hosts.
+void initializeEmbeddedShaders();
+
 inline const char *shaderDirectory(bgfx::RendererType::Enum renderer)
 {
     switch (renderer)
@@ -51,6 +55,7 @@ inline const char *shaderDirectory(bgfx::RendererType::Enum renderer)
 
 inline QString shaderResourcePath(bgfx::RendererType::Enum renderer, const char *name)
 {
+    initializeEmbeddedShaders();
     const char *directory = shaderDirectory(renderer);
     if (directory == nullptr || name == nullptr)
         return QString();

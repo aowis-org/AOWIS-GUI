@@ -101,11 +101,27 @@ int main()
     check(chain.nwh == &first_window && chain.ndt == &wayland_display
           && chain.width == 640 && chain.height == 480,
           "native swapchain retains both window and display");
+    check(chain.formatDepthStencil == bgfx::TextureFormat::D24S8,
+          "secondary swapchain owns a depth attachment for globe geometry");
+    check(chain.formatColor == bgfx::TextureFormat::BGRA8 && chain.numBackBuffers == 2,
+          "secondary swapchain has explicit default color and buffering");
+    const bgfx::SwapChain resized = BgfxNativeSurface::resizeSwapChain(800, 500);
+    check(resized.width == 800 && resized.height == 500
+          && resized.formatDepthStencil == bgfx::TextureFormat::D24S8,
+          "primary resize must not discard the depth attachment");
+    check(resized.nwh == nullptr && resized.ndt == nullptr,
+          "primary resize does not replace its native window handles");
     bgfx::Init init_settings{};
+    check(init_settings.swapChain.formatDepthStencil == bgfx::TextureFormat::D24S8,
+          "bgfx Init starts with a D24S8 default depth attachment");
     wayland.configurePrimary(&init_settings);
     check(init_settings.platformData.type == bgfx::NativeWindowHandleType::Wayland
           && init_settings.swapChain.ndt == &wayland_display,
           "primary initialization retains Wayland handle type and display");
+    check(init_settings.swapChain.formatDepthStencil == bgfx::TextureFormat::D24S8
+          && init_settings.swapChain.formatColor == bgfx::TextureFormat::BGRA8
+          && init_settings.swapChain.numBackBuffers == 2,
+          "primary initialization preserves default color, depth and buffering");
 
     fail_create = false;
     check(registry.attachWindow(&second, 5, testSurface(&first_window, 640, 480), true),

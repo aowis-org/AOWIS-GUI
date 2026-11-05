@@ -504,15 +504,47 @@ target_link_libraries(aowis-server-gui
         GeographicLib_STATIC
 )
 
-# Pre-compiled shaders for every renderer in AOWIS_BGFX_RENDERERS,
-# embedded as :/aowis/map/bgfx/<glsl|essl|spirv|dx11|metal>/<name>.bin
-# (see map_bgfx_backend.h), so deployed builds and WASM bundles need no
-# shader sidecar files.
+# Preparation C: a real independently linked internal renderer library.
+# GPU device/target ownership, uploaders and shader resources belong here.
+# Application data services, QWindow hosting, map/editor workflows, and the
+# Projects graph UI remain in aowis-server-gui. No external extraction yet.
+add_library(aowis-render-core STATIC
+    src/map/bgfx/bgfx_device_manager.cpp
+    src/map/bgfx/bgfx_device_manager.h
+    src/map/bgfx/bgfx_frame_coordinator.cpp
+    src/map/bgfx/bgfx_frame_coordinator.h
+    src/map/bgfx/bgfx_native_target_registry.cpp
+    src/map/bgfx/bgfx_native_target_registry.h
+    src/map/bgfx/bgfx_native_surface.h
+    src/map/bgfx/map_bgfx_backend.h
+    src/map/bgfx/map_bgfx_2d_imagery_atlas.cpp
+    src/map/bgfx/map_bgfx_2d_imagery_atlas.h
+    src/map/bgfx/map_bgfx_2d_imagery_gpu.cpp
+    src/map/bgfx/map_bgfx_2d_imagery_gpu.h
+    src/map/bgfx/map_bgfx_hud_gpu.cpp
+    src/map/bgfx/map_bgfx_hud_gpu.h
+    src/map/bgfx/map_bgfx_hud_text_cache.cpp
+    src/map/bgfx/map_bgfx_hud_text_cache.h)
+add_library(AOWIS::RenderCore ALIAS aowis-render-core)
+target_include_directories(aowis-render-core PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+target_link_libraries(aowis-render-core PUBLIC bgfx Qt6::Gui)
+
+# Shader binaries are owned by the renderer target rather than the GUI
+# executable. Explicit Q_INIT_RESOURCE references ensure the static archive's
+# resource objects are pulled into both the desktop GUI and independent hosts.
 include(cmake/aowis_bgfx_shaders.cmake)
 if(AOWIS_BGFX_SHADER_TOOLS)
     include(cmake/aowis_bgfx_shaderc.cmake)
 endif()
-aowis_bgfx_add_shaders(aowis-server-gui)
+aowis_bgfx_add_shaders(aowis-render-core)
+# Preserve WASM SIMD in the sources moved out of the executable.
+if(EMSCRIPTEN)
+    option(AOWIS_WASM_SIMD "Compile the app with WebAssembly SIMD (-msimd128)" ON)
+    if(AOWIS_WASM_SIMD)
+        target_compile_options(aowis-render-core PRIVATE "-msimd128")
+    endif()
+endif()
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_2d_projection.h
@@ -526,18 +558,10 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_2d_symbology.h
     src/map/bgfx/map_bgfx_2d_picking.h
     src/map/bgfx/map_bgfx_2d_imagery_layout.h
-    src/map/bgfx/map_bgfx_2d_imagery_atlas.h
-    src/map/bgfx/map_bgfx_2d_imagery_atlas.cpp
-    src/map/bgfx/map_bgfx_2d_imagery_gpu.h
-    src/map/bgfx/map_bgfx_2d_imagery_gpu.cpp
     src/map/bgfx/map_bgfx_hud_canvas.h
-    src/map/bgfx/map_bgfx_hud_text_cache.h
-    src/map/bgfx/map_bgfx_hud_text_cache.cpp
     src/map/bgfx/map_bgfx_hud.h
     src/map/bgfx/map_bgfx_hud.cpp
-    src/map/bgfx/map_bgfx_hud_gpu.h
     src/map/bgfx/map_bgfx_pan_reuse.h
-    src/map/bgfx/map_bgfx_hud_gpu.cpp
     src/map/bgfx/map_bgfx_legend_content.h
     src/map/bgfx/map_bgfx_legend_content.cpp
     src/map/bgfx/map_bgfx_globe_icon_index.h
@@ -549,15 +573,9 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_editor_icons.h
     src/map/bgfx/map_bgfx_editor_icons.cpp
     src/map/bgfx/map_bgfx_backend.h
-    src/map/bgfx/bgfx_device_manager.h
-    src/map/bgfx/bgfx_device_manager.cpp
-    src/map/bgfx/bgfx_frame_coordinator.h
-    src/map/bgfx/bgfx_frame_coordinator.cpp
     src/map/bgfx/bgfx_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
-    src/map/bgfx/bgfx_native_target_registry.h
-    src/map/bgfx/bgfx_native_target_registry.cpp
     src/map/bgfx/map_bgfx_globe_imagery.h
     src/map/bgfx/map_bgfx_globe_network.h
     src/map/bgfx/map_bgfx_globe_network.cpp
@@ -567,7 +585,7 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_globe_surface.cpp
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
-target_link_libraries(aowis-server-gui PRIVATE bgfx)
+target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -633,6 +651,17 @@ else()
 endif()
 
 if(BUILD_TESTING AND NOT EMSCRIPTEN)
+    # Link the renderer from an executable that contains NO GUI application
+    # sources. A static library's Qt resources need explicit registration;
+    # this test fails if resource objects aren't brought in by the linker.
+    add_executable(aowis-render-core-link-tests
+        tests/render_core_link_test.cpp)
+    target_link_libraries(aowis-render-core-link-tests PRIVATE AOWIS::RenderCore)
+    target_compile_definitions(aowis-render-core-link-tests PRIVATE
+        AOWIS_RENDER_TEST_SHADER_PATH=":/aowis/map/bgfx/${AOWIS_BGFX_TEST_SHADER_FAMILY}/vs_network_2d.bin")
+    add_test(NAME aowis-render-core-link COMMAND aowis-render-core-link-tests)
+    set_tests_properties(aowis-render-core-link PROPERTIES LABELS "aowis")
+
     # The four-mode contract is independent of Qt and the graphics backend.
     add_executable(aowis-map-workspace-contract-tests
         tests/map_workspace_contract_test.cpp)
@@ -653,7 +682,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-map-input-focus-policy-tests)
     set_tests_properties(aowis-map-input-focus-policy PROPERTIES LABELS "aowis")
 
-    # Step 1 of renderer extraction: process-global bgfx ownership arbitration.
+    # GPU-free ownership arbitration regression; isolated from the production
+    # renderer target to retain injectable bgfx test functions.
     # Fake init/shutdown callbacks test lifecycle without a GPU or native window.
     add_executable(aowis-bgfx-device-manager-tests
         tests/bgfx_device_manager_test.cpp
@@ -794,8 +824,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-project-graph-render-policy-tests)
     set_tests_properties(aowis-project-graph-render-policy PROPERTIES LABELS "aowis")
 
-    # Pure CPU graph-to-bgfx draw-list contract. The Projects widget still
-    # paints through QPainter until the separate native surface is attached.
+    # Pure CPU graph-to-bgfx draw-list contract. This test compiles the scene
+    # and text atlas in isolation; no GPU or native surface is required.
     # This test needs neither a GPU nor a bgfx device initialization.
     add_executable(aowis-project-graph-bgfx-scene-tests
         tests/project_graph_bgfx_scene_test.cpp

@@ -7,6 +7,15 @@ enabled, two read-only independent diagnostic map windows. See
 [Rendering architecture](../../../docs/rendering-architecture.md) for the
 current cross-surface lifecycle contract.
 
+The internal `AOWIS::RenderCore` CMake static library owns the bgfx
+device/frame/target classes, reusable imagery uploaders, HUD GPU/text
+atlas, and embedded shader resources. Its resources are
+explicitly registered from the library, including when shader availability
+is checked before device creation. The production QWidget/QWindow host,
+`BgfxQtNativeSurface`, MapModel, hydraulic application workflows and
+Projects UI remain in the GUI executable. See the
+[renderer build boundary](../../../docs/rendering-architecture.md#internal-renderer-build-boundary-pre-extraction).
+
 Desktop native Qt windows are captured through `BgfxQtNativeSurface` into the
 Qt-free `BgfxNativeSurface` descriptor (window, display, handle type,
 physical pixels). `BgfxNativeTargetRegistry` consumes that descriptor for

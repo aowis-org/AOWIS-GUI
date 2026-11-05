@@ -2446,9 +2446,11 @@ void MapBgfxSurface::synchronizeGeometry()
     if (pixels == this->last_physical_size)
         return;
     this->last_physical_size = pixels;
-    bgfx::SwapChain swap_chain{};
-    swap_chain.width = static_cast<uint32_t>(pixels.width());
-    swap_chain.height = static_cast<uint32_t>(pixels.height());
+    // Preserve a depth attachment across resize. The default SwapChain()
+    // requests none, even though bgfx::Init defaults to D24S8.
+    const bgfx::SwapChain swap_chain = BgfxNativeSurface::resizeSwapChain(
+        static_cast<std::uint32_t>(pixels.width()),
+        static_cast<std::uint32_t>(pixels.height()));
     bgfx::reset(kMapBgfxResetFlags, &swap_chain);
 }
 
