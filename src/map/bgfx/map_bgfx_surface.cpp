@@ -1,5 +1,6 @@
 #include "map/bgfx/map_bgfx_surface.h"
 
+#include "map/bgfx/bgfx_device_manager.h"
 #include "map/bgfx/map_bgfx_backend.h"
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 #include "map/core/map_model.h"
@@ -91,11 +92,6 @@ EM_JS(void, aowisBgfxMapRemove, (), {
 
 namespace {
 constexpr uint16_t kMapBgfxView = 0;
-// bgfx::init/bgfx::shutdown own a process-global renderer. Normally the
-// workspace has one shared surface: it keeps ownership even while a different
-// main-navigation page is shown. A second surface can take ownership only
-// when needed (initializeBackend() explicitly retires an inactive owner).
-MapBgfxSurface *g_bgfx_device_owner = nullptr;
 // Room for the editor overlay (one icon quad per visible node) on top of the
 // HUD and imagery: bgfx's defaults are 6 MiB vertices / 2 MiB indices.
 constexpr uint32_t kTransientVertexBytes = 16u << 20;
@@ -392,19 +388,11 @@ MapBgfxSurface::~MapBgfxSurface()
     if (g_bgfx_frame_loop_surface == this)
         g_bgfx_frame_loop_surface = nullptr;
 #endif
-    if (this->initialized) {
-        releaseGpuResources();
-        bgfx::shutdown();
-        MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);
-        this->initialized = false;
-        if (g_bgfx_device_owner == this)
-            g_bgfx_device_owner = nullptr;
-    }
-    if (g_bgfx_device_owner == this)
-        g_bgfx_device_owner = nullptr;
+    if (this->initialized)
+        shutdownBackend();
 #ifdef Q_OS_WASM
     // The canvas is shared; only the last surface removes it.
-    if (g_bgfx_device_owner == nullptr)
+    if (!BgfxDeviceManager::shared().hasOwner())
         aowisBgfxMapRemove();
 #endif
     if (MapRenderDiagnostics::enabled())
@@ -995,11 +983,9 @@ void MapBgfxSurface::shutdownBackend()
     stopFrameLoop();
     this->globe_overlay_height_cache.clear();
     releaseGpuResources();
-    bgfx::shutdown();
+    BgfxDeviceManager::shared().shutdown(this);
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);
     this->initialized = false;
-    if (g_bgfx_device_owner == this)
-        g_bgfx_device_owner = nullptr;
     this->reinitialize_on_surface = true;
 }
 
@@ -1804,7 +1790,7 @@ void MapBgfxSurface::hideEvent(QHideEvent *event)
     // Unlike the desktop's embedded QWindow, the browser canvas lives above
     // Qt's widgets. Hide it explicitly so it cannot cover another main page.
     // Never hide a canvas already handed over to a different surface.
-    if (g_bgfx_device_owner == this || g_bgfx_device_owner == nullptr)
+    if (BgfxDeviceManager::shared().owns(this) || !BgfxDeviceManager::shared().hasOwner())
         aowisBgfxMapGeometry(0, 0, 0, 0, 0);
 #endif
 }
@@ -1933,7 +1919,7 @@ void MapBgfxSurface::synchronizeGeometry()
 {
 #ifdef Q_OS_WASM
     // The shared canvas follows the map that owns the device.
-    if (g_bgfx_device_owner == this || g_bgfx_device_owner == nullptr)
+    if (BgfxDeviceManager::shared().owns(this) || !BgfxDeviceManager::shared().hasOwner())
     {
         const QPoint position = mapToGlobal(QPoint(0, 0));
         aowisBgfxMapGeometry(position.x(), position.y(), width(), height(),
@@ -1962,18 +1948,12 @@ void MapBgfxSurface::synchronizeGeometry()
 bool MapBgfxSurface::initializeBackend()
 {
     this->device_busy = false;
-    if (g_bgfx_device_owner != nullptr && g_bgfx_device_owner != this)
+    if (!BgfxDeviceManager::shared().prepareFor(this))
     {
-        if (g_bgfx_device_owner->isVisible())
-        {
-            // Two maps visible at once (not a layout the application has):
-            // wait for the other one to be hidden.
-            qInfo() << "bgfx map: the device is in use by another visible map; waiting";
-            this->device_busy = true;
-            return false;
-        }
-        // Take the device over from a hidden map (it restarts when shown).
-        g_bgfx_device_owner->shutdownBackend();
+        // Step 1 deliberately retains the single-visible-surface contract.
+        qInfo() << "bgfx map: the device is in use by another visible map; waiting";
+        this->device_busy = true;
+        return false;
     }
     bgfx::Init settings{};
     settings.limits.maxTransientVbSize = kTransientVertexBytes;
@@ -2066,7 +2046,10 @@ bool MapBgfxSurface::initializeBackend()
         qInfo() << "bgfx map: bgfx::init() for"
                 << (attempt == bgfx::RendererType::Count
                     ? "automatic selection" : bgfx::getRendererName(attempt));
-        if (!bgfx::init(settings))
+        if (!BgfxDeviceManager::shared().initialize(
+                this, settings,
+                [this]() { return isVisible(); },
+                [this]() { shutdownBackend(); }))
         {
             qWarning() << "bgfx init failed for"
                        << (attempt == bgfx::RendererType::Count
@@ -2078,11 +2061,10 @@ bool MapBgfxSurface::initializeBackend()
         {
             qWarning() << "bgfx selected" << bgfx::getRendererName(selected)
                        << "but this build has no shaders for it; trying the next renderer";
-            bgfx::shutdown();
+            BgfxDeviceManager::shared().shutdown(this);
             continue;
         }
         this->initialized = true;
-        g_bgfx_device_owner = this;
         this->startup_step = "creating shaders and GPU resources";
         // Each part reports what it rejected; name the part here as well.
         // The network's colours (entity data textures) for both views.
@@ -2107,9 +2089,8 @@ bool MapBgfxSurface::initializeBackend()
                        << "RGBA8 caps" << Qt::hex
                        << (caps != nullptr ? int(caps->formats[bgfx::TextureFormat::RGBA8]) : -1);
             releaseGpuResources();
-            bgfx::shutdown();
+            BgfxDeviceManager::shared().shutdown(this);
             this->initialized = false;
-            g_bgfx_device_owner = nullptr;
             continue;
         }
         this->startup_step = "running";
@@ -2419,10 +2400,9 @@ void MapBgfxSurface::fail(const QString &reason)
     stopFrameLoop();
     if (this->initialized) {
         releaseGpuResources();
-        bgfx::shutdown();
+        BgfxDeviceManager::shared().shutdown(this);
+        MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);
         this->initialized = false;
-        if (g_bgfx_device_owner == this)
-            g_bgfx_device_owner = nullptr;
     }
     qWarning().noquote() << reason;
     emit signalRendererFailed(reason);

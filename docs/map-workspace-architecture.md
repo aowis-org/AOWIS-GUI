@@ -127,6 +127,16 @@ and shared repositories are supplied from MainWindow. This hierarchy must
 stay attached to its native window / browser canvas while modes change. Mode
 switches will not call `bgfx::shutdown()` or `bgfx::init()`.
 
+**bgfx device lifecycle:** `BgfxDeviceManager` is the process-wide owner
+of `bgfx::init()`/`bgfx::shutdown()` and the current surface lease. The
+`MapBgfxSurface` still owns its GPU resources, native window, and frame
+submission (`bgfx::frame()`). The manager keeps the existing one-active-
+surface policy: it refuses a second *visible* surface and permits a hidden
+owner to release its resources and yield the device. Simply switching modes
+or hiding the map for another main tab preserves its initialized device.
+This is lifecycle extraction only, **not** multi-view rendering, a frame
+coordinator, or a new graphics abstraction.
+
 The following contracts guide extraction and prevent reintroducing two
 renderers:
 

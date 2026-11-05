@@ -543,6 +543,8 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_editor_icons.h
     src/map/bgfx/map_bgfx_editor_icons.cpp
     src/map/bgfx/map_bgfx_backend.h
+    src/map/bgfx/bgfx_device_manager.h
+    src/map/bgfx/bgfx_device_manager.cpp
     src/map/bgfx/map_bgfx_globe_imagery.h
     src/map/bgfx/map_bgfx_globe_network.h
     src/map/bgfx/map_bgfx_globe_network.cpp
@@ -626,6 +628,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-map-workspace-contract
         COMMAND aowis-map-workspace-contract-tests)
     set_tests_properties(aowis-map-workspace-contract PROPERTIES LABELS "aowis")
+
+    # Step 1 of renderer extraction: process-global bgfx ownership arbitration.
+    # Fake init/shutdown callbacks test lifecycle without a GPU or native window.
+    add_executable(aowis-bgfx-device-manager-tests
+        tests/bgfx_device_manager_test.cpp
+        src/map/bgfx/bgfx_device_manager.cpp)
+    target_include_directories(aowis-bgfx-device-manager-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-bgfx-device-manager-tests PRIVATE bgfx)
+    add_test(NAME aowis-bgfx-device-manager COMMAND aowis-bgfx-device-manager-tests)
+    set_tests_properties(aowis-bgfx-device-manager PROPERTIES LABELS "aowis")
 
     # Cache-selection overlays must be drawable even when distribution meshes
     # are hidden in Map Management (2D and globe), without a graphics device.
