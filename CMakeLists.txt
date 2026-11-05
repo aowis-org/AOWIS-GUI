@@ -96,11 +96,23 @@ set(AOWIS_SERVER_EPANET_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(AOWIS_SERVER_EPANET_BUILD_SHARED_EPANET OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/AOWIS-SERVER-EPANET EXCLUDE_FROM_ALL)
 
-# The map renderer: a minimal bgfx build (cmake/aowis_bgfx.cmake: bx/bimg/
-# bgfx as three unity TUs, only the renderers AOWIS uses). Shaders are
-# pre-compiled and committed (cmake/aowis_bgfx_shaders.cmake); the shader
-# compiler is an opt-in developer tool (-DAOWIS_BGFX_SHADER_TOOLS=ON).
-include(cmake/aowis_bgfx.cmake)
+# Shared AOWIS-GUI-Render repository. Prefer a pinned submodule; a sibling
+# checkout is accepted for parallel GUI/Render development before publishing.
+set(AOWIS_RENDER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-GUI-Render"
+    CACHE PATH "AOWIS-GUI-Render source checkout")
+if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/CMakeLists.txt")
+    set(AOWIS_RENDER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../AOWIS-GUI-Render")
+endif()
+if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR "AOWIS-GUI-Render missing. Initialize external/AOWIS-GUI-Render "
+        "as a submodule or place the Render repository beside the GUI checkout.")
+endif()
+set(AOWIS_RENDER_VENDOR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external" CACHE PATH
+    "Pinned bx/bimg/bgfx sources for the shared renderer")
+set(AOWIS_RENDER_BUILD_MAP_CORE ON CACHE BOOL "" FORCE)
+add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
+# Some GUI-only CPU regression executables compile renderer headers directly.
+include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
 
 # epanet-js is a SQLite source-file format. Keep its reader and converter in one
 # internal target so the GUI and every test use the same implementation.
@@ -504,47 +516,6 @@ target_link_libraries(aowis-server-gui
         GeographicLib_STATIC
 )
 
-# Preparation C: a real independently linked internal renderer library.
-# GPU device/target ownership, uploaders and shader resources belong here.
-# Application data services, QWindow hosting, map/editor workflows, and the
-# Projects graph UI remain in aowis-server-gui. No external extraction yet.
-add_library(aowis-render-core STATIC
-    src/map/bgfx/bgfx_device_manager.cpp
-    src/map/bgfx/bgfx_device_manager.h
-    src/map/bgfx/bgfx_frame_coordinator.cpp
-    src/map/bgfx/bgfx_frame_coordinator.h
-    src/map/bgfx/bgfx_native_target_registry.cpp
-    src/map/bgfx/bgfx_native_target_registry.h
-    src/map/bgfx/bgfx_native_surface.h
-    src/map/bgfx/map_bgfx_backend.h
-    src/map/bgfx/map_bgfx_2d_imagery_atlas.cpp
-    src/map/bgfx/map_bgfx_2d_imagery_atlas.h
-    src/map/bgfx/map_bgfx_2d_imagery_gpu.cpp
-    src/map/bgfx/map_bgfx_2d_imagery_gpu.h
-    src/map/bgfx/map_bgfx_hud_gpu.cpp
-    src/map/bgfx/map_bgfx_hud_gpu.h
-    src/map/bgfx/map_bgfx_hud_text_cache.cpp
-    src/map/bgfx/map_bgfx_hud_text_cache.h)
-add_library(AOWIS::RenderCore ALIAS aowis-render-core)
-target_include_directories(aowis-render-core PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
-target_link_libraries(aowis-render-core PUBLIC bgfx Qt6::Gui)
-
-# Shader binaries are owned by the renderer target rather than the GUI
-# executable. Explicit Q_INIT_RESOURCE references ensure the static archive's
-# resource objects are pulled into both the desktop GUI and independent hosts.
-include(cmake/aowis_bgfx_shaders.cmake)
-if(AOWIS_BGFX_SHADER_TOOLS)
-    include(cmake/aowis_bgfx_shaderc.cmake)
-endif()
-aowis_bgfx_add_shaders(aowis-render-core)
-# Preserve WASM SIMD in the sources moved out of the executable.
-if(EMSCRIPTEN)
-    option(AOWIS_WASM_SIMD "Compile the app with WebAssembly SIMD (-msimd128)" ON)
-    if(AOWIS_WASM_SIMD)
-        target_compile_options(aowis-render-core PRIVATE "-msimd128")
-    endif()
-endif()
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_2d_projection.h
@@ -557,8 +528,6 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_entity_style.cpp
     src/map/bgfx/map_bgfx_2d_symbology.h
     src/map/bgfx/map_bgfx_2d_picking.h
-    src/map/bgfx/map_bgfx_2d_imagery_layout.h
-    src/map/bgfx/map_bgfx_hud_canvas.h
     src/map/bgfx/map_bgfx_hud.h
     src/map/bgfx/map_bgfx_hud.cpp
     src/map/bgfx/map_bgfx_pan_reuse.h
@@ -572,8 +541,6 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_labels.cpp
     src/map/bgfx/map_bgfx_editor_icons.h
     src/map/bgfx/map_bgfx_editor_icons.cpp
-    src/map/bgfx/map_bgfx_backend.h
-    src/map/bgfx/bgfx_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
     src/map/bgfx/map_bgfx_globe_imagery.h
@@ -686,21 +653,18 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # renderer target to retain injectable bgfx test functions.
     # Fake init/shutdown callbacks test lifecycle without a GPU or native window.
     add_executable(aowis-bgfx-device-manager-tests
-        tests/bgfx_device_manager_test.cpp
-        src/map/bgfx/bgfx_device_manager.cpp
-        src/map/bgfx/bgfx_frame_coordinator.cpp
-        src/map/bgfx/bgfx_native_target_registry.cpp)
+        tests/bgfx_device_manager_test.cpp)
     target_include_directories(aowis-bgfx-device-manager-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-device-manager-tests PRIVATE bgfx)
+    target_link_libraries(aowis-bgfx-device-manager-tests PRIVATE bgfx AOWIS::RenderDevice)
     add_test(NAME aowis-bgfx-device-manager COMMAND aowis-bgfx-device-manager-tests)
     set_tests_properties(aowis-bgfx-device-manager PROPERTIES LABELS "aowis")
 
     # Step 2: pure C++ view-ID and global frame arbitration tests. No GPU or
     # native window required (frame API injected).
     add_executable(aowis-bgfx-frame-coordinator-tests
-        tests/bgfx_frame_coordinator_test.cpp
-        src/map/bgfx/bgfx_frame_coordinator.cpp)
+        tests/bgfx_frame_coordinator_test.cpp)
+    target_link_libraries(aowis-bgfx-frame-coordinator-tests PRIVATE AOWIS::RenderDevice)
     target_include_directories(aowis-bgfx-frame-coordinator-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     add_test(NAME aowis-bgfx-frame-coordinator COMMAND aowis-bgfx-frame-coordinator-tests)
@@ -708,11 +672,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     # Step 2B: native swapchain target lifetimes and resize behavior.
     add_executable(aowis-bgfx-native-target-registry-tests
-        tests/bgfx_native_target_registry_test.cpp
-        src/map/bgfx/bgfx_native_target_registry.cpp)
+        tests/bgfx_native_target_registry_test.cpp)
     target_include_directories(aowis-bgfx-native-target-registry-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-native-target-registry-tests PRIVATE bgfx)
+    target_link_libraries(aowis-bgfx-native-target-registry-tests PRIVATE bgfx AOWIS::RenderDevice)
     add_test(NAME aowis-bgfx-native-target-registry
         COMMAND aowis-bgfx-native-target-registry-tests)
     set_tests_properties(aowis-bgfx-native-target-registry PROPERTIES LABELS "aowis")
@@ -720,12 +683,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Step 2C: verify two views render into independent bound targets before
     # one process-wide frame; secondary resizing/retirement never stops map.
     add_executable(aowis-bgfx-two-view-coordination-tests
-        tests/bgfx_two_view_coordination_test.cpp
-        src/map/bgfx/bgfx_frame_coordinator.cpp
-        src/map/bgfx/bgfx_native_target_registry.cpp)
+        tests/bgfx_two_view_coordination_test.cpp)
     target_include_directories(aowis-bgfx-two-view-coordination-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-two-view-coordination-tests PRIVATE bgfx)
+    target_link_libraries(aowis-bgfx-two-view-coordination-tests PRIVATE bgfx AOWIS::RenderDevice)
     add_test(NAME aowis-bgfx-two-view-coordination
         COMMAND aowis-bgfx-two-view-coordination-tests)
     set_tests_properties(aowis-bgfx-two-view-coordination PROPERTIES LABELS "aowis")
@@ -733,12 +694,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Step 5: independent Mercator cameras + three target/view lifecycles.
     # No native windows or graphics device are required for this test.
     add_executable(aowis-bgfx-three-view-camera-tests
-        tests/bgfx_three_view_camera_test.cpp
-        src/map/bgfx/bgfx_frame_coordinator.cpp
-        src/map/bgfx/bgfx_native_target_registry.cpp)
+        tests/bgfx_three_view_camera_test.cpp)
     target_include_directories(aowis-bgfx-three-view-camera-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-three-view-camera-tests PRIVATE bgfx)
+    target_link_libraries(aowis-bgfx-three-view-camera-tests PRIVATE bgfx AOWIS::RenderDevice)
     add_test(NAME aowis-bgfx-three-view-camera
         COMMAND aowis-bgfx-three-view-camera-tests)
     set_tests_properties(aowis-bgfx-three-view-camera PROPERTIES LABELS "aowis")
@@ -830,11 +789,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-project-graph-bgfx-scene-tests
         tests/project_graph_bgfx_scene_test.cpp
         src/tabs/project_graph_bgfx_scene.cpp
-        src/tabs/project_graph_bgfx_scene.h
-        src/map/bgfx/map_bgfx_hud_text_cache.cpp)
+        src/tabs/project_graph_bgfx_scene.h)
     target_include_directories(aowis-project-graph-bgfx-scene-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-project-graph-bgfx-scene-tests PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-project-graph-bgfx-scene-tests PRIVATE Qt6::Widgets AOWIS::RenderCore)
     add_test(NAME aowis-project-graph-bgfx-scene COMMAND aowis-project-graph-bgfx-scene-tests)
     set_tests_properties(aowis-project-graph-bgfx-scene PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -846,11 +804,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/project_graph_performance_benchmark.cpp
         src/tabs/project_graph_bgfx_scene.cpp
         src/tabs/project_graph_bgfx_scene.h
-        src/tabs/project_graph_placement.h
-        src/map/bgfx/map_bgfx_hud_text_cache.cpp)
+        src/tabs/project_graph_placement.h)
     target_include_directories(aowis-project-graph-performance-benchmark PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-project-graph-performance-benchmark PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-project-graph-performance-benchmark PRIVATE Qt6::Widgets AOWIS::RenderCore)
     add_test(NAME aowis-project-graph-performance-smoke
         COMMAND aowis-project-graph-performance-benchmark --sizes=64 --repeats=1)
     set_tests_properties(aowis-project-graph-performance-smoke PROPERTIES
@@ -1100,11 +1057,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     # 2D imagery tile atlas: cell placement, gutters, texture coordinates,
     # page sizing for the budget, LRU reuse, never evicting the drawn frame.
-    add_executable(aowis-bgfx-2d-imagery-atlas-tests tests/bgfx_2d_imagery_atlas_test.cpp
-        src/map/bgfx/map_bgfx_2d_imagery_atlas.cpp)
+    add_executable(aowis-bgfx-2d-imagery-atlas-tests tests/bgfx_2d_imagery_atlas_test.cpp)
     target_include_directories(aowis-bgfx-2d-imagery-atlas-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-2d-imagery-atlas-tests PRIVATE Qt6::Core)
+    target_link_libraries(aowis-bgfx-2d-imagery-atlas-tests PRIVATE Qt6::Core AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-2d-imagery-atlas COMMAND aowis-bgfx-2d-imagery-atlas-tests)
     set_tests_properties(aowis-bgfx-2d-imagery-atlas PROPERTIES LABELS "aowis")
 
@@ -1160,11 +1116,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # combo lists, palette menu and tooltips (slice 6b). Fonts need
     # QGuiApplication.
     add_executable(aowis-bgfx-hud-tests tests/bgfx_hud_test.cpp
-        src/map/bgfx/map_bgfx_hud.cpp
-        src/map/bgfx/map_bgfx_hud_text_cache.cpp)
+        src/map/bgfx/map_bgfx_hud.cpp)
     target_include_directories(aowis-bgfx-hud-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-hud-tests PRIVATE Qt6::Core Qt6::Gui)
+    target_link_libraries(aowis-bgfx-hud-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-hud COMMAND aowis-bgfx-hud-tests)
     # Full-viewport input sweeps are CPU-intensive. Do not run this test
     # concurrently with other tests: contention can push it past its limit.
@@ -1177,13 +1132,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # draws for each editor state, positioned with the continuous camera.
     add_executable(aowis-bgfx-editor-overlay-tests tests/bgfx_editor_overlay_test.cpp
         src/map/bgfx/map_bgfx_editor_overlay.cpp
-        src/map/bgfx/map_bgfx_hud_text_cache.cpp
         src/geo/geo_wgs84_ellipsoid.cpp)
     target_include_directories(aowis-bgfx-editor-overlay-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-bgfx-editor-overlay-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-editor-overlay COMMAND aowis-bgfx-editor-overlay-tests)
     set_tests_properties(aowis-bgfx-editor-overlay PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1261,13 +1215,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-bgfx-labels-tests tests/bgfx_labels_test.cpp
         src/map/bgfx/map_bgfx_labels.cpp
         src/map/bgfx/map_bgfx_hud.cpp
-        src/map/bgfx/map_bgfx_hud_text_cache.cpp
         src/map/render/map_node_declutter.cpp)
     target_include_directories(aowis-bgfx-labels-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-bgfx-labels-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-labels COMMAND aowis-bgfx-labels-tests)
     set_tests_properties(aowis-bgfx-labels PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

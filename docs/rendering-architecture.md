@@ -81,10 +81,10 @@ view. The relevant components are:
 
 | Component | Responsibility | Source |
 | --- | --- | --- |
-| `BgfxDeviceManager` | Sole `bgfx::init()` / `bgfx::shutdown()` entry point; visibility-aware primary-device lease; retirement/reinitialization when the owning native surface is lost or relinquished | `src/map/bgfx/bgfx_device_manager.{h,cpp}` |
-| `BgfxFrameCoordinator` | Device-generation-scoped, non-overlapping bgfx view-ID reservations; batch all active clients before **one** `bgfx::frame()` | `src/map/bgfx/bgfx_frame_coordinator.{h,cpp}` |
-| `BgfxNativeTargetRegistry` | Bind the initial/default swapchain and own additional native swapchain framebuffers; resize and release each secondary independently | `src/map/bgfx/bgfx_native_target_registry.{h,cpp}` |
-| `BgfxNativeSurface` | Toolkit-independent native window/display/type/physical-size descriptor, converted to bgfx swapchain and primary-init data | `src/map/bgfx/bgfx_native_surface.h` |
+| `BgfxDeviceManager` | Sole `bgfx::init()` / `bgfx::shutdown()` entry point; visibility-aware primary-device lease; retirement/reinitialization when the owning native surface is lost or relinquished | `AOWIS-GUI-Render/src/map/bgfx/bgfx_device_manager.{h,cpp}` |
+| `BgfxFrameCoordinator` | Device-generation-scoped, non-overlapping bgfx view-ID reservations; batch all active clients before **one** `bgfx::frame()` | `AOWIS-GUI-Render/src/map/bgfx/bgfx_frame_coordinator.{h,cpp}` |
+| `BgfxNativeTargetRegistry` | Bind the initial/default swapchain and own additional native swapchain framebuffers; resize and release each secondary independently | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_target_registry.{h,cpp}` |
+| `BgfxNativeSurface` | Toolkit-independent native window/display/type/physical-size descriptor, converted to bgfx swapchain and primary-init data | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_surface.h` |
 | `BgfxQtNativeSurface` | GUI-side QWindow adapter: obtains XCB/Wayland native handles and device-pixel dimensions, or native desktop window IDs | `src/map/bgfx/bgfx_qt_native_surface.{h,cpp}` |
 | `MapBgfxSurface` | Production map GPU content, imagery atlases, terrain, HUD, event routing and diagnostic map windows | `src/map/bgfx/map_bgfx_surface.{h,cpp}` |
 | `ProjectGraphBgfxViewport` | Projects' embedded native window, GPU HUD draws, text atlas, spatial index and view/target lifetime | `src/tabs/project_graph_bgfx_viewport.{h,cpp}` |

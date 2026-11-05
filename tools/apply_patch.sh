@@ -36,6 +36,37 @@ fi
 refresh_gui=false
 refresh_model=false
 refresh_epanet=false
+# Validate all renderer-extraction deletions before touching the checkout.
+# The manifest is temporary and never becomes a source file in the worktree.
+deletions=()
+if unzip -Z -1 "$patch" | grep -Fx "$project_name/.aowis-patch-delete.txt" >/dev/null; then
+    while IFS= read -r relative || [[ -n "$relative" ]]; do
+        if [[ -z "$relative" || "$relative" == /* || "$relative" == *'\'* ||
+              "$relative" == *$'\r'* || "$relative" == *$'\n'* ]]; then
+            printf 'Unsafe deletion path: %s\n' "$relative" >&2
+            exit 1
+        fi
+        IFS='/' read -r -a components <<< "$relative"
+        target="$project_root"
+        for component in "${components[@]}"; do
+            if [[ -z "$component" || "$component" == . ||
+                  "$component" == .. || "$component" == .git ]]; then
+                printf 'Unsafe deletion path component: %s\n' "$relative" >&2
+                exit 1
+            fi
+            target="$target/$component"
+            if [[ -L "$target" ]]; then
+                printf 'Refusing deletion through symlink: %s\n' "$relative" >&2
+                exit 1
+            fi
+        done
+        if [[ -d "$target" ]] || unzip -Z -1 "$patch" | grep -Fx "$project_name/$relative" >/dev/null; then
+            printf 'Deletion conflicts with directory or patch addition: %s\n' "$relative" >&2
+            exit 1
+        fi
+        deletions+=("$target")
+    done < <(unzip -p "$patch" "$project_name/.aowis-patch-delete.txt")
+fi
 while IFS= read -r entry; do
     if [[ "$entry" != "$project_name/"* || "$entry" == *'/../'* ||
           "$entry" == *'/./'* || "$entry" == *'\\'* ]]; then
@@ -59,6 +90,17 @@ while IFS= read -r entry; do
     touch -c -m -- "$parent/$entry"
 done < <(unzip -Z -1 "$patch")
 
+# Remove files that moved to the Render repository. Do not recursively delete
+# directories: the other GUI-specific bgfx sources stay in place.
+for target in "${deletions[@]}"; do
+    rm -f -- "$target"
+done
+if [[ -f "$project_root/.aowis-patch-delete.txt" ]]; then
+    rm -f -- "$project_root/.aowis-patch-delete.txt"
+fi
+if (( ${#deletions[@]} > 0 )); then
+    printf 'Removed %d extracted renderer source files.\n' "${#deletions[@]}"
+fi
 printf 'Applied %s with current file and directory timestamps.\n' "$patch"
 
 # Refresh the snapshots affected by the patch. Run the scripts from the updated

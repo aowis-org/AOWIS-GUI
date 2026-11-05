@@ -135,11 +135,11 @@ upstream commits.
 
 The bgfx libraries are fetched **shallow** (only the pinned commit) and checked
 out **sparse** (`tools/bgfx_sparse_checkout.sh`): only the headers and sources
-AOWIS builds, ~19 MB instead of ~270 MB. AOWIS builds them with its own small
-CMake file (`cmake/aowis_bgfx.cmake`), not with `bgfx.cmake`.
+AOWIS builds, ~19 MB instead of ~270 MB. AOWIS-GUI-Render builds them with its own small
+CMake file (`AOWIS-GUI-Render/cmake/aowis_bgfx.cmake`), not with `bgfx.cmake`.
 `./git_submodule_init.sh --shader-tools` additionally checks out the bgfx shader
 compiler sources, which are only needed to regenerate the committed shaders
-(see `src/map/bgfx/README.md`, "bgfx build").
+(see `AOWIS-GUI-Render/README.md`).
 
 To **update** submodules to their remote-tracking branches, use:
 
@@ -150,9 +150,9 @@ To **update** submodules to their remote-tracking branches, use:
 ./git_submodule_update.sh --help   # Usage
 ```
 
-The committed bgfx shader binaries (`src/map/bgfx/shaders/bin`) must match the
+The shared Render repository’s shader binaries (`src/map/bgfx/shaders/bin`) must match the
 bgfx revision. After `--bgfx`, run `./compile_linux.sh --shader-tools` and commit
-the regenerated shaders together with the new `external/bgfx`, `external/bx`
+the regenerated shaders in AOWIS-GUI-Render together with the new `external/bgfx`, `external/bx`
 and `external/bimg` gitlinks.
 
 **bgfx submodule setup:** ZIP files cannot contain Git submodule
@@ -350,3 +350,12 @@ already-extracted files.
 **See [Patch ZIP workflow and snapshot regeneration](docs/apply-patches.md)**
 for detailed path rules, making ZIP patches, submodule caveats, excluded
 assets, failure recovery, and the standalone test command.
+
+### Shared rendering repository
+
+The bgfx lifecycle, device/target coordination, map GPU uploaders and shader
+resources are linked from **AOWIS-GUI-Render** (`AOWIS::RenderCore`). During
+local development place `AOWIS-GUI-Render` beside this checkout or initialize
+it at `external/AOWIS-GUI-Render`; override `AOWIS_RENDER_SOURCE_DIR` for
+other layouts. The GUI retains its Qt Widgets adapter, model/data services and
+map/editor scene controllers. See `docs/renderer-extraction-readiness.md`.
