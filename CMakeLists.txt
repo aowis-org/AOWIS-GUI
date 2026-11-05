@@ -261,6 +261,7 @@ qt_add_executable(aowis-server-gui
     src/tabs/project_graph_bgfx_scene.h
     src/tabs/project_graph_bgfx_viewport.cpp
     src/tabs/project_graph_bgfx_viewport.h
+    src/tabs/project_graph_render_policy.h
     src/tabs/project_graph_placement.h
     src/tabs/tab_map_workspace.cpp
     src/tabs/map_workspace_viewport_page.cpp
@@ -754,6 +755,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-project-revision-graph PROPERTIES
         LABELS "aowis"
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Qt-independent backend selection policy: native X11/Wayland default to
+    # bgfx, while offscreen/unsupported platforms and explicit opt-out retain
+    # QPainter. Safe to exercise in CI without any GPU dependencies.
+    add_executable(aowis-project-graph-render-policy-tests
+        tests/project_graph_render_policy_test.cpp)
+    target_include_directories(aowis-project-graph-render-policy-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME aowis-project-graph-render-policy
+        COMMAND aowis-project-graph-render-policy-tests)
+    set_tests_properties(aowis-project-graph-render-policy PROPERTIES LABELS "aowis")
 
     # Pure CPU graph-to-bgfx draw-list contract. The Projects widget still
     # paints through QPainter until the separate native surface is attached.

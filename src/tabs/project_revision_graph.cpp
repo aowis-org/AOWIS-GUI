@@ -1,6 +1,7 @@
 #include "tabs/project_revision_graph.h"
 #if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
 #include "tabs/project_graph_bgfx_viewport.h"
+#include "tabs/project_graph_render_policy.h"
 #endif
 #include "projects/dvmdb_identity.h"
 #include "tabs/project_revision_card_geometry.h"
@@ -10,6 +11,9 @@
 #include "config/shortcut_registry.h"
 
 #include <QApplication>
+#include <QGuiApplication>
+#include <QByteArray>
+#include <string_view>
 #include <QFocusEvent>
 #include <QHideEvent>
 #include <QKeyEvent>
@@ -98,9 +102,15 @@ ProjectRevisionGraph::ProjectRevisionGraph(QWidget *parent)
         }
     });
 #if defined(AOWIS_PROJECTS_BGFX_BRIDGE) && defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-    // Experimental GPU-backed graph presentation; do not change the widget's
-    // existing layout, hit testing or navigation event ownership.
-    if (qEnvironmentVariableIntValue("AOWIS_PROJECTS_BGFX_GRAPH") != 0)
+    // On native Linux, the GPU graph is the normal presentation backend.
+    // QPainter remains the fallback for headless Qt tests and is explicitly
+    // selectable with AOWIS_PROJECTS_BGFX_GRAPH=0. The graph widget still
+    // owns layout, picking and camera/navigation state for both renderers.
+    const QByteArray platform = QGuiApplication::platformName().toLatin1();
+    const QByteArray preference = qgetenv("AOWIS_PROJECTS_BGFX_GRAPH").toLower();
+    if (ProjectGraphRenderPolicy::useBgfx(
+            std::string_view(platform.constData(), std::size_t(platform.size())),
+            std::string_view(preference.constData(), std::size_t(preference.size()))))
         this->gpu_view = new ProjectGraphBgfxViewport(this);
 #endif
     // Navigation bindings are shared with the map, but no overlay or

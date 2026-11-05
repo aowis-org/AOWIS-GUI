@@ -15,14 +15,14 @@ class ProjectRevisionGraph;
 class QWindow;
 class QWidget;
 
-// EXPERIMENTAL embedded Projects bgfx viewport (Linux native builds only).
+// Native Projects bgfx viewport (Linux X11/Wayland builds only).
 // The existing QWidget owns camera, navigation, layout, picking and events.
 // This adapter owns only an embedded QWindow's secondary swapchain and GPU
 // draw resources. The first visible client owns the process-global bgfx
 // device: Projects can bootstrap the default window, while a Projects view
 // opened after Maps uses a secondary swapchain. Retiring a hidden owner
 // leaves the next visible client free to initialize the next device generation.
-// This remains an opt-in bridge; QPainter is the fallback.
+// QPainter remains the fallback if the native GPU path is unavailable.
 class ProjectGraphBgfxViewport final : public QObject
 {
 public:

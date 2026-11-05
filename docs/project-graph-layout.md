@@ -92,39 +92,44 @@ including after keyboard panning and a delayed page resize.
 
 ## Rendering implementation
 
-The interactive Projects revision graph uses the QWidget/QPainter presentation
-path by default. Its existing graph layout, input events, first-load fit,
-inertial pan/zoom, selection and inspector signals are independent of the
-presentation backend.
+The **native Linux Projects graph uses bgfx by default** on the tested Qt
+`xcb` (X11) and `wayland` platforms. The existing QWidget continues to own
+the graph's layout, camera, inertial navigation, zoom, transformed picking,
+selection and Inspector signals; only its presentation is delegated to
+`ProjectGraphBgfxViewport`. `ProjectGraphBgfxScene` prepares the same nodes,
+structural/ancestry/HEAD routes, fold markers and text atlas as GPU draw data.
+Text atlas rasterization follows zoom and device pixel ratio to avoid scaling
+up low-resolution glyphs on zoom-in.
 
-A GPU-ready graph staging class, `ProjectGraphBgfxScene`, now converts the
-same typed nodes and ancestry/structural/HEAD routes into the shared
-`MapBgfxHudCanvas` triangle and text-atlas representation. It requires no
-second bgfx instance, graphics device, native window or new shaders. The
-`aowis-project-graph-bgfx-scene` CPU test checks this representation in a
-headless Qt build. An **opt-in Linux native GPU bridge** (`ProjectGraphBgfxViewport`) now embeds
-a QWindow inside the existing Projects graph. It reserves a secondary native
-swapchain and a unique view ID on the process-global bgfx device, uses the
-shared HUD shader/atlas to draw the scene, and submits through the existing
-frame coordinator. Events are forwarded to the unchanged graph widget. This
-path can be exercised with:
+**Device startup is independent of Maps:** opening Projects first initializes
+bgfx against the graph's native window (default swapchain, view 0). Opening
+Maps first allows the graph to use an independent secondary swapchain and
+view ID from the shared bgfx device. Hiding a graph that owns the device
+releases it so Maps can become the new owner. A single bgfx device exists in
+the process, and the established Maps workspace retains its one shared map
+surface and five-mode behavior. This is not yet three independent maps.
+
+**Fallback:** `AOWIS_PROJECTS_BGFX_GRAPH=0` starts the GUI with the historical
+QPainter graph. The Qt `offscreen`/`minimal` platforms (including headless
+CTest) and non-Linux platforms continue to use QPainter until their native
+bgfx surface adapters are verified. Unsupported swapchains, framebuffer
+allocation failures, or unavailable HUD shaders also fall back to QPainter.
+For manual comparison, use:
 
 ```bash
-AOWIS_PROJECTS_BGFX_GRAPH=1 ./build-linux-tests/aowis-server-gui
+./build-linux-tests/aowis-server-gui
+AOWIS_PROJECTS_BGFX_GRAPH=0 ./build-linux-tests/aowis-server-gui
 ```
 
-**Step 3B limitations:** this is deliberately a live GPU integration probe,
-not yet the default Projects renderer. **Open Maps once to initialize bgfx,
-then open Projects.** If the device is not initialized, the GUI remains on
-QPainter and will never attempt a second `bgfx::init()`. If the backend does
-not support secondary native swapchains, the shader initialization fails or
-a GPU target cannot be allocated, the graph remains on QPainter. On leaving
-the Projects view, the native target and its GPU resources are released. The
-graph's node/edge data are rebuilt from CPU on each navigation redraw.
+The `aowis-project-graph-render-policy` regression test verifies these
+platform and fallback defaults independently of Qt/GPU; the existing
+`aowis-project-revision-graph` and `aowis-project-graph-bgfx-scene` tests
+continue to validate graph behavior and GPU-ready scene geometry.
 
-The remaining step-3 work is moving device startup out of the map viewport so
-the graph can initialize bgfx even when Projects is opened first, and proving
-fully reliable focus, tab-switch and shutdown behavior on Linux and WASM.
-The transient draw list does **not** yet provide the persistent buffers,
-spatial-index culling or multi-scale LOD required for very large revision
-graphs; those are step-4 performance work.
+**Remaining work:** Verify that the default GPU path survives real Vulkan and
+OpenGL tab switching, resized docks, selection, keyboard/mouse navigation and
+shutdown. The transient CPU draw list is still rebuilt on navigation redraws;
+spatial indexing, persistent GPU geometry, batching and multi-scale LOD are
+reserved for the separate large-graph performance phase (Step 4). The
+multi-map demonstration (Step 5) and standalone renderer-library extraction
+(later, explicitly outside this batch) are not part of this change.

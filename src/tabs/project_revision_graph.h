@@ -59,9 +59,9 @@ class QKeyEvent;
 class QMouseEvent;
 class QWheelEvent;
 
-// The graph owns the canonical layout, camera and input state. The optional
-// Linux GPU viewport is a presentation adapter; QPainter remains the fallback
-// until a bgfx device can be acquired independently of the Maps tab.
+// The graph owns canonical layout, camera, input and picking. Native Linux
+// normally presents through bgfx; QPainter remains the headless/platform and
+// explicit opt-out fallback.
 #if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
 class ProjectGraphBgfxViewport;
 #endif
