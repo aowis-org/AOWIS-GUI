@@ -18,11 +18,11 @@ class QWidget;
 // EXPERIMENTAL embedded Projects bgfx viewport (Linux native builds only).
 // The existing QWidget owns camera, navigation, layout, picking and events.
 // This adapter owns only an embedded QWindow's secondary swapchain and GPU
-// draw resources. It NEVER calls bgfx::init/shutdown or bgfx::reset.
-//
-// Step 3B limitation: the existing Maps viewport still owns device startup.
-// Until the next ownership refactor, this GPU view is enabled only when that
-// device has already initialized. Otherwise the graph stays QPainter-based.
+// draw resources. The first visible client owns the process-global bgfx
+// device: Projects can bootstrap the default window, while a Projects view
+// opened after Maps uses a secondary swapchain. Retiring a hidden owner
+// leaves the next visible client free to initialize the next device generation.
+// This remains an opt-in bridge; QPainter is the fallback.
 class ProjectGraphBgfxViewport final : public QObject
 {
 public:
@@ -40,6 +40,8 @@ protected:
 
 private:
     void checkAvailability();
+    bool initializePrimary();
+    void shutdownOwnedDevice();
     void tryAttach();
     void detach();
     void render();

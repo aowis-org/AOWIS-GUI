@@ -91,6 +91,47 @@ int main()
     check(!manager.shutdown(&third) && stops == 3, "repeated shutdown is a no-op");
     check(starts == 4, "one initial failure and three successful starts");
 
+    // Projects-first startup: the graph is a legitimate primary window,
+    // not a client that must wait for Maps to initialize bgfx. Its one-view
+    // allocation must be fully retired before the hidden graph hands the
+    // process-global device to a newly opened five-view map.
+    int graph_starts = 0;
+    int graph_stops = 0;
+    bool graph_visible = true;
+    int projects_graph = 11;
+    int map_surface = 12;
+    BgfxDeviceManager projects_first(
+        [&graph_starts](const bgfx::Init &) { ++graph_starts; return true; },
+        [&graph_stops]() { ++graph_stops; });
+    check(projects_first.prepareFor(&projects_graph),
+          "Projects can request a device with no Maps client");
+    check(projects_first.initialize(&projects_graph, settings,
+                                    [&graph_visible]() { return graph_visible; },
+                                    [&projects_first, &projects_graph]()
+                                    {
+                                        projects_first.shutdown(&projects_graph);
+                                    }),
+          "Projects first initializes its own primary bgfx device");
+    check(projects_first.frames().reserve(&projects_graph, 1).first == 0,
+          "Projects gets view zero on its initial default swapchain");
+    check(!projects_first.prepareFor(&map_surface),
+          "visible Projects primary cannot be stolen by Maps");
+    graph_visible = false;
+    check(projects_first.prepareFor(&map_surface),
+          "hidden Projects primary can retire for Maps");
+    check(graph_stops == 1 && !projects_first.frames().views(&projects_graph).valid(),
+          "handoff destroys the Projects device generation and view IDs");
+    check(projects_first.initialize(&map_surface, settings, []() { return true; },
+                                    [&projects_first, &map_surface]()
+                                    {
+                                        projects_first.shutdown(&map_surface);
+                                    }),
+          "Maps initializes after the hidden Projects device retires");
+    check(projects_first.frames().reserve(&map_surface, 5).first == 0,
+          "Maps obtains its original five-view block after Projects");
+    check(projects_first.shutdown(&map_surface) && graph_starts == 2 && graph_stops == 2,
+          "Projects-to-Maps ownership lifecycle balances init and shutdown");
+
     if (failures == 0)
         std::puts("bgfx process-global device ownership lifecycle passed");
     return failures == 0 ? 0 : 1;

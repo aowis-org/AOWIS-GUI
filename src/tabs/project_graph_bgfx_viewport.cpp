@@ -1,6 +1,7 @@
 #include "tabs/project_graph_bgfx_viewport.h"
 
 #include "map/bgfx/bgfx_device_manager.h"
+#include "map/bgfx/map_bgfx_backend.h"
 #include "tabs/project_graph_bgfx_scene.h"
 #include "tabs/project_revision_graph.h"
 
@@ -14,6 +15,7 @@
 #include <QWheelEvent>
 #include <QWidget>
 #include <QWindow>
+#include <QVector>
 #include <QDebug>
 
 #if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
@@ -28,6 +30,36 @@ namespace
 std::uint16_t targetDimension(int value)
 {
     return std::uint16_t(std::clamp(value, 1, int(std::numeric_limits<std::uint16_t>::max())));
+}
+
+constexpr std::uint32_t kGraphResetFlags =
+    BGFX_RESET_VSYNC | BGFX_RESET_MSAA_X4 | BGFX_RESET_FLIP_AFTER_RENDER;
+
+// Keep the same Qt native-window extraction as the Maps viewport. Both the
+// Vulkan and OpenGL backends consume the display + surface on Linux.
+bgfx::SwapChain nativeSwapChain(QWindow *window)
+{
+    bgfx::SwapChain swap_chain{};
+    swap_chain.nwh = reinterpret_cast<void *>(window->winId());
+#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
+    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+    const QString platform = QGuiApplication::platformName();
+    if (native != nullptr && platform.startsWith(QStringLiteral("wayland")))
+    {
+        swap_chain.ndt = native->nativeResourceForIntegration(QByteArrayLiteral("display"));
+        swap_chain.nwh = native->nativeResourceForWindow(QByteArrayLiteral("surface"), window);
+    }
+    else if (native != nullptr && platform == QStringLiteral("xcb"))
+    {
+        swap_chain.ndt = native->nativeResourceForIntegration(QByteArrayLiteral("display"));
+    }
+#endif
+    const qreal ratio = window->devicePixelRatio();
+    swap_chain.width = std::uint32_t(std::clamp(qRound(window->width() * ratio), 1,
+                                             int(std::numeric_limits<std::uint16_t>::max())));
+    swap_chain.height = std::uint32_t(std::clamp(qRound(window->height() * ratio), 1,
+                                              int(std::numeric_limits<std::uint16_t>::max())));
+    return swap_chain;
 }
 }
 
@@ -47,6 +79,7 @@ ProjectGraphBgfxViewport::~ProjectGraphBgfxViewport()
     this->retry_timer.stop();
     this->redraw_timer.stop();
     detach();
+    shutdownOwnedDevice();
     if (this->window != nullptr)
         this->window->removeEventFilter(this);
     // Qt's createWindowContainer() owns the QWindow once it is embedded.
@@ -64,6 +97,7 @@ void ProjectGraphBgfxViewport::onHidden()
     this->retry_timer.stop();
     this->redraw_timer.stop();
     detach();
+    shutdownOwnedDevice();
     if (this->container != nullptr)
         this->container->hide();
 }
@@ -86,10 +120,12 @@ void ProjectGraphBgfxViewport::checkAvailability()
     if (this->unavailable || !this->graph->isVisible())
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    if (!device.hasOwner())
-        return; // The Projects-first path retains QPainter until device startup is generalized.
-    const bgfx::Caps *caps = bgfx::getCaps();
-    if (caps == nullptr || (caps->supported & BGFX_CAPS_SWAP_CHAIN) == 0)
+    // The Projects graph may now be the first bgfx client. Do not check swap-
+    // chain capabilities until a device exists: the first window becomes its
+    // default framebuffer and does not require secondary-swapchain support.
+    const bgfx::Caps *caps = device.hasOwner() ? bgfx::getCaps() : nullptr;
+    if (device.hasOwner() && !device.owns(this)
+        && (caps == nullptr || (caps->supported & BGFX_CAPS_SWAP_CHAIN) == 0))
     {
         this->unavailable = true;
         this->retry_timer.stop();
@@ -133,41 +169,121 @@ QSize ProjectGraphBgfxViewport::targetPixels() const
                  std::max(1, qRound(this->window->height() * ratio)));
 }
 
+bool ProjectGraphBgfxViewport::initializePrimary()
+{
+    if (this->window == nullptr || !this->window->isExposed())
+        return false;
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    if (device.hasOwner() || !device.prepareFor(this))
+        return false;
+
+    bgfx::Init settings{};
+    settings.swapChain = nativeSwapChain(this->window);
+    if (settings.swapChain.nwh == nullptr)
+        return false;
+    settings.reset = kGraphResetFlags;
+    settings.limits.maxTransientVbSize = 16u << 20;
+    settings.limits.maxTransientIbSize = 8u << 20;
+    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
+        settings.platformData.type = bgfx::NativeWindowHandleType::Wayland;
+
+    QVector<bgfx::RendererType::Enum> attempts;
+    const bgfx::RendererType::Enum requested = MapBgfxBackend::requestedRenderer();
+    if (requested != bgfx::RendererType::Count)
+        attempts.append(requested);
+    attempts.append(bgfx::RendererType::Count);
+    const QVector<bgfx::RendererType::Enum> usable = MapBgfxBackend::usableRenderers();
+    for (const bgfx::RendererType::Enum renderer : usable)
+    {
+        if (!attempts.contains(renderer))
+            attempts.append(renderer);
+    }
+
+    for (const bgfx::RendererType::Enum attempt : attempts)
+    {
+        settings.type = attempt;
+        if (!device.initialize(this, settings,
+                               [this]() { return this->graph->isVisible(); },
+                               [this]() { shutdownOwnedDevice(); }))
+            continue;
+        const bgfx::RendererType::Enum selected = bgfx::getRendererType();
+        if (MapBgfxBackend::shadersAvailable(selected))
+        {
+            qInfo() << "Projects bgfx viewport: initialized primary device with"
+                    << bgfx::getRendererName(selected);
+            return true;
+        }
+        qWarning() << "Projects bgfx viewport: no embedded shaders for"
+                   << bgfx::getRendererName(selected);
+        device.shutdown(this);
+    }
+    return false;
+}
+
+void ProjectGraphBgfxViewport::shutdownOwnedDevice()
+{
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    if (!device.owns(this))
+        return;
+    // The graph must release its GPU resources before retiring the device.
+    detach();
+    device.shutdown(this);
+}
+
 void ProjectGraphBgfxViewport::tryAttach()
 {
     if (this->attached || this->unavailable || this->window == nullptr
         || !this->window->isExposed() || !this->graph->isVisible())
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    if (!device.hasOwner())
-        return;
-
-    void *native_handle = reinterpret_cast<void *>(this->window->winId());
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
+    // A graph opened before Maps owns the default swapchain. Otherwise it
+    // attaches a secondary swapchain to the already-running shared device.
+    if (!device.hasOwner() && !initializePrimary())
     {
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        native_handle = native
-            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), this->window)
-            : nullptr;
-    }
-#endif
-    if (native_handle == nullptr)
-        return; // Retry when the platform exposes its native child surface.
-
-    const BgfxFrameCoordinator::ViewRange views = device.frames().reserve(this, 1);
-    if (!views.valid())
-        return;
-    const QSize pixels = targetPixels();
-    if (!device.targets().attachWindow(this, views.first, native_handle,
-                                       targetDimension(pixels.width()),
-                                       targetDimension(pixels.height()), true))
-    {
-        device.frames().release(this);
         this->unavailable = true;
         this->retry_timer.stop();
         this->container->hide();
-        qWarning() << "Projects bgfx viewport: could not create native swapchain; using QPainter";
+        qWarning() << "Projects bgfx viewport: primary initialization failed; using QPainter";
+        this->graph->update();
+        return;
+    }
+    const bool primary = device.owns(this);
+    const bgfx::Caps *caps = bgfx::getCaps();
+    if (!primary && (caps == nullptr || (caps->supported & BGFX_CAPS_SWAP_CHAIN) == 0))
+    {
+        this->unavailable = true;
+        this->retry_timer.stop();
+        this->container->hide();
+        qWarning() << "Projects bgfx viewport: secondary swapchain unsupported; using QPainter";
+        this->graph->update();
+        return;
+    }
+
+    const bgfx::SwapChain swap_chain = nativeSwapChain(this->window);
+    if (swap_chain.nwh == nullptr)
+        return;
+    const BgfxFrameCoordinator::ViewRange views = device.frames().reserve(this, 1);
+    if (!views.valid())
+    {
+        if (primary)
+            shutdownOwnedDevice();
+        return;
+    }
+    const QSize pixels = targetPixels();
+    const bool target_ready = primary
+        ? device.targets().attachDefault(this, views.first)
+        : device.targets().attachWindow(this, views.first, swap_chain.nwh,
+                                        targetDimension(pixels.width()),
+                                        targetDimension(pixels.height()), true);
+    if (!target_ready)
+    {
+        device.frames().release(this);
+        if (primary)
+            shutdownOwnedDevice();
+        this->unavailable = true;
+        this->retry_timer.stop();
+        this->container->hide();
+        qWarning() << "Projects bgfx viewport: could not attach render target; using QPainter";
         this->graph->update();
         return;
     }
@@ -176,6 +292,8 @@ void ProjectGraphBgfxViewport::tryAttach()
         this->gpu.release();
         device.targets().release(this);
         device.frames().release(this);
+        if (primary)
+            shutdownOwnedDevice();
         this->unavailable = true;
         this->retry_timer.stop();
         this->container->hide();
@@ -237,8 +355,15 @@ void ProjectGraphBgfxViewport::render()
     const QSize pixels = targetPixels();
     if (pixels != this->allocated_pixels)
     {
-        if (!device.targets().resizeWindow(this, targetDimension(pixels.width()),
-                                            targetDimension(pixels.height())))
+        if (device.owns(this))
+        {
+            const bgfx::SwapChain swap_chain = nativeSwapChain(this->window);
+            if (swap_chain.nwh == nullptr)
+                return;
+            bgfx::reset(kGraphResetFlags, &swap_chain);
+        }
+        else if (!device.targets().resizeWindow(this, targetDimension(pixels.width()),
+                                                 targetDimension(pixels.height())))
         {
             qWarning() << "Projects bgfx viewport: secondary swapchain resize failed";
             return;
@@ -297,6 +422,7 @@ bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
         if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
         {
             detach();
+            shutdownOwnedDevice();
             return false;
         }
     }

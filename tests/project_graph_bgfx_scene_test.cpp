@@ -16,6 +16,32 @@ bool require(bool condition, const char *message)
         std::fprintf(stderr, "project_graph_bgfx_scene: %s\n", message);
     return condition;
 }
+// The HUD uses a point-sampled texture. If the on-screen text quad has
+// significantly more physical pixels than the corresponding atlas region,
+// glyph pixels are visibly enlarged (the original high-zoom regression).
+bool textIsNotMagnified(const MapBgfxHudCanvas &canvas,
+                        const MapBgfxHudTextCache &atlas)
+{
+    const QVector<MapBgfxHudVertex> &vertices = canvas.vertices();
+    int text_quads = 0;
+    for (qsizetype index = 0; index + 3 < vertices.size(); ++index)
+    {
+        const MapBgfxHudVertex &a = vertices.at(index);
+        const MapBgfxHudVertex &b = vertices.at(index + 1);
+        const MapBgfxHudVertex &c = vertices.at(index + 2);
+        const MapBgfxHudVertex &d = vertices.at(index + 3);
+        // Unlike the solid geometry, text quads have a nonzero UV extent.
+        if (!(b.u > a.u && c.v > b.v && b.v == a.v && c.u == b.u
+              && d.u == a.u && d.v == c.v))
+            continue;
+        const double atlas_pixels = double(b.u - a.u) * atlas.atlas().width();
+        const double screen_pixels = double(b.x - a.x) * atlas.devicePixelRatio();
+        if (!(screen_pixels > 0.0) || screen_pixels > atlas_pixels + 2.0)
+            return false;
+        ++text_quads;
+    }
+    return text_quads > 0;
+}
 }
 
 int main(int argc, char **argv)
@@ -76,6 +102,30 @@ int main(int argc, char **argv)
     if (!require(result.text_runs == 6, "GPU text atlas label count is incorrect")) return 1;
     if (!require(!canvas.vertices().isEmpty() && !canvas.indices().isEmpty()
                  && !canvas.overflowed(), "GPU geometry is empty or overflowed")) return 1;
+    if (!require(textIsNotMagnified(canvas, atlas),
+                 "base-zoom card labels magnify atlas glyph pixels")) return 1;
+
+    // The graph may zoom to 3x. Card geometry still grows with the camera,
+    // but raster text must receive higher-resolution glyphs rather than
+    // enlarging the original 1x bitmap. Exercise zoom buckets and HiDPI.
+    for (const double zoom : {1.01, 1.33, 1.75, 2.5, 3.0})
+    {
+        view.zoom = zoom;
+        const ProjectGraphBgfxScene::Stats zoomed = ProjectGraphBgfxScene::build(
+            &canvas, &atlas, nodes, {}, view);
+        if (!require(zoomed.cards > 0 && zoomed.text_runs > 0,
+                     "high-zoom graph cards or labels are missing")) return 1;
+        if (!require(textIsNotMagnified(canvas, atlas),
+                     "high-zoom graph text magnifies atlas glyph pixels")) return 1;
+    }
+    atlas.setDevicePixelRatio(2.0);
+    view.zoom = 3.0;
+    const ProjectGraphBgfxScene::Stats hidpi = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, nodes, {}, view);
+    if (!require(hidpi.text_runs > 0 && textIsNotMagnified(canvas, atlas),
+                 "HiDPI high-zoom graph text magnifies atlas pixels")) return 1;
+    atlas.setDevicePixelRatio(1.0);
+    view.zoom = 1.0;
     for (const quint32 index : canvas.indices())
         if (!require(index < quint32(canvas.vertices().size()), "invalid GPU triangle index"))
             return 1;

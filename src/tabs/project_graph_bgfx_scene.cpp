@@ -114,22 +114,52 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
           end - QPointF(0, sign * bend), end, width, color, dashed);
 }
 
+// HUD text is a *raster* sprite, unlike the cards and edges. Enlarging the
+// same atlas entry by the camera zoom magnifies individual glyph pixels.
+// Rasterize instead at a scale at least as large as the screen-space scale.
+// Quarter-step buckets reuse entries throughout inertial zoom animations.
+// At zoom <= 1 the existing atlas glyphs are only minified.
+double textRasterScale(double zoom)
+{
+    return std::max(1.0, std::ceil(zoom * 4.0 - 1e-7) / 4.0);
+}
+
+QFont textRasterFont(const QFont &font, double scale)
+{
+    if (scale <= 1.0)
+        return font;
+    QFont scaled = font;
+    if (font.pixelSize() > 0)
+        scaled.setPixelSize(std::max(1, int(std::ceil(double(font.pixelSize()) * scale))));
+    else if (font.pointSizeF() > 0.0)
+        scaled.setPointSizeF(font.pointSizeF() * scale);
+    return scaled;
+}
+
 void text(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
           const QString &value, const QFont &font, const QRectF &rect,
           double zoom, quint32 color, ProjectGraphBgfxScene::Stats *stats)
 {
     if (value.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0)
         return;
+    // Eliding uses graph-space metrics, exactly as before: changing raster
+    // resolution must not alter the name/branch text that fits on a card.
     const QFontMetricsF metrics(font);
     const QString display = metrics.elidedText(value, Qt::ElideRight,
                                                int(rect.width() / zoom));
-    const MapBgfxHudSprite sprite = atlas->text(display, font);
+    const double raster_scale = textRasterScale(zoom);
+    const MapBgfxHudSprite sprite = atlas->text(display, textRasterFont(font, raster_scale));
     if (!sprite.valid)
         return;
-    const double rendered_height = sprite.height * zoom;
+    // The font was enlarged before rasterization. Undo that extra size when
+    // placing its atlas quad so the text retains its original graph size.
+    // This factor never exceeds one: no blurry magnification at high zoom.
+    const double draw_scale = zoom / raster_scale;
+    const double rendered_height = sprite.height * draw_scale;
     const double y = rect.top() + (rect.height() - rendered_height) * 0.5;
-    canvas->sprite({rect.left() - sprite.origin_x * zoom, y - sprite.origin_y * zoom,
-                    sprite.width * zoom, rendered_height}, sprite, color);
+    canvas->sprite({rect.left() - sprite.origin_x * draw_scale,
+                    y - sprite.origin_y * draw_scale,
+                    sprite.width * draw_scale, rendered_height}, sprite, color);
     ++stats->text_runs;
 }
 
