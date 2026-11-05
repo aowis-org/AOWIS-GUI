@@ -122,6 +122,12 @@ int main(int argc, char **argv)
                         {QStringLiteral("branchId"), json.object().value(QStringLiteral("id"))},
                         {QStringLiteral("description"), json.object().value(QStringLiteral("description"))},
                         {QStringLiteral("tags"), json.object().value(QStringLiteral("tags"))}}).toJson(QJsonDocument::Compact);
+                else if (method == "POST" &&
+                    (path.endsWith("/delete") || path.endsWith("/truncate")))
+                {
+                    status = 200;
+                    payload = R"({"deleted":true,"branchDeleted":true})";
+                }
                 else
                 {
                     status = 409;
@@ -295,6 +301,48 @@ int main(int argc, char **argv)
                  request_bodies.last().value(QStringLiteral("name"))
                      == QStringLiteral("Renamed Water Project"),
                  "project name PATCH did not preserve its UUID or optimistic name check")) return 1;
+
+    // The inspector's confirmed actions must actually send the destructive
+    // REST operation, including CAS identity and explicit draft discard.
+    done = false;
+    writer.deleteBranch(profile, project_identity, main_identity, root_revision,
+        [&](const QString &id, const QString &error) {
+            created = id; failure = error; done = true;
+        });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty() &&
+        created == QStringLiteral("deleted") &&
+        requested_paths.last() == QStringLiteral("/dvmdb/v1/projects/%1/branch-ids/%2/delete")
+            .arg(project_identity, main_identity) &&
+        request_bodies.last().value(QStringLiteral("expectedHead")) == root_revision &&
+        request_bodies.last().value(QStringLiteral("discardWorkingCopies")).toBool(),
+        "confirmed branch deletion did not send the proper DVMDB request")) return 1;
+    done = false;
+    writer.deleteBranch(profile, project_identity, main_identity, {},
+        [&](const QString &id, const QString &error) {
+            created = id; failure = error; done = true;
+        });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty() &&
+        request_bodies.last().value(QStringLiteral("expectedHead")).isNull() &&
+        request_bodies.last().value(QStringLiteral("discardWorkingCopies")).toBool(),
+        "unborn HEAD deletion did not send null expectedHead")) return 1;
+    done = false;
+    writer.truncateBranch(profile, project_identity, main_identity, branch_revision,
+                          root_revision, [&](const QString &id, const QString &error) {
+        created = id; failure = error; done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty() &&
+        requested_paths.last() == QStringLiteral("/dvmdb/v1/projects/%1/branch-ids/%2/truncate")
+            .arg(project_identity, main_identity) &&
+        request_bodies.last().value(QStringLiteral("expectedHead")) == branch_revision &&
+        request_bodies.last().value(QStringLiteral("firstRemoved")) == root_revision &&
+        request_bodies.last().value(QStringLiteral("discardWorkingCopies")).toBool(),
+        "confirmed revision truncation did not send correct CAS and draft discard")) return 1;
+    const int before_invalid_delete = requested_paths.size();
+    done = false;
+    writer.truncateBranch(profile, project_identity, main_identity, {}, root_revision,
+        [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(done && !failure.isEmpty() && requested_paths.size() == before_invalid_delete,
+        "invalid revision truncation reached server")) return 1;
 
     // Every metadata mutation must refuse a replaced endpoint before sending
     // a write; the same guard also rejects mismatched roles and codecs.

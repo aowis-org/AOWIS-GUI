@@ -1,6 +1,7 @@
 #include "projects/personal_draft_edit_session.h"
 
 #include "projects/dvmdb_identity.h"
+#include "projects/hydraulic_history_delta.h"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -496,80 +497,82 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
     emit historyNavigationStarted();
     const QString operation_id = DvmdbIdentity::newUuidV7();
     const QString old_generation = this->generation_;
+    bool sourceGenerationValid = false;
+    const qulonglong sourceGeneration = old_generation.toULongLong(&sourceGenerationValid);
+    if (!sourceGenerationValid || sourceGeneration == std::numeric_limits<qulonglong>::max())
+    {
+        this->request_in_flight_ = false;
+        fail(QStringLiteral("Invalid or exhausted private History generation."));
+        return;
+    }
     this->client_.navigateHistory(this->target_, this->draft_id_, operation_id,
         this->session_id_, this->fencing_token_, old_generation,
         this->base_revision_, coordinate,
-        [this, old_generation, coordinate](const PersonalWorkingCopyInfo &result,
-                               const QString &error)
+        [this, sourceGeneration, coordinate](const PersonalWorkingCopyInfo &result,
+                                             const QString &error)
     {
         if (!error.isEmpty() || result.id != this->draft_id_ ||
-            result.generation == old_generation || result.base_revision != this->base_revision_)
+            result.generation != QString::number(sourceGeneration + 1) ||
+            result.base_revision != this->base_revision_ ||
+            result.session_id != this->session_id_ ||
+            result.event_count != QString::number(this->saved_history_events_.size()))
         {
             this->request_in_flight_ = false;
             fail(QStringLiteral("History navigation was not authoritatively confirmed: %1").arg(error));
             return;
         }
-        this->client_.reopen(this->target_, this->draft_id_,
-            [this, result, coordinate](const PersonalWorkingCopyInfo &reopened,
-                           const QString &reopen_error)
+        // The server reconstructs the full network, but sends only changed
+        // typed MODEL images and sparse membership moves. Nothing is applied
+        // to the local stage until all source images and the final canonical
+        // SHA-256 have been verified against our saved snapshot.
+        NetworkHydraulic network;
+        QString deltaError;
+        if (!HydraulicHistoryDelta::apply(result.history_delta,
+                this->stage_.persistedNetwork(), network, &deltaError) ||
+            normalized(network.uuid) != this->network_id_)
         {
-            if (!reopen_error.isEmpty() || reopened.id != this->draft_id_ ||
-                reopened.generation != result.generation ||
-                reopened.base_revision != this->base_revision_ ||
-                reopened.session_id != this->session_id_)
+            this->request_in_flight_ = false;
+            fail(QStringLiteral("Cannot verify incremental History state: %1").arg(deltaError));
+            return;
+        }
+        QString stageError;
+        if (!this->stage_.resetVerifiedNetwork(network, &stageError))
+        {
+            this->request_in_flight_ = false;
+            fail(QStringLiteral("Cannot publish navigated editor state: %1").arg(stageError));
+            return;
+        }
+        this->generation_ = result.generation;
+        // Navigation did not change network identity or count, and DVMDB
+        // just authenticated this network's new canonical digest. Avoid a
+        // redundant /networks/summary round trip on every Undo/Redo.
+        this->history_network_qualified_ = true;
+        // The immutable Commit archive and the live draft journal did not
+        // change during navigation. Reopening just to download those original
+        // MODEL frames would be redundant and network-expensive.
+        if (coordinate.value(QStringLiteral("selectionKind")).toString() ==
+            QStringLiteral("draft"))
+        {
+            bool valid = false;
+            const qsizetype position = coordinate.value(
+                QStringLiteral("actionPosition")).toString().toLongLong(&valid);
+            if (!valid || position < 0 || position > this->saved_history_events_.size())
             {
                 this->request_in_flight_ = false;
-                fail(QStringLiteral("Cannot reconcile navigated private draft: %1").arg(reopen_error));
+                fail(QStringLiteral("Invalid navigated draft History action position."));
                 return;
             }
-            this->client_.loadDraftNetwork(this->target_, this->draft_id_, this->network_id_,
-                [this, reopened, coordinate](const NetworkHydraulic &network,
-                                 const QString &generation, const QString &load_error)
-            {
-                if (!load_error.isEmpty() || generation != reopened.generation ||
-                    normalized(network.uuid) != this->network_id_)
-                {
-                    this->request_in_flight_ = false;
-                    fail(QStringLiteral("Cannot hydrate navigated History state: %1").arg(load_error));
-                    return;
-                }
-                QString stage_error;
-                if (!this->stage_.resetVerifiedNetwork(network, &stage_error))
-                {
-                    this->request_in_flight_ = false;
-                    fail(QStringLiteral("Cannot restore navigated editor state: %1").arg(stage_error));
-                    return;
-                }
-                this->generation_ = reopened.generation;
-                this->history_network_qualified_ = false;
-                this->saved_history_events_.clear();
-                for (const PersonalWorkingCopyEvent &event : reopened.events)
-                    this->saved_history_events_.append(event.encoded);
-                if (coordinate.value(QStringLiteral("selectionKind")).toString() ==
-                    QStringLiteral("draft"))
-                {
-                    bool valid = false;
-                    const qsizetype position = coordinate.value(
-                        QStringLiteral("actionPosition")).toString().toLongLong(&valid);
-                    if (!valid || position < 0 || position > this->saved_history_events_.size())
-                    {
-                        this->request_in_flight_ = false;
-                        fail(QStringLiteral("Invalid recovered draft History action position."));
-                        return;
-                    }
-                    this->selected_draft_position_ = position;
-                }
-                else
-                    this->selected_draft_position_ = 0;
-                this->request_in_flight_ = false;
-                if (this->stop_requested_) { releaseAndClose(); return; }
-                this->state_ = State::Ready;
-                emit historyNavigationCompleted(network);
-                refreshHistoryCursor();
-                if (leaseIsExpiring()) renew();
-            });
-        });
-    });
+            this->selected_draft_position_ = position;
+        }
+        else
+            this->selected_draft_position_ = 0;
+        this->request_in_flight_ = false;
+        if (this->stop_requested_) { releaseAndClose(); return; }
+        this->state_ = State::Ready;
+        emit historyNavigationCompleted(network);
+        refreshHistoryCursor();
+        if (leaseIsExpiring()) renew();
+    }, this->network_id_);
 }
 
 void PersonalDraftEditSession::blockEditing(const QString &message)

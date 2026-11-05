@@ -4,6 +4,7 @@
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_draft_edit_session.h"
+#include "projects/hydraulic_history_delta.h"
 #include "network/hydraulic_network_editor.h"
 #include "network/hydraulic_edit_transaction_capture.h"
 
@@ -12,6 +13,7 @@
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QElapsedTimer>
 #include <QHostAddress>
 #include <QHash>
@@ -504,6 +506,26 @@ public:
                             this->history_selected_archived = request_body.contains(
                                 QStringLiteral("revisionId"));
                             document = draftRecord(this->lease_session);
+                            // Navigation is a state-preserving fixture. The
+                            // protocol must still return a verifiable sparse
+                            // delta, rather than making the session fetch a
+                            // whole replacement network.
+                            const QString requested = request_body.value(
+                                QStringLiteral("networkId")).toString();
+                            if (!requested.isEmpty())
+                            {
+                                NetworkHydraulic network;
+                                network.uuid = QUuid(requested);
+                                network.id = QStringLiteral("loaded draft");
+                                const QString digest = HydraulicHistoryDelta::digest(network);
+                                document.insert(QStringLiteral("historyDelta"), QJsonObject{
+                                    {QStringLiteral("version"), 1},
+                                    {QStringLiteral("networkId"), requested},
+                                    {QStringLiteral("fromSha256"), digest},
+                                    {QStringLiteral("toSha256"), digest},
+                                    {QStringLiteral("edits"), QJsonArray{}},
+                                    {QStringLiteral("moves"), QJsonArray{}}});
+                            }
                         }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
@@ -799,6 +821,74 @@ public:
 };
 }
 
+// Sparse History transport must apply all changed images and exact membership
+// positions without fetching or accepting a full replacement network.
+bool testVerifiedHistoryDelta()
+{
+    NetworkHydraulic source;
+    source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    source.id = QStringLiteral("History network");
+    HydraulicNodeJunction original;
+    original.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    original.id = QStringLiteral("Original");
+    source.nodes_junctions.append(original);
+    HydraulicNodeJunction added;
+    added.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    added.id = QStringLiteral("Inserted first");
+    NetworkHydraulic desired = source;
+    desired.title_line_1 = QStringLiteral("Changed root metadata");
+    desired.nodes_junctions.prepend(added);
+    const QJsonObject delta{
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("networkId"), source.uuid.toString(QUuid::WithoutBraces)},
+        {QStringLiteral("fromSha256"), HydraulicHistoryDelta::digest(source)},
+        {QStringLiteral("toSha256"), HydraulicHistoryDelta::digest(desired)},
+        {QStringLiteral("edits"), QJsonArray{
+            QJsonObject{
+                {QStringLiteral("type"),
+                 QString::fromLatin1(aowis::model::hydraulicRootEditType)},
+                {QStringLiteral("id"), source.uuid.toString(QUuid::WithoutBraces)},
+                {QStringLiteral("beforeBase64"), QString::fromLatin1(
+                    aowis::model::hydraulicRootImage(source).toBase64())},
+                {QStringLiteral("afterBase64"), QString::fromLatin1(
+                    aowis::model::hydraulicRootImage(desired).toBase64())}},
+            QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+                {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
+                {QStringLiteral("beforeBase64"), QJsonValue(QJsonValue::Null)},
+                {QStringLiteral("afterBase64"), QString::fromLatin1(
+                    aowis::model::ModelCodec<HydraulicNodeJunction>::encode(added).toBase64())}}}},
+        {QStringLiteral("moves"), QJsonArray{QJsonObject{
+            {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+            {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
+            {QStringLiteral("position"), 0}}}}};
+    NetworkHydraulic actual;
+    QString error;
+    if (!check(HydraulicHistoryDelta::apply(delta, source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) ==
+                   HydraulicHistoryDelta::digest(desired) &&
+               actual.nodes_junctions.first().uuid == added.uuid &&
+               actual.nodes_junctions.last().uuid == original.uuid,
+               "History delta did not reconstruct canonical structural/root state")) return false;
+    QJsonObject stale = delta;
+    stale.insert(QStringLiteral("fromSha256"), QString(64, QLatin1Char('0')));
+    actual = source;
+    if (!check(!HydraulicHistoryDelta::apply(stale, source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) ==
+                   HydraulicHistoryDelta::digest(source),
+               "History delta accepted a stale source or partially mutated local state")) return false;
+    QJsonObject wrongImage = delta;
+    QJsonArray edits = delta.value(QStringLiteral("edits")).toArray();
+    QJsonObject insertion = edits.last().toObject();
+    insertion.insert(QStringLiteral("afterBase64"), QStringLiteral("AQID"));
+    edits.replace(edits.size() - 1, insertion);
+    wrongImage.insert(QStringLiteral("edits"), edits);
+    return check(!HydraulicHistoryDelta::apply(wrongImage, source, actual, &error) &&
+                 HydraulicHistoryDelta::digest(actual) ==
+                     HydraulicHistoryDelta::digest(source),
+                 "History delta accepted a malformed entity after-image");
+}
+
 // An archived selection is writable only after the server verifies that a
 // new MODEL edit can safely branch the active History at this coordinate.
 // Navigation and cursor refresh must never invent a synthetic MODEL event.
@@ -840,6 +930,8 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
     // The fixture contains two archived actions; moving to action 1 must
     // preserve editor capture once the authoritative cursor permits a fork.
     stub.history_can_branch_from_archived = true;
+    const int initialNetworkReads = stub.network_read_count;
+    const int initialSummaryReads = stub.network_summary_count;
     session.navigateHistoryTo(QJsonObject{
         {QStringLiteral("selectionKind"), QStringLiteral("archived")},
         {QStringLiteral("revisionId"), head_id},
@@ -848,8 +940,11 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                     return session.canCaptureHistoryEdits() || !problem.isEmpty();
                }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
                session.historyCursor().value(QStringLiteral("canBranchFromHistory")).toBool() &&
-               stub.history_cursor_reads >= 2 && stub.history_navigation_requests == 1,
-               "verified archived History did not authorize a new editing path")) return false;
+               stub.history_cursor_reads >= 2 && stub.history_navigation_requests == 1 &&
+               stub.network_read_count == initialNetworkReads &&
+               stub.network_summary_count == initialSummaryReads &&
+               stub.last_history_navigation.value(QStringLiteral("networkId")) == network_id,
+               "archived History attempted a full-network or summary reload")) return false;
 
     navigation_complete = false;
     writable_at_navigation_completion = true;
@@ -863,8 +958,10 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
                session.historyCursor().value(QStringLiteral("selectionKind")).toString()
                    == QStringLiteral("draft") && !writable_at_navigation_completion &&
-               stub.history_navigation_requests == 2 && stub.saved_events.isEmpty(),
-               "return from archived History did not restore writable draft cursor")) return false;
+               stub.history_navigation_requests == 2 && stub.saved_events.isEmpty() &&
+               stub.network_read_count == initialNetworkReads &&
+               stub.network_summary_count == initialSummaryReads,
+               "return from archived History reloaded the entire network")) return false;
     bool stopped = false;
     QObject::connect(&session, &PersonalDraftEditSession::stopped, &session,
                      [&](const QString &) { stopped = true; });
@@ -1146,6 +1243,7 @@ bool testDurableCommitRecovery(QCoreApplication &application)
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
+    if (!testVerifiedHistoryDelta()) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;
     if (!testDraftEditSession(application)) return 1;
     if (!testDurableCommitRecovery(application)) return 1;

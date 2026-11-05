@@ -57,6 +57,7 @@ struct PersonalWorkingCopyInfo
     bool dirty = false;
     QList<PersonalWorkingCopyChange> changes; // populated by reopen(), not list()
     QString event_count; // decimal journal count, when supplied by server
+    QJsonObject history_delta; // sparse verified MODEL delta on History navigate only
     QList<PersonalWorkingCopyEvent> events; // populated by reopen(), not list()
 };
 
@@ -129,7 +130,7 @@ public:
                          const QString &operation_id, const QString &session_id,
                          const QString &fencing_token, const QString &generation,
                          const QString &expected_head, const QJsonObject &coordinate,
-                         DraftCompletion completion);
+                         DraftCompletion completion, const QString &network_id = {});
     // Every write is explicitly scoped to the personal repository. A save
     // acknowledges only the exact next generation; uncertain network failures
     // must be resolved by reopen(), never by blindly replaying a batch.

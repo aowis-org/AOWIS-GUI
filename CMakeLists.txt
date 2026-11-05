@@ -718,6 +718,21 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-project-source-writer COMMAND aowis-project-source-writer-tests)
     set_tests_properties(aowis-project-source-writer PROPERTIES LABELS "aowis")
 
+    # Actual GUI writer -> cpp-httplib -> DVMDB roundtrip against the real
+    # server executable, including a persisted working-copy and restart.
+    # Set AOWIS_DVMDB_SERVER_BIN at ctest runtime; absent server is SKIP, not PASS.
+    add_executable(aowis-project-source-writer-live-dvmdb-tests
+        tests/project_source_writer_live_dvmdb_test.cpp
+        src/projects/project_source_writer.cpp
+        src/projects/project_source_writer.h)
+    target_include_directories(aowis-project-source-writer-live-dvmdb-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-source-writer-live-dvmdb-tests PRIVATE Qt6::Core Qt6::Network)
+    add_test(NAME aowis-project-source-writer-live-dvmdb
+        COMMAND aowis-project-source-writer-live-dvmdb-tests)
+    set_tests_properties(aowis-project-source-writer-live-dvmdb PROPERTIES
+        LABELS "aowis;integration;http;destructive" SKIP_RETURN_CODE 77 TIMEOUT 90)
+
     # VC-03: personal repository is selected in the Projects Server Inspector.
     # UUIDs are discovered and pinned automatically; no separate settings page.
     add_executable(aowis-personal-repository-settings-tests

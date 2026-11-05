@@ -88,17 +88,25 @@ For eligible existing-base single-network drafts, the GUI reads DVMDB's
 `GET /working-copies/{draftId}/history/cursor`. That response supplies the
 authoritative journal position and adjacent Undo/Redo coordinates. A fenced
 `POST /working-copies/{draftId}/history/navigate` selects a verified draft
-or archived action boundary; on acknowledgement the GUI reopens the canonical
-saved network **before** logical edit capture resumes. Direct jumps use the
-same operation, not a succession of locally inferred Undo requests.
+or archived action boundary. The request includes the currently loaded
+`networkId`. DVMDB's acknowledged response supplies a sparse, canonical
+`historyDelta`: changed entity images, membership moves, and complete-model
+source/destination hashes. The GUI applies this to a temporary copy of the
+cached model, verifies the final hash, and only then replaces the live editor
+state and refreshes the authoritative History cursor. **Routine navigation
+makes no full-network GET and does not reopen/re-download the event journal.**
+Direct jumps use one publication request, not a succession of locally inferred
+Undo requests. A lost publication response can still require an explicit
+recovery reopen; it must never trigger a second guessed Undo.
 
 An Undo can retain unapplied draft journal actions as Redo. A subsequent
 ordinary new edit branches the journal: applied prefix plus new MODEL event;
 the abandoned Redo tail is invalidated atomically. A transition backward
 across a Commit marker can suspend the active journal and retain its Redo
-frames; ordinary Save/Commit is blocked during archived browsing until the
-eligible draft state is restored. Immutable revisions and committed HEAD
-are never rewritten by navigation. UUIDv7 operation identity, lease,
+frames. A new atomic MODEL Save from a verified archived position can
+fork the logical action path and abandon forward Redo; an ordinary native
+Save may not bypass that History boundary. Immutable revisions and committed
+HEAD are never rewritten by navigation. UUIDv7 operation identity, lease,
 generation and expected HEAD are part of the guarded operation. A lost
 acknowledgement must be reconciled against DVMDB instead of guessed.
 
@@ -108,9 +116,9 @@ forward MODEL replay and refuses unborn journal deletions whose original
 membership position cannot be established. Initial network initialization
 or import is not an Undo step. Multi-network navigation remains unsupported;
 **multiple-network native storage remains allowed**.
-Exact V8 DVMDB working-copy persistence and cursor recovery must be verified
-in the deployed server; this GUI documentation does not promise backwards
-compatibility with earlier development draft markers.
+V9 DVMDB working-copy metadata persists the selected cursor and optional
+History fork origin; development drafts made with older pre-release markers
+are not supported.
 
 ## Current limits and required acceptance
 

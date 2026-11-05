@@ -468,7 +468,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (!this->personal_edit_blocked)
         {
             this->top_control_bar->setNetworkStatus(tr("History position saved"));
-            statusBar()->showMessage(tr("Editor reloaded from verified DVMDB History state."), 5000);
+            statusBar()->showMessage(tr("Editor updated from verified incremental DVMDB History state."), 5000);
         }
         refreshHistoryDock();
     });

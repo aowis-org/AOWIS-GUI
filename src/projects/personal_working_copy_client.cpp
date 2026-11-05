@@ -898,7 +898,7 @@ void PersonalWorkingCopyClient::navigateHistory(
     const QString &operation_id, const QString &session_id,
     const QString &fencing_token, const QString &generation,
     const QString &expected_head, const QJsonObject &coordinate,
-    DraftCompletion completion)
+    DraftCompletion completion, const QString &network_id)
 {
     const QString kind = coordinate.value(QStringLiteral("selectionKind")).toString();
     const QString position = coordinate.value(QStringLiteral("actionPosition")).toString();
@@ -910,7 +910,8 @@ void PersonalWorkingCopyClient::navigateHistory(
         (kind == QStringLiteral("archived") && !DvmdbIdentity::isUuidV7(revision)) ||
         (kind == QStringLiteral("archived") && expected_head.isEmpty()) ||
         (!expected_head.isEmpty() && !DvmdbIdentity::isUuidV7(expected_head)) ||
-        !validHistoryCoordinate(QJsonValue(coordinate)))
+        !validHistoryCoordinate(QJsonValue(coordinate)) ||
+        (!network_id.isEmpty() && !DvmdbIdentity::isUuidV7(network_id)))
     {
         completion({}, QStringLiteral("Invalid fenced History navigation request."));
         return;
@@ -924,18 +925,25 @@ void PersonalWorkingCopyClient::navigateHistory(
                      {QStringLiteral("actionPosition"), position}};
     if (kind == QStringLiteral("archived"))
         body.insert(QStringLiteral("revisionId"), revision);
+    if (!network_id.isEmpty())
+        body.insert(QStringLiteral("networkId"), network_id);
     request(target, "POST", QStringLiteral("/working-copies/") + draft_id
             + QStringLiteral("/history/navigate"), body,
-        [completion = std::move(completion), draft_id](const QJsonObject &response,
+        [completion = std::move(completion), draft_id, network_id](const QJsonObject &response,
                                                         const QString &error)
     {
         if (!error.isEmpty()) { completion({}, error); return; }
         PersonalWorkingCopyInfo draft;
-        if (!parseDraft(response, draft) || draft.id != draft_id)
+        if (!parseDraft(response, draft) || draft.id != draft_id ||
+            (!network_id.isEmpty() &&
+             (!response.value(QStringLiteral("historyDelta")).isObject() ||
+              response.value(QStringLiteral("historyDelta")).toObject()
+                .value(QStringLiteral("networkId")).toString() != network_id)))
         {
-            completion({}, QStringLiteral("Invalid DVMDB History publication response."));
+            completion({}, QStringLiteral("Invalid DVMDB History delta/publication response."));
             return;
         }
+        draft.history_delta = response.value(QStringLiteral("historyDelta")).toObject();
         completion(draft, {});
     });
 }
