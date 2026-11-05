@@ -126,6 +126,11 @@ QSizeF MapBgfxHudTextCache::measure(const QString &text, const QFont &font) cons
     return QSizeF(metrics.horizontalAdvance(text), metrics.height());
 }
 
+bool MapBgfxHudTextCache::containsText(const QString &text, const QFont &font) const
+{
+    return this->sprites.contains(QStringLiteral("T|") + font.key() + QLatin1Char('|') + text);
+}
+
 MapBgfxHudSprite MapBgfxHudTextCache::text(const QString &text, const QFont &font)
 {
     const QString key = QStringLiteral("T|") + font.key() + QLatin1Char('|') + text;

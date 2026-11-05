@@ -6,6 +6,8 @@
 #include "network/hydraulic_data.h"
 #include "network/network_symbology_rendering.h"
 
+#include <QCoreApplication>
+
 #include <array>
 #include <cmath>
 
@@ -144,7 +146,7 @@ MapBgfxHud::Legend mapBgfxLegendContent(const HydraulicData &hydraulic_data,
             const MapLegendMetrics::Descriptor &option = MapLegendMetrics::node(visual);
             if (visual == settings.visual_node)
                 group.current = int(group.items.size());
-            group.items.append(legendGroupTitle(QStringLiteral("Node"),
+            group.items.append(legendGroupTitle(QCoreApplication::translate("MapBgfxLegendContent", "Node"),
                                                 MapLegendUnitPresentation::label(option),
                                                 MapLegendUnitPresentation::unit(context, option)));
             group.values.append(static_cast<int>(visual));
@@ -178,7 +180,7 @@ MapBgfxHud::Legend mapBgfxLegendContent(const HydraulicData &hydraulic_data,
             const QString unit = selected && settings.visual_link != VisualLink::None
                 ? displayed.unit
                 : MapLegendUnitPresentation::unit(context, option);
-            group.items.append(legendGroupTitle(QStringLiteral("Link"),
+            group.items.append(legendGroupTitle(QCoreApplication::translate("MapBgfxLegendContent", "Link"),
                                                 MapLegendUnitPresentation::label(option), unit));
             group.values.append(static_cast<int>(visual));
         }
@@ -195,7 +197,7 @@ MapBgfxHud::Legend mapBgfxLegendContent(const HydraulicData &hydraulic_data,
             const MapLegendMetrics::Descriptor &option = MapLegendMetrics::heatmap(visual);
             if (visual == settings.visual_heatmap)
                 group.current = int(group.items.size());
-            group.items.append(legendGroupTitle(QStringLiteral("Heatmap"),
+            group.items.append(legendGroupTitle(QCoreApplication::translate("MapBgfxLegendContent", "Heatmap"),
                                                 MapLegendUnitPresentation::label(option),
                                                 MapLegendUnitPresentation::unit(context, option)));
             group.values.append(static_cast<int>(visual));

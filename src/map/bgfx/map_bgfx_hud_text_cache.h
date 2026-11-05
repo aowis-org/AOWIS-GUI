@@ -42,6 +42,9 @@ public:
     MapBgfxHudSprite text(const QString &text, const QFont &font);
     // Logical size of a text run without rasterizing it.
     QSizeF measure(const QString &text, const QFont &font) const;
+    // Does not render or mutate the atlas; useful for verifying that a
+    // language-change redraw requested a newly translated run.
+    bool containsText(const QString &text, const QFont &font) const;
 
     // Map labels (map_bgfx_labels.h): text in text_argb with an outline
     // ("halo") of halo_px logical pixels in halo_argb, as ONE colour sprite

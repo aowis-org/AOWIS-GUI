@@ -75,6 +75,11 @@ presentation on a real window.
    cancel held keyboard/mouse/orbit/joystick/editor gesture state. The Projects
    graph may fall back to QPainter on unsupported/headless platforms; the
    production map has no QPainter fallback.
+9. **Localizable HUD boundary.** Keep the stable `MapBgfxHud` Qt translation
+   context in the extracted renderer; only GUI-owned objects create legend,
+   camera/slider and unit display strings. Preserve the language-change
+   redraw and host-refresh request, without introducing GUI localization
+   dependencies into renderer code. See [Renderer HUD localization](renderer-localization.md).
 
 ## Tested behavior versus remaining qualification
 

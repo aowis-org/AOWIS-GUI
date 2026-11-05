@@ -15,6 +15,7 @@ is not described in terms of historical development stages.
 | [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 18 collections |
 | [Rendering architecture](rendering-architecture.md) | Current Maps/Projects GPU ownership, views, native targets, depth attachments, frame coordination and input contracts |
 | [Renderer library readiness](renderer-extraction-readiness.md) | Actual `AOWIS::RenderCore` CMake boundary, source inventory, independent link test, extraction constraints and remaining acceptance |
+| [Renderer HUD localization](renderer-localization.md) | Translation contexts, ownership split, live HUD text refresh and extraction-safe test contract |
 | [Map workspace architecture](map-workspace-architecture.md) | One shared map across five modes, controllers and native surface ownership |
 | [Projects graph layout](project-graph-layout.md) | Cards, ancestry, picking, GPU fallback and BVH culling |
 | [Projects graph performance](project-graph-performance.md) | CPU benchmark method, current scaling results and limits |

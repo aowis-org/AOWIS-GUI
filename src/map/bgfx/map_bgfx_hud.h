@@ -5,6 +5,7 @@
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 
+#include <QCoreApplication>
 #include <QColor>
 #include <QFont>
 #include <QImage>
@@ -50,6 +51,9 @@
 // pushed in with setLegend().
 class MapBgfxHud
 {
+    // Explicit, stable Qt Linguist context (also when this class moves into
+    // AOWIS-RENDER). Does not require QObject ownership or the GUI.
+    Q_DECLARE_TR_FUNCTIONS(MapBgfxHud)
 public:
     enum class Action
     {
@@ -301,6 +305,10 @@ public:
     // Replaces the legend content. Open popups stay open when their group
     // still exists; hiding the legend closes them.
     void setLegend(const Legend &legend);
+    // A translator has changed. Renderer-owned labels are resolved during
+    // build(), while application-provided legend/slider strings must be
+    // refreshed by their owner. Preserve popups, pointer capture and camera.
+    void languageChanged();
     const Legend &legend() const { return this->legend_content; }
 
     // --- Frame ----------------------------------------------------------------

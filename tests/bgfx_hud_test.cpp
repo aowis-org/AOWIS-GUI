@@ -8,6 +8,7 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QLocale>
+#include <QTranslator>
 #include <QRectF>
 #include <QSet>
 #include <QVector>
@@ -16,6 +17,7 @@
 #include <functional>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 // Native bgfx HUD (Phase 1 slice 6a) without a GPU: the draw-list canvas,
 // the text/image atlas (caching, packing, dirty regions, eviction, device
@@ -1340,6 +1342,116 @@ void testGlobe()
 }
 }
 
+// A real QTranslator without .qm files: verify the extraction-safe Qt
+// contexts, live HUD text resolution, unchanged atlas generation, and popup
+// persistence. The test stays GPU-free and uses no GUI LanguageManager.
+class SyntheticHudTranslator final : public QTranslator
+{
+public:
+    QString translate(const char *context, const char *source_text,
+                      const char *disambiguation = nullptr, int n = -1) const override
+    {
+        Q_UNUSED(disambiguation);
+        if (std::strcmp(context, "MapBgfxHud") == 0)
+        {
+            if (std::strcmp(source_text, "Map tiles") == 0)
+                return QStringLiteral("Kartenkacheln - übersetzter Titel");
+            if (std::strcmp(source_text, "Cancel") == 0)
+                return QStringLiteral("Abbrechen");
+            if (std::strcmp(source_text, "%n active") == 0)
+                return QStringLiteral("Aktiv: %1").arg(n);
+            if (std::strcmp(source_text, " · %n queued") == 0)
+                return QStringLiteral(" · Wartend: %1").arg(n);
+            if (std::strcmp(source_text, "Flip") == 0)
+                return QStringLiteral("Umkehren");
+            if (std::strcmp(source_text, "N") == 0)
+                return QStringLiteral("Nord");
+        }
+        if (std::strcmp(context, "MapBgfxLegendContent") == 0
+            && std::strcmp(source_text, "Node") == 0)
+            return QStringLiteral("Knoten");
+        if (std::strcmp(context, "MapBgfxGlobeHudController") == 0
+            && std::strcmp(source_text, "Camera tilt") == 0)
+            return QStringLiteral("Kameraneigung");
+        return QString();
+    }
+};
+
+void testRuntimeLanguageRefresh()
+{
+    QFont font;
+    font.setPixelSize(13);
+    QFont title_font = font;
+    title_font.setBold(true);
+    MapBgfxHud hud;
+    hud.setFont(font);
+    hud.setViewMode(true, false);
+    hud.setDownloadActivity(1, 2, 0, 0);
+    MapBgfxHudTextCache cache(2048);
+    MapBgfxHudCanvas canvas;
+    const MapBgfxHud::Palette palette;
+    hud.build(&canvas, &cache, frameInputs(true), palette);
+    req(cache.containsText(QStringLiteral("Map tiles"), title_font)
+            && cache.containsText(QStringLiteral("Cancel"), font)
+            && cache.containsText(QStringLiteral("1 active · 2 queued"), font),
+        "English HUD strings are cached as text runs");
+    const quint64 before_generation = cache.generation();
+    cache.markUploaded();
+
+    SyntheticHudTranslator translator;
+    req(QCoreApplication::installTranslator(&translator), "synthetic translator installed");
+    req(MapBgfxHud::tr("Map tiles") == QStringLiteral("Kartenkacheln - übersetzter Titel")
+            && MapBgfxHud::tr("%n active", nullptr, 1) == QStringLiteral("Aktiv: 1"),
+        "Qt resolves stable MapBgfxHud translation context and plural count");
+    req(QCoreApplication::translate("MapBgfxLegendContent", "Node") == QStringLiteral("Knoten")
+            && QCoreApplication::translate("MapBgfxGlobeHudController", "Camera tilt")
+                == QStringLiteral("Kameraneigung"),
+        "application-owned translation contexts are distinct from renderer HUD");
+    hud.languageChanged();
+    hud.build(&canvas, &cache, frameInputs(true), palette);
+    req(cache.containsText(QStringLiteral("Kartenkacheln - übersetzter Titel"), title_font)
+            && cache.containsText(QStringLiteral("Abbrechen"), font)
+            && cache.containsText(QStringLiteral("Aktiv: 1 · Wartend: 2"), font),
+        "language refresh draws the translated HUD including plural counts");
+    req(cache.generation() == before_generation && cache.dirty(),
+        "new text runs only dirty the atlas without a device-wide reset");
+    req(!canvas.vertices().isEmpty() && !canvas.overflowed(),
+        "longer localized HUD title still produces a valid draw list");
+    const ActionScan actions = scanActions(&hud, 4.0);
+    req(actions.found(MapBgfxHud::Action::CancelMapTiles),
+        "translated download panel retains a clickable cancel hitbox");
+
+    hud.setDownloadActivity(0, 0, 0, 0);
+    hud.setLegend(legendContent());
+    hud.build(&canvas, &cache, frameInputs(true), palette);
+    const LegendLayout layout = legendLayout(font);
+    bool consumed = false;
+    MapBgfxHud::Command command;
+    const double ramp_x = layout.bar.x + 0.5 * layout.bar.width;
+    const double ramp_y = layout.bar.y + 0.5 * layout.bar.height;
+    req(hud.mousePress(ramp_x, ramp_y),
+        "localized HUD opens the palette popup");
+    hud.mouseRelease(ramp_x, ramp_y, &consumed, &command);
+    hud.build(&canvas, &cache, frameInputs(true), palette);
+    req(hud.popupOpen() && cache.containsText(QStringLiteral("Umkehren"), font),
+        "open palette popup draws translated menu actions");
+    req(QCoreApplication::removeTranslator(&translator), "synthetic translator removed");
+    hud.languageChanged();
+    req(hud.popupOpen(), "language-change notification preserves open popup");
+    MapBgfxHudTextCache english_cache(2048);
+    hud.build(&canvas, &english_cache, frameInputs(true), palette);
+    req(hud.popupOpen() && english_cache.containsText(QStringLiteral("Flip"), font)
+            && !canvas.overflowed(),
+        "open palette menu is redrawn in English without losing popup state");
+    req(MapBgfxHud::tr("Map tiles") == QStringLiteral("Map tiles"),
+        "removing translation restores the English fallback");
+
+    const QString arabic = QString::fromUtf8("العربية");
+    const MapBgfxHudSprite arabic_sprite = english_cache.text(arabic, font);
+    req(arabic_sprite.valid && english_cache.measure(arabic, font).width() > 0.0,
+        "Qt text atlas accepts a UTF-8 Arabic run without a GPU");
+}
+
 int main(int argc, char **argv)
 {
     // Fonts need a GUI application; no window is ever shown.
@@ -1357,6 +1469,7 @@ int main(int argc, char **argv)
     testGradient();
     testLegend();
     testGlobe();
+    testRuntimeLanguageRefresh();
 
     if (fails == 0)
         std::printf("bgfx HUD tests passed\n");

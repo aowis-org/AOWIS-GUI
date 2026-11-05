@@ -292,6 +292,9 @@ public:
 signals:
     void signalRendererReady();
     void signalRendererFailed(const QString &reason);
+    // Host-produced HUD strings (legend, units, tooltips) need regeneration
+    // after Qt installs/removes a translator. No device or camera reset.
+    void localizedPresentationRefreshRequested();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -301,7 +304,7 @@ protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
-    // Palette / font changes restyle the HUD: present a frame.
+    // Palette, font and language changes restyle the HUD: present a frame.
     void changeEvent(QEvent *event) override;
 
 private:

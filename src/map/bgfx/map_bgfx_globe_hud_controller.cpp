@@ -5,6 +5,7 @@
 #include "map/core/map_scale_distance.h"
 #include "map/monitor/map_hud_length_units.h"
 
+#include <QCoreApplication>
 #include <QEasingCurve>
 #include <QPoint>
 #include <QVariantAnimation>
@@ -377,7 +378,8 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
     offset.maximum_label = MapHudLengthUnits::networkOffset(MapModel::MaxView3dNetworkGroundOffsetM, units);
     offset.minimum_label = MapHudLengthUnits::networkOffset(MapModel::MinView3dNetworkGroundOffsetM, units);
     offset.value_label = MapHudLengthUnits::networkOffset(offset_m, units);
-    offset.tooltip = QStringLiteral("Water network height above its real model elevation\n"
+    offset.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                  "Water network height above its real model elevation\n"
                                     "%1 = true elevation\n"
                                     "Up to %2 render-only lift to avoid terrain z-fighting\n"
                                     "Right-click: animate back to %1")
@@ -389,7 +391,8 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
     tilt.maximum_label = QStringLiteral("%1°").arg(tiltMaximumDeg());
     tilt.minimum_label = QStringLiteral("%1°").arg(tiltMinimumDeg());
     tilt.value_label = QStringLiteral("%1°").arg(pitch_deg);
-    tilt.tooltip = QStringLiteral("Camera tilt\n%1° = near horizon\n%2° = straight down\n"
+    tilt.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                "Camera tilt\n%1° = near horizon\n%2° = straight down\n"
                                   "Right-click: animate back to the default tilt")
                        .arg(tiltMinimumDeg())
                        .arg(tiltMaximumDeg());
@@ -400,7 +403,8 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
     distance.maximum_label = MapHudLengthUnits::cameraDistance(MapModel::MaxViewGlobeDistanceM, units);
     distance.minimum_label = MapHudLengthUnits::cameraDistance(MapModel::MinViewGlobeDistanceM, units);
     distance.value_label = MapHudLengthUnits::cameraDistance(distance_m, units);
-    distance.tooltip = QStringLiteral("Distance to focus\n"
+    distance.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                    "Distance to focus\n"
                                       "Straight-line orbit radius to the globe point under the crosshair\n"
                                       "The logarithmic slider spans the full Globe zoom range\n"
                                       "Right-click: animate back to the full-globe default distance");
@@ -412,7 +416,8 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
     exaggeration.maximum_label = QStringLiteral("%1×").arg(MapModel::MaxView3dVerticalExaggeration, 0, 'f', 0);
     exaggeration.minimum_label = QStringLiteral("%1×").arg(MapModel::MinView3dVerticalExaggeration, 0, 'f', 1);
     exaggeration.value_label = QStringLiteral("%1×").arg(factor, 0, 'f', 1);
-    exaggeration.tooltip = QStringLiteral("Vertical exaggeration\n"
+    exaggeration.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                        "Vertical exaggeration\n"
                                           "Scales terrain relief and water-network elevation differences together\n"
                                           "1.0× = true vertical scale\n"
                                           "The separate network-height control remains a render-only lift\n"

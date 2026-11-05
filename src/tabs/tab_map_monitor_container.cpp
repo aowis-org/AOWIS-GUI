@@ -410,6 +410,11 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
         // Do not promote until bgfx has actually produced a frame; until then
         // the status label is shown. MapWidget keeps map navigation input.
         MapBgfxSurface *surface = new MapBgfxSurface(this->map_model, this->map_stack);
+        // The surface owns its labels, not its legend text. Refresh just the
+        // presentation strings when a translator changes; preserve network
+        // rendering, selections and the editor/monitor mode.
+        connect(surface, &MapBgfxSurface::localizedPresentationRefreshRequested,
+                this, [this]() { refreshBgfxLegend(); });
         surface->setNavigationHandlers(
             [this](QKeyEvent *event)
             {

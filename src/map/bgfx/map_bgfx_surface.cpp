@@ -2304,6 +2304,15 @@ void MapBgfxSurface::hideEvent(QHideEvent *event)
 
 void MapBgfxSurface::changeEvent(QEvent *event)
 {
+    if (event->type() == QEvent::LanguageChange)
+    {
+        this->hud.languageChanged();
+        this->labels_dirty = true;
+        requestRedraw();
+        emit localizedPresentationRefreshRequested();
+    }
+    if (event->type() == QEvent::FontChange)
+        this->hud.setFont(font());
     if (event->type() == QEvent::PaletteChange || event->type() == QEvent::FontChange
         || event->type() == QEvent::StyleChange || event->type() == QEvent::ApplicationPaletteChange)
     {

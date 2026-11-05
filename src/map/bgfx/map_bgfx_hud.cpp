@@ -118,9 +118,15 @@ QString compassHeadingText(double yaw_deg)
     double heading = std::fmod(-yaw_deg, 360.0);
     if (heading < 0.0)
         heading += 360.0;
-    static const char *const cardinals[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    static const char *const cardinals[8] = {
+        QT_TRANSLATE_NOOP("MapBgfxHud", "N"), QT_TRANSLATE_NOOP("MapBgfxHud", "NE"),
+        QT_TRANSLATE_NOOP("MapBgfxHud", "E"), QT_TRANSLATE_NOOP("MapBgfxHud", "SE"),
+        QT_TRANSLATE_NOOP("MapBgfxHud", "S"), QT_TRANSLATE_NOOP("MapBgfxHud", "SW"),
+        QT_TRANSLATE_NOOP("MapBgfxHud", "W"), QT_TRANSLATE_NOOP("MapBgfxHud", "NW")};
     const int sector = int(std::floor((heading + 22.5) / 45.0)) % 8;
-    return QStringLiteral("%1  %2°").arg(QLatin1String(cardinals[sector])).arg(qRound(heading) % 360);
+    return QStringLiteral("%1  %2°")
+        .arg(QCoreApplication::translate("MapBgfxHud", cardinals[sector]))
+        .arg(qRound(heading) % 360);
 }
 
 QRgb withAlpha(QRgb color, int alpha)
@@ -304,6 +310,15 @@ void MapBgfxHud::setJoystick(const QPointF &deflection, bool active)
     this->joystick_active = active;
 }
 
+void MapBgfxHud::languageChanged()
+{
+    // The next draw resolves tr() calls again and measures the new strings.
+    // Only the tooltip delay is restarted; do not discard popup selection,
+    // pressed targets, navigation state or the text atlas.
+    this->tooltip_since_s = -1.0;
+    this->tooltip_waiting = false;
+}
+
 void MapBgfxHud::setLegend(const Legend &legend)
 {
     this->legend_content = legend;
@@ -411,10 +426,9 @@ double MapBgfxHud::downloadPanel(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *
                                  int queued, Element cancel, bool cancel_pending, double time_s,
                                  const Palette &palette)
 {
-    const QString label = queued > 0
-        ? QStringLiteral("%1 active · %2 queued").arg(active).arg(queued)
-        : QStringLiteral("%1 active").arg(active);
-    const QString cancel_text = QStringLiteral("Cancel");
+    const QString label = tr("%n active", nullptr, active)
+        + (queued > 0 ? tr(" · %n queued", nullptr, queued) : QString());
+    const QString cancel_text = tr("Cancel");
     const QSizeF title_size = cache->measure(title, this->bold_font);
     const QSizeF label_size = cache->measure(label, this->font);
     const double label_width = std::max(DownloadLabelMinimumWidthPx, std::ceil(label_size.width()));
@@ -561,12 +575,12 @@ void MapBgfxHud::buildOnce(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
         const bool tiles_busy = this->tiles_active > 0 || this->tiles_queued > 0;
         const bool terrain_busy = this->terrain_active > 0 || this->terrain_queued > 0;
         const double tiles_width = tiles_busy
-            ? downloadPanel(nullptr, cache, 0.0, 0.0, QStringLiteral("Map tiles"),
+            ? downloadPanel(nullptr, cache, 0.0, 0.0, tr("Map tiles"),
                             this->tiles_active, this->tiles_queued, Element::CancelMapTiles,
                             this->tiles_cancel_pending, inputs.time_s, palette)
             : 0.0;
         const double terrain_width = terrain_busy
-            ? downloadPanel(nullptr, cache, 0.0, 0.0, QStringLiteral("Terrain"),
+            ? downloadPanel(nullptr, cache, 0.0, 0.0, tr("Terrain"),
                             this->terrain_active, this->terrain_queued, Element::CancelTerrain,
                             this->terrain_cancel_pending, inputs.time_s, palette)
             : 0.0;
@@ -582,14 +596,14 @@ void MapBgfxHud::buildOnce(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
         double x = std::max(MarginPx, std::floor(0.5 * (viewport_width - total)));
         if (tiles_busy)
         {
-            downloadPanel(canvas, cache, x, MarginPx, QStringLiteral("Map tiles"),
+            downloadPanel(canvas, cache, x, MarginPx, tr("Map tiles"),
                           this->tiles_active, this->tiles_queued, Element::CancelMapTiles,
                           this->tiles_cancel_pending, inputs.time_s, palette);
             x += tiles_width + PanelSpacingPx;
         }
         if (terrain_busy)
         {
-            downloadPanel(canvas, cache, x, MarginPx, QStringLiteral("Terrain"),
+            downloadPanel(canvas, cache, x, MarginPx, tr("Terrain"),
                           this->terrain_active, this->terrain_queued, Element::CancelTerrain,
                           this->terrain_cancel_pending, inputs.time_s, palette);
             x += terrain_width + PanelSpacingPx;
@@ -606,9 +620,9 @@ void MapBgfxHud::buildOnce(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
         const double segment_height = buttonHeight(cache);
         const QString label_2d = QStringLiteral("2D");
         const QString label_3d = QStringLiteral("3D");
-        const QString label_wireframe = QStringLiteral("wireframe");
-        const QString label_map = QStringLiteral("map");
-        const QString label_hillshade = QStringLiteral("hillshade");
+        const QString label_wireframe = tr("wireframe");
+        const QString label_map = tr("map");
+        const QString label_hillshade = tr("hillshade");
         const double width_2d = std::max(SegmentMinimumWidthPx, buttonWidth(cache, label_2d));
         const double width_3d = std::max(SegmentMinimumWidthPx, buttonWidth(cache, label_3d));
         const bool toggles = this->view_switch_visible && this->globe.visible;
@@ -631,8 +645,8 @@ void MapBgfxHud::buildOnce(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
         const MapBgfxHudRect fullscreen_button{x, y, segment_height, segment_height};
         drawButton(canvas, cache, fullscreen_button, QString(), Target{Element::Fullscreen, -1, -1}, true,
                    false, palette,
-                   this->fullscreen_active ? QStringLiteral("Leave the map fullscreen")
-                                           : QStringLiteral("Show the map fullscreen"));
+                   this->fullscreen_active ? tr("Leave the map fullscreen")
+                                           : tr("Show the map fullscreen"));
         const QImage &icon = this->fullscreen_active ? this->fullscreen_exit_image : this->fullscreen_image;
         if (!icon.isNull())
         {
@@ -660,15 +674,15 @@ void MapBgfxHud::buildOnce(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
             x += ViewToggleSpacingPx;
             drawButton(canvas, cache, MapBgfxHudRect{x, y, width_wireframe, segment_height}, label_wireframe,
                        Target{Element::GlobeWireframe, -1, -1}, true, this->globe.wireframe, palette,
-                       QStringLiteral("Draw the 3D globe terrain mesh as a wireframe."));
+                       tr("Draw the 3D globe terrain mesh as a wireframe."));
             x += width_wireframe + ControlsSpacingPx;
             drawButton(canvas, cache, MapBgfxHudRect{x, y, width_map, segment_height}, label_map,
                        Target{Element::GlobeMapTiles, -1, -1}, true, this->globe.map_tiles, palette,
-                       QStringLiteral("Draw map tiles as textures on the 3D globe surface."));
+                       tr("Draw map tiles as textures on the 3D globe surface."));
             x += width_map + ControlsSpacingPx;
             drawButton(canvas, cache, MapBgfxHudRect{x, y, width_hillshade, segment_height}, label_hillshade,
                        Target{Element::GlobeHillshade, -1, -1}, true, this->globe.hillshade, palette,
-                       QStringLiteral("Shade the 3D terrain relief, lit from the north-west."));
+                       tr("Shade the 3D terrain relief, lit from the north-west."));
         }
     }
 
@@ -695,11 +709,11 @@ double MapBgfxHud::meshPanel(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
     // MapMonitorDownloadActivityHudWidget's terrain-mesh panel: a determinate
     // bar "completed / total", indeterminate "building…" while the total is
     // not known yet.
-    const QString title = QStringLiteral("Terrain mesh");
+    const QString title = tr("Terrain mesh");
     const int completed = std::max(0, this->globe.mesh_completed);
     const int total = std::max(completed, this->globe.mesh_total);
     const QString label = total > 0 ? QStringLiteral("%1 / %2").arg(completed).arg(total)
-                                    : QStringLiteral("building…");
+                                    : tr("building…");
     const QSizeF title_size = cache->measure(title, this->bold_font);
     const QSizeF label_size = cache->measure(label, this->font);
     const double label_width = std::max(MeshLabelMinimumWidthPx, std::ceil(label_size.width()));
@@ -836,13 +850,13 @@ void MapBgfxHud::drawCompass(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
         double y;
         bool accent;
     };
-    const Letter letters[4] = {{"N", 0.0, -radius + 18.0, true},
-                    {"E", radius - 15.0, 0.0, false},
-                    {"S", 0.0, radius - 18.0, false},
-                    {"W", -radius + 15.0, 0.0, false}};
+    const Letter letters[4] = {{QT_TRANSLATE_NOOP("MapBgfxHud", "N"), 0.0, -radius + 17.0, true},
+                    {QT_TRANSLATE_NOOP("MapBgfxHud", "E"), radius - 15.0, 0.0, false},
+                    {QT_TRANSLATE_NOOP("MapBgfxHud", "S"), 0.0, radius - 18.0, false},
+                    {QT_TRANSLATE_NOOP("MapBgfxHud", "W"), -radius + 15.0, 0.0, false}};
     for (const Letter &letter : letters)
     {
-        const QString text = QString::fromLatin1(letter.text);
+        const QString text = QCoreApplication::translate("MapBgfxHud", letter.text);
         const QSizeF size = cache->measure(text, letter_font);
         const MapBgfxHudPoint at = rotatedPoint(cx, cy, letter.x, letter.y, yaw);
         drawText(canvas, cache, at.x - 0.5 * size.width(), at.y - 0.5 * size.height(), text, letter_font,
@@ -858,7 +872,7 @@ void MapBgfxHud::drawCompass(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
     canvas->fillTriangle(MapBgfxHudPoint{cx, top + 1.0}, MapBgfxHudPoint{cx - 4.0, top + 7.0},
                          MapBgfxHudPoint{cx + 4.0, top + 7.0}, palette.text);
     addHitBox(dial, target, true, Cursor::PointingHand,
-              QStringLiteral("Compass\nClick: animate back to north\nDrag or mouse wheel: rotate map"));
+              tr("Compass\nClick: animate back to north\nDrag or mouse wheel: rotate map"));
 }
 
 void MapBgfxHud::joystick(MapBgfxHudCanvas *canvas, const FrameInputs &inputs, const Palette &palette)
@@ -932,13 +946,13 @@ void MapBgfxHud::joystick(MapBgfxHudCanvas *canvas, const FrameInputs &inputs, c
     };
     const NavigationKeys &keys = this->navigation_keys;
     addHitBox(rect, target, true, Cursor::PointingHand,
-              QStringLiteral("Pan joystick\nPress and push the mouse: the map pans in that direction,\n"
-                             "faster the further you push. Release to stop. Mouse wheel: zoom.\n\nKeys:")
-                  + key_line(QStringLiteral("Up"), keys.pan_up, QStringLiteral("\u2191"))
-                  + key_line(QStringLiteral("Down"), keys.pan_down, QStringLiteral("\u2193"))
-                  + key_line(QStringLiteral("Left"), keys.pan_left, QStringLiteral("\u2190"))
-                  + key_line(QStringLiteral("Right"), keys.pan_right, QStringLiteral("\u2192"))
-                  + QStringLiteral("\nFaster: hold Shift"));
+              tr("Pan joystick\nPress and push the mouse: the map pans in that direction,\n"
+                 "faster the further you push. Release to stop. Mouse wheel: zoom.\n\nKeys:")
+                  + key_line(tr("Up"), keys.pan_up, QStringLiteral("\u2191"))
+                  + key_line(tr("Down"), keys.pan_down, QStringLiteral("\u2193"))
+                  + key_line(tr("Left"), keys.pan_left, QStringLiteral("\u2190"))
+                  + key_line(tr("Right"), keys.pan_right, QStringLiteral("\u2192"))
+                  + tr("\nFaster: hold Shift"));
 }
 
 void MapBgfxHud::zoomButtons(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache, const FrameInputs &inputs,
@@ -959,10 +973,10 @@ void MapBgfxHud::zoomButtons(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
         Element element;
         const QImage *image;
         const char *key;
-        const char *tooltip;
+        QString tooltip;
     };
-    const ZoomButton buttons[2] = {{Element::ZoomIn, &this->zoom_in_image, "zoom-in", "Zoom in"},
-                                   {Element::ZoomOut, &this->zoom_out_image, "zoom-out", "Zoom out"}};
+    const ZoomButton buttons[2] = {{Element::ZoomIn, &this->zoom_in_image, "zoom-in", tr("Zoom in")},
+                                   {Element::ZoomOut, &this->zoom_out_image, "zoom-out", tr("Zoom out")}};
     // The configured key under the description.
     const QString keys[2] = {this->navigation_keys.zoom_in, this->navigation_keys.zoom_out};
     int index = 0;
@@ -972,9 +986,9 @@ void MapBgfxHud::zoomButtons(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
         const MapBgfxHudRect rect{frame.x + FramePaddingPx, y, ZoomButtonExtentPx, ZoomButtonExtentPx};
         const QString &key = keys[index++];
         drawButton(canvas, cache, rect, QString(), Target{button.element, -1, -1}, true, false, palette,
-                   QString::fromLatin1(button.tooltip)
-                       + QStringLiteral("\nMouse wheel over the joystick or here: zoom\n\nKey: %1")
-                             .arg(key.isEmpty() ? QStringLiteral("none") : key));
+                   button.tooltip
+                       + tr("\nMouse wheel over the joystick or here: zoom\n\nKey: %1")
+                             .arg(key.isEmpty() ? tr("none") : key));
         if (!button.image->isNull())
         {
             const double icon_extent = ZoomButtonExtentPx - 6.0;
@@ -1015,9 +1029,8 @@ void MapBgfxHud::globeControls(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *ca
 
     // Underground mode (MapMonitorUndergroundHudWidget's combo as three
     // buttons), bottom aligned to its right.
-    const QString underground_labels[3] = {QStringLiteral("X-Ray"), QStringLiteral("Hide"),
-                                           QStringLiteral("Solid")};
-    const QString underground_tooltip = QStringLiteral(
+    const QString underground_labels[3] = {tr("X-Ray"), tr("Hide"), tr("Solid")};
+    const QString underground_tooltip = tr(
         "Underground network display\n"
         "X-Ray: show actual underground pipe sections with a distinct pattern.\n"
         "Hide: let terrain hide the network normally.\n"
@@ -1126,9 +1139,9 @@ QString MapBgfxHud::rampTooltip(const LegendRamp &ramp) const
         ? QString()
         : QStringLiteral(" %1").arg(ramp.unit);
     const QString palette_text = ramp.flipped
-        ? QStringLiteral("%1 · flipped").arg(palette_name)
+        ? tr("%1 · flipped").arg(palette_name)
         : palette_name;
-    return QStringLiteral("Minimum: %1%3\nMaximum: %2%3\nColors: %4\nClick to choose colors")
+    return tr("Minimum: %1%3\nMaximum: %2%3\nColors: %4\nClick to choose colors")
         .arg(formatLegendValue(ramp.minimum), formatLegendValue(ramp.maximum), unit_suffix,
              palette_text);
 }
@@ -1257,7 +1270,7 @@ void MapBgfxHud::drawRampRow(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
     {
         canvas->fillRoundedRect(bar, RampRadiusPx, palette.alternate_base);
         canvas->strokeRoundedRect(bar, RampRadiusPx, 1.0, palette.border);
-        const QString text = QStringLiteral("No finite values");
+        const QString text = tr("No finite values");
         const QSizeF size = cache->measure(text, this->font);
         drawText(canvas, cache, row.x + 0.5 * (row.width - size.width()),
                  row.y + 0.5 * (row.height - size.height()), text, this->font, palette.text);
@@ -1341,7 +1354,7 @@ void MapBgfxHud::drawRampLabels(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *c
     const double label_top = tick_bottom + RampLabelGapPx;
     if (uniform)
     {
-        const QString text = QStringLiteral("%1 · uniform").arg(formatLegendValue(content.minimum));
+        const QString text = tr("%1 · uniform").arg(formatLegendValue(content.minimum));
         const QSizeF size = cache->measure(text, this->legend_label_font);
         drawText(canvas, cache, ramp.x + 0.5 * (ramp.width - size.width()), label_top, text,
                  this->legend_label_font, palette.text);
@@ -1553,7 +1566,7 @@ void MapBgfxHud::paletteMenu(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
             ++sections;
     }
     label_width = std::ceil(label_width + MenuLabelExtraWidthPx);
-    const QString flip_text = QStringLiteral("Flip");
+    const QString flip_text = tr("Flip");
     const double flip_width = buttonWidth(cache, flip_text);
     const double row_height = PalettePreviewHeightPx + 2.0 * MenuRowMarginVerticalPx;
     const double section_height = std::ceil(text_height + MenuSectionPaddingPx);
@@ -1586,8 +1599,7 @@ void MapBgfxHud::paletteMenu(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
         if (index == 0 || choice.diverging != choices.at(index - 1).diverging)
         {
             // Section header: title, then a rule to the right edge.
-            const QString title = choice.diverging ? QStringLiteral("Diverging")
-                                                   : QStringLiteral("Sequential");
+            const QString title = choice.diverging ? tr("Diverging") : tr("Sequential");
             const QSizeF title_size = cache->measure(title, this->font);
             drawText(canvas, cache, row_left, cursor_y + 0.5 * (section_height - title_size.height()),
                      title, this->font, palette.disabled_text);
@@ -1610,7 +1622,7 @@ void MapBgfxHud::paletteMenu(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
                                      PalettePreviewWidthPx, PalettePreviewHeightPx};
         drawButton(canvas, cache, preview, QString(),
                    Target{Element::LegendPalette, group, int(index)}, true, selected, palette,
-                   QStringLiteral("Use %1 colors").arg(choice.name));
+                   tr("Use %1 colors").arg(choice.name));
         // palettePreviewIcon(): the gradient with a translucent dark frame.
         const MapBgfxHudRect icon{preview.x + std::floor(0.5 * (preview.width - PaletteIconWidthPx)),
                                   preview.y + std::floor(0.5 * (preview.height - PaletteIconHeightPx)),
@@ -1619,7 +1631,7 @@ void MapBgfxHud::paletteMenu(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
         canvas->strokeRoundedRect(icon, 0.0, 1.0, qRgba(0, 0, 0, 120));
         drawButton(canvas, cache, flip, flip_text,
                    Target{Element::LegendPaletteFlip, group, int(index)}, true,
-                   selected && ramp.flipped, palette, QStringLiteral("Flip color direction"));
+                   selected && ramp.flipped, palette, tr("Flip color direction"));
         cursor_y += row_height;
     }
 
@@ -1634,7 +1646,7 @@ void MapBgfxHud::paletteMenu(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cach
     const bool reset_hovered = this->hovered == reset_target;
     if (reset_hovered)
         canvas->fillRect(reset, palette.highlight);
-    const QString reset_text = QStringLiteral("Reset");
+    const QString reset_text = tr("Reset");
     const QSizeF reset_size = cache->measure(reset_text, this->font);
     drawText(canvas, cache, row_left, reset.y + 0.5 * (reset.height - reset_size.height()),
              reset_text, this->font, reset_hovered ? palette.highlighted_text : palette.text);
