@@ -33,6 +33,8 @@ view. The relevant components are:
 | `BgfxDeviceManager` | Sole `bgfx::init()` / `bgfx::shutdown()` entry point; visibility-aware primary-device lease; retirement/reinitialization when the owning native surface is lost or relinquished | `src/map/bgfx/bgfx_device_manager.{h,cpp}` |
 | `BgfxFrameCoordinator` | Device-generation-scoped, non-overlapping bgfx view-ID reservations; batch all active clients before **one** `bgfx::frame()` | `src/map/bgfx/bgfx_frame_coordinator.{h,cpp}` |
 | `BgfxNativeTargetRegistry` | Bind the initial/default swapchain and own additional native swapchain framebuffers; resize and release each secondary independently | `src/map/bgfx/bgfx_native_target_registry.{h,cpp}` |
+| `BgfxNativeSurface` | Toolkit-independent native window/display/type/physical-size descriptor, converted to bgfx swapchain and primary-init data | `src/map/bgfx/bgfx_native_surface.h` |
+| `BgfxQtNativeSurface` | GUI-side QWindow adapter: obtains XCB/Wayland native handles and device-pixel dimensions, or native desktop window IDs | `src/map/bgfx/bgfx_qt_native_surface.{h,cpp}` |
 | `MapBgfxSurface` | Production map GPU content, imagery atlases, terrain, HUD, event routing and diagnostic map windows | `src/map/bgfx/map_bgfx_surface.{h,cpp}` |
 | `ProjectGraphBgfxViewport` | Projects' embedded native window, GPU HUD draws, text atlas, spatial index and view/target lifetime | `src/tabs/project_graph_bgfx_viewport.{h,cpp}` |
 
@@ -51,6 +53,20 @@ single-client `present()` helper is valid only when **exactly one** client is
 registered. A hidden client may retain a reservation without drawing; it need
 not submit every frame. Do not call `bgfx::frame()` from individual renderer
 widgets.
+
+**Native surface boundary:** `BgfxQtNativeSurface::capture(QWindow *)` is the
+only desktop native handle discovery path for Maps, Projects and diagnostic
+windows. It runs in the GUI/Qt host, not the reusable device/target layer.
+`BgfxNativeSurface` carries native **window**, **display**, window-handle
+**type**, and **physical pixel** dimensions; it carries no QWindow or QWidget.
+The same descriptor supplies `bgfx::Init` for a primary surface and a complete
+`bgfx::SwapChain` for secondary targets (including its display field). An
+unavailable Wayland `wl_surface` must be retried after expose; a native window
+or display **replacement** must release the old framebuffer before Qt destroys
+the old surface, then attach a new one. Resize deliberately rejects a changed
+native identity instead of issuing a bgfx command against a stale handle.
+The browser's independent WebGL canvas/context setup remains separate; no
+new multi-canvas behavior is implied by this desktop adapter.
 
 **Targets and device generations:** `attachDefault()` binds the primary
 backbuffer, which is owned by bgfx initialization/reset. `attachWindow()`

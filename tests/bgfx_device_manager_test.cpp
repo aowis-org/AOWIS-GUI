@@ -6,6 +6,15 @@
 
 namespace
 {
+BgfxNativeSurface testSurface(void *window, std::uint16_t width, std::uint16_t height)
+{
+    BgfxNativeSurface surface;
+    surface.window = window;
+    surface.width = width;
+    surface.height = height;
+    return surface;
+}
+
 int failures = 0;
 
 void check(bool condition, const char *message)
@@ -268,7 +277,7 @@ int main()
     BgfxDeviceManager targets(
         [](const bgfx::Init &) { return true; },
         [&target_events]() { target_events.push_back(9); },
-        [&next_target, &target_events](void *, std::uint16_t, std::uint16_t)
+        [&next_target, &target_events](const BgfxNativeSurface &)
         {
             target_events.push_back(1);
             return bgfx::FrameBufferHandle{next_target++};
@@ -299,8 +308,7 @@ int main()
                                            "secondary target lease released");
                                  }), "secondary target owner registered");
     check(targets.frames().reserve(&surface_client, 1).first == 5
-          && targets.targets().attachWindow(&surface_client, 5, &native_window_a,
-                                            500, 350, true),
+          && targets.targets().attachWindow(&surface_client, 5, testSurface(&native_window_a, 500, 350), true),
           "secondary framebuffer created and bound");
     target_events.clear();
     check(targets.shutdown(&surface_owner),
@@ -318,8 +326,7 @@ int main()
           "new device after framebuffer teardown starts");
     check(targets.targets().attachDefault(&surface_owner, 0),
           "new default framebuffer attached");
-    check(targets.targets().attachWindow(&unmanaged_target, 7, &native_window_b,
-                                         320, 240, true),
+    check(targets.targets().attachWindow(&unmanaged_target, 7, testSurface(&native_window_b, 320, 240), true),
           "unmanaged secondary framebuffer attached for guard test");
     check(!targets.shutdown(&surface_owner) && targets.hasOwner(),
           "unmanaged native framebuffer prevents device shutdown");

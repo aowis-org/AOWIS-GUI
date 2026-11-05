@@ -1,7 +1,7 @@
 #ifndef AOWIS_BGFX_NATIVE_TARGET_REGISTRY_H
 #define AOWIS_BGFX_NATIVE_TARGET_REGISTRY_H
 
-#include <bgfx/bgfx.h>
+#include "map/bgfx/bgfx_native_surface.h"
 
 #include <cstdint>
 #include <functional>
@@ -15,7 +15,7 @@
 class BgfxNativeTargetRegistry final
 {
 public:
-    using Create = std::function<bgfx::FrameBufferHandle(void *, std::uint16_t, std::uint16_t)>;
+    using Create = std::function<bgfx::FrameBufferHandle(const BgfxNativeSurface &)>;
     using Bind = std::function<void(std::uint16_t, bgfx::FrameBufferHandle)>;
     using Destroy = std::function<void(bgfx::FrameBufferHandle)>;
 
@@ -29,11 +29,13 @@ public:
     bool attachDefault(const void *client, std::uint16_t view_id);
 
     // A second *native* window requires BGFX_CAPS_SWAP_CHAIN. The caller
-    // supplies its OS window handle and the backing-pixel dimensions. No
-    // global bgfx::reset() is performed for secondary windows.
-    bool attachWindow(const void *client, std::uint16_t view_id, void *native_window,
-                      std::uint16_t width, std::uint16_t height, bool swap_chain_supported);
-    bool resizeWindow(const void *client, std::uint16_t width, std::uint16_t height);
+    // supplies a complete native-surface descriptor (display, window, type,
+    // physical size). No global reset is performed for secondary windows.
+    bool attachWindow(const void *client, std::uint16_t view_id,
+                      const BgfxNativeSurface &surface, bool swap_chain_supported);
+    // Resize replaces only the secondary framebuffer. If a toolkit has
+    // replaced the native surface, release first and attach a new target.
+    bool resizeWindow(const void *client, const BgfxNativeSurface &surface);
     bool release(const void *client);
     bool contains(const void *client) const;
     bool isDefault(const void *client) const;
@@ -48,9 +50,7 @@ private:
     {
         const void *client = nullptr;
         std::uint16_t view_id = 0;
-        void *native_window = nullptr;
-        std::uint16_t width = 0;
-        std::uint16_t height = 0;
+        BgfxNativeSurface surface;
         bgfx::FrameBufferHandle framebuffer = {bgfx::kInvalidHandle};
         bool primary = false;
     };

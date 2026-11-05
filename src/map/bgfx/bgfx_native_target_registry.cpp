@@ -7,16 +7,13 @@ BgfxNativeTargetRegistry::BgfxNativeTargetRegistry(Create create, Bind bind, Des
 {
     if (!this->create_api)
     {
-        this->create_api = [](void *window, std::uint16_t width, std::uint16_t height)
+        this->create_api = [](const BgfxNativeSurface &surface)
         {
             // The pinned bgfx API takes a SwapChain descriptor for native
             // windows; the old (nwh, width, height) overload no longer exists.
-            // Leave ndt unset to inherit the primary swapchain's display.
-            bgfx::SwapChain swap_chain{};
-            swap_chain.nwh = window;
-            swap_chain.width = width;
-            swap_chain.height = height;
-            return bgfx::createFrameBuffer(swap_chain);
+            // Keep the native display as well as the surface; this matters
+            // for multiple X11/Wayland targets and future host adapters.
+            return bgfx::createFrameBuffer(surface.swapChain());
         };
     }
     if (!this->bind_api)
@@ -84,41 +81,40 @@ bool BgfxNativeTargetRegistry::attachDefault(const void *client, std::uint16_t v
 }
 
 bool BgfxNativeTargetRegistry::attachWindow(const void *client, std::uint16_t view_id,
-                                            void *native_window, std::uint16_t width,
-                                            std::uint16_t height, bool swap_chain_supported)
+                                            const BgfxNativeSurface &surface,
+                                            bool swap_chain_supported)
 {
-    if (client == nullptr || contains(client) || native_window == nullptr
-        || width == 0 || height == 0 || !swap_chain_supported)
+    if (client == nullptr || contains(client) || !surface.valid()
+        || !swap_chain_supported)
         return false;
     // bgfx must have a primary window from bgfx::init().
     bool has_primary = false;
     for (const Target &target : this->targets)
     {
-        if (target.view_id == view_id || target.native_window == native_window)
+        if (target.view_id == view_id
+            || (target.surface.window != nullptr && target.surface.sameWindow(surface)))
             return false;
         has_primary = has_primary || target.primary;
     }
     if (!has_primary)
         return false;
-    const bgfx::FrameBufferHandle framebuffer = this->create_api(native_window, width, height);
+    const bgfx::FrameBufferHandle framebuffer = this->create_api(surface);
     if (!bgfx::isValid(framebuffer))
         return false;
     this->bind_api(view_id, framebuffer);
     Target target;
     target.client = client;
     target.view_id = view_id;
-    target.native_window = native_window;
-    target.width = width;
-    target.height = height;
+    target.surface = surface;
     target.framebuffer = framebuffer;
     this->targets.push_back(target);
     return true;
 }
 
-bool BgfxNativeTargetRegistry::resizeWindow(const void *client, std::uint16_t width,
-                                            std::uint16_t height)
+bool BgfxNativeTargetRegistry::resizeWindow(const void *client,
+                                            const BgfxNativeSurface &surface)
 {
-    if (width == 0 || height == 0)
+    if (!surface.valid())
         return false;
     for (Target &target : this->targets)
     {
@@ -126,19 +122,23 @@ bool BgfxNativeTargetRegistry::resizeWindow(const void *client, std::uint16_t wi
             continue;
         if (target.primary)
             return false; // The default backbuffer is resized via bgfx::reset().
-        if (target.width == width && target.height == height)
+        // A changed native display/handle invalidates the old swapchain.
+        // The owner must release it while the old surface still exists,
+        // then attach the new surface after Qt has created it.
+        if (!target.surface.sameWindow(surface))
+            return false;
+        if (target.surface.width == surface.width && target.surface.height == surface.height)
             return true;
         // Allocate before retiring the old target: an allocation failure
         // must leave the existing visible window drawable.
         const bgfx::FrameBufferHandle replacement =
-            this->create_api(target.native_window, width, height);
+            this->create_api(surface);
         if (!bgfx::isValid(replacement))
             return false;
         this->bind_api(target.view_id, replacement);
         this->destroy_api(target.framebuffer);
         target.framebuffer = replacement;
-        target.width = width;
-        target.height = height;
+        target.surface = surface;
         return true;
     }
     return false;

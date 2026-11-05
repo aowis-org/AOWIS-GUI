@@ -553,6 +553,9 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/bgfx_device_manager.cpp
     src/map/bgfx/bgfx_frame_coordinator.h
     src/map/bgfx/bgfx_frame_coordinator.cpp
+    src/map/bgfx/bgfx_native_surface.h
+    src/map/bgfx/bgfx_qt_native_surface.h
+    src/map/bgfx/bgfx_qt_native_surface.cpp
     src/map/bgfx/bgfx_native_target_registry.h
     src/map/bgfx/bgfx_native_target_registry.cpp
     src/map/bgfx/map_bgfx_globe_imagery.h

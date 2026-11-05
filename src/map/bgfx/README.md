@@ -7,6 +7,13 @@ enabled, two read-only independent diagnostic map windows. See
 [Rendering architecture](../../../docs/rendering-architecture.md) for the
 current cross-surface lifecycle contract.
 
+Desktop native Qt windows are captured through `BgfxQtNativeSurface` into the
+Qt-free `BgfxNativeSurface` descriptor (window, display, handle type,
+physical pixels). `BgfxNativeTargetRegistry` consumes that descriptor for
+secondary swapchains and rejects a resized target whose native identity has
+changed. Release the old swapchain **before** destroying or reparenting its
+Wayland surface. The WebAssembly canvas/context remains a separate path.
+
 The map has no CPU renderer fallback: if bgfx cannot start, Map Monitor
 reports a GPU status instead of painting the map with QPainter.
 bgfx renders both the 2D map and 3D globe on native desktop and WebAssembly

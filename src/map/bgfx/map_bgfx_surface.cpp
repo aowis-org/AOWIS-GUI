@@ -2,6 +2,7 @@
 #include "map/core/map_input_focus_policy.h"
 
 #include "map/bgfx/bgfx_device_manager.h"
+#include "map/bgfx/bgfx_qt_native_surface.h"
 #include "map/bgfx/map_bgfx_backend.h"
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 #include "map/core/map_model.h"
@@ -86,10 +87,6 @@ EM_JS(void, aowisBgfxMapRemove, (), {
         delete specialHTMLTargets['!aowis-bgfx-map'];
     window.aowisBgfxMap?.remove();
 });
-#else
-#if defined(Q_OS_LINUX) && defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-#include <qpa/qplatformnativeinterface.h>
-#endif
 #endif
 
 namespace {
@@ -1103,17 +1100,8 @@ void MapBgfxSurface::tryAttachMultiViewProbe()
         || !this->multi_view_probe_window->isExposed())
         return;
     QWindow *window = this->multi_view_probe_window;
-    void *native_handle = reinterpret_cast<void *>(window->winId());
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
-    {
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        native_handle = native
-            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), window)
-            : nullptr;
-    }
-#endif
-    if (native_handle == nullptr)
+    const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(window);
+    if (!surface.valid())
     {
         qWarning() << "bgfx multi-view probe: no native window handle";
         return; // Expose retry may succeed after Qt creates its native surface.
@@ -1138,10 +1126,7 @@ void MapBgfxSurface::tryAttachMultiViewProbe()
         this->multi_view_probe_generation = 0;
         return;
     }
-    if (!device.targets().attachWindow(window, views.first, native_handle,
-                                       static_cast<std::uint16_t>(std::min(65535, target_pixels.width())),
-                                       static_cast<std::uint16_t>(std::min(65535, target_pixels.height())),
-                                       true))
+    if (!device.targets().attachWindow(window, views.first, surface, true))
     {
         device.frames().release(window);
         device.unregisterClient(window, this->multi_view_probe_generation);
@@ -1252,17 +1237,8 @@ void MapBgfxSurface::attachThreeViewProbe(int index)
         || probe.unavailable || !probe.window->isExposed())
         return;
     QWindow *window = probe.window;
-    void *native_handle = reinterpret_cast<void *>(window->winId());
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
-    {
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        native_handle = native
-            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), window)
-            : nullptr;
-    }
-#endif
-    if (native_handle == nullptr)
+    const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(window);
+    if (!surface.valid())
         return; // Wait for the native Wayland surface to be exposed.
 
     const QSize pixels(std::max(1, qRound(window->width() * window->devicePixelRatio())),
@@ -1288,9 +1264,7 @@ void MapBgfxSurface::attachThreeViewProbe(int index)
         qWarning() << "bgfx three-view: no view ID for" << index + 2;
         return;
     }
-    if (!device.targets().attachWindow(window, range.first, native_handle,
-                                       std::uint16_t(std::min(65535, pixels.width())),
-                                       std::uint16_t(std::min(65535, pixels.height())), true))
+    if (!device.targets().attachWindow(window, range.first, surface, true))
     {
         device.frames().release(window);
         device.unregisterClient(window, probe.generation);
@@ -2513,37 +2487,14 @@ bool MapBgfxSurface::initializeBackend()
             reinterpret_cast<void *>(static_cast<intptr_t>(context));
     }
 #else
-    settings.swapChain.nwh = reinterpret_cast<void *>(this->native_window->winId());
-#if defined(Q_OS_LINUX)
-    // The native handles are renderer-independent: OpenGL (EGL/GLX) and
-    // Vulkan (VK_KHR_wayland/xlib surface) both consume display + surface.
-    const QString platform = QGuiApplication::platformName();
-    if (platform.startsWith(QStringLiteral("wayland"))) {
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        settings.swapChain.ndt = native
-            ? native->nativeResourceForIntegration(QByteArrayLiteral("display")) : nullptr;
-        settings.platformData.type = bgfx::NativeWindowHandleType::Wayland;
-        settings.swapChain.nwh = native
-            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), this->native_window)
-            : nullptr;
-#else
-        qWarning() << "bgfx monitor requires Qt6::GuiPrivate for Wayland";
+    const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(this->native_window);
+    if (!surface.valid())
+    {
+        qWarning() << "bgfx monitor: native surface unavailable for Qt platform"
+                   << QGuiApplication::platformName();
         return false;
-#endif
-    } else if (platform == QStringLiteral("xcb")) {
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-        settings.swapChain.ndt = native
-            ? native->nativeResourceForIntegration(QByteArrayLiteral("display")) : nullptr;
-#else
-        qWarning() << "bgfx monitor requires Qt6::GuiPrivate for X11";
-        return false;
-#endif
     }
-#endif
-    if (settings.swapChain.nwh == nullptr)
-        return false;
+    surface.configurePrimary(&settings);
 #endif
     const QSize pixels = physicalSize();
     settings.swapChain.width = static_cast<uint32_t>(pixels.width());
@@ -2737,8 +2688,7 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         {
             const bool resized = BgfxDeviceManager::shared().targets().resizeWindow(
                 this->multi_view_probe_window,
-                static_cast<std::uint16_t>(std::min(65535, target_pixels.width())),
-                static_cast<std::uint16_t>(std::min(65535, target_pixels.height())));
+                BgfxQtNativeSurface::capture(this->multi_view_probe_window));
             if (resized)
             {
                 this->multi_view_probe_pixels = target_pixels;
@@ -2760,8 +2710,7 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         const QSize desired(std::max(1, qRound(probe.window->width() * probe.window->devicePixelRatio())),
                             std::max(1, qRound(probe.window->height() * probe.window->devicePixelRatio())));
         if (desired != probe.pixels && BgfxDeviceManager::shared().targets().resizeWindow(
-                probe.window, std::uint16_t(std::min(65535, desired.width())),
-                std::uint16_t(std::min(65535, desired.height()))))
+                probe.window, BgfxQtNativeSurface::capture(probe.window)))
             probe.pixels = desired;
     }
 #endif

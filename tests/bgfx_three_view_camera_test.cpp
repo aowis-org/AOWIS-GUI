@@ -12,6 +12,16 @@ bool near(double first, double second, double tolerance = 1e-8)
     return std::abs(first - second) <= tolerance;
 }
 }
+
+BgfxNativeSurface testSurface(void *window, std::uint16_t width, std::uint16_t height)
+{
+    BgfxNativeSurface surface;
+    surface.window = window;
+    surface.width = width;
+    surface.height = height;
+    return surface;
+}
+
 int main()
 {
     MapBgfxThreeViewCamera first;
@@ -50,10 +60,10 @@ int main()
     int destroys = 0;
     std::uint16_t next_handle = 1;
     BgfxNativeTargetRegistry targets(
-        [&next_handle, &native_a, &native_b](void *window, std::uint16_t width,
-                                            std::uint16_t height)
+        [&next_handle, &native_a, &native_b](const BgfxNativeSurface &surface)
         {
-            if ((window != &native_a && window != &native_b) || width == 0 || height == 0)
+            if ((surface.window != &native_a && surface.window != &native_b)
+                || surface.width == 0 || surface.height == 0)
                 return bgfx::FrameBufferHandle{bgfx::kInvalidHandle};
             return bgfx::FrameBufferHandle{next_handle++};
         },
@@ -65,8 +75,8 @@ int main()
     if (main_range.first != 0 || range_a.first != 5 || range_b.first != 6)
         return 3;
     if (!targets.attachDefault(&primary, main_range.first)
-        || !targets.attachWindow(&secondary_a, range_a.first, &native_a, 480, 320, true)
-        || !targets.attachWindow(&secondary_b, range_b.first, &native_b, 480, 320, true))
+        || !targets.attachWindow(&secondary_a, range_a.first, testSurface(&native_a, 480, 320), true)
+        || !targets.attachWindow(&secondary_b, range_b.first, testSurface(&native_b, 480, 320), true))
         return 4;
     int draws = 0;
     const std::vector<BgfxFrameCoordinator::RenderWork> work = {
@@ -76,7 +86,7 @@ int main()
     };
     if (!coordinator.renderAndPresent(work) || presented != 1 || draws != 3)
         return 5;
-    if (!targets.resizeWindow(&secondary_a, 600, 420) || destroys != 1)
+    if (!targets.resizeWindow(&secondary_a, testSurface(&native_a, 600, 420)) || destroys != 1)
         return 6;
     if (!targets.release(&secondary_a) || !coordinator.release(&secondary_a)
         || !coordinator.renderAndPresent({{&primary, {}}, {&secondary_b, {}}})

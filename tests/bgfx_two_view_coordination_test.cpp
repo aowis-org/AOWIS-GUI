@@ -5,6 +5,16 @@
 #include <cstdio>
 #include <vector>
 
+
+BgfxNativeSurface testSurface(void *window, std::uint16_t width, std::uint16_t height)
+{
+    BgfxNativeSurface surface;
+    surface.window = window;
+    surface.width = width;
+    surface.height = height;
+    return surface;
+}
+
 int main()
 {
     int primary = 1;
@@ -19,10 +29,9 @@ int main()
 
     BgfxFrameCoordinator coordinator([&frames]() { ++frames; });
     BgfxNativeTargetRegistry targets(
-        [&next_framebuffer, &native_window](void *window, std::uint16_t width,
-                                            std::uint16_t height)
+        [&next_framebuffer, &native_window](const BgfxNativeSurface &surface)
         {
-            if (window != &native_window || width == 0 || height == 0)
+            if (surface.window != &native_window || surface.width == 0 || surface.height == 0)
                 return bgfx::FrameBufferHandle{bgfx::kInvalidHandle};
             return bgfx::FrameBufferHandle{next_framebuffer++};
         },
@@ -34,7 +43,7 @@ int main()
     if (!map.valid() || map.first != 0 || !probe.valid() || probe.first != 5)
         return 1;
     if (!targets.attachDefault(&primary, map.first)
-        || !targets.attachWindow(&secondary, probe.first, &native_window, 480, 320, true))
+        || !targets.attachWindow(&secondary, probe.first, testSurface(&native_window, 480, 320), true))
         return 2;
     if (!coordinator.renderAndPresent({
         {&primary, [&first_draws]() { ++first_draws; }},
@@ -42,7 +51,7 @@ int main()
         return 3;
     if (frames != 1 || first_draws != 1 || second_draws != 1 || targets.count() != 2)
         return 4;
-    if (!targets.resizeWindow(&secondary, 600, 400) || destroys != 1)
+    if (!targets.resizeWindow(&secondary, testSurface(&native_window, 600, 400)) || destroys != 1)
         return 5;
     if (!coordinator.renderAndPresent({
         {&primary, [&first_draws]() { ++first_draws; }},

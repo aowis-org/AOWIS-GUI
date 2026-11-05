@@ -1,6 +1,7 @@
 #include "tabs/project_graph_bgfx_viewport.h"
 
 #include "map/bgfx/bgfx_device_manager.h"
+#include "map/bgfx/bgfx_qt_native_surface.h"
 #include "map/bgfx/map_bgfx_backend.h"
 #include "tabs/project_graph_bgfx_scene.h"
 #include "tabs/project_revision_graph.h"
@@ -18,10 +19,6 @@
 #include <QVector>
 #include <QDebug>
 
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-#include <qpa/qplatformnativeinterface.h>
-#endif
-
 #include <algorithm>
 #include <limits>
 
@@ -34,33 +31,6 @@ std::uint16_t targetDimension(int value)
 
 constexpr std::uint32_t kGraphResetFlags =
     BGFX_RESET_VSYNC | BGFX_RESET_MSAA_X4 | BGFX_RESET_FLIP_AFTER_RENDER;
-
-// Keep the same Qt native-window extraction as the Maps viewport. Both the
-// Vulkan and OpenGL backends consume the display + surface on Linux.
-bgfx::SwapChain nativeSwapChain(QWindow *window)
-{
-    bgfx::SwapChain swap_chain{};
-    swap_chain.nwh = reinterpret_cast<void *>(window->winId());
-#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
-    QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
-    const QString platform = QGuiApplication::platformName();
-    if (native != nullptr && platform.startsWith(QStringLiteral("wayland")))
-    {
-        swap_chain.ndt = native->nativeResourceForIntegration(QByteArrayLiteral("display"));
-        swap_chain.nwh = native->nativeResourceForWindow(QByteArrayLiteral("surface"), window);
-    }
-    else if (native != nullptr && platform == QStringLiteral("xcb"))
-    {
-        swap_chain.ndt = native->nativeResourceForIntegration(QByteArrayLiteral("display"));
-    }
-#endif
-    const qreal ratio = window->devicePixelRatio();
-    swap_chain.width = std::uint32_t(std::clamp(qRound(window->width() * ratio), 1,
-                                             int(std::numeric_limits<std::uint16_t>::max())));
-    swap_chain.height = std::uint32_t(std::clamp(qRound(window->height() * ratio), 1,
-                                              int(std::numeric_limits<std::uint16_t>::max())));
-    return swap_chain;
-}
 }
 
 ProjectGraphBgfxViewport::ProjectGraphBgfxViewport(ProjectRevisionGraph *graph)
@@ -184,14 +154,13 @@ bool ProjectGraphBgfxViewport::initializePrimary()
         return false;
 
     bgfx::Init settings{};
-    settings.swapChain = nativeSwapChain(this->window);
-    if (settings.swapChain.nwh == nullptr)
+    const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(this->window);
+    if (!surface.valid())
         return false;
+    surface.configurePrimary(&settings);
     settings.reset = kGraphResetFlags;
     settings.limits.maxTransientVbSize = 16u << 20;
     settings.limits.maxTransientIbSize = 8u << 20;
-    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
-        settings.platformData.type = bgfx::NativeWindowHandleType::Wayland;
 
     QVector<bgfx::RendererType::Enum> attempts;
     const bgfx::RendererType::Enum requested = MapBgfxBackend::requestedRenderer();
@@ -289,8 +258,8 @@ void ProjectGraphBgfxViewport::tryAttach()
         return;
     }
 
-    const bgfx::SwapChain swap_chain = nativeSwapChain(this->window);
-    if (swap_chain.nwh == nullptr)
+    const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(this->window);
+    if (!surface.valid())
         return;
     this->device_generation = device.generation();
     if (!primary && !device.registerClient(this, this->device_generation,
@@ -312,9 +281,7 @@ void ProjectGraphBgfxViewport::tryAttach()
     const QSize pixels = targetPixels();
     const bool target_ready = primary
         ? device.targets().attachDefault(this, views.first)
-        : device.targets().attachWindow(this, views.first, swap_chain.nwh,
-                                        targetDimension(pixels.width()),
-                                        targetDimension(pixels.height()), true);
+        : device.targets().attachWindow(this, views.first, surface, true);
     if (!target_ready)
     {
         device.frames().release(this);
@@ -407,13 +374,14 @@ void ProjectGraphBgfxViewport::render()
     {
         if (device.owns(this))
         {
-            const bgfx::SwapChain swap_chain = nativeSwapChain(this->window);
-            if (swap_chain.nwh == nullptr)
+            const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(this->window);
+            if (!surface.valid())
                 return;
+            const bgfx::SwapChain swap_chain = surface.swapChain();
             bgfx::reset(kGraphResetFlags, &swap_chain);
         }
-        else if (!device.targets().resizeWindow(this, targetDimension(pixels.width()),
-                                                 targetDimension(pixels.height())))
+        else if (!device.targets().resizeWindow(this,
+                         BgfxQtNativeSurface::capture(this->window)))
         {
             qWarning() << "Projects bgfx viewport: secondary swapchain resize failed";
             return;
