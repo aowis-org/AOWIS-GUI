@@ -19,3 +19,6 @@
 	path = external/bgfx
 	url = https://github.com/bkaradzic/bgfx.git
 	shallow = true
+[submodule "external/AOWIS-GUI-Render"]
+	path = external/AOWIS-GUI-Render
+	url = https://github.com/aowis-org/AOWIS-GUI-Render.git
