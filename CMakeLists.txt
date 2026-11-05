@@ -3,6 +3,14 @@ project(AOWIS-SERVER-GUI LANGUAGES CXX)
 
 include(CTest)
 
+# The shared renderer must have a real Git submodule pin, and no shadow
+# headers/shaders must remain in the GUI after extraction.
+if(BUILD_TESTING AND UNIX AND NOT EMSCRIPTEN)
+    add_test(NAME aowis-render-extraction-boundary
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_render_extraction_boundary.sh")
+    set_tests_properties(aowis-render-extraction-boundary PROPERTIES LABELS "aowis")
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -96,16 +104,14 @@ set(AOWIS_SERVER_EPANET_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(AOWIS_SERVER_EPANET_BUILD_SHARED_EPANET OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/AOWIS-SERVER-EPANET EXCLUDE_FROM_ALL)
 
-# Shared AOWIS-GUI-Render repository. Prefer a pinned submodule; a sibling
-# checkout is accepted for parallel GUI/Render development before publishing.
+# The GUI uses the submodule's pinned commit by default, never a sibling
+# checkout picked up incidentally. An intentional CMake override is permitted
+# for renderer development and must be specified explicitly by the caller.
 set(AOWIS_RENDER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-GUI-Render"
-    CACHE PATH "AOWIS-GUI-Render source checkout")
+    CACHE PATH "AOWIS-GUI-Render source checkout (normally the pinned submodule)")
 if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/CMakeLists.txt")
-    set(AOWIS_RENDER_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../AOWIS-GUI-Render")
-endif()
-if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/CMakeLists.txt")
-    message(FATAL_ERROR "AOWIS-GUI-Render missing. Initialize external/AOWIS-GUI-Render "
-        "as a submodule or place the Render repository beside the GUI checkout.")
+    message(FATAL_ERROR "AOWIS-GUI-Render missing at ${AOWIS_RENDER_SOURCE_DIR}. "
+        "Run ./git_submodule_init.sh --render or initialize the pinned Git submodule.")
 endif()
 set(AOWIS_RENDER_VENDOR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external" CACHE PATH
     "Pinned bx/bimg/bgfx sources for the shared renderer")

@@ -355,7 +355,7 @@ assets, failure recovery, and the standalone test command.
 
 The bgfx lifecycle, device/target coordination, map GPU uploaders and shader
 resources are linked from **AOWIS-GUI-Render** (`AOWIS::RenderCore`). During
-local development place `AOWIS-GUI-Render` beside this checkout or initialize
-it at `external/AOWIS-GUI-Render`; override `AOWIS_RENDER_SOURCE_DIR` for
+normal development initialize its Git submodule at
+`external/AOWIS-GUI-Render`; override `AOWIS_RENDER_SOURCE_DIR` only for
 other layouts. The GUI retains its Qt Widgets adapter, model/data services and
 map/editor scene controllers. See `docs/renderer-extraction-readiness.md`.

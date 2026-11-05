@@ -31,6 +31,7 @@ find "$project_name" \
         -name "_deps" -o \
         -name "__pycache__" -o \
         -name "*.dSYM" -o \
+        -path "$project_name/external/AOWIS-GUI-Render" -o \
         -path "$project_name/external/AOWIS-SERVER-EPANET" -o \
         -path "$project_name/external/AOWIS-SERVER-MODEL" -o \
         -path "$project_name/external/bgfx" -o \

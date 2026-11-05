@@ -14,9 +14,10 @@ network dependencies rather than produce a Mobile-ready render interface.
 
 ## Integration
 
-- A checkout of `AOWIS-GUI-Render` can be a pinned submodule at
-  `external/AOWIS-GUI-Render`, or a sibling of `AOWIS-SERVER-GUI` during local
-  development. `AOWIS_RENDER_SOURCE_DIR` overrides either path.
+- The default checkout is the pinned `external/AOWIS-GUI-Render` Git submodule.
+  `AOWIS_RENDER_SOURCE_DIR` permits an explicit developer override; no sibling
+  checkout is selected implicitly. `./git_submodule_init.sh --render` initializes
+  the pinned revision and `./git_submodule_update.sh --render` advances it.
 - The GUI provides the existing `external/{bx,bimg,bgfx}` vendor sources using
   `AOWIS_RENDER_VENDOR_ROOT` (no second bgfx runtime).
 - `AOWIS_RENDER_BUILD_MAP_CORE=ON` enables map GPU code, Qt resources, and

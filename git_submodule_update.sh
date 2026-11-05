@@ -6,13 +6,14 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 usage() {
     cat <<'HELP'
-Usage: ./git_submodule_update.sh [--model | --epanet | --epanet-deps | --geographiclib | --bgfx | --all | --help]
+Usage: ./git_submodule_update.sh [--model | --epanet | --render | --epanet-deps | --geographiclib | --bgfx | --all | --help]
 
-  (no option)  Update all AOWIS-owned direct submodules (MODEL and EPANET)
+  (no option)  Update AOWIS-owned direct submodules (MODEL, EPANET, Render)
                to their tracked remote branches. Do not recurse into EPANET's
                third-party submodules or update GeographicLib/bgfx.
   --model      Update only AOWIS-SERVER-MODEL.
   --epanet     Update only AOWIS-SERVER-EPANET, not its nested dependencies.
+  --render     Update only AOWIS-GUI-Render, not its nested dependencies.
   --epanet-deps
                Update AOWIS-SERVER-EPANET, then check out its nested third-party
                submodules at the exact versions pinned by EPANET (not remote tip).
@@ -36,6 +37,7 @@ HELP
 
 model_path="external/AOWIS-SERVER-MODEL"
 epanet_path="external/AOWIS-SERVER-EPANET"
+render_path="external/AOWIS-GUI-Render"
 
 # Deliberate release pin: a new GeographicLib version requires an explicit
 # compatibility check on Linux, Windows (MinGW), and WebAssembly, followed by
@@ -121,6 +123,18 @@ update_epanet() {
     git submodule update --init --remote -- "$epanet_path"
 }
 
+update_render() {
+    if [[ "$(git ls-files --stage -- "$render_path")" != '160000 '* ]]; then
+        printf 'Missing Render Git submodule gitlink: %s\n' "$render_path" >&2
+        printf 'Register with: git submodule add https://github.com/aowis-org/AOWIS-GUI-Render.git %s\n' "$render_path" >&2
+        return 1
+    fi
+    git submodule sync -- "$render_path"
+    git submodule update --init --remote --checkout -- "$render_path"
+    # If Render acquires nested dependencies, use its pinned gitlinks.
+    git -C "$render_path" submodule update --init --recursive --checkout
+}
+
 update_epanet_deps() {
     update_epanet
     # Explicitly synchronize third-party dependencies to EPANET's recorded
@@ -131,6 +145,7 @@ update_epanet_deps() {
 update_standard() {
     update_model
     update_epanet
+    update_render
 }
 
 update_bgfx() {
@@ -153,6 +168,10 @@ case "${1:-}" in
     --epanet)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
         update_epanet
+        ;;
+    --render)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_render
         ;;
     --epanet-deps)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
