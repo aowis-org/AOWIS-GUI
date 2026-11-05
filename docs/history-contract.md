@@ -1,6 +1,6 @@
 # History interaction contract — GUI
 
-**Status: current GUI History behavior (2026-11-04 source review).**
+**Status: current GUI History behavior (2026-11-05 implementation).**
 This document describes the implemented History dock, its authoritative
 navigation boundaries and the remaining user-facing limitations. Implemented
 code is not a claim of complete GUI/server restart acceptance. The authoritative
@@ -130,8 +130,14 @@ are informational until a separate metadata-history contract is designed.
 
 ## Integration with the live editor
 
-After an accepted History navigation, `PersonalDraftEditSession` reopens
-DVMDB and rehydrates the authoritative network. `MainWindow` disables
+After an accepted History navigation, `PersonalDraftEditSession` verifies
+the sparse `historyDelta` against its cached canonical network and swaps the
+verified destination into the editor; it does not reopen or download the
+complete `NetworkHydraulic` for a routine Undo/Redo/jump. For lost HTTP
+acknowledgements, the client retries the **same** operation UUID and
+source generation (bounded transport retries). DVMDB regenerates the delta
+from its durable pinned source candidate. A rejected, stale or unverifiable
+response blocks capture instead of applying a guessed state. `MainWindow` disables
 logical edit capture before navigation, replaces the canonical network and
 resumes capture only after the stage has been reset, the network has
 passed its consistency check, **and a fresh authoritative cursor confirms a

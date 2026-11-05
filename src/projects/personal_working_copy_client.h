@@ -268,7 +268,8 @@ public:
 private:
     using Response = std::function<void(const QJsonObject &, const QString &)>;
     void request(const PersonalRepositoryTarget &target, const QByteArray &method,
-                 const QString &path, const QJsonObject &body, Response completion);
+                 const QString &path, const QJsonObject &body, Response completion,
+                 int transport_retries = 0);
     static bool parseDraft(const QJsonObject &object, PersonalWorkingCopyInfo &draft);
     void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
                   const QString &after, int page_count,

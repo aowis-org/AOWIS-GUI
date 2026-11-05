@@ -428,7 +428,8 @@ bool PersonalWorkingCopyClient::parseDraft(const QJsonObject &object,
 
 void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
                                         const QByteArray &method, const QString &path,
-                                        const QJsonObject &body, Response completion)
+                                        const QJsonObject &body, Response completion,
+                                        int transport_retries)
 {
     if (target.kind != PersonalRepositoryTarget::Kind::Http &&
         target.kind != PersonalRepositoryTarget::Kind::Embedded)
@@ -449,14 +450,29 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
     QNetworkReply *identity = this->manager.get(verify);
     connect(identity, &QNetworkReply::finished, this,
             [this, identity, root, target, method, path, body,
-             completion = std::move(completion)]() mutable
+             completion = std::move(completion), transport_retries]() mutable
     {
         const QByteArray bytes = identity->readAll();
-        const bool ok = identity->error() == QNetworkReply::NoError
-            && identity->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
+        const int identityStatus = identity->attribute(
+            QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const bool ok = identity->error() == QNetworkReply::NoError && identityStatus == 200;
         identity->deleteLater();
         if (!ok)
         {
+            // Navigation retries always repeat the exact same UUID and
+            // generation. Never bypass the pinned private-repository check.
+            if (transport_retries > 0 &&
+                identityStatus == 0)
+            {
+                QTimer::singleShot(250, this,
+                    [this, target, method, path, body,
+                     completion = std::move(completion), transport_retries]() mutable
+                {
+                    request(target, method, path, body, std::move(completion),
+                            transport_retries - 1);
+                });
+                return;
+            }
             completion({}, QStringLiteral("Personal DVMDB identity lookup failed."));
             return;
         }
@@ -480,19 +496,53 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
             ? this->manager.get(call)
             : this->manager.post(call, QJsonDocument(body).toJson(QJsonDocument::Compact));
         connect(reply, &QNetworkReply::finished, this,
-                [reply, completion = std::move(completion)]() mutable
+                [this, reply, target, method, path, body,
+                 completion = std::move(completion), transport_retries]() mutable
         {
             const QByteArray data = reply->readAll();
             const bool success = reply->error() == QNetworkReply::NoError
                 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() >= 200
                 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() < 300;
             const QString error = success ? QString() : responseError(reply, data);
+            // Retry only a transport failure, not a definitive DVMDB 4xx/5xx
+            // response. The server keeps the pre-navigation candidate pinned
+            // for the latest operation, and exact UUID replay is idempotent.
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const bool transportFailed = !success && (status == 0 ||
+                reply->error() == QNetworkReply::TimeoutError ||
+                reply->error() == QNetworkReply::RemoteHostClosedError);
             reply->deleteLater();
+            const bool temporarilyUnavailable = status == 502 || status == 503 || status == 504;
+            if ((transportFailed || temporarilyUnavailable) && transport_retries > 0)
+            {
+                QTimer::singleShot(250, this,
+                    [this, target, method, path, body,
+                     completion = std::move(completion), transport_retries]() mutable
+                {
+                    request(target, method, path, body, std::move(completion),
+                            transport_retries - 1);
+                });
+                return;
+            }
             if (!success) { completion({}, error); return; }
             QJsonParseError parsing;
             const QJsonDocument document = QJsonDocument::fromJson(data, &parsing);
             if (parsing.error != QJsonParseError::NoError || !document.isObject())
             {
+                // A truncated 2xx body can be a lost acknowledgement as
+                // readily as a closed socket. Only History navigation opts
+                // into this UUID-idempotent retry path.
+                if (transport_retries > 0)
+                {
+                    QTimer::singleShot(250, this,
+                        [this, target, method, path, body,
+                         completion = std::move(completion), transport_retries]() mutable
+                    {
+                        request(target, method, path, body, std::move(completion),
+                                transport_retries - 1);
+                    });
+                    return;
+                }
                 completion({}, QStringLiteral("Invalid personal DVMDB response."));
                 return;
             }
@@ -945,7 +995,7 @@ void PersonalWorkingCopyClient::navigateHistory(
         }
         draft.history_delta = response.value(QStringLiteral("historyDelta")).toObject();
         completion(draft, {});
-    });
+    }, 2); // two transport retries with the SAME operation UUID and source generation
 }
 
 void PersonalWorkingCopyClient::acquireLease(

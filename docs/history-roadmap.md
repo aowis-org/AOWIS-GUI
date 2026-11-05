@@ -38,12 +38,13 @@ A passing component test is not a substitute for the workflow above.
 
 ## 2. Concurrency and uncertain-result recovery (critical)
 
-Exercise lost navigation acknowledgements and original-operation-ID retry,
-stale draft generations, expired leases, changed committed HEAD, Save in
+Verify the implemented bounded same-operation-ID transport retries and
+server-side retained-source delta regeneration under dropped responses,
+server restart and interrupted connections. Also exercise stale draft generations, expired leases, changed committed HEAD, Save in
 flight, dropped network reload, incomplete/corrupt Commit archives, server
 disconnect and switching scope during an archive page/POST. The GUI must
 never claim successful navigation before authoritative acknowledgement and
-canonical network reload; it must never resume capture against unverified
+canonical sparse-delta verification; it must never resume capture against unverified
 state. Check a suspended active journal's Redo frames survive restart and
 navigation into/out of archived History.
 

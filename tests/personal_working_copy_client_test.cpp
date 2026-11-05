@@ -126,6 +126,9 @@ public:
     QJsonObject last_history_navigation;
     int network_import_count = 0;
     QJsonObject last_network_import;
+    bool drop_next_history_acknowledgement = false;
+    QJsonObject acknowledged_history_request;
+    QJsonObject acknowledged_history_reply;
     bool drop_next_save_acknowledgement = false;
     bool drop_next_commit_acknowledgement = false;
     bool fail_next_commit_status_lookup = false;
@@ -487,7 +490,13 @@ public:
                     {
                         ++this->history_navigation_requests;
                         this->last_history_navigation = request_body;
-                        if (request_body.value(QStringLiteral("expectedGeneration")).toString() !=
+                        if (!this->acknowledged_history_request.isEmpty() &&
+                            request_body == this->acknowledged_history_request)
+                        {
+                            // A lost reply cannot issue a second navigation.
+                            document = this->acknowledged_history_reply;
+                        }
+                        else if (request_body.value(QStringLiteral("expectedGeneration")).toString() !=
                                 QString::number(this->generation) ||
                             (this->history_require_committed_head
                                 ? request_body.value(QStringLiteral("expectedHead")).toString() != head_id ||
@@ -526,6 +535,8 @@ public:
                                     {QStringLiteral("edits"), QJsonArray{}},
                                     {QStringLiteral("moves"), QJsonArray{}}});
                             }
+                            this->acknowledged_history_request = request_body;
+                            this->acknowledged_history_reply = document;
                         }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
@@ -754,6 +765,14 @@ public:
                                                            QStringLiteral("Not found")));
                     }
                     if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
+                        request_line.contains("/history/navigate ") &&
+                        this->drop_next_history_acknowledgement && status == 200)
+                    {
+                        this->drop_next_history_acknowledgement = false;
+                        socket->disconnectFromHost();
+                        return;
+                    }
+                    if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
                         request_line.contains("/save-events ") &&
                         this->drop_next_event_acknowledgement && status == 200)
                     {
@@ -930,6 +949,9 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
     // The fixture contains two archived actions; moving to action 1 must
     // preserve editor capture once the authoritative cursor permits a fork.
     stub.history_can_branch_from_archived = true;
+    // First POST reaches DVMDB but the response disappears. The client must
+    // retry the exact operation UUID and apply its sparse delta once.
+    stub.drop_next_history_acknowledgement = true;
     const int initialNetworkReads = stub.network_read_count;
     const int initialSummaryReads = stub.network_summary_count;
     session.navigateHistoryTo(QJsonObject{
@@ -940,7 +962,9 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                     return session.canCaptureHistoryEdits() || !problem.isEmpty();
                }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
                session.historyCursor().value(QStringLiteral("canBranchFromHistory")).toBool() &&
-               stub.history_cursor_reads >= 2 && stub.history_navigation_requests == 1 &&
+               stub.history_cursor_reads >= 2 && stub.history_navigation_requests == 2 &&
+               stub.acknowledged_history_request.value(QStringLiteral("operationId")) ==
+                   stub.last_history_navigation.value(QStringLiteral("operationId")) &&
                stub.network_read_count == initialNetworkReads &&
                stub.network_summary_count == initialSummaryReads &&
                stub.last_history_navigation.value(QStringLiteral("networkId")) == network_id,
@@ -958,7 +982,7 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                }) && problem.isEmpty() && session.canCaptureHistoryEdits() &&
                session.historyCursor().value(QStringLiteral("selectionKind")).toString()
                    == QStringLiteral("draft") && !writable_at_navigation_completion &&
-               stub.history_navigation_requests == 2 && stub.saved_events.isEmpty() &&
+               stub.history_navigation_requests == 3 && stub.saved_events.isEmpty() &&
                stub.network_read_count == initialNetworkReads &&
                stub.network_summary_count == initialSummaryReads,
                "return from archived History reloaded the entire network")) return false;
