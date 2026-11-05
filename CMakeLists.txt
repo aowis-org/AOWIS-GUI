@@ -667,6 +667,19 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-bgfx-native-target-registry-tests)
     set_tests_properties(aowis-bgfx-native-target-registry PROPERTIES LABELS "aowis")
 
+    # Step 2C: verify two views render into independent bound targets before
+    # one process-wide frame; secondary resizing/retirement never stops map.
+    add_executable(aowis-bgfx-two-view-coordination-tests
+        tests/bgfx_two_view_coordination_test.cpp
+        src/map/bgfx/bgfx_frame_coordinator.cpp
+        src/map/bgfx/bgfx_native_target_registry.cpp)
+    target_include_directories(aowis-bgfx-two-view-coordination-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-bgfx-two-view-coordination-tests PRIVATE bgfx)
+    add_test(NAME aowis-bgfx-two-view-coordination
+        COMMAND aowis-bgfx-two-view-coordination-tests)
+    set_tests_properties(aowis-bgfx-two-view-coordination PROPERTIES LABELS "aowis")
+
     # Cache-selection overlays must be drawable even when distribution meshes
     # are hidden in Map Management (2D and globe), without a graphics device.
     add_executable(aowis-map-bgfx-layer-visibility-tests

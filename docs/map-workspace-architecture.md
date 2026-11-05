@@ -23,6 +23,40 @@ For the current 2D/3D hydraulic editing controls, network workflows and
 height behavior, see the [Distribution Editor guide](distribution-editor.md).
 This page focuses on the shared map workspace and renderer ownership.
 
+## Two-window bgfx proof (Step 2C, Linux diagnostic only)
+
+The normal Maps workspace **still uses one shared native map surface** and
+retains its existing five-mode behavior. No additional window is opened unless
+the developer explicitly enables `AOWIS_BGFX_TWO_VIEW_PROBE=1`.
+
+On Linux, with the Maps page visible, the diagnostic opens a separate 480×320
+native window. Its bgfx view is reserved *after* the map's five-view block;
+its secondary swapchain clears alternating teal/green every ~30 frames. The
+main map continues drawing normally. A single frame coordinator submits the
+map's draw commands and the secondary clear before one `bgfx::frame()`.
+Closing the probe releases its framebuffer and view ID without destroying the
+map's bgfx device. The secondary window's size changes must not call
+`bgfx::reset()` or change the primary map's camera or viewport. Platform-surface
+destruction releases the secondary target before Qt destroys its native window.
+
+Run the manual Vulkan/Wayland or OpenGL/X11 proof with:
+
+```bash
+AOWIS_BGFX_TWO_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
+AOWIS_BGFX_RENDERER=opengl AOWIS_BGFX_TWO_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
+```
+
+Open Maps, check that both the real map and pulsing diagnostic window are
+visible, resize the diagnostic window, pan the map, close the diagnostic,
+and verify the map continues working. Then exit and confirm no native-surface
+or bgfx shutdown errors. If `BGFX_CAPS_SWAP_CHAIN` is unavailable, the probe
+logs that it is unsupported and leaves normal map behavior unchanged.
+The native secondary-window test requires actual GPU/desktop verification:
+the GPU-free `aowis-bgfx-two-view-coordination` test validates only view,
+frame, target, resize, and teardown sequencing. No independent geographic map
+model, projects graph, production multi-window UI, or WASM multi-canvas behavior
+is implemented by this diagnostic.
+
 ## Ownership and boundaries
 
 `MapWorkspaceWidget` owns the single shared `MapModel` and hosts

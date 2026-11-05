@@ -458,6 +458,29 @@ void MapBgfxSurface::setKeyboardFocusWidget(QWidget *widget)
 bool MapBgfxSurface::eventFilter(QObject *watched, QEvent *event)
 {
 #ifndef Q_OS_WASM
+#if defined(Q_OS_LINUX)
+    if (watched == this->multi_view_probe_window)
+    {
+        if (event->type() == QEvent::Close)
+            detachMultiViewProbe();
+        if (event->type() == QEvent::PlatformSurface)
+        {
+            const QPlatformSurfaceEvent *surface_event =
+                static_cast<QPlatformSurfaceEvent *>(event);
+            if (surface_event->surfaceEventType()
+                == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+                detachMultiViewProbe();
+        }
+        if (event->type() == QEvent::Expose || event->type() == QEvent::Resize)
+        {
+            if (this->multi_view_probe_window != nullptr
+                && this->multi_view_probe_window->isExposed())
+                tryAttachMultiViewProbe();
+            requestRedraw();
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+#endif
     // Platforms that destroy and recreate the whole native window announce
     // it here: bgfx must let go of the old surface first and start again on
     // the new one. This is only the fallback; Qt Wayland destroys the
@@ -976,15 +999,158 @@ void MapBgfxSurface::releaseGpuResources()
     this->last_physical_size = QSize();
 }
 
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+void MapBgfxSurface::startMultiViewProbe()
+{
+    if (!this->initialized || !isVisible() || this->multi_view_probe_window != nullptr
+        || this->multi_view_probe_unavailable)
+        return;
+
+    if ((bgfx::getCaps()->supported & BGFX_CAPS_SWAP_CHAIN) == 0)
+    {
+        qWarning() << "bgfx multi-view probe: backend has no swap-chain capability";
+        this->multi_view_probe_unavailable = true;
+        return;
+    }
+    this->multi_view_probe_window = new QWindow();
+    this->multi_view_probe_window->setTitle(
+        QStringLiteral("AOWIS bgfx secondary target (diagnostic)"));
+    this->multi_view_probe_window->setSurfaceType(QSurface::OpenGLSurface);
+    this->multi_view_probe_window->resize(480, 320);
+    this->multi_view_probe_window->installEventFilter(this);
+    this->multi_view_probe_window->show();
+    // QWindow::show() may not synchronously establish a native Wayland
+    // surface. Expose events call tryAttachMultiViewProbe() once it exists.
+    QTimer::singleShot(0, this, [this]() { tryAttachMultiViewProbe(); });
+}
+
+void MapBgfxSurface::tryAttachMultiViewProbe()
+{
+    if (!this->initialized || this->multi_view_probe_attached || this->multi_view_probe_unavailable
+        || this->multi_view_probe_window == nullptr
+        || !this->multi_view_probe_window->isExposed())
+        return;
+    QWindow *window = this->multi_view_probe_window;
+    void *native_handle = reinterpret_cast<void *>(window->winId());
+#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
+    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
+    {
+        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+        native_handle = native
+            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), window)
+            : nullptr;
+    }
+#endif
+    if (native_handle == nullptr)
+    {
+        qWarning() << "bgfx multi-view probe: no native window handle";
+        return; // Expose retry may succeed after Qt creates its native surface.
+    }
+    const QSize target_pixels(
+        std::max(1, qRound(window->width() * window->devicePixelRatio())),
+        std::max(1, qRound(window->height() * window->devicePixelRatio())));
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    const BgfxFrameCoordinator::ViewRange views = device.frames().reserve(window, 1);
+    if (!views.valid())
+    {
+        qWarning() << "bgfx multi-view probe: could not allocate an independent view";
+        this->multi_view_probe_unavailable = true;
+        return;
+    }
+    if (!device.targets().attachWindow(window, views.first, native_handle,
+                                       static_cast<std::uint16_t>(std::min(65535, target_pixels.width())),
+                                       static_cast<std::uint16_t>(std::min(65535, target_pixels.height())),
+                                       true))
+    {
+        device.frames().release(window);
+        this->multi_view_probe_unavailable = true;
+        qWarning() << "bgfx multi-view probe: native swap-chain creation failed";
+        return;
+    }
+    this->multi_view_probe_view_id = views.first;
+    this->multi_view_probe_pixels = target_pixels;
+    this->multi_view_probe_attached = true;
+    qInfo() << "bgfx multi-view probe: active, primary view" << this->map_view_id
+            << "secondary view" << this->multi_view_probe_view_id
+            << "secondary pixels" << target_pixels;
+    requestRedraw();
+}
+
+void MapBgfxSurface::detachMultiViewProbe()
+{
+    if (!this->multi_view_probe_attached || this->multi_view_probe_window == nullptr)
+        return;
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    device.targets().release(this->multi_view_probe_window);
+    device.frames().release(this->multi_view_probe_window);
+    // Destroy commands are queued by bgfx. On the single-threaded backend,
+    // a global frame drains them before Qt closes the native surface. Do not
+    // block on an unexposed Wayland primary window during tab changes.
+    if (this->initialized && this->native_window != nullptr
+        && this->native_window->isExposed()
+        && !device.frames().present(this))
+        qWarning() << "bgfx multi-view probe: could not flush retired swap-chain";
+    this->multi_view_probe_attached = false;
+    this->multi_view_probe_view_id = 0;
+    this->multi_view_probe_pixels = QSize();
+    this->multi_view_probe_resize_warning = false;
+    if (this->initialized)
+        requestRedraw();
+    qInfo() << "bgfx multi-view probe: detached; primary window remains active";
+}
+
+void MapBgfxSurface::stopMultiViewProbe()
+{
+    if (this->multi_view_probe_window == nullptr)
+        return;
+    detachMultiViewProbe();
+    QWindow *window = this->multi_view_probe_window;
+    this->multi_view_probe_window = nullptr;
+    window->removeEventFilter(this);
+    delete window;
+}
+
+void MapBgfxSurface::drawMultiViewProbe()
+{
+    if (this->multi_view_probe_window == nullptr || !this->multi_view_probe_attached
+        || !this->multi_view_probe_window->isExposed())
+        return;
+    const std::uint16_t width = static_cast<std::uint16_t>(
+        std::min(65535, this->multi_view_probe_pixels.width()));
+    const std::uint16_t height = static_cast<std::uint16_t>(
+        std::min(65535, this->multi_view_probe_pixels.height()));
+    bgfx::setViewRect(this->multi_view_probe_view_id, 0, 0, width, height);
+    bgfx::setViewMode(this->multi_view_probe_view_id, bgfx::ViewMode::Sequential);
+    bgfx::setViewTransform(this->multi_view_probe_view_id, nullptr, nullptr);
+    // Pulse between two visible colors to prove the secondary swapchain is
+    // presenting fresh frames rather than showing an unchanging Qt window.
+    const uint32_t color = (this->frame_count / 30) % 2 == 0
+        ? 0x146778ffu : 0x178b63ffu;
+    bgfx::setViewClear(this->multi_view_probe_view_id, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
+                       color, 1.0f, 0);
+    bgfx::touch(this->multi_view_probe_view_id);
+}
+#endif
+
 void MapBgfxSurface::shutdownBackend()
 {
     if (!this->initialized)
         return;
     stopFrameLoop();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    // Keep Qt's native secondary window alive until bgfx has finished
+    // destroying its swapchain. Qt/Wayland may otherwise destroy wl_surface
+    // while the GPU still has an outstanding reference to it.
+    detachMultiViewProbe();
+#endif
     this->globe_overlay_height_cache.clear();
     BgfxDeviceManager::shared().targets().release(this);
     releaseGpuResources();
     BgfxDeviceManager::shared().shutdown(this);
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    stopMultiViewProbe();
+    this->multi_view_probe_unavailable = false;
+#endif
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);
     this->initialized = false;
     this->reinitialize_on_surface = true;
@@ -1737,6 +1903,10 @@ void MapBgfxSurface::showEvent(QShowEvent *event)
     if (this->initialized) {
         synchronizeGeometry();
         startFrameLoop();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+        if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
+            QTimer::singleShot(0, this, [this]() { startMultiViewProbe(); });
+#endif
         return;
     }
     if (this->reinitialize_on_surface)
@@ -1779,6 +1949,11 @@ void MapBgfxSurface::hideEvent(QHideEvent *event)
 {
     QWidget::hideEvent(event);
     stopFrameLoop();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    // Do not keep a visible native probe when the Maps page is hidden.
+    // Retire its swapchain before Qt destroys the platform surface.
+    stopMultiViewProbe();
+#endif
     // No popup survives the map being hidden (tab switch, fullscreen).
     this->hud.closePopup();
     // A main-navigation tab change hides this widget, not its native window
@@ -2190,12 +2365,50 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
     const bool size_changed = pixels != this->presented_pixels
         || logical != this->presented_logical;
     const bool globe_shown = this->globe_ready && this->camera_state.mode == MapViewMode::Globe;
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    // The diagnostic animates to prove both swapchains present continuously.
+    // In production all views will be demand-driven independently.
+    if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr
+        && this->multi_view_probe_window->isExposed())
+    {
+        const QSize target_pixels(
+            std::max(1, qRound(this->multi_view_probe_window->width()
+                               * this->multi_view_probe_window->devicePixelRatio())),
+            std::max(1, qRound(this->multi_view_probe_window->height()
+                               * this->multi_view_probe_window->devicePixelRatio())));
+        if (target_pixels != this->multi_view_probe_pixels)
+        {
+            const bool resized = BgfxDeviceManager::shared().targets().resizeWindow(
+                this->multi_view_probe_window,
+                static_cast<std::uint16_t>(std::min(65535, target_pixels.width())),
+                static_cast<std::uint16_t>(std::min(65535, target_pixels.height())));
+            if (resized)
+            {
+                this->multi_view_probe_pixels = target_pixels;
+                this->multi_view_probe_resize_warning = false;
+            }
+            else if (!this->multi_view_probe_resize_warning)
+            {
+                this->multi_view_probe_resize_warning = true;
+                qWarning() << "bgfx multi-view probe: resize failed; retaining prior target";
+            }
+        }
+    }
+#endif
     const bool animating = !this->ready_reported || this->debug_overlay_enabled
         || this->hud.animating() || this->imagery_uploads_pending
         || (globe_shown && this->globe_pending)
         || (this->distribution_network_visible && this->label_settings.anyEnabled()
             && this->labels_dirty);
-    if (!this->redraw_requested && !camera_moved && !size_changed && !animating)
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    const bool probe_animating = this->multi_view_probe_attached
+        && this->multi_view_probe_window != nullptr
+        && this->multi_view_probe_window->isExposed();
+#else
+    const bool probe_animating = false;
+#endif
+    if (!this->redraw_requested && !camera_moved && !size_changed && !animating
+        && !probe_animating)
         return;
     // Cleared before rendering: whatever asks for a frame from now on
     // (also during this one) gets the next.
@@ -2318,7 +2531,24 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         this->camera_state.continuous_2d_zoom, logical.width(), logical.height()));
     if (this->debug_overlay_enabled)
         renderDebugOverlay();
-    if (!BgfxDeviceManager::shared().frames().present(this))
+    bool submitted = false;
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr)
+    {
+        // One and only one bgfx::frame() for both independently targeted views.
+        // The map has already queued its draws; the probe submits a second
+        // clear into the other window's framebuffer before the global frame.
+        submitted = BgfxDeviceManager::shared().frames().renderAndPresent({
+            {this, {}},
+            {this->multi_view_probe_window, [this]() { drawMultiViewProbe(); }}
+        });
+    }
+    else
+#endif
+    {
+        submitted = BgfxDeviceManager::shared().frames().present(this);
+    }
+    if (!submitted)
     {
         fail(QStringLiteral("bgfx frame coordinator rejected the active map view"));
         return;
@@ -2333,6 +2563,10 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         this->ready_reported = true;
         qInfo() << "bgfx map: first frame presented";
         emit signalRendererReady();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+        if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
+            QTimer::singleShot(0, this, [this]() { startMultiViewProbe(); });
+#endif
     }
 }
 

@@ -324,6 +324,15 @@ private:
     // Releases every bgfx object owned by this surface (before
     // bgfx::shutdown()) and marks all GPU state for re-creation.
     void releaseGpuResources();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    // Opt-in native secondary-window probe. Uses one bgfx device and frame;
+    // this is deliberately NOT an independent map editor or application tab.
+    void startMultiViewProbe();
+    void tryAttachMultiViewProbe();
+    void detachMultiViewProbe();
+    void stopMultiViewProbe();
+    void drawMultiViewProbe();
+#endif
     // bgfx::shutdown() for a native window that is about to be destroyed;
     // the backend restarts once the platform surface exists again.
     void shutdownBackend();
@@ -545,6 +554,14 @@ private:
     const char *startup_step = "not started";
 #ifndef Q_OS_WASM
     QWindow *native_window = nullptr;
+#if defined(Q_OS_LINUX)
+    QWindow *multi_view_probe_window = nullptr;
+    bgfx::ViewId multi_view_probe_view_id = 0;
+    QSize multi_view_probe_pixels;
+    bool multi_view_probe_attached = false;
+    bool multi_view_probe_unavailable = false;
+    bool multi_view_probe_resize_warning = false;
+#endif
 #endif
 };
 
