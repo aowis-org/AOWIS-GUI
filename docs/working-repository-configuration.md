@@ -9,7 +9,10 @@ profile name and endpoint are presentation/configuration, not identity.
 
 Open **Projects**, select a configured server/database, and use the
 **Server Inspector → Use as my personal working database** checkbox.
-There is one designated personal source at a time. The GUI verifies
+The current GUI selects one designated personal source at a time. The
+working-copy identity and transport must remain server-scoped so future
+per-project designation of multiple personal working servers does not
+require redefining what “personal” means. The GUI verifies
 repository identity and role. Selecting a reachable `unconfigured`
 repository may explicitly configure its role as `private`; a `shared`
 repository cannot silently become a personal writable repository.
@@ -78,11 +81,16 @@ persisted generation. A second session cannot override the same draft
 without an authoritative writer transition. A missing personal repository
 must leave saved/queued work recoverable, not fall back to a shared source.
 
-The GUI's durable pending-event queue is separate from the DVMDB's stored
-candidate. A queue entry is retired only after authoritative confirmation,
-including loss-of-acknowledgement recovery. Save does not create a Commit or
-change the branch's committed HEAD. Standalone acceptance of the full
-edit/restart workflow is still outstanding.
+The GUI's durable pending-event queue is separate from DVMDB's stored
+candidate. Entries are retired only after authoritative Save confirmation.
+A separate, checksummed client-side History navigation intent preserves the
+original operation UUID, source MODEL, journal and cursor before a navigation
+POST. On restart, the client reconciles it using SHA-256 **and** precise
+operation/cursor identity without a full-model GET; a normal open still
+loads the model once. The intent's storage must persist across GUI restart
+(including browser storage if running under WASM). Save does not create a
+Commit or move the branch's committed HEAD. Full platform acceptance is
+still outstanding; see [History recovery](history-recovery.md).
 
 Repository role designation is **not authentication**. External writable
 HTTP endpoints and the Standalone loopback listener still require an

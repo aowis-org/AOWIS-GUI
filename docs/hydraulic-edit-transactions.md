@@ -6,8 +6,8 @@ See [autosave and recovery](personal-working-copy-save.md) for transport and
 The private History dock supports adjacent DVMDB-verified single-network
 Undo/Redo **and direct jumps** to eligible saved actions, archived actions
 and Commit checkpoints. MODEL transactions carry reversible before/after
-images; DVMDB persists original actions permanently at Commit. Unborn-base
-navigation, full timeline paging and GUI end-to-end qualification are still
+images; DVMDB persists original actions permanently at Commit. Unborn-base action navigation and independent complete branch ancestry
+paging are implemented; live cross-process/platform acceptance remains
 outstanding. See [History](history-contract.md) and the
 [remaining History roadmap](history-roadmap.md).
 
@@ -90,8 +90,10 @@ agreed integration requirement.
 
 One Save is bounded (currently up to 128 changed entities, with finite
 payload/journal limits). Bulk edits exceeding the limit fail; batching one
-user operation while preserving atomicity remains planned. Full persistence
-acceptance also requires real process restarts, not merely queue tests.
+user operation while preserving atomicity remains planned. Full persistence acceptance also requires real GUI/DVMDB process restarts,
+not merely stub queue tests. Pending History navigation now has its own
+checksummed restart intent, documented separately in
+[History recovery](history-recovery.md).
 
 ## What the current tests actually establish
 

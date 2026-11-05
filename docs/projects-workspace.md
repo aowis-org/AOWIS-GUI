@@ -184,25 +184,31 @@ DVMDB when a private draft is open. Undo and Redo request only the adjacent
 coordinates returned by `GET /working-copies/{draft}/history/cursor` and use
 fenced `POST /working-copies/{draft}/history/navigate`.
 
-Navigation is disabled while a private Save is pending, the writer is blocked,
-the cursor cannot be verified, the lease needs renewal, or the backend offers
-no eligible adjacent action. On success the full saved network is reloaded,
-editor logical capture is restored, and the dock reads the new cursor. On
-an uncertain response, editing is blocked until the draft can be reopened;
-the GUI never assumes an HTTP operation succeeded. Archived actions can be
-expanded in bounded pages, while clicking a saved action, archived action or
-verified Commit checkpoint requests a single fenced direct jump. Snapshot-only
-checkpoints and pending Saves are not navigable. **Keyboard shortcuts, complete ancestry paging and
-end-to-end acceptance of direct jumping remain outstanding.** Multi-network
-and unborn-base draft navigation are intentionally not supported by the current DVMDB adapter;
-this does **not** restrict what DVMDB can store. The separate Projects revision
-graph continues to display the full immutable DAG.
+Navigation is disabled while a private Save is pending, the writer is
+blocked, the History cursor cannot be verified, the lease requires renewal,
+or DVMDB has no eligible action. Successful navigation applies a canonical
+**sparse change set**, verifies source/destination SHA-256 and restores edit
+capture only after the server cursor is refreshed. It does **not** reload
+`NetworkHydraulic` over HTTP for every Undo/Redo/jump.
+
+If the acknowledgement is lost, the GUI retains the original operation UUID,
+source generation and cursor, pauses editing and performs SHA/cursor-based
+reconciliation on reconnect. A durable client-side intent supports the same
+recovery across GUI restart without first downloading the full network.
+A mismatch blocks the editor rather than silently changing databases or
+issuing another Undo. Archived actions and eligible Commit checkpoints can
+be selected directly; snapshot-only checkpoints and unsaved pending events
+are not navigable. Commit ancestry loads separately from the Projects graph.
+The current navigation scope is **one unambiguous network**, including
+eligible actions on initialized unborn drafts. DVMDB can store more than one
+network; this does not expand the current History navigator. See
+[History recovery](history-recovery.md) for the exact protocol and limits.
 
 The toolbar status area now indicates **No network**, **Opening…**,
 **Saving · N pending**, **Autosaved**, **Read-only**, or **Open failed**.
 It is not a manual Save control. The Commit action remains separate
-from draft autosave. In the graph, a personal server keeps its left-side
-server cylinder and displays **♛ before its name** on a golden card.
+from draft autosave. In the graph, a personal server retains its generic server icon and uses a
+gold card with the crown beside its server name.
 
 ## Known acceptance gaps
 

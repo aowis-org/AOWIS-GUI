@@ -84,48 +84,56 @@ server's idempotent Commit ledger.
 
 ## History cursor, Redo and draft recovery
 
-For eligible existing-base single-network drafts, the GUI reads DVMDB's
-`GET /working-copies/{draftId}/history/cursor`. That response supplies the
-authoritative journal position and adjacent Undo/Redo coordinates. A fenced
-`POST /working-copies/{draftId}/history/navigate` selects a verified draft
-or archived action boundary. The request includes the currently loaded
-`networkId`. DVMDB's acknowledged response supplies a sparse, canonical
-`historyDelta`: changed entity images, membership moves, and complete-model
-source/destination hashes. The GUI applies this to a temporary copy of the
-cached model, verifies the final hash, and only then replaces the live editor
-state and refreshes the authoritative History cursor. **Routine navigation
-makes no full-network GET and does not reopen/re-download the event journal.**
-Direct jumps use one publication request, not a succession of locally inferred
-Undo requests. After two immediate same-UUID retries, a temporary transport
-failure leaves the open session in a non-editable reconnect state. Its retry
-timer reacquires the same session's writer lease (which may have expired),
-then replays exactly the original operation UUID, requested position and
-source generation with the renewed fencing token. DVMDB either returns the
-original verified delta or applies the still-unpublished request once.
-Definitive conflicts stop recovery. The pending navigation is not yet durable
-across a GUI process restart, so reopening after a restart still loads the
-authoritative full draft network.
+For a verified, unambiguous hydraulic network the GUI reads the authoritative
+`GET /working-copies/{draftId}/history/cursor`. Fenced
+`POST /working-copies/{draftId}/history/navigate` selects an adjacent Undo,
+Redo or exact eligible action boundary, including actions archived across
+Commits. DVMDB verifies and atomically publishes the private candidate and
+cursor, returning canonical sparse changed-entity images, collection moves,
+and source/destination SHA-256 digests. The GUI applies/validates these in a
+temporary model before publishing to its editor. **Ordinary navigation does
+not reopen the draft or GET a full network.**
 
-An Undo can retain unapplied draft journal actions as Redo. A subsequent
-ordinary new edit branches the journal: applied prefix plus new MODEL event;
-the abandoned Redo tail is invalidated atomically. A transition backward
-across a Commit marker can suspend the active journal and retain its Redo
-frames. A new atomic MODEL Save from a verified archived position can
-fork the logical action path and abandon forward Redo; an ordinary native
-Save may not bypass that History boundary. Immutable revisions and committed
-HEAD are never rewritten by navigation. UUIDv7 operation identity, lease,
-generation and expected HEAD are part of the guarded operation. A lost
-acknowledgement must be reconciled against DVMDB instead of guessed.
+Before the POST the GUI durably writes a bounded `PersonalHistoryNavigationIntent`
+scoped to the repository/project/draft/network, original UUID, session, base,
+source generation, source/target cursor, complete canonical source model and
+active journal frames. Only one pending navigation is permitted for a draft.
+The record exists to recover an **uncertain** HTTP operation, not as a second
+permanent Undo history.
 
-An unborn first draft can now Undo/Redo journaled creations and updates
-against the already initialized network seed. DVMDB verifies the full
-forward MODEL replay and refuses unborn journal deletions whose original
-membership position cannot be established. Initial network initialization
-or import is not an Undo step. Multi-network navigation remains unsupported;
-**multiple-network native storage remains allowed**.
-V10 DVMDB working-copy metadata persists the selected cursor and optional
-History fork origin; development drafts made with older pre-release markers
-are not supported.
+A lost response is retried with the **same operation UUID**. After immediate
+retries, temporary connectivity failures pause editing. Reconnection uses a
+small SHA-256/generation/cursor/last-operation receipt; if the operation
+already completed and the verified network matches, no delta is needed. If
+it completed but the GUI holds old bytes, it obtains the original sparse
+delta. If it was never published and the source still matches, it retries
+its original UUID. The writer lease is reacquired for the same session.
+Definitive conflicts block editing.
+
+After **GUI restart** the session reads the pending intent *before* ordinary
+network hydration. It opens the local queue around the persisted source
+model and enters that same verification/reconciliation flow. Valid restart
+recovery requires no initial full-model GET. Corrupt, wrong-scope, oversized
+or irreconcilable intents are preserved/blocked, not silently dropped.
+A normal fresh open **without** such an intent still downloads the model
+once. Native durability uses `QSaveFile` and filesystem synchronization;
+WebAssembly restart durability requires persistent browser-backed storage.
+See [History transport/recovery](history-recovery.md) for state transitions,
+limits and tests.
+
+Undo may retain unapplied journal frames for Redo. A new ordinary edit after
+Undo atomically invalidates its forward suffix. A new MODEL Save from a
+verified archived position starts a logical fork while preserving all
+immutable revisions and their action archives. An ordinary native Save
+cannot bypass the archived-history fork guard. Commit markers are not
+Undo steps and History navigation does not rewrite the branch's committed
+HEAD.
+
+An unborn initial draft can navigate journaled creations and updates against
+its initialized seed; initialization itself is not an Undo step. Unsupported
+unborn deletions without proven original membership ordering fail closed.
+History navigation remains one-network only; DVMDB native storage can hold
+multiple networks independently.
 
 ## Current limits and required acceptance
 

@@ -187,12 +187,16 @@ fail when a ray misses the world; a failed projection is not a valid edit.
 Model changes use the existing `HydraulicData` operations and edit transactions.
 A completed action uses the same canonical MODEL capture and private-draft
 Save mechanisms as the corresponding 2D action. The toolbar opens the left
-**History** dock: a verified single-network private draft can Undo/Redo,
-select an eligible archived action or Commit checkpoint, and reload its
-canonical network from DVMDB without changing immutable revisions.
-See the [History contract](history-contract.md). This implementation still
-requires end-to-end editor/server/restart acceptance; a passing component
-test does **not** prove that workflow on Linux, Windows or WebAssembly.
+**History** dock: a verified single-network private draft can Undo/Redo or
+select eligible archived action and Commit checkpoints without changing
+immutable revisions. DVMDB returns a **verified sparse MODEL change set**;
+the GUI checks source/destination SHA-256 and updates its existing editor
+model without re-downloading the entire network. For lost responses or GUI
+restart, the session reconciles using the same navigation UUID and a
+checksummed local pending intent. See the
+[History contract](history-contract.md) and
+[recovery internals](history-recovery.md). Real editor/server, process-kill,
+Standalone and WebAssembly acceptance are separate from component tests.
 
 ## Source and verification reference
 

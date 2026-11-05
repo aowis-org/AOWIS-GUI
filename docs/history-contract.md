@@ -130,71 +130,59 @@ are informational until a separate metadata-history contract is designed.
 
 ## Integration with the live editor
 
-After an accepted History navigation, `PersonalDraftEditSession` verifies
-the sparse `historyDelta` against its cached canonical network and swaps the
-verified destination into the editor; it does not reopen or download the
-complete `NetworkHydraulic` for a routine Undo/Redo/jump. For lost HTTP
-acknowledgements, the client retries the **same** operation UUID and
-source generation (two immediate transport retries). When those are exhausted
-by an uncertain transport failure, the open editing session pauses capture
-and backs off while connectivity is unavailable. Once reachable it first GETs
-`/history/reconcile?networkId=<uuid>`: a small read-only receipt containing
-canonical SHA-256, generation, cursor, journal count and last navigation UUID.
-The UUID/source generation/target cursor must match the pending operation;
-a matching hash **alone** is insufficient because two History positions may
-have identical model bytes. If the correct operation was published and both
-models already match, it reacquires the **same-session** writer lease and
-acknowledges the verified destination with **no sparse replay and no
-full-network GET**. Otherwise it reacquires the lease and replays the **original operation UUID and source
-generation** to get the pinned sparse delta, or executes the previously
-unpublished original request if the complete source state still matches.
-Definitive conflicts stop capture. This works for embedded and REST personal
-DVMDB servers.
-The pending navigation is held in the currently open GUI session, not yet
-persisted across a GUI process restart. Closing the session during an outage
-requires reopening the draft, which presently downloads its full model.
-DVMDB regenerates any needed delta from its durable pinned source candidate.
-A rejected, stale or unverifiable response blocks capture instead of applying
-an unverified state. `MainWindow` disables
-logical edit capture before navigation, replaces the canonical network and
-resumes capture only after the stage has been reset, the network has
-passed its consistency check, **and a fresh authoritative cursor confirms a
-writable draft position**. Browsing archived actions and checkpoints never changes the selected
-editor/monitor mode. After authoritative cursor verification the Distribution
-Editor may continue editing at an archived position. Its first accepted MODEL
-Save starts a new logical editing path, invalidating the abandoned Redo tail. On initial reopen, edit capture waits for
-the same cursor verification, so a previously selected archived state cannot
-be edited against an unverified cursor. The model consistency guard continues comparing
-canonical state during History navigation. This avoids recording a
-synthetic second MODEL action. Full 2D/3D, selection and inspector acceptance
-remains open.
-Regular editor mutations still create normal MODEL frames through
-`HydraulicEditTransactionCapture` and the private queue.
-Network-root metadata and 18 collections participate in the same atomic
-user action where necessary. Invalid hydraulic *solvability* alone does not
-block navigation; canonical codec, reference identity and membership guards
-still apply.
+After an accepted History navigation, `PersonalDraftEditSession` applies a
+verified sparse `historyDelta` to a temporary canonical network. It checks
+entity before-images, collection membership and final SHA-256 before
+publishing that network to the existing editor. Routine Undo/Redo or eligible
+direct jumps do **not** reopen the draft or issue a full-model GET. New
+logical capture is enabled only after the authoritative cursor is refreshed
+and its position is writable.
 
-A session closing, switching branches, timing out or losing its fence must
-reconcile pending history operations against the original draft. The GUI
-must not accidentally apply an old result to whatever network happened to
-be opened next. Reopen reloads the authoritative cursor and reconstructs
-state only from the matching repository/project/branch/draft/network scope.
+DVMDB is the authority for the selected historical state. Its immutable
+Commit archives, active MODEL journal and working-copy cursor are not
+replaced with a second GUI Undo stack. A new edit from an archived position
+starts a valid logical path and discards forward Redo; immutable revisions
+and the committed branch HEAD remain unchanged. Editing does not force a
+switch into Distribution Monitor.
+
+When navigation acknowledgement is uncertain, the GUI repeats the *same*
+UUID and source generation (bounded immediate retries). On a prolonged
+outage, the session pauses editing and reads the small
+`/history/reconcile?networkId=<uuid>` receipt once reachable, validates
+operation identity, generation, exact History position and network SHA-256,
+and reacquires the **same writer session's** lease. A matching digest by
+itself is insufficient: two different actions can produce identical model
+bytes. The GUI either confirms the matching destination without a MODEL
+transfer, replays the original pinned sparse delta, or retries an original
+unpublished operation without changing its UUID.
+
+For a **GUI crash/restart**, `PersonalHistoryNavigationIntentStore` preserves
+the source network, SHA-256, journal frames, scoped IDs, source and target
+coordinates, and original operation UUID before the POST. `start()` checks
+for that record before ordinary network hydration. A valid intent permits
+hash/cursor reconciliation and sparse replay **without an initial full-model
+GET**. Invalid, mismatched or inaccessible records fail closed. The record
+is cleared only after the authoritative result is verified and acknowledged.
+A normal open with no uncertain intent continues to load the network
+once. Neither case provides fully offline editing when the personal working
+server is remote and unreachable.
+
+The rendered network may be replaced in memory after verification; this is
+not a network re-download. Selection/inspector synchronization and complete
+2D/3D end-to-end acceptance remain distinct test requirements.
+
+The full state machine and platform caveats are documented in
+[History navigation recovery](history-recovery.md).
 
 ## Current acceptance boundary
 
-DVMDB retains permanent indexed local-Commit MODEL action archives, verifies
-canonical reconstruction and provides fenced HTTP cursor navigation. An
-active draft journal may be suspended while browsing committed actions;
-its unapplied Redo frames are retained until a new edit. An accepted MODEL
-Save from a verified archived position starts a forked journal and invalidates
-the forward Redo suffix, without deleting any immutable Commit. This does
-not switch the GUI into Distribution Monitor mode. The GUI
-wires adjacent Undo/Redo to that controller for eligible private drafts, but
-**the current tests have not yet proved the complete GUI + server + restart
-workflow**. The dock now independently pages the entire private branch's first-parent
-ancestry through DVMDB, rather than relying on the Projects graph preview.
-Direct-jump and long-history end-to-end acceptance, keyboard shortcuts and
-some unborn-draft membership edits remain outstanding. Multi-network
-History navigation is deferred without restricting multiple-network storage.
-For the latest actual test evidence see [verification status](verification-status.md). See the [History roadmap](history-roadmap.md).
+The GUI source implements sparse History navigation, crash-durable pending
+navigation intents, long-outage reconnect and verified forked editing. Its
+component tests cover lost replies, retries, restart and corrupt/mismatched
+intents. End-to-end process-kill, independent DVMDB server, Standalone and
+WebAssembly browser storage acceptance still need to be recorded. Keyboard
+shortcuts, limited unborn deletion ordering and multi-network History
+navigation remain separate usability/scope decisions.
+
+See [verification status](verification-status.md) and
+[future History acceptance](history-roadmap.md).

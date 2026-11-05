@@ -30,50 +30,60 @@ revision offers read-only Monitor or creation of a branch for editing. There
 is no Inspector **Delete network** button. Standalone embeds the DVMDB HTTP
 service inside the GUI process.
 
-**Current limits (source review 2026-11-04):** MODEL capture and private
-Save transport cover all 18 hydraulic collections and persistent root
-metadata, including mixed root/entity transactions. Complete mutation-path,
-external HTTP/Standalone restart and browser/WASM acceptance remain open.
-General import replacement, whole-project Clone/Fetch, Publish and Merge UI
-flows are unfinished. HEAD/Revision detail Tags/Description still share
-branch-metadata persistence rather than independent revision annotations.
+**Current scope (5 November 2026):** Canonical MODEL capture and private
+Save cover all 18 hydraulic collections and persistent root metadata.
+A new, `unconfigured` DVMDB may accept project metadata writes without
+silently becoming `shared`; direct editing requires a designated private
+personal working server. Whole-project checkout, Fetch/Publish and merge
+reconciliation are incomplete GUI workflows. The distribution editor's full
+mutation matrix, live server restart and browser/Standalone acceptance remain
+separate verification gates.
 
 ## History and Undo/Redo
 
 The toolbar's **Open revision history in Projects** action opens a left
-**History dock** without leaving Distribution Editor. For a verified private
-working-copy session, the dock offers **Undo**, **Redo**, and direct selection
-of saved actions, archived Commit actions and eligible Commit checkpoints.
-Original MODEL actions are retained in DVMDB after Commit and expandable in
-pages of 50. Commit markers are checkpoints, **not Undo steps**: navigation
-reconstructs a private draft at a chosen action boundary; immutable revisions
-and the committed branch HEAD remain unchanged.
+**History dock** without switching editor mode. It follows the selected
+branch's first-parent Commit ancestry independently of the Projects graph
+preview; original MODEL actions are expandable in bounded pages. Undo, Redo
+and eligible direct jumps select an authoritative action boundary. A Commit
+marker is a checkpoint, **not** another Undo step. History never rewrites
+immutable revisions or the committed branch HEAD.
 
-DVMDB is authoritative for the cursor, leases, expected generation and
-navigation eligibility. After accepted navigation the editor reloads the
-saved canonical network before resuming edit capture. The current adapter
-supports one existing hydraulic network based on a committed revision;
-first/unborn-draft action history and multi-network navigation are not yet
-supported, although DVMDB can still store multiple networks per revision.
-The dock currently obtains Commit markers from the Projects preview, so an
-incomplete ancestry preview can also limit which older actions are shown.
-**End-to-end GUI/server restart and cross-Commit acceptance remains pending.**
-See [Using History](docs/history.md), the
-[History contract](docs/history-contract.md),
-[remaining History work](docs/history-roadmap.md), and
+DVMDB verifies the selected model and returns a **sparse MODEL delta** with
+canonical SHA-256 digests. The GUI checks entity before-images, membership
+moves and the resulting digest before replacing its cached editor model. A
+normal navigation does **not** download a complete `NetworkHydraulic`.
+
+If a navigation acknowledgement is lost, the GUI retries the **same**
+operation UUID, reconciles the precise generation/cursor and SHA-256, and can
+replay the pinned delta after a long outage. The GUI now also persists a
+checksummed, bounded navigation intent **before** the POST. If it restarts
+while that operation is uncertain, it can resume without first downloading
+the whole model. A normal fresh open without a pending intent still loads
+the authoritative model once. The remote personal REST server must be
+reachable for server-side editing; recovery does not create an offline
+local authority.
+
+History navigation currently targets one unambiguous hydraulic network,
+including eligible actions after initializing an unborn first draft. Exact
+unborn deletion ordering can remain unsupported. Multi-network **storage**
+is not restricted. Automated crash/restart test code exists; real process-
+kill, storage-failure and WebAssembly persistence acceptance remain open.
+
+See [Using History](docs/history.md),
+[History interaction](docs/history-contract.md),
+[History recovery internals](docs/history-recovery.md), and
 [verification status](docs/verification-status.md).
 
 Start with [documentation index](docs/README.md),
-[DVMDB quickstart](docs/dvmdb-quickstart.md),
 [Projects workspace](docs/projects-workspace.md),
-[graph layout](docs/project-graph-layout.md),
-[Save/recovery](docs/personal-working-copy-save.md),
-[network import semantics](docs/network-open-import-replacement.md),
-the [remaining integration roadmap](docs/dvmdb-integration-roadmap.md),
-and the [History roadmap](docs/history-roadmap.md).
+[personal working server configuration](docs/working-repository-configuration.md),
+[Save/Commit recovery](docs/personal-working-copy-save.md),
+[remaining integration work](docs/dvmdb-integration-roadmap.md), and
+[History acceptance](docs/history-roadmap.md).
 
-The Projects revision graph is drawn with **QWidget/QPainter**; it does not
-create a second bgfx device next to the map renderer.
+The Projects revision graph uses **QWidget/QPainter**; it does not create a
+second bgfx device next to the map renderer.
 
 ## Hydraulic Distribution Editor
 

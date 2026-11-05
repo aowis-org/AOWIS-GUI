@@ -5,10 +5,10 @@ the main toolbar. It is a left-side dock that can remain visible while
 editing a hydraulic network. Unlike the Projects revision graph, it follows
 the *editing actions* along the selected branch's first-parent timeline.
 
-This page explains the user-facing concept and the controls present in the
-2026-11-04 GUI source. For the exact navigation contract and guards see
-[History interaction contract](history-contract.md); for work not yet
-accepted see [History roadmap](history-roadmap.md).
+This page explains the current user-facing behavior. For precise navigation
+eligibility see the [interaction contract](history-contract.md); for the
+network protocol and crash/restart semantics see
+[History recovery](history-recovery.md).
 
 ## One timeline, two kinds of entries
 
@@ -57,9 +57,11 @@ publishes the overlay and History cursor atomically, and returns the
 acknowledged state. R2 is **still the committed HEAD**. AOWIS has not reset
 the branch, deleted a Commit or edited an immutable snapshot.
 
-The GUI subsequently reloads the authoritative saved network before enabling
-logical edit capture again. If that reload or the HTTP result is uncertain,
-editing remains blocked until the actual draft state is reconciled.
+DVMDB sends a verified **sparse change set**, not the entire network. The
+GUI validates before-images and canonical SHA-256 digests, installs the
+result in the existing editor, and refreshes the authoritative History
+cursor. An uncertain HTTP result blocks editing until reconciled using the
+original navigation UUID; it never guesses a second Undo.
 
 ## How to navigate in the dock
 
@@ -126,13 +128,23 @@ shortcuts are not wired; use the dock controls.
 
 ## What survives restart?
 
-DVMDB persists the working-copy candidate, cursor and original action frames
-under versioned working-copy metadata. The GUI also retains an unsent local
-MODEL event queue. Restart must re-establish the correct repository, project,
-branch, draft and writer lease; restore the server's authoritative cursor;
-and reconcile any unacknowledged Save/navigation operation by its original
-UUID rather than assuming success or creating another operation.
+DVMDB retains the private candidate, original actions, cursor and last
+navigation receipt. The GUI retains its pending Save queue. For an **uncertain
+History navigation**, the GUI also saves the original operation UUID, source
+network and hash, action journal, writer identity and History coordinates in a
+checksummed local intent **before** sending the request.
 
-The persistence machinery is in source, but complete end-to-end
-GUI + daemon restart acceptance remains open. The latest test evidence is
-recorded in [verification status](verification-status.md).
+On reopening that same draft, AOWIS checks for the intent first. If it exists,
+it reconstructs its source state locally and uses SHA-256 **plus** operation
+UUID, generation and exact cursor to reconcile. It requests a sparse delta
+only if the server has a verified different destination. A damaged or
+conflicting intent blocks editing rather than silently discarding history.
+If no pending navigation exists, ordinary fresh opening can still load the
+complete model once.
+
+This recovery depends on a durable client storage directory. WebAssembly
+needs browser-backed persistent storage; using an in-memory filesystem alone
+cannot guarantee a page-restart recovery. Full process-kill/power-loss and
+platform acceptance remain to be demonstrated. See
+[History recovery design](history-recovery.md) and
+[verification status](verification-status.md).

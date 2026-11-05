@@ -81,9 +81,8 @@ is an editor operation subject to model-reference checks and private draft
 autosave. For an eligible saved private draft, open the toolbar's **History**
 dock to Undo/Redo, expand original actions archived under a Commit or click
 an action/eligible checkpoint to jump to its state. Commit markers do not
-consume Undo steps or change committed HEAD. The editor reloads the DVMDB-
-verified network after each successful navigation; pending Saves or stale
-sessions block navigation. See [Using History](history.md) and the
+consume Undo steps or change committed HEAD. The editor applies a verified sparse MODEL delta after navigation, not a
+full-network re-download; pending Saves or stale sessions block navigation. See [Using History](history.md) and the
 [technical History contract](history-contract.md).
 
 ## 5. Commit an immutable revision
@@ -114,18 +113,21 @@ is forbidden; making a branch does not rewrite the original snapshot.
 - The current safe imported-network path is first import to untouched unborn
   HEAD; replacement and entity merge are separate unfinished workflows.
 - A draft Save does not Commit. A local Commit does not Publish.
-- On uncertain HTTP responses, inspect the saved draft/operation status;
-  don't blindly retry a state-changing request with a new identity.
+- On uncertain History responses, the GUI keeps the same operation UUID,
+  reconciles SHA-256 **and** cursor, and restores a durable pending intent
+  after GUI restart. Do not issue an independent second Undo.
 - Standalone and browser/WASM full end-to-end acceptance remain separate
   validation tasks.
 - The **History** toolbar action opens the left History dock without leaving
   the editor. For a ready private session with no pending Save, DVMDB provides
   adjacent Undo/Redo targets and verifies direct jumps to saved and archived
   actions or eligible Commit checkpoints. Archived actions expand in pages of
-  50. The selected state is published atomically and reloaded into the editor.
-  Existing-base single-network drafts are supported; unborn first drafts,
-  multi-network navigation, keyboard shortcuts and complete ancestry paging
-  remain outstanding. See the [History roadmap](history-roadmap.md).
+  50; Commit ancestry is paginated independently. The selected state is
+  published atomically and applied as a verified sparse delta. Initialized
+  unborn first drafts are supported for eligible action history; unprovable
+  membership deletion order, multi-network History navigation and keyboard
+  shortcuts remain out of scope. See the
+  [History documentation](history.md) and [recovery details](history-recovery.md).
 
 See [network import semantics](network-open-import-replacement.md),
 [hydraulic transactions](hydraulic-edit-transactions.md), and the

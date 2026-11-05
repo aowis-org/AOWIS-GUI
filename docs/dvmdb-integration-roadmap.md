@@ -1,99 +1,70 @@
-# GUI ↔ DVMDB — remaining integration work
+# GUI–DVMDB — next product work
 
-**Scope:** only work still unimplemented or missing reproducible acceptance
-in the **2026-11-04 GUI snapshot**. Current behavior is documented in
-[Projects](projects-workspace.md), [private Save](personal-working-copy-save.md),
-[MODEL transactions](hydraulic-edit-transactions.md),
-[network import/export](network-open-import-replacement.md), and
-[History](history-contract.md). See [verification status](verification-status.md)
-for the distinction between source presence and observed test results.
+This roadmap records **unfinished product capabilities and required
+acceptance**, not historical patch stages. Current operation is documented in
+[Projects](projects-workspace.md), [private working copies](personal-working-copy-save.md),
+[History](history-contract.md) and [History recovery](history-recovery.md).
 
-## Priorities and completion criteria
+## 1. Complete project checkout to a personal working DVMDB
 
-| Priority | Outstanding deliverable | Acceptance gate |
-|---|---|---|
-| **1** | Real hydraulic editing and durable Save | All 18 collections and root fields round-trip through GUI → real DVMDB HTTP → GUI/DVMDB restart; exact canonical equality, correct 2D/3D mutation capture and safe pending-queue recovery |
-| **2** | History end-to-end qualification and remaining usability | Real Undo/Redo → cross-Commit jump → return to live draft → new edit/Redo invalidation → restart, with unchanged immutable revisions; full scope in the [History roadmap](history-roadmap.md) |
-| **3** | Local checkout/Commit lifecycle and recovery | Unborn HEAD, saved draft, Commit, branch, reopened edit, lease conflicts and lost acknowledgements all resolve deterministically without wrong-target writes |
-| **4** | Network import and replacement | Explicit new/replace/selective import semantics with identity, queue, history and UUID/reference safeguards; no accidental overwrite of edited networks |
-| **5** | Distributed operations | Whole-project Clone/Fetch and remote tracking; explicit Publish with expected remote HEAD, idempotent recovery, merge/reconciliation and conflict UI |
-| **6** | Release/platform qualification | Native Linux, embedded Standalone and supported WASM/browser behavior with crash/powercut/ENOSPC, large models and operational limits documented |
+AOWIS currently designates one personal working server in the GUI. That
+server can be embedded or reachable by REST; it is **not necessarily local**.
+Projects on other repositories are browsable, but must be checked out to
+the designated personal working server before direct edits. Complete the
+user-facing **whole-project checkout** workflow:
 
-## Hydraulic editing and saving
+- Select a source project and a target personal DVMDB, with explicit
+  repository identities and supported MODEL fingerprint.
+- Transfer/verify required immutable revisions, branches, shared ancestry
+  and branch HEADs, preserving UUIDs without overwriting target drafts.
+- Track source/target identities and the provenance needed for future Fetch
+  and Publish; use bounded/resumable transfer where possible.
+- Open the selected editable personal HEAD/draft when checkout succeeds;
+  show missing dependencies and conflicts without destructive fallback.
+- Maintain the abstraction that can later select **different personal
+  working servers for different projects** without assuming one embedded
+  local server in the transport or persistence format.
 
-Already implemented: canonical MODEL before/after transactions, membership
-intents for all 18 hydraulic collections, persistent network-root fields,
-mixed root/entity Save, private draft queue, lease/fencing and generation
-checks, server-owned manifest chunks, saved-draft reload and local Commit.
+Existing branch-level checkout and native bundle primitives are useful
+building blocks; they do **not** equal complete GUI project checkout.
 
-Still required: run full GUI sessions against a **separate** DVMDB process and
-embedded Standalone, restart both client and database, compare exact
-`ModelCodec<NetworkHydraulic>` images, and exercise controls, libraries,
-quality/MSX, map labels, terrain-relative placement, movements, cascaded
-deletes and bulk edits. Confirm error handling for failed network loads,
-misdirected repository profiles, stale generations, interrupted Saves,
-rejected oversized transactions and lost HTTP replies. The implementation
-currently bounds individual Save batches; a logical edit must never be
-silently split into partially accepted states.
+## 2. Fetch, Publish and conflicts
 
-Hydraulic solvability is **not** a Save/Commit prerequisite. Canonical codecs,
-entity UUID/reference identity, valid typed values and native-record integrity
-still apply.
+Implement incremental Fetch of immutable revisions and remote tracking
+without overwriting active personal drafts. Publish should use expected
+remote HEAD/generation, idempotent operation identity and explicit divergent
+ancestry handling. Build merge/conflict UI around native revision/merge
+primitives only after safe transfer and reconciliation are accepted.
 
-## History integration
+Connectivity failures must not silently redirect writes or create duplicate
+remote revisions. The transport should minimize unchanged MODEL transfers,
+consistent with sparse History navigation.
 
-The History dock and DVMDB's durable action architecture **already exist**:
-indexed local-Commit action archives, verified historical reconstruction,
-atomic native cursors, fenced HTTP navigation, active-draft Redo invalidation,
-Commit-boundary handoff, and GUI adjacent/direct navigation. Do **not** put
-those completed implementation stages back on the future roadmap.
+## 3. Complete editing, import and lifecycle acceptance
 
-Outstanding: prove the GUI + daemon behavior with real editor events and
-restarts, independently page the full branch ancestry, qualify uncertain
-navigation results, support unborn first drafts and add shortcuts. See
-[History roadmap](history-roadmap.md) for the exact remaining tests.
+Run the full 18-collection/root-metadata GUI mutation matrix against a
+**separate live DVMDB process** and embedded Standalone; test Save, Commit,
+branch/fork, HEAD deletion and revision truncation through actual HTTP.
+Check expected-HEAD/role/identity guards, lost Save/Commit acknowledgements,
+writer contention, queue restart, malicious/malformed response, bulk action
+limits and disk failures. Invalid hydraulic *solvability* must not alone
+prevent Save or Commit.
 
-## Local repository lifecycle
+General network replacement and selective import need explicit source/target
+identity, UUID-reference, pending queue and History semantics. The current
+first-import path is for an untouched, empty unborn personal HEAD.
 
-Exercise project creation, the independent unborn `main` HEAD, additional
-unborn branches, branch-from-revision, remote-to-personal checkout, saved
-network opening, Commit intent recovery, and branch/HEAD inspector summaries.
-Reconcile unresolved operations by **the original operation UUID**, not a new
-request. Test switching projects while queue events exist, writer contention,
-large project/draft lists and a failed repository health/identity check.
+## 4. Release/platform qualification
 
-The backend and GUI must use the same MODEL fingerprint. A mismatched
-fingerprint must not be papered over by deleting the private edit queue.
+Build and execute focused then full regression suites on native Linux,
+Standalone and supported WebAssembly/browser deployments. Test large
+networks, bad bandwidth/high latency, server outages, process restarts,
+power loss and storage exhaustion. Record exact versions, commands, outcomes
+and remaining failure cases. Unit tests and source review alone are **not**
+release acceptance; see [verification status](verification-status.md) and
+[History acceptance](history-roadmap.md).
 
-## Network operations
-
-First import into an **untouched, empty unborn private draft** is present.
-General replace-existing-network and selected entity/library imports remain
-unfinished. Define explicit target network identity, repository/project/
-branch/draft identity, writer lease and expected generation, local pending
-queue handling, UUID collisions, dependent references, undo checkpoint and
-idempotent recovery. `HydraulicData::replaceNetworkHydraulic()` is an
-in-memory operation, **not** evidence of a persisted replacement.
-
-## Clone, Fetch, Publish and Merge
-
-The existing branch-level checkout, immutable revision transport and DVMDB
-primitives do not amount to complete end-user distributed version control.
-Whole-project Clone/Fetch must preserve all branches and ancestry and track
-remote state without replacing a personal working draft. Publish must use
-expected remote HEAD and operation identity, not just branch-name matching.
-Divergent ancestry needs an explicit merge/conflict workflow, including a
-pinned common base and preservation of uncommitted work.
-
-## Release sign-off
-
-Capture the exact repository snapshots, MODEL fingerprint, platform,
-commands, passing/failing/skipped results and reproduction steps for each
-gate. A native unit test, a Qt widget regression and a real external-server
-restart are distinct evidence. Do not claim completion from source presence.
-See [verification status](verification-status.md).
-
-**Deliberately outside this roadmap:** speculative vertical-datum metadata,
-pre-release legacy migration mechanisms, and authentication/TLS work.
-Security remains a separate deployment concern: do not expose an unauthenticated
-writable DVMDB on an untrusted network.
+Authentication, authorization, transport security and deployable trust
+boundaries are a distinct security workstream. A personal role designation
+is not a security boundary. No speculative pre-release migration or elaborate
+vertical-datum layer is required for the current product.
