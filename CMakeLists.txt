@@ -257,6 +257,8 @@ qt_add_executable(aowis-server-gui
     src/tabs/personal_working_copy_dialog.h
     src/tabs/project_revision_graph.cpp
     src/tabs/project_revision_graph.h
+    src/tabs/project_graph_bgfx_scene.cpp
+    src/tabs/project_graph_bgfx_scene.h
     src/tabs/project_graph_placement.h
     src/tabs/tab_map_workspace.cpp
     src/tabs/map_workspace_viewport_page.cpp
@@ -749,6 +751,21 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-project-revision-graph PROPERTIES
         LABELS "aowis"
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Pure CPU graph-to-bgfx draw-list contract. The Projects widget still
+    # paints through QPainter until the separate native surface is attached.
+    # This test needs neither a GPU nor a bgfx device initialization.
+    add_executable(aowis-project-graph-bgfx-scene-tests
+        tests/project_graph_bgfx_scene_test.cpp
+        src/tabs/project_graph_bgfx_scene.cpp
+        src/tabs/project_graph_bgfx_scene.h
+        src/map/bgfx/map_bgfx_hud_text_cache.cpp)
+    target_include_directories(aowis-project-graph-bgfx-scene-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-graph-bgfx-scene-tests PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-project-graph-bgfx-scene COMMAND aowis-project-graph-bgfx-scene-tests)
+    set_tests_properties(aowis-project-graph-bgfx-scene PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # Deterministic loopback REST contract; no external DVMDB daemon required.
     add_executable(aowis-project-source-reader-tests

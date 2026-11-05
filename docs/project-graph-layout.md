@@ -89,3 +89,21 @@ including after keyboard panning and a delayed page resize.
    provenance does not create fictitious DAG edges.
 6. Clicking HEAD, revision, project and tree branch opens the correct
    Inspector after pan, resize, filtering, and refresh.
+
+## Rendering implementation
+
+The interactive Projects revision graph currently uses the QWidget/QPainter
+presentation path. Its existing graph layout, input events, first-load fit,
+inertial pan/zoom, selection and inspector signals are independent of the
+presentation backend.
+
+A GPU-ready graph staging class, `ProjectGraphBgfxScene`, now converts the
+same typed nodes and ancestry/structural/HEAD routes into the shared
+`MapBgfxHudCanvas` triangle and text-atlas representation. It requires no
+second bgfx instance, graphics device, native window or new shaders. The
+`aowis-project-graph-bgfx-scene` CPU test checks this representation in a
+headless Qt build. The class is not yet used to present the actual Projects
+tab: that still requires an embedded native render target and a process-wide
+frame submission path. Its current transient geometry also does not yet
+provide the retained buffers and multi-scale LOD required for very large
+revision graphs.
