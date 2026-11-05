@@ -449,9 +449,20 @@ in [Rendering architecture](../../../docs/rendering-architecture.md).
   cells of a few atlas pages (edge-replicating 1-texel gutters, so bilinear
   sampling equals clamp-to-edge), LRU budget of 384 tiles or the tiles a
   frame draws plus 128 (the coarser fallbacks of not yet uploaded tiles;
-  the globe draws 400+), at most 8 uploads per frame in 2D, 12 on the
-  globe (nearest first), one draw per run of quads on the same page
-  (normally a single draw call for all imagery). The globe shares the atlas.
+  the globe draws 400+). Atlas uploads are budgeted nearest-first: at most
+  **2 in 2D / 3 on the globe while the camera moves**, rising to **8 / 12
+  when stationary**, so newly streaming tiles do not monopolize navigation
+  frames. Set `AOWIS_MAP_2D_TILE_UPLOAD_BUDGET` or
+  `AOWIS_MAP_3D_TILE_UPLOAD_BUDGET` to override the corresponding limit
+  (integer 1–32) when comparing responsiveness with tile-fill throughput.
+  Quad runs sharing the same atlas page typically use one draw call.
+  The globe shares the atlas.
+* Tile decode uses a background thread pool (up to four desktop workers,
+  two on WebAssembly). `AOWIS_MAP_TILE_DECODE_THREADS` (integer 1–16)
+  overrides the pool size for comparisons. With
+  `AOWIS_MAP_RENDER_DIAGNOSTICS=1`, the periodic counters include successful
+  2D/globe tile uploads and completion/cache-insertion work on the GUI thread;
+  `tools/report_2d_performance.py` prints their interval totals.
 * Requests go to the shared `MapTileRepository` only when the visible tile set
   changes or a failed tile becomes retryable. Provider switches and deleted
   tiles clear the texture cache. A provider switch also supersedes the old

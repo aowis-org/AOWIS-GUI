@@ -45,7 +45,14 @@ for relative in \
     src/map/bgfx/map_bgfx_2d_gpu.cpp \
     src/map/bgfx/map_bgfx_2d_gpu.h \
     src/map/render/map_node_declutter.h \
-    src/map/render/map_node_declutter.cpp; do
+    src/map/render/map_node_declutter.cpp \
+    src/map/render/map_globe_render_instances.h \
+    src/map/render/map_globe_vertical_transform.h \
+    src/map/render/map_globe_surface_vertex.h \
+    src/map/render/map_globe_tank_model.h \
+    src/map/render/map_globe_tank_model.cpp \
+    src/map/render/map_globe_reservoir_model.h \
+    src/map/render/map_globe_reservoir_model.cpp; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1

@@ -14,6 +14,7 @@
 #include "map/core/map_scale_distance.h"
 #include "map/render/map_globe_vertical_transform.h"
 #include "map/render/map_render_diagnostics.h"
+#include "map/render/map_tile_streaming_policy.h"
 #include "map/core/map_scale_renderer.h"
 #include "config/shortcut_registry.h"
 #include "config/unit_aware_view.h"
@@ -96,14 +97,25 @@ constexpr uint16_t kMapBgfxViewCount = 1 + MapBgfxGlobeSurface::HeatmapPageCount
 // HUD and imagery: bgfx's defaults are 6 MiB vertices / 2 MiB indices.
 constexpr uint32_t kTransientVertexBytes = 16u << 20;
 constexpr uint32_t kTransientIndexBytes = 8u << 20;
-// Tile uploads per frame (~256 KiB each, atlas cell updates). Enough to fill
-// a screen within a few frames, small enough to never cost a frame while
-// streaming.
-constexpr int kImageryUploadsPerFrame = 8;
-// The globe replaces far more tiles per frame while zooming or turning
-// (300-400 leaves at a tilted view): at 8 the uploads fell behind and the
-// backlog showed as blank tiles; 12 keeps up (measured; 16 gained nothing).
-constexpr int kGlobeImageryUploadsPerFrame = 12;
+// Tile uploads involve bgfx texture updates, including atlas gutters. While
+// the camera is moving, spread newly arriving tiles across frames to avoid
+// creating a large GPU transfer burst on top of interactive navigation.
+// The original higher budgets remain in effect once the camera settles.
+// The two environment overrides permit A/B measurements without rebuilding.
+int tileUploadOverride(const char *name)
+{
+    bool valid = false;
+    const int configured = qEnvironmentVariableIntValue(name, &valid);
+    return valid && configured >= 1 && configured <= 32 ? configured : -1;
+}
+
+int imageryUploadBudget(bool globe, bool camera_moving)
+{
+    static const int two_d_override = tileUploadOverride("AOWIS_MAP_2D_TILE_UPLOAD_BUDGET");
+    static const int globe_override = tileUploadOverride("AOWIS_MAP_3D_TILE_UPLOAD_BUDGET");
+    return MapTileStreamingPolicy::uploadBudget(
+        globe, camera_moving, globe ? globe_override : two_d_override);
+}
 // VSYNC: presentation pacing (see MapFramePacer). MSAA x4: antialiased thick
 // line and marker edges; bgfx clamps it to what the renderer supports.
 // FLIP_AFTER_RENDER: with BGFX_CONFIG_MULTITHREADED=0 bgfx by default
@@ -1831,7 +1843,7 @@ void MapBgfxSurface::renderOverlay(const QSizeF &logical, const MapBgfx2d::Camer
     this->overlay_gpu.draw(this->map_view_id, this->overlay_canvas, logical, offset);
 }
 
-void MapBgfxSurface::renderGlobe(const QSizeF &logical)
+void MapBgfxSurface::renderGlobe(const QSizeF &logical, bool camera_moving)
 {
     // The camera is the model's, sampled for this frame like the 2D one; its
     // viewport is logical pixels (as the QRhi globe's), its sticky origin is
@@ -1846,7 +1858,7 @@ void MapBgfxSurface::renderGlobe(const QSizeF &logical)
     inputs.logical_viewport = viewport;
     inputs.background = palette().color(QPalette::Window);
     inputs.background_opacity = double(this->background_opacity) / 100.0;
-    inputs.upload_budget = kGlobeImageryUploadsPerFrame;
+    inputs.upload_budget = imageryUploadBudget(true, camera_moving);
     inputs.heatmap_opacity = this->distribution_network_visible
         && this->symbology.visual_heatmap != VisualHeatmap::None
         ? double(this->symbology.heatmap_opacity) / 100.0 : 0.0;
@@ -2780,7 +2792,7 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         bool(this->globe_overlay_builder));
     if (this->camera_state.mode == MapViewMode::TwoD) {
         // Imagery first (opaque), network on top; the view is Sequential.
-        renderImagery(logical);
+        renderImagery(logical, camera_moved);
         if (layers.distribution_network)
         {
             // Icon placement comes from the shared QRhi atlas layout. Atlas v
@@ -2870,7 +2882,7 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         this->imagery_uploads_pending = false;
         if (globe_shown)
         {
-            renderGlobe(logical);
+            renderGlobe(logical, camera_moved);
             // Project the selected map/terrain tile lattice independently of
             // the distribution-network visibility, also on the 3D globe.
             if (layers.editor_overlay_3d)
@@ -3087,7 +3099,7 @@ void MapBgfxSurface::setBackgroundOpacity(int opacity)
     this->background_opacity = qBound(0, opacity, 100);
 }
 
-void MapBgfxSurface::renderImagery(const QSizeF &logical)
+void MapBgfxSurface::renderImagery(const QSizeF &logical, bool camera_moving)
 {
     const MapRenderDiagnostics::Scope timing(MapRenderDiagnostics::Counter::Bgfx2dImagery);
     this->imagery_quad_count = 0;
@@ -3128,6 +3140,7 @@ void MapBgfxSurface::renderImagery(const QSizeF &logical)
         // ones this frame draws are taken as used first.
         this->imagery_gpu.markUsed(layout);
         int uploads = 0;
+        const int upload_budget = imageryUploadBudget(false, camera_moving);
         for (const MapBgfx2dImagery::Request &request : layout.requests)
         {
             const QString key = this->map_model->tileCacheKey(
@@ -3136,12 +3149,13 @@ void MapBgfxSurface::renderImagery(const QSizeF &logical)
             if (image != nullptr)
             {
                 // Bounded so a burst of arriving tiles never stalls a frame.
-                if (uploads < kImageryUploadsPerFrame
+                if (uploads < upload_budget
                     && this->imagery_gpu.uploadTexture(request.tile, *image))
                 {
                     ++uploads;
+                    MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::Tile2dUpload);
                 }
-                else if (uploads >= kImageryUploadsPerFrame)
+                else if (uploads >= upload_budget)
                 {
                     // Over this frame's budget: upload it in the next one.
                     this->imagery_uploads_pending = true;

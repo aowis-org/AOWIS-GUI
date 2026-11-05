@@ -58,6 +58,9 @@ enum class Counter : size_t
     Bgfx2dLabels,
     BgfxHud,
     BgfxPresent,
+    TileDecodeCompletion,  // GUI thread cache insertion and tile-ready signal
+    Tile2dUpload,          // bgfx tile upload calls accepted by the 2D atlas
+    TileGlobeUpload,       // bgfx tile upload calls accepted by the globe atlas
     Count
 };
 
@@ -74,7 +77,7 @@ inline constexpr std::array<const char *, static_cast<std::size_t>(Counter::Coun
     "globe_terrain_height_eviction",
     "bgfx_2d_imagery", "bgfx_2d_mesh_sync", "bgfx_2d_style_sync",
     "bgfx_2d_network_draw", "bgfx_2d_labels", "bgfx_hud",
-    "bgfx_present"
+    "bgfx_present", "tile_decode_completion", "tile_2d_upload", "tile_globe_upload"
 }};
 
 using Clock = std::chrono::steady_clock;

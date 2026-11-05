@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_globe_surface.h"
+#include "map/render/map_render_diagnostics.h"
 
 #include "map/bgfx/map_bgfx_backend.h"
 #include "map/bgfx/map_bgfx_globe_imagery.h"
@@ -546,6 +547,7 @@ void MapBgfxGlobeSurface::resolveImagery(MapBgfx2dImageryGpu *imagery, FrameResu
                 && imagery->atlasRect(source.tile, &texture, rect))
             {
                 ++result->uploads;
+                MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::TileGlobeUpload);
                 state.texture = texture;
                 MapBgfxGlobeImagery::tileUniform(rect, source, state.uniform);
                 // With an ancestor standing in, the tile's own image is

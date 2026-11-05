@@ -42,6 +42,24 @@ class ReportTests(unittest.TestCase):
                "counts": {"frames": 100}}
         self.assertIn("predates detailed", MODULE.make_report([old]))
 
+    def test_tile_streaming_intervals(self):
+        first = {"kind": "aowis_map_render_diagnostics", "elapsed_ms": 5000,
+                 "counts": {"frames": 100, "bgfx_present": 100,
+                            "tile_decode_completion": 20, "tile_2d_upload": 12,
+                            "tile_globe_upload": 3},
+                 "total_duration_ms": {"tile_decode_completion": 10}}
+        second = {"kind": "aowis_map_render_diagnostics", "elapsed_ms": 10000,
+                  "counts": {"frames": 200, "bgfx_present": 200,
+                             "tile_decode_completion": 26, "tile_2d_upload": 14,
+                             "tile_globe_upload": 7},
+                  "total_duration_ms": {"tile_decode_completion": 12}}
+        rows = list(MODULE.intervals([first, second]))
+        self.assertEqual(rows[1]["tile_ready"], 6)
+        self.assertEqual(rows[1]["tile_2d_upload"], 2)
+        self.assertEqual(rows[1]["tile_globe_upload"], 4)
+        self.assertAlmostEqual(rows[1]["tile_completion_ms"], 2)
+        self.assertIn("Tile streaming", MODULE.make_report([first, second]))
+
     def test_empty_and_unparsable_logs(self):
         self.assertEqual(MODULE.diagnostic_snapshots("not json\n{bad json"), [])
         self.assertIn("No AOWIS map diagnostics", MODULE.make_report([]))

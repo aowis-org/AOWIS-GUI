@@ -378,7 +378,6 @@ qt_add_executable(aowis-server-gui
     # Backend-neutral Globe rendering
     src/map/render/map_terrain_mesh_scheduler.h
     src/map/render/map_terrain_mesh_scheduler.cpp
-    src/map/render/map_globe_vertical_transform.h
     src/map/render/map_globe_camera.h
     src/map/render/map_globe_camera.cpp
     src/map/render/map_globe_icon_draw_order.h
@@ -393,7 +392,6 @@ qt_add_executable(aowis-server-gui
     src/map/render/map_globe_terrain_levels.h
     src/map/render/map_globe_terrain_navigation.h
     src/map/render/map_globe_terrain_navigation.cpp
-    src/map/render/map_globe_surface_vertex.h
     src/map/render/map_globe_heatmap_scene.h
     src/map/render/map_globe_heatmap_scene.cpp
     src/map/render/map_render_types.h
@@ -401,11 +399,6 @@ qt_add_executable(aowis-server-gui
     src/map/render/map_label_settings.h
     src/map/render/map_network_render_symbology.cpp
     src/map/render/map_network_render_data.h
-    src/map/render/map_globe_render_instances.h
-    src/map/render/map_globe_tank_model.h
-    src/map/render/map_globe_tank_model.cpp
-    src/map/render/map_globe_reservoir_model.h
-    src/map/render/map_globe_reservoir_model.cpp
     src/map/render/map_globe_picking.h
     src/map/render/map_globe_picking.cpp
     src/map/render/map_icon_atlas.h
@@ -540,6 +533,8 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
     src/map/bgfx/map_bgfx_globe_network.h
+    src/map/bgfx/map_bgfx_globe_model_images.h
+    src/map/bgfx/map_bgfx_globe_model_images.cpp
     src/map/bgfx/map_bgfx_globe_network.cpp
     src/map/bgfx/map_bgfx_globe_hud_controller.h
     src/map/bgfx/map_bgfx_globe_hud_controller.cpp
@@ -547,7 +542,7 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_globe_surface.cpp
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
-target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry)
+target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry AOWIS::RenderGlobe)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -1375,6 +1370,15 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     # Step 2: camera changes and imagery LOD do not invalidate the retained
     # network scene. These are fast deterministic policy checks, not timings.
+    # Upload burst policy is a pure C++ contract; no Qt/GPU surface needed.
+    add_executable(aowis-map-tile-streaming-policy-tests
+        tests/map_tile_streaming_policy_test.cpp)
+    target_include_directories(aowis-map-tile-streaming-policy-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME aowis-map-tile-streaming-policy
+        COMMAND aowis-map-tile-streaming-policy-tests)
+    set_tests_properties(aowis-map-tile-streaming-policy PROPERTIES LABELS "aowis;performance")
+
     add_executable(aowis-map-camera-invalidation-tests
         tests/map_camera_invalidation_test.cpp)
     target_include_directories(aowis-map-camera-invalidation-tests PRIVATE
@@ -1513,13 +1517,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/map/render/map_globe_heatmap_scene.h
         src/map/render/map_globe_picking.cpp
         src/map/render/map_globe_picking.h
-        src/map/render/map_globe_render_instances.h
-        src/map/render/map_globe_reservoir_model.cpp
-        src/map/render/map_globe_reservoir_model.h
-        src/map/render/map_globe_tank_model.cpp
-        src/map/render/map_globe_tank_model.h
-        src/map/render/map_globe_vertical_transform.h
-                src/map/render/map_render_cache_math.cpp
+                                        src/map/render/map_render_cache_math.cpp
         src/map/render/map_render_cache_math.h
         src/map/render/map_terrain_mesh_scheduler.cpp
         src/map/render/map_terrain_mesh_scheduler.h
@@ -1535,7 +1533,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             Qt6::Gui
             AOWIS::ServerModel
             GeographicLib_STATIC
-     AOWIS::RenderCore)
+     AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(
         NAME aowis-map-render-neutral
         COMMAND aowis-map-render-neutral-tests

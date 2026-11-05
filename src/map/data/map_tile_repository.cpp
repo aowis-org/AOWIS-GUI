@@ -1,5 +1,6 @@
 #include "map/data/map_tile_repository.h"
 #include "map/core/map_provider_catalog.h"
+#include "map/render/map_render_diagnostics.h"
 
 #include <functional>
 #ifdef Q_OS_WASM
@@ -33,7 +34,9 @@ constexpr int MaximumBackgroundTileRequestsInFlight = 16;
 #ifdef Q_OS_WASM
 constexpr int TileDecodeThreadCountMaximum = 2;
 #else
-constexpr int TileDecodeThreadCountMaximum = 8;
+// Keep decoding from saturating desktop CPU cores while the map is moving.
+// The prior eight-worker setting remains selectable for controlled A/B tests.
+constexpr int TileDecodeThreadCountMaximum = 4;
 #endif
 #ifdef Q_OS_WIN
 constexpr int TileRequestDispatchIntervalMs = 1;
@@ -70,8 +73,14 @@ MapTileRepository::MapTileRepository(QObject *parent)
     connect(this->tile_request_timer, &QTimer::timeout,
             this, &MapTileRepository::processTileRequestQueue);
 
-    const int decode_threads = qMax(1, qMin(TileDecodeThreadCountMaximum,
+    bool decode_override_valid = false;
+    const int decode_override = qEnvironmentVariableIntValue(
+        "AOWIS_MAP_TILE_DECODE_THREADS", &decode_override_valid);
+    const int default_decode_threads = qMax(1, qMin(TileDecodeThreadCountMaximum,
         qMax(1, QThread::idealThreadCount())));
+    const int decode_threads = decode_override_valid
+        && decode_override >= 1 && decode_override <= 16
+        ? decode_override : default_decode_threads;
     this->tile_decode_pool.setMaxThreadCount(decode_threads);
     this->tile_decode_pool.setExpiryTimeout(30000);
 
@@ -650,6 +659,8 @@ void MapTileRepository::decodeTileWithQt(const QString &key, const QByteArray &d
 void MapTileRepository::finishTileDecode(
     const QString &key, quint64 generation, const QImage &image)
 {
+    const MapRenderDiagnostics::Scope timing(
+        MapRenderDiagnostics::Counter::TileDecodeCompletion);
     if (generation != this->tile_generation || !this->tiles_pending.contains(key))
         return;
 

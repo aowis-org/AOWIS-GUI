@@ -1,6 +1,7 @@
 #include "map/bgfx/map_bgfx_globe_network.h"
 
 #include "map/bgfx/map_bgfx_backend.h"
+#include "map/bgfx/map_bgfx_globe_model_images.h"
 #include "map/core/map_model.h"
 #include "map/render/map_globe_icon_draw_order.h"
 #include "map/render/map_globe_camera.h"

@@ -58,6 +58,10 @@ def intervals(snapshots):
             "styles_ms": ms_per_frame("bgfx_2d_style_sync"),
             "labels_ms": ms_per_frame("bgfx_2d_labels"),
             "hud_ms": ms_per_frame("bgfx_hud"),
+            "tile_ready": difference(snapshot, previous, "tile_decode_completion", "counts"),
+            "tile_2d_upload": difference(snapshot, previous, "tile_2d_upload", "counts"),
+            "tile_globe_upload": difference(snapshot, previous, "tile_globe_upload", "counts"),
+            "tile_completion_ms": difference(snapshot, previous, "tile_decode_completion", "total_duration_ms"),
         }
         previous = snapshot
 
@@ -83,6 +87,17 @@ def make_report(snapshots):
             f"{r['network_ms']:10.2f}  {r['styles_ms']:9.2f}  "
             f"{r['labels_ms']:9.2f}  {r['hud_ms']:6.2f}"
         )
+    if any("tile_decode_completion" in s.get("counts", {}) for s in snapshots):
+        lines.extend([
+            "Tile streaming (per interval; ready=decoded/cache-inserted tiles)",
+            " end(s)  ready  uploads 2D  uploads 3D  cache callback ms",
+        ])
+        for r in rows:
+            lines.append(
+                f"{r['elapsed_s']:7.1f}  {r['tile_ready']:5d}  "
+                f"{r['tile_2d_upload']:10d}  {r['tile_globe_upload']:10d}  "
+                f"{r['tile_completion_ms']:17.2f}"
+            )
     maximum = snapshots[-1].get("max_duration_ms", {}).get("frames")
     if maximum is not None:
         lines.append(f"Worst reported frame (cumulative): {maximum:.2f} ms")

@@ -316,7 +316,7 @@ private:
     void renderFrameAt(double elapsed_seconds);
     // 2D imagery: layout from the continuous camera, budgeted uploads,
     // repository requests on tile-set changes, then draw.
-    void renderImagery(const QSizeF &logical);
+    void renderImagery(const QSizeF &logical, bool camera_moving);
     void synchronizeGeometry();
     // Rebuilds the selection/error highlight meshes when the selection, the
     // errors, the prepared geometry or the junction visibility changed.
@@ -357,7 +357,7 @@ private:
     // Draws the editor overlay (when a builder is set) for this frame.
     void renderOverlay(const QSizeF &logical, const MapBgfx2d::Camera &camera);
     // Globe mode: terrain surface with the frame's camera (slice 1).
-    void renderGlobe(const QSizeF &logical);
+    void renderGlobe(const QSizeF &logical, bool camera_moving);
     // Draws the globe overlay (when a builder is set) after renderGlobe().
     void renderGlobeOverlay(const QSizeF &logical);
     // The globe's viewport: logical pixels of the drawn surface, rounded.
