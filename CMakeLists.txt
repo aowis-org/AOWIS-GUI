@@ -199,6 +199,8 @@ qt_add_executable(aowis-server-gui
     src/projects/hydraulic_draft_entity_registry.h
     src/projects/personal_draft_edit_stage.cpp
     src/projects/personal_draft_edit_stage.h
+    src/projects/personal_history_navigation_intent_store.cpp
+    src/projects/personal_history_navigation_intent_store.h
     src/projects/personal_draft_edit_session.cpp
     src/projects/personal_draft_edit_session.h
     src/network/hydraulic_entity_table_widget.cpp
@@ -777,6 +779,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/projects/hydraulic_draft_entity_registry.h
         src/projects/personal_draft_edit_stage.cpp
         src/projects/personal_draft_edit_stage.h
+        src/projects/personal_history_navigation_intent_store.cpp
+        src/projects/personal_history_navigation_intent_store.h
         src/projects/personal_draft_edit_session.cpp
         src/projects/personal_draft_edit_session.h
         src/config/personal_repository_storage.cpp

@@ -1,6 +1,7 @@
 #include "projects/model_codec_compatibility.h"
 #include "projects/personal_working_copy_client.h"
 #include "projects/personal_commit_intent_store.h"
+#include "projects/personal_history_navigation_intent_store.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_draft_edit_session.h"
@@ -14,6 +15,7 @@
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QFile>
 #include <QElapsedTimer>
 #include <QHostAddress>
 #include <QHash>
@@ -127,6 +129,7 @@ public:
     QString history_selected_position = QStringLiteral("0");
     bool corrupt_history_reconcile_cursor = false;
     bool corrupt_history_reconcile_digest = false;
+    bool history_network_change = false;
     int discard_history_before_acceptance = 0;
     bool history_selected_archived = false;
     bool history_can_branch_from_archived = false;
@@ -511,6 +514,9 @@ public:
                         NetworkHydraulic network;
                         network.uuid = QUuid(networkId);
                         network.id = QStringLiteral("loaded draft");
+                        if (this->history_network_change &&
+                            !this->acknowledged_history_request.isEmpty())
+                            network.title_line_1 = QStringLiteral("navigated");
                         const QJsonObject last = this->acknowledged_history_request;
                         document = QJsonObject{
                             {QStringLiteral("draftId"), draft_id},
@@ -606,13 +612,26 @@ public:
                                 NetworkHydraulic network;
                                 network.uuid = QUuid(requested);
                                 network.id = QStringLiteral("loaded draft");
-                                const QString digest = HydraulicHistoryDelta::digest(network);
+                                NetworkHydraulic destination = network;
+                                QJsonArray edits;
+                                if (this->history_network_change)
+                                {
+                                    destination.title_line_1 = QStringLiteral("navigated");
+                                    edits.append(QJsonObject{
+                                        {QStringLiteral("type"), QString::fromLatin1(
+                                            aowis::model::hydraulicRootEditType)},
+                                        {QStringLiteral("id"), requested},
+                                        {QStringLiteral("beforeBase64"), QString::fromLatin1(
+                                            aowis::model::hydraulicRootImage(network).toBase64())},
+                                        {QStringLiteral("afterBase64"), QString::fromLatin1(
+                                            aowis::model::hydraulicRootImage(destination).toBase64())}});
+                                }
                                 document.insert(QStringLiteral("historyDelta"), QJsonObject{
                                     {QStringLiteral("version"), 1},
                                     {QStringLiteral("networkId"), requested},
-                                    {QStringLiteral("fromSha256"), digest},
-                                    {QStringLiteral("toSha256"), digest},
-                                    {QStringLiteral("edits"), QJsonArray{}},
+                                    {QStringLiteral("fromSha256"), HydraulicHistoryDelta::digest(network)},
+                                    {QStringLiteral("toSha256"), HydraulicHistoryDelta::digest(destination)},
+                                    {QStringLiteral("edits"), edits},
                                     {QStringLiteral("moves"), QJsonArray{}}});
                             }
                             this->acknowledged_history_request = request_body;
@@ -1227,6 +1246,146 @@ bool testHistoryReconciliationSourceAndDivergence(QCoreApplication &application)
     return true;
 }
 
+// Crash/restart must reuse the exact persisted UUID and canonical MODEL
+// source. Neither a published Undo nor a request lost before publication may
+// cause a NetworkHydraulic GET, even when the server was unavailable across
+// process termination. The intent is removed only after verified completion.
+bool testHistoryRestartAfterLostReply(QCoreApplication &application)
+{
+    for (int scenario = 0; scenario < 5; ++scenario)
+    {
+        Stub stub;
+        if (!check(stub.listen(), "restart History fixture failed to listen")) return false;
+        QTemporaryDir root;
+        if (!check(root.isValid(), "restart History queue root invalid")) return false;
+        const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+        stub.saved_network_id = network_id;
+        stub.history_selected_archived = true;
+        stub.history_require_committed_head = true;
+        stub.history_can_branch_from_archived = true;
+        stub.rotate_lease_on_reacquire = true;
+        stub.history_network_change = scenario == 3;
+        if (scenario == 1) stub.discard_history_before_acceptance = 3;
+        else stub.drop_history_acknowledgements = 3;
+        QString originalOperation;
+        QString originalGeneration;
+        int baselineReads = 0;
+        int baselineSummaries = 0;
+        {
+            PersonalDraftEditSession original;
+            QString error;
+            int recoveries = 0;
+            QObject::connect(&original, &PersonalDraftEditSession::blocked,
+                             &original, [&](const QString &message) { error = message; });
+            QObject::connect(&original, &PersonalDraftEditSession::historyNavigationRecovering,
+                             &original, [&] { ++recoveries; });
+            original.start(stub.target(), draft_id, network_id, root.path());
+            if (!check(until(application, [&] {
+                    return original.canNavigateHistory() || !error.isEmpty();
+                }) && error.isEmpty(), "restart History initial open failed")) return false;
+            baselineReads = stub.network_read_count;
+            baselineSummaries = stub.network_summary_count;
+            original.navigateHistoryTo(QJsonObject{
+                {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+                {QStringLiteral("revisionId"), head_id},
+                {QStringLiteral("actionPosition"), QStringLiteral("1")}});
+            if (!check(until(application, [&] { return recoveries == 1 || !error.isEmpty(); }, 6000)
+                       && error.isEmpty(), "restart fixture did not reach uncertain navigation"))
+                return false;
+            PersonalHistoryNavigationIntentStore store(root.path());
+            PersonalHistoryNavigationIntent saved;
+            QString diskError;
+            if (!check(store.read(repository_id, draft_id, saved, &diskError) ==
+                       PersonalHistoryNavigationIntentStore::ReadResult::Found && diskError.isEmpty()
+                       && saved.network_id == network_id && saved.source_generation == QStringLiteral("0")
+                       && HydraulicHistoryDelta::digest(saved.source_network) ==
+                          HydraulicHistoryDelta::digest(original.visibleNetwork()),
+                       "History restart intent was not durably stored before request")) return false;
+            originalOperation = saved.operation_id;
+            originalGeneration = saved.source_generation;
+        }
+        if (scenario == 2)
+        {
+            // A damaged checkpoint must fail closed instead of treating it as
+            // absent and silently hydrating a full network.
+            const QString filePath = root.path() + QLatin1Char('/') + repository_id +
+                QLatin1Char('/') + draft_id + QStringLiteral(".history-intent.json");
+            QFile file(filePath);
+            if (!check(file.open(QIODevice::Append) && file.write("garbage") == 7,
+                       "cannot corrupt History restart fixture")) return false;
+            file.close();
+            PersonalDraftEditSession blocked;
+            QString error;
+            QObject::connect(&blocked, &PersonalDraftEditSession::blocked,
+                             &blocked, [&](const QString &message) { error = message; });
+            blocked.start(stub.target(), draft_id, network_id, root.path());
+            if (!check(blocked.isBlocked() && error.contains(QStringLiteral("intent")) &&
+                       stub.network_read_count == baselineReads &&
+                       stub.history_reconcile_reads == 0,
+                       "corrupted restart intent was ignored or fetched full model")) return false;
+            continue;
+        }
+        if (scenario == 4)
+        {
+            // The SHA matches but the server claims a different History
+            // cursor. It must not accept the result or erase the intent.
+            stub.corrupt_history_reconcile_cursor = true;
+            PersonalDraftEditSession rejected;
+            QString error;
+            QObject::connect(&rejected, &PersonalDraftEditSession::blocked,
+                             &rejected, [&](const QString &message) { error = message; });
+            rejected.start(stub.target(), draft_id, network_id, root.path());
+            if (!check(until(application, [&] { return !error.isEmpty(); }, 10000) &&
+                       rejected.isBlocked() &&
+                       stub.network_read_count == baselineReads,
+                       "divergent restart cursor was silently accepted")) return false;
+            PersonalHistoryNavigationIntentStore store(root.path());
+            PersonalHistoryNavigationIntent pending;
+            if (!check(store.read(repository_id, draft_id, pending) ==
+                       PersonalHistoryNavigationIntentStore::ReadResult::Found &&
+                       pending.operation_id == originalOperation,
+                       "divergent restart erased its recovery intent")) return false;
+            stub.corrupt_history_reconcile_cursor = false;
+        }
+        PersonalDraftEditSession restarted;
+        QString error;
+        int readyCount = 0;
+        QObject::connect(&restarted, &PersonalDraftEditSession::ready,
+                         &restarted, [&] { ++readyCount; });
+        QObject::connect(&restarted, &PersonalDraftEditSession::blocked,
+                         &restarted, [&](const QString &message) { error = message; });
+        restarted.start(stub.target(), draft_id, network_id, root.path());
+        if (!check(until(application, [&] {
+                return (readyCount == 1 && restarted.canCaptureHistoryEdits()) || !error.isEmpty();
+            }, 10000) && error.isEmpty() && readyCount == 1 &&
+            stub.network_read_count == baselineReads &&
+            stub.network_summary_count == baselineSummaries &&
+            stub.history_reconcile_reads == (scenario == 4 ? 2 : 1) &&
+            stub.generation == 1 &&
+            restarted.currentGeneration() == QStringLiteral("1") &&
+            restarted.visibleNetwork().title_line_1 == (scenario == 3
+                ? QStringLiteral("navigated") : QString()) &&
+            stub.last_history_navigation.value(QStringLiteral("operationId")).toString() == originalOperation &&
+            stub.last_history_navigation.value(QStringLiteral("expectedGeneration")).toString() ==
+                originalGeneration &&
+            (scenario != 1 || stub.history_navigation_requests == 4),
+            "GUI restart did not reconcile the same Undo without full-network download"))
+            return false;
+        PersonalHistoryNavigationIntentStore store(root.path());
+        PersonalHistoryNavigationIntent saved;
+        if (!check(store.read(repository_id, draft_id, saved) ==
+                   PersonalHistoryNavigationIntentStore::ReadResult::Missing,
+                   "acknowledged History restart intent was not removed")) return false;
+        bool stopped = false;
+        QObject::connect(&restarted, &PersonalDraftEditSession::stopped,
+                         &restarted, [&](const QString &) { stopped = true; });
+        restarted.stop();
+        if (!check(until(application, [&] { return stopped; }),
+                   "restarted History session could not stop")) return false;
+    }
+    return true;
+}
+
 // A real HTTP session/controller test, with the same private identity,
 // generation, writer fencing and event-save contracts as the existing fixture.
 // This does NOT assert that the Distribution Editor has been bound to autosave.
@@ -1504,6 +1663,7 @@ int main(int argc, char **argv)
     if (!testArchivedHistoryCaptureGate(application)) return 1;
     if (!testHistoryReconnectAfterLostReplies(application)) return 1;
     if (!testHistoryReconciliationSourceAndDivergence(application)) return 1;
+    if (!testHistoryRestartAfterLostReply(application)) return 1;
     if (!testDraftEditSession(application)) return 1;
     if (!testDurableCommitRecovery(application)) return 1;
     Stub stub;

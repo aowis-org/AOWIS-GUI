@@ -1,0 +1,14 @@
+Fix project creation on newly initialized DVMDB repositories
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch main
+# Your branch is ahead of 'origin/main' by 1 commit.
+#   (use "git push" to publish your local commits)
+#
+# Changes to be committed:
+#	modified:   docs/working-repository-configuration.md
+#	modified:   src/projects/project_source_writer.cpp
+#	modified:   tests/project_source_writer_live_dvmdb_test.cpp
+#	modified:   tests/project_source_writer_test.cpp
+#

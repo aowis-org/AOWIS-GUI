@@ -70,6 +70,55 @@ void PersonalDraftEditSession::start(
     this->state_ = State::Starting;
     this->stop_requested_ = false;
 
+    // Crash recovery takes priority over the ordinary full-network open.
+    // A persisted intent contains the exact source MODEL snapshot and action
+    // journal from BEFORE the uncertain POST. The draft queue lock protects
+    // it against another writer on this machine; DVMDB's generation/lease
+    // checks protect against remote writers.
+    PersonalHistoryNavigationIntentStore intentStore(this->queue_root_);
+    PersonalHistoryNavigationIntent intent;
+    QString intentError;
+    const PersonalHistoryNavigationIntentStore::ReadResult recorded =
+        intentStore.read(this->target_.repository_id, this->draft_id_, intent, &intentError);
+    if (recorded == PersonalHistoryNavigationIntentStore::ReadResult::Error)
+    {
+        fail(QStringLiteral("Cannot verify pending History restart intent: %1").arg(intentError));
+        return;
+    }
+    if (recorded == PersonalHistoryNavigationIntentStore::ReadResult::Found)
+    {
+        if (intent.network_id != this->network_id_)
+        {
+            fail(QStringLiteral("Pending History intent belongs to a different network."));
+            return;
+        }
+        QString stageError;
+        if (!this->stage_.open(this->queue_root_, QUuid(this->target_.repository_id),
+                               QUuid(this->draft_id_), intent.source_network,
+                               QByteArray(), &stageError) || this->stage_.pendingCount() != 0)
+        {
+            fail(QStringLiteral("History restart cannot verify the empty edit queue: %1")
+                 .arg(stageError));
+            return;
+        }
+        this->project_id_ = intent.project_id;
+        this->session_id_ = intent.session_id;
+        this->base_revision_ = intent.base_revision;
+        this->generation_ = intent.source_generation;
+        this->saved_history_events_ = intent.journal_events;
+        this->history_operation_id_ = intent.operation_id;
+        this->history_source_generation_ = intent.source_generation;
+        this->history_source_cursor_ = intent.source_cursor;
+        this->history_target_coordinate_ = intent.target_coordinate;
+        this->history_network_qualified_ = true;
+        this->history_restarted_ = true;
+        // No HTTP GET of NetworkHydraulic, no speculative permission to edit,
+        // and no need for the remote server to be online during startup.
+        // The first available SHA/cursor receipt determines how to resume.
+        scheduleHistoryRecovery();
+        return;
+    }
+
     this->client_.reopen(this->target_, this->draft_id_,
         [this](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
@@ -497,6 +546,38 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
                 position_string) return;
     }
     else return;
+    // The source MODEL bytes, journal, cursor and operation identity must
+    // be durable BEFORE the navigation POST can reach DVMDB. Otherwise a
+    // GUI crash after server publication would require another full GET.
+    const QString operation_id = DvmdbIdentity::newUuidV7();
+    const QString old_generation = this->generation_;
+    bool sourceGenerationValid = false;
+    const qulonglong sourceGeneration = old_generation.toULongLong(&sourceGenerationValid);
+    if (!sourceGenerationValid || sourceGeneration == std::numeric_limits<qulonglong>::max())
+    {
+        fail(QStringLiteral("Invalid or exhausted private History generation."));
+        return;
+    }
+    PersonalHistoryNavigationIntent intent;
+    intent.repository_id = this->target_.repository_id;
+    intent.draft_id = this->draft_id_;
+    intent.project_id = this->project_id_;
+    intent.network_id = this->network_id_;
+    intent.session_id = this->session_id_;
+    intent.base_revision = this->base_revision_;
+    intent.operation_id = operation_id;
+    intent.source_generation = old_generation;
+    intent.source_cursor = this->history_cursor_;
+    intent.target_coordinate = coordinate;
+    intent.source_network = this->stage_.persistedNetwork();
+    intent.journal_events = this->saved_history_events_;
+    PersonalHistoryNavigationIntentStore intentStore(this->queue_root_);
+    QString intentError;
+    if (!intentStore.create(intent, &intentError))
+    {
+        fail(QStringLiteral("Cannot durably record History navigation: %1").arg(intentError));
+        return;
+    }
     // Retain the source coordinate before clearing the GUI's navigable
     // cursor. A matching SHA alone is insufficient to prove History position.
     this->history_source_cursor_ = this->history_cursor_;
@@ -506,16 +587,6 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
     this->history_cursor_ = {};
     emit historyCursorChanged();
     emit historyNavigationStarted();
-    const QString operation_id = DvmdbIdentity::newUuidV7();
-    const QString old_generation = this->generation_;
-    bool sourceGenerationValid = false;
-    const qulonglong sourceGeneration = old_generation.toULongLong(&sourceGenerationValid);
-    if (!sourceGenerationValid || sourceGeneration == std::numeric_limits<qulonglong>::max())
-    {
-        this->request_in_flight_ = false;
-        fail(QStringLiteral("Invalid or exhausted private History generation."));
-        return;
-    }
     this->history_operation_id_ = operation_id;
     this->history_source_generation_ = old_generation;
     this->history_target_coordinate_ = coordinate;
@@ -610,10 +681,25 @@ void PersonalDraftEditSession::completeHistoryNavigation(
     }
     else
         this->selected_draft_position_ = 0;
+    // Clearing the intent is itself a durability boundary. If it fails,
+    // editing remains blocked; the intact intent will reconcile on restart.
+    PersonalHistoryNavigationIntentStore intentStore(this->queue_root_);
+    QString intentError;
+    if (!intentStore.clear(this->target_.repository_id, this->draft_id_,
+                           this->history_operation_id_, &intentError))
+    {
+        fail(QStringLiteral("Cannot acknowledge durable History intent: %1").arg(intentError));
+        return;
+    }
+    const bool restarted = this->history_restarted_;
     clearHistoryRecovery();
     if (this->stop_requested_) { releaseAndClose(); return; }
     this->state_ = State::Ready;
-    emit historyNavigationCompleted(network);
+    // A fresh GUI window has not yet loaded the cached MODEL into its editor.
+    // The normal ready() handler hydrates it; an already-open editor receives
+    // the incremental History completion signal instead.
+    if (restarted) emit ready();
+    else emit historyNavigationCompleted(network);
     refreshHistoryCursor();
     if (leaseIsExpiring()) renew();
 }
@@ -792,6 +878,7 @@ void PersonalDraftEditSession::clearHistoryRecovery()
     this->history_target_coordinate_ = {};
     this->history_source_cursor_ = {};
     this->history_recovery_attempts_ = 0;
+    this->history_restarted_ = false;
 }
 
 void PersonalDraftEditSession::blockEditing(const QString &message)

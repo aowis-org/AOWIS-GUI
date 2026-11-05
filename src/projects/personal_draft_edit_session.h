@@ -1,6 +1,7 @@
 #pragma once
 
 #include "projects/personal_draft_edit_stage.h"
+#include "projects/personal_history_navigation_intent_store.h"
 #include "projects/personal_working_copy_client.h"
 
 #include <QObject>
@@ -128,4 +129,5 @@ private:
     QJsonObject history_target_coordinate_;
     QJsonObject history_source_cursor_;
     unsigned int history_recovery_attempts_ = 0;
+    bool history_restarted_ = false;
 };
