@@ -41,18 +41,25 @@ int main()
           "single-client presentation refuses multiple active clients");
     check(!coordinator.present(&fourth) && frames == 0,
           "unregistered client cannot submit a frame");
+    // The default map keeps its view IDs while hidden. A Projects graph
+    // submits its own queued draws without waking that map. This must work
+    // even though more than one client is registered on the device.
+    check(coordinator.renderAndPresent({{&second, {}}}) && frames == 1,
+          "Projects view can submit while hidden map retains its reservation");
+    check(!coordinator.renderAndPresent({{&fourth, {}}}) && frames == 1,
+          "unregistered Projects client cannot submit pending GPU work");
     int draws = 0;
     check(coordinator.renderAndPresent({{&first, [&draws]() { ++draws; }},
                                         {&second, [&draws]() { ++draws; }}})
-          && draws == 2 && frames == 1,
+          && draws == 2 && frames == 2,
           "two independent clients draw before one shared global frame");
     check(!coordinator.renderAndPresent({{&first, [&draws]() { ++draws; }},
                                          {&first, [&draws]() { ++draws; }}})
-          && draws == 2 && frames == 1,
+          && draws == 2 && frames == 2,
           "duplicate client is rejected without drawing or framing");
     check(!coordinator.renderAndPresent({{&first, [&draws]() { ++draws; }},
                                          {&fourth, [&draws]() { ++draws; }}})
-          && draws == 2 && frames == 1,
+          && draws == 2 && frames == 2,
           "unknown client rejected before any draw is submitted");
     check(coordinator.release(&second), "second client releases range");
     check(!coordinator.present(&second), "released client cannot submit");
@@ -65,7 +72,7 @@ int main()
     check(!coordinator.views(&first).valid() && !coordinator.views(&fourth).valid(),
           "device reset invalidates all ranges");
     check(coordinator.reserve(&first, 5).first == 0, "first map reclaims view 0 after reset");
-    check(coordinator.present(&first) && frames == 2,
+    check(coordinator.present(&first) && frames == 3,
           "single-map presentation still runs exactly one global frame");
 
     BgfxFrameCoordinator *recursive = nullptr;

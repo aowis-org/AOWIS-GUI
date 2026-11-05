@@ -278,7 +278,12 @@ void ProjectGraphBgfxViewport::render()
     bgfx::touch(this->view_id);
     this->gpu.uploadAtlas(&this->atlas);
     this->gpu.draw(this->view_id, this->canvas, QSizeF(this->graph->size()));
-    if (!device.frames().present(this))
+    // The Maps viewport retains its view reservation when its tab is hidden.
+    // present() deliberately refuses multiple registered clients, so the
+    // graph must submit its already-queued GPU commands through the shared
+    // multi-client entry point. A global bgfx frame does not require every
+    // reserved view to draw on every tick (hidden maps remain idle).
+    if (!device.frames().renderAndPresent({{this, {}}}))
         qWarning() << "Projects bgfx viewport: frame coordinator refused submission";
 }
 

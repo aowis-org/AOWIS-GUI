@@ -40,8 +40,10 @@ public:
     ViewRange reserve(const void *client, std::uint16_t count);
     bool release(const void *client);
     ViewRange views(const void *client) const;
-    // A single current map uses present(). Multiple render clients will use
-    // renderAndPresent() to submit their views in one global bgfx frame.
+    // A single current map uses present(). If multiple clients hold view IDs,
+    // renderAndPresent() can draw all currently active clients in one batch,
+    // or advance only an already-drawn client while other views are idle.
+    // Reserving a view does not require submitting it in every frame.
     bool present(const void *client);
     bool renderAndPresent(const std::vector<RenderWork> &work);
     void reset();
