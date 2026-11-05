@@ -61,6 +61,21 @@ view before destroying its framebuffer; release all secondary targets before
 device shutdown. A device restart invalidates the entire set of view-ID and
 GPU-handle reservations. Do not destroy handles from the previous generation.
 
+**Multi-client lifecycle barrier:** a successful device initialization assigns
+an increasing generation token. The primary owner is implicit; secondary GPU
+clients register their identity, the generation and a retirement callback with
+`BgfxDeviceManager` **before** allocating a view or target. Before destroying
+its own GPU resources, the primary calls `retireClients()`; `shutdown()` also
+checks the retirement barrier. Callbacks release GPU objects, targets and view
+reservations, then unregister their leases. If any registered client refuses
+to retire, throws, or an unmanaged view/target remains, shutdown is rejected
+and the existing device stays alive rather than clearing live handles. Stale
+generation tokens cannot unregister clients from a recreated device. A
+Projects graph retired while visible schedules a new attach after the owner
+finishes shutdown. Map diagnostic windows are retired and closed before the
+owning map's native surface is destroyed. This is a single-render-thread
+contract, not thread-safe or asynchronous device arbitration.
+
 ## Visibility, ownership and backend selection
 
 The **first native surface to initialize the device** becomes the owner of

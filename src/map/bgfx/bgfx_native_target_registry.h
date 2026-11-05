@@ -37,6 +37,7 @@ public:
     bool release(const void *client);
     bool contains(const void *client) const;
     bool isDefault(const void *client) const;
+    bool onlyClient(const void *client) const;
     std::size_t count() const { return this->targets.size(); }
 
     // Must be called BEFORE bgfx::shutdown(), including on failed startup.

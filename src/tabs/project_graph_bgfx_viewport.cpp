@@ -78,8 +78,8 @@ ProjectGraphBgfxViewport::~ProjectGraphBgfxViewport()
 {
     this->retry_timer.stop();
     this->redraw_timer.stop();
-    detach();
     shutdownOwnedDevice();
+    detach();
     if (this->window != nullptr)
         this->window->removeEventFilter(this);
     // Qt's createWindowContainer() owns the QWindow once it is embedded.
@@ -96,8 +96,8 @@ void ProjectGraphBgfxViewport::onHidden()
 {
     this->retry_timer.stop();
     this->redraw_timer.stop();
-    detach();
     shutdownOwnedDevice();
+    detach();
     if (this->container != nullptr)
         this->container->hide();
 }
@@ -142,14 +142,11 @@ void ProjectGraphBgfxViewport::checkAvailability()
     }
     if (this->attached)
     {
-        if (!device.frames().views(this).valid() || !device.targets().contains(this))
+        if (!device.isCurrent(this, this->device_generation)
+            || !device.frames().views(this).valid() || !device.targets().contains(this))
         {
-            // A device generation ended while the graph was hidden. All old
-            // bgfx handles are now invalid and must not be destroyed.
-            this->attached = false;
-            this->gpu_initialized = false;
-            this->gpu = MapBgfxHudGpu();
-            this->atlas = MapBgfxHudTextCache(2048);
+            // A stale generation must never destroy handles on the new one.
+            detach();
         }
         else
             return;
@@ -234,9 +231,33 @@ void ProjectGraphBgfxViewport::shutdownOwnedDevice()
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
     if (!device.owns(this))
         return;
-    // The graph must release its GPU resources before retiring the device.
+    // Secondary GPU clients must relinquish their resources before the
+    // primary framebuffer or graph shaders are destroyed.
+    if (!device.retireClients(this))
+    {
+        qWarning() << "Projects bgfx viewport: secondary client refused retirement";
+        return;
+    }
     detach();
-    device.shutdown(this);
+    if (!device.shutdown(this))
+        qWarning() << "Projects bgfx viewport: device shutdown refused";
+}
+
+void ProjectGraphBgfxViewport::retireFromDevice()
+{
+    // The primary owner is relinquishing its bgfx generation. Release our
+    // shaders and swapchain synchronously while it is still alive; retry the
+    // graph on the next event-loop turn after the old device is gone.
+    detach();
+    if (this->container != nullptr)
+        this->container->hide();
+    if (this->graph->isVisible())
+    {
+        if (!this->retry_timer.isActive())
+            this->retry_timer.start();
+        this->graph->update();
+        QTimer::singleShot(0, this, [this]() { checkAvailability(); });
+    }
 }
 
 void ProjectGraphBgfxViewport::tryAttach()
@@ -271,11 +292,21 @@ void ProjectGraphBgfxViewport::tryAttach()
     const bgfx::SwapChain swap_chain = nativeSwapChain(this->window);
     if (swap_chain.nwh == nullptr)
         return;
+    this->device_generation = device.generation();
+    if (!primary && !device.registerClient(this, this->device_generation,
+                                           [this]() { retireFromDevice(); }))
+    {
+        this->device_generation = 0;
+        return;
+    }
     const BgfxFrameCoordinator::ViewRange views = device.frames().reserve(this, 1);
     if (!views.valid())
     {
         if (primary)
             shutdownOwnedDevice();
+        else
+            device.unregisterClient(this, this->device_generation);
+        this->device_generation = 0;
         return;
     }
     const QSize pixels = targetPixels();
@@ -289,6 +320,9 @@ void ProjectGraphBgfxViewport::tryAttach()
         device.frames().release(this);
         if (primary)
             shutdownOwnedDevice();
+        else
+            device.unregisterClient(this, this->device_generation);
+        this->device_generation = 0;
         this->unavailable = true;
         this->retry_timer.stop();
         this->container->hide();
@@ -303,6 +337,9 @@ void ProjectGraphBgfxViewport::tryAttach()
         device.frames().release(this);
         if (primary)
             shutdownOwnedDevice();
+        else
+            device.unregisterClient(this, this->device_generation);
+        this->device_generation = 0;
         this->unavailable = true;
         this->retry_timer.stop();
         this->container->hide();
@@ -327,17 +364,19 @@ void ProjectGraphBgfxViewport::detach()
     if (!this->attached && !this->gpu_initialized)
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    if (device.hasOwner() && device.frames().views(this).valid())
+    if (device.isCurrent(this, this->device_generation))
     {
         if (this->gpu_initialized)
             this->gpu.release();
         device.targets().release(this);
         device.frames().release(this);
+        if (!device.owns(this))
+            device.unregisterClient(this, this->device_generation);
     }
     else
     {
-        // bgfx::shutdown() already destroyed all resources. Never call
-        // bgfx::destroy() with handles from an old device generation.
+        // The old device has been destroyed; deleting its GPU handles on a
+        // replacement device is invalid. Discard their CPU-side wrappers.
         this->gpu = MapBgfxHudGpu();
         this->atlas = MapBgfxHudTextCache(2048);
     }
@@ -345,6 +384,7 @@ void ProjectGraphBgfxViewport::detach()
     this->attached = false;
     this->allocated_pixels = QSize();
     this->view_id = 0;
+    this->device_generation = 0;
 }
 
 void ProjectGraphBgfxViewport::render()
@@ -353,7 +393,8 @@ void ProjectGraphBgfxViewport::render()
         || !this->window->isExposed())
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    if (!device.hasOwner() || !device.frames().views(this).valid())
+    if (!device.isCurrent(this, this->device_generation)
+        || !device.frames().views(this).valid())
     {
         detach();
         if (this->container != nullptr)
@@ -434,8 +475,8 @@ bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
         QPlatformSurfaceEvent *surface_event = static_cast<QPlatformSurfaceEvent *>(event);
         if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
         {
-            detach();
             shutdownOwnedDevice();
+            detach();
             return false;
         }
     }

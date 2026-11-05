@@ -44,6 +44,7 @@ private:
     void checkAvailability();
     bool initializePrimary();
     void shutdownOwnedDevice();
+    void retireFromDevice();
     void tryAttach();
     void detach();
     void render();
@@ -61,6 +62,7 @@ private:
     bool scene_dirty = true;
     QSize allocated_pixels;
     std::uint16_t view_id = 0;
+    std::uint64_t device_generation = 0;
     bool attached = false;
     bool gpu_initialized = false;
     bool unavailable = false;

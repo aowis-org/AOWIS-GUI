@@ -55,6 +55,16 @@ bool BgfxNativeTargetRegistry::isDefault(const void *client) const
     return false;
 }
 
+bool BgfxNativeTargetRegistry::onlyClient(const void *client) const
+{
+    for (const Target &target : this->targets)
+    {
+        if (target.client != client)
+            return false;
+    }
+    return true;
+}
+
 bool BgfxNativeTargetRegistry::attachDefault(const void *client, std::uint16_t view_id)
 {
     if (client == nullptr || contains(client))

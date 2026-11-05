@@ -35,6 +35,8 @@ int main()
     check(!coordinator.reserve(&third, 0).valid(), "zero views refused");
     check(!coordinator.reserve(&third, 3).valid(), "contiguous overflow refused");
     check(coordinator.views(&second).at(4) == 9, "relative bake view IDs valid");
+    check(!coordinator.onlyClient(&first),
+          "multi-client coordinator identifies foreign reservations");
     check(coordinator.reserve(&third, 2).first == 10, "remaining two view IDs allocated");
     check(!coordinator.reserve(&fourth, 1).valid(), "capacity fully reserved");
     check(!coordinator.present(&first) && frames == 0,
@@ -74,6 +76,8 @@ int main()
     check(coordinator.reserve(&first, 5).first == 0, "first map reclaims view 0 after reset");
     check(coordinator.present(&first) && frames == 3,
           "single-map presentation still runs exactly one global frame");
+    check(coordinator.onlyClient(&first),
+          "single-owner coordinator has no outstanding foreign leases");
 
     BgfxFrameCoordinator *recursive = nullptr;
     bool nested_rejected = false;

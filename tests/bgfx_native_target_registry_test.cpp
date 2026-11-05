@@ -62,6 +62,8 @@ int main()
     check(registry.attachDefault(&primary, 0), "default framebuffer attached to view zero");
     check(registry.isDefault(&primary) && registry.count() == 1,
           "primary target registered without owned framebuffer");
+    check(registry.onlyClient(&primary),
+          "primary alone owns all native targets before secondary attachment");
     check(!registry.attachDefault(&third, 1), "second default framebuffer rejected");
     check(!registry.attachDefault(&primary, 0), "duplicate primary rejected");
     check(!registry.attachWindow(&second, 0, &first_window, 640, 480, true),
@@ -102,6 +104,8 @@ int main()
     check(registry.attachWindow(&third, 10, &second_window, 500, 300, true),
           "third independent target registered");
     check(registry.count() == 3, "all three targets live simultaneously");
+    check(!registry.onlyClient(&primary),
+          "foreign native targets block primary-only shutdown");
     check(registry.release(&second), "secondary target released");
     check(bindings.back().view == 5 && bindings.back().framebuffer == bgfx::kInvalidHandle,
           "view unbound on release");

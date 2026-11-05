@@ -64,6 +64,16 @@ BgfxFrameCoordinator::ViewRange BgfxFrameCoordinator::views(const void *client) 
     return {};
 }
 
+bool BgfxFrameCoordinator::onlyClient(const void *client) const
+{
+    for (const Reservation &reservation : this->reservations)
+    {
+        if (reservation.client != client)
+            return false;
+    }
+    return true;
+}
+
 bool BgfxFrameCoordinator::present(const void *client)
 {
     // Preserve the current single-map path. When more clients are live,

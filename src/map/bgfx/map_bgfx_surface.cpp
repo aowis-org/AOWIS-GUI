@@ -1115,11 +1115,20 @@ void MapBgfxSurface::tryAttachMultiViewProbe()
         std::max(1, qRound(window->width() * window->devicePixelRatio())),
         std::max(1, qRound(window->height() * window->devicePixelRatio())));
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    this->multi_view_probe_generation = device.generation();
+    if (!device.registerClient(window, this->multi_view_probe_generation,
+                               [this]() { detachMultiViewProbe(); }))
+    {
+        this->multi_view_probe_generation = 0;
+        return;
+    }
     const BgfxFrameCoordinator::ViewRange views = device.frames().reserve(window, 1);
     if (!views.valid())
     {
         qWarning() << "bgfx multi-view probe: could not allocate an independent view";
         this->multi_view_probe_unavailable = true;
+        device.unregisterClient(window, this->multi_view_probe_generation);
+        this->multi_view_probe_generation = 0;
         return;
     }
     if (!device.targets().attachWindow(window, views.first, native_handle,
@@ -1128,6 +1137,8 @@ void MapBgfxSurface::tryAttachMultiViewProbe()
                                        true))
     {
         device.frames().release(window);
+        device.unregisterClient(window, this->multi_view_probe_generation);
+        this->multi_view_probe_generation = 0;
         this->multi_view_probe_unavailable = true;
         qWarning() << "bgfx multi-view probe: native swap-chain creation failed";
         return;
@@ -1146,20 +1157,28 @@ void MapBgfxSurface::detachMultiViewProbe()
     if (!this->multi_view_probe_attached || this->multi_view_probe_window == nullptr)
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    device.targets().release(this->multi_view_probe_window);
-    device.frames().release(this->multi_view_probe_window);
-    // Destroy commands are queued by bgfx. On the single-threaded backend,
-    // a global frame drains them before Qt closes the native surface. Do not
-    // block on an unexposed Wayland primary window during tab changes.
-    if (this->initialized && this->native_window != nullptr
-        && this->native_window->isExposed()
-        && !device.frames().present(this))
-        qWarning() << "bgfx multi-view probe: could not flush retired swap-chain";
+    const bool current = device.isCurrent(this->multi_view_probe_window,
+                                          this->multi_view_probe_generation);
+    if (current)
+    {
+        device.targets().release(this->multi_view_probe_window);
+        device.frames().release(this->multi_view_probe_window);
+        device.unregisterClient(this->multi_view_probe_window,
+                                this->multi_view_probe_generation);
+    }
+    // A replaced device already owns none of the old GPU handles. Never
+    // submit a stale view or destroy an obsolete framebuffer.
     this->multi_view_probe_attached = false;
+    this->multi_view_probe_generation = 0;
     this->multi_view_probe_view_id = 0;
     this->multi_view_probe_pixels = QSize();
     this->multi_view_probe_resize_warning = false;
-    if (this->initialized)
+    // Flush bgfx destroy commands before Qt deletes the native window.
+    if (current && this->initialized && this->native_window != nullptr
+        && this->native_window->isExposed()
+        && !device.frames().renderAndPresent({{this, {}}}))
+        qWarning() << "bgfx multi-view probe: could not flush retired swap-chain";
+    if (current && this->initialized)
         requestRedraw();
     qInfo() << "bgfx multi-view probe: detached; primary window remains active";
 }
@@ -1242,10 +1261,23 @@ void MapBgfxSurface::attachThreeViewProbe(int index)
     const QSize pixels(std::max(1, qRound(window->width() * window->devicePixelRatio())),
                        std::max(1, qRound(window->height() * window->devicePixelRatio())));
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    probe.generation = device.generation();
+    if (!device.registerClient(window, probe.generation,
+                               [this, index, window]()
+                               {
+                                   if (this->three_view_probes[std::size_t(index)].window == window)
+                                       detachThreeViewProbe(index);
+                               }))
+    {
+        probe.generation = 0;
+        return;
+    }
     const BgfxFrameCoordinator::ViewRange range = device.frames().reserve(window, 1);
     if (!range.valid())
     {
         probe.unavailable = true;
+        device.unregisterClient(window, probe.generation);
+        probe.generation = 0;
         qWarning() << "bgfx three-view: no view ID for" << index + 2;
         return;
     }
@@ -1254,6 +1286,8 @@ void MapBgfxSurface::attachThreeViewProbe(int index)
                                        std::uint16_t(std::min(65535, pixels.height())), true))
     {
         device.frames().release(window);
+        device.unregisterClient(window, probe.generation);
+        probe.generation = 0;
         probe.unavailable = true;
         qWarning() << "bgfx three-view: could not attach native swapchain" << index + 2;
         return;
@@ -1273,17 +1307,23 @@ void MapBgfxSurface::detachThreeViewProbe(int index)
     if (!probe.attached || probe.window == nullptr)
         return;
     BgfxDeviceManager &device = BgfxDeviceManager::shared();
-    device.targets().release(probe.window);
-    device.frames().release(probe.window);
+    const bool current = device.isCurrent(probe.window, probe.generation);
+    if (current)
+    {
+        device.targets().release(probe.window);
+        device.frames().release(probe.window);
+        device.unregisterClient(probe.window, probe.generation);
+    }
     probe.attached = false;
+    probe.generation = 0;
     probe.view_id = 0;
     probe.pixels = QSize();
     probe.imagery_layout_key = 0;
     probe.imagery_request_batch = 0;
     probe.dragging = false;
     // The native surface must outlive the bgfx destroy command. Do not call
-    // the coordinator's single-client present(), which rejects other leases.
-    if (this->initialized && this->native_window != nullptr
+    // the single-client present(), which rejects additional view leases.
+    if (current && this->initialized && this->native_window != nullptr
         && this->native_window->isExposed() && device.frames().views(this).valid())
         device.frames().renderAndPresent({{this, {}}});
     qInfo() << "bgfx three-view: detached independent map" << index + 2;
@@ -1434,6 +1474,14 @@ void MapBgfxSurface::shutdownBackend()
 {
     if (!this->initialized)
         return;
+    // A second GUI client (such as Projects) may still hold shaders and a
+    // swapchain on this device. Retire it before releasing the primary GPU
+    // resources. The manager refuses shutdown if any lease remains.
+    if (!BgfxDeviceManager::shared().retireClients(this))
+    {
+        qWarning() << "bgfx map: cannot shut down while a secondary GPU client is active";
+        return;
+    }
     stopFrameLoop();
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
     // Keep Qt's native secondary window alive until bgfx has finished
@@ -2995,6 +3043,12 @@ void MapBgfxSurface::fail(const QString &reason)
     stopMultiViewProbe();
 #endif
     if (this->initialized) {
+        if (!BgfxDeviceManager::shared().retireClients(this))
+        {
+            qWarning() << "bgfx map: renderer failure cannot retire secondary GPU clients";
+            emit signalRendererFailed(reason);
+            return;
+        }
         releaseGpuResources();
         BgfxDeviceManager::shared().shutdown(this);
         MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);

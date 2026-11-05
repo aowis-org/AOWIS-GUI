@@ -40,6 +40,7 @@ public:
     ViewRange reserve(const void *client, std::uint16_t count);
     bool release(const void *client);
     ViewRange views(const void *client) const;
+    bool onlyClient(const void *client) const;
     // A single current map uses present(). If multiple clients hold view IDs,
     // renderAndPresent() can draw all currently active clients in one batch,
     // or advance only an already-drawn client while other views are idle.

@@ -37,6 +37,7 @@
 #include <QWidget>
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <memory>
 
@@ -567,6 +568,7 @@ private:
 #if defined(Q_OS_LINUX)
     QWindow *multi_view_probe_window = nullptr;
     bgfx::ViewId multi_view_probe_view_id = 0;
+    std::uint64_t multi_view_probe_generation = 0;
     QSize multi_view_probe_pixels;
     bool multi_view_probe_attached = false;
     bool multi_view_probe_unavailable = false;
@@ -575,6 +577,7 @@ private:
     {
         QWindow *window = nullptr;
         bgfx::ViewId view_id = 0;
+        std::uint64_t generation = 0;
         QSize pixels;
         MapBgfxThreeViewCamera camera;
         QPointF last_pointer;
