@@ -13,7 +13,6 @@
 
 namespace
 {
-constexpr uint16_t kMapBgfxNetworkView = 0;
 // Opaque network colours with alpha blending; no depth test (painter's order).
 constexpr uint64_t kNetworkState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
     | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA;
@@ -303,7 +302,7 @@ void MapBgfx2dGpu::setCameraUniforms(const MapBgfx2dMeshChunk &chunk,
     bgfx::setUniform(this->pixel_uniform, pixel_data);
 }
 
-MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
+MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(bgfx::ViewId view_id, const MapBgfx2d::Camera &camera,
                                             const Style &style,
                                             const MapBgfxEntityStyle &entity_style) const
 {
@@ -363,7 +362,7 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
             bgfx::setVertexBuffer(0, buffers.node_vertices, 0, buffers.node_vertex_count);
             entity_style.bind(MapBgfxEntityStyle::Mode::Heatmap);
             bgfx::setState(kHeatmapState);
-            bgfx::submit(kMapBgfxNetworkView, this->heatmap_program);
+            bgfx::submit(view_id, this->heatmap_program);
             ++stats.draw_calls;
         }
     }
@@ -379,7 +378,7 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
         entity_style.bind(MapBgfxEntityStyle::Mode::Symbology, MapBgfxEntityStyle::Table::Nodes);
         bgfx::setIndexBuffer(buffers.attachment_indices, 0, buffers.attachment_index_count);
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->line_program);
+        bgfx::submit(view_id, this->line_program);
         ++stats.draw_calls;
     }
     for (const int index : visible) {
@@ -392,7 +391,7 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
         entity_style.bind(MapBgfxEntityStyle::Mode::Symbology, MapBgfxEntityStyle::Table::Links);
         bgfx::setIndexBuffer(buffers.link_indices, 0, buffers.link_index_count);
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->line_program);
+        bgfx::submit(view_id, this->line_program);
         ++stats.draw_calls;
     }
     if (style.flow_length_px > 0.0) {
@@ -410,13 +409,13 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
             entity_style.bind(MapBgfxEntityStyle::Mode::Symbology, MapBgfxEntityStyle::Table::Links);
             bgfx::setIndexBuffer(buffers.chevron_indices, 0, buffers.chevron_index_count);
             bgfx::setState(kNetworkState);
-            bgfx::submit(kMapBgfxNetworkView, this->flow_program);
+            bgfx::submit(view_id, this->flow_program);
             ++stats.draw_calls;
         }
     }
-    drawHighlightLines(this->selected_highlight, camera, selected_link_half,
+    drawHighlightLines(view_id, this->selected_highlight, camera, selected_link_half,
                        MapBgfxEntityStyle::Mode::Selection, entity_style, &stats);
-    drawHighlightLines(this->diagnostic_highlight, camera, diagnostic_link_half,
+    drawHighlightLines(view_id, this->diagnostic_highlight, camera, diagnostic_link_half,
                        MapBgfxEntityStyle::Mode::Diagnostic, entity_style, &stats);
     for (const int index : visible) {
         const ChunkBuffers &buffers = this->chunk_buffers[index];
@@ -427,12 +426,12 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
         bgfx::setVertexBuffer(0, buffers.node_vertices, 0, buffers.node_vertex_count);
         entity_style.bind(MapBgfxEntityStyle::Mode::Symbology);
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->point_program);
+        bgfx::submit(view_id, this->point_program);
         ++stats.draw_calls;
     }
-    drawHighlightNodes(this->selected_highlight, camera, selected_node_half,
+    drawHighlightNodes(view_id, this->selected_highlight, camera, selected_node_half,
                        MapBgfxEntityStyle::Mode::Selection, entity_style, &stats);
-    drawHighlightNodes(this->diagnostic_highlight, camera, diagnostic_node_half,
+    drawHighlightNodes(view_id, this->diagnostic_highlight, camera, diagnostic_node_half,
                        MapBgfxEntityStyle::Mode::Diagnostic, entity_style, &stats);
     for (const int index : visible) {
         const ChunkBuffers &buffers = this->chunk_buffers[index];
@@ -445,13 +444,13 @@ MapBgfx2dGpu::FrameStats MapBgfx2dGpu::draw(const MapBgfx2d::Camera &camera,
         bgfx::setTexture(0, this->icon_atlas_sampler, this->icon_atlas_texture,
                          uint32_t(kAtlasSamplerFlags));
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->icon_program);
+        bgfx::submit(view_id, this->icon_program);
         ++stats.draw_calls;
     }
     return stats;
 }
 
-void MapBgfx2dGpu::drawHighlightLines(const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
+void MapBgfx2dGpu::drawHighlightLines(bgfx::ViewId view_id, const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
                                       double half_width_px, MapBgfxEntityStyle::Mode mode,
                                       const MapBgfxEntityStyle &entity_style, FrameStats *stats) const
 {
@@ -471,12 +470,12 @@ void MapBgfx2dGpu::drawHighlightLines(const HighlightLayer &layer, const MapBgfx
         entity_style.bind(mode, MapBgfxEntityStyle::Table::Links);
         bgfx::setIndexBuffer(buffers.link_indices, 0, buffers.link_index_count);
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->line_program);
+        bgfx::submit(view_id, this->line_program);
         ++stats->draw_calls;
     }
 }
 
-void MapBgfx2dGpu::drawHighlightNodes(const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
+void MapBgfx2dGpu::drawHighlightNodes(bgfx::ViewId view_id, const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
                                       double half_size_px, MapBgfxEntityStyle::Mode mode,
                                       const MapBgfxEntityStyle &entity_style, FrameStats *stats) const
 {
@@ -494,7 +493,7 @@ void MapBgfx2dGpu::drawHighlightNodes(const HighlightLayer &layer, const MapBgfx
         bgfx::setVertexBuffer(0, buffers.node_vertices, 0, buffers.node_vertex_count);
         entity_style.bind(mode);
         bgfx::setState(kNetworkState);
-        bgfx::submit(kMapBgfxNetworkView, this->point_program);
+        bgfx::submit(view_id, this->point_program);
         ++stats->draw_calls;
     }
 }

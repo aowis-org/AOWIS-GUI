@@ -2,6 +2,7 @@
 #define MAP_BGFX_SURFACE_H
 
 #include "map/bgfx/map_bgfx_2d_scene_variants.h"
+#include "map/bgfx/map_bgfx_three_view_camera.h"
 #include "map/bgfx/map_bgfx_2d_gpu.h"
 #include "map/bgfx/map_bgfx_2d_imagery_gpu.h"
 #include "map/bgfx/map_bgfx_2d_symbology.h"
@@ -28,12 +29,14 @@
 #include <QElapsedTimer>
 #include <QHash>
 #include <QPointer>
+#include <QPointF>
 #include <QSet>
 #include <QSize>
 #include <QSizeF>
 #include <QTimer>
 #include <QWidget>
 
+#include <array>
 #include <functional>
 #include <memory>
 
@@ -332,6 +335,13 @@ private:
     void detachMultiViewProbe();
     void stopMultiViewProbe();
     void drawMultiViewProbe();
+    // Step 5 diagnostic: two additional, independently navigable 2D maps
+    // backed by the existing GPU network scene and imagery cache.
+    void startThreeViewProbe();
+    void attachThreeViewProbe(int index);
+    void detachThreeViewProbe(int index);
+    void stopThreeViewProbe();
+    void drawThreeViewProbe(int index);
 #endif
     // bgfx::shutdown() for a native window that is about to be destroyed;
     // the backend restarts once the platform surface exists again.
@@ -561,6 +571,20 @@ private:
     bool multi_view_probe_attached = false;
     bool multi_view_probe_unavailable = false;
     bool multi_view_probe_resize_warning = false;
+    struct ThreeViewProbe
+    {
+        QWindow *window = nullptr;
+        bgfx::ViewId view_id = 0;
+        QSize pixels;
+        MapBgfxThreeViewCamera camera;
+        QPointF last_pointer;
+        quint64 imagery_layout_key = 0;
+        quint64 imagery_request_batch = 0;
+        bool attached = false;
+        bool unavailable = false;
+        bool dragging = false;
+    };
+    std::array<ThreeViewProbe, 2> three_view_probes;
 #endif
 #endif
 };

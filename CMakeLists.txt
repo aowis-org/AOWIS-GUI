@@ -686,6 +686,19 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-bgfx-two-view-coordination-tests)
     set_tests_properties(aowis-bgfx-two-view-coordination PROPERTIES LABELS "aowis")
 
+    # Step 5: independent Mercator cameras + three target/view lifecycles.
+    # No native windows or graphics device are required for this test.
+    add_executable(aowis-bgfx-three-view-camera-tests
+        tests/bgfx_three_view_camera_test.cpp
+        src/map/bgfx/bgfx_frame_coordinator.cpp
+        src/map/bgfx/bgfx_native_target_registry.cpp)
+    target_include_directories(aowis-bgfx-three-view-camera-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-bgfx-three-view-camera-tests PRIVATE bgfx)
+    add_test(NAME aowis-bgfx-three-view-camera
+        COMMAND aowis-bgfx-three-view-camera-tests)
+    set_tests_properties(aowis-bgfx-three-view-camera PROPERTIES LABELS "aowis")
+
     # Cache-selection overlays must be drawable even when distribution meshes
     # are hidden in Map Management (2D and globe), without a graphics device.
     add_executable(aowis-map-bgfx-layer-visibility-tests

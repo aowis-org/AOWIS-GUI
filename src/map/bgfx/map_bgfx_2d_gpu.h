@@ -55,7 +55,7 @@ public:
     bool setHighlights(const MapBgfx2dScene &selected, bool selected_has_error,
                        const MapBgfx2dScene &diagnostic);
     // entity_style: synchronized for this frame.
-    FrameStats draw(const MapBgfx2d::Camera &camera, const Style &style,
+    FrameStats draw(bgfx::ViewId view_id, const MapBgfx2d::Camera &camera, const Style &style,
                     const MapBgfxEntityStyle &entity_style) const;
     void release();
 
@@ -103,10 +103,10 @@ private:
     bool uploadMesh(const MapBgfx2dMesh &source, QVector<ChunkBuffers> *chunk_buffers,
                     quint64 *bytes);
     bool setHighlightLayer(HighlightLayer *layer, const MapBgfx2dScene &scene);
-    void drawHighlightLines(const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
+    void drawHighlightLines(bgfx::ViewId view_id, const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
                             double half_width_px, MapBgfxEntityStyle::Mode mode,
                             const MapBgfxEntityStyle &entity_style, FrameStats *stats) const;
-    void drawHighlightNodes(const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
+    void drawHighlightNodes(bgfx::ViewId view_id, const HighlightLayer &layer, const MapBgfx2d::Camera &camera,
                             double half_size_px, MapBgfxEntityStyle::Mode mode,
                             const MapBgfxEntityStyle &entity_style, FrameStats *stats) const;
     void setCameraUniforms(const MapBgfx2dMeshChunk &chunk,

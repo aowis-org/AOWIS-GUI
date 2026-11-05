@@ -48,6 +48,7 @@
 #include <cmath>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #ifdef Q_OS_WASM
 #include <emscripten/emscripten.h>
@@ -459,6 +460,70 @@ bool MapBgfxSurface::eventFilter(QObject *watched, QEvent *event)
 {
 #ifndef Q_OS_WASM
 #if defined(Q_OS_LINUX)
+    for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+    {
+        ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+        if (watched != probe.window || probe.window == nullptr)
+            continue;
+        if (event->type() == QEvent::Close)
+        {
+            detachThreeViewProbe(index);
+            return QWidget::eventFilter(watched, event);
+        }
+        if (event->type() == QEvent::PlatformSurface)
+        {
+            const QPlatformSurfaceEvent *surface_event =
+                static_cast<QPlatformSurfaceEvent *>(event);
+            if (surface_event->surfaceEventType()
+                == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
+                detachThreeViewProbe(index);
+        }
+        if (event->type() == QEvent::Expose || event->type() == QEvent::Resize)
+        {
+            if (probe.window->isExposed())
+                attachThreeViewProbe(index);
+            requestRedraw();
+        }
+        if (event->type() == QEvent::MouseButtonPress)
+        {
+            QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            if (mouse->button() == Qt::LeftButton)
+            {
+                probe.dragging = true;
+                probe.last_pointer = mouse->position();
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseButtonRelease)
+        {
+            QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            if (mouse->button() == Qt::LeftButton)
+            {
+                probe.dragging = false;
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseMove && probe.dragging)
+        {
+            QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            const QPointF movement = mouse->position() - probe.last_pointer;
+            probe.camera.pan(movement.x(), movement.y());
+            probe.last_pointer = mouse->position();
+            requestRedraw();
+            return true;
+        }
+        if (event->type() == QEvent::Wheel)
+        {
+            QWheelEvent *wheel = static_cast<QWheelEvent *>(event);
+            const QPointF position = wheel->position();
+            const double steps = double(wheel->angleDelta().y()) / 120.0;
+            probe.camera.zoomAround(steps, position.x(), position.y(),
+                                    probe.window->width(), probe.window->height());
+            requestRedraw();
+            return true;
+        }
+        return QWidget::eventFilter(watched, event);
+    }
     if (watched == this->multi_view_probe_window)
     {
         if (event->type() == QEvent::Close)
@@ -1132,6 +1197,239 @@ void MapBgfxSurface::drawMultiViewProbe()
 }
 #endif
 
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+void MapBgfxSurface::startThreeViewProbe()
+{
+    if (!this->initialized || !isVisible() || this->three_view_probes[0].window != nullptr
+        || (bgfx::getCaps()->supported & BGFX_CAPS_SWAP_CHAIN) == 0)
+        return;
+    for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+    {
+        ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+        probe.camera.reset(this->camera_state.center_lon_deg,
+                           this->camera_state.center_lat_deg,
+                           this->camera_state.continuous_2d_zoom + (index == 0 ? -0.5 : 0.5));
+        probe.window = new QWindow();
+        probe.window->setTitle(QStringLiteral("AOWIS independent map %1 (Step 5 test)").arg(index + 2));
+        probe.window->setSurfaceType(QSurface::OpenGLSurface);
+        probe.window->resize(520, 350);
+        probe.window->installEventFilter(this);
+        probe.window->show();
+        QTimer::singleShot(0, this, [this, index]() { attachThreeViewProbe(index); });
+    }
+}
+
+void MapBgfxSurface::attachThreeViewProbe(int index)
+{
+    ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+    if (!this->initialized || probe.window == nullptr || probe.attached
+        || probe.unavailable || !probe.window->isExposed())
+        return;
+    QWindow *window = probe.window;
+    void *native_handle = reinterpret_cast<void *>(window->winId());
+#if defined(AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE)
+    if (QGuiApplication::platformName().startsWith(QStringLiteral("wayland")))
+    {
+        QPlatformNativeInterface *native = QGuiApplication::platformNativeInterface();
+        native_handle = native
+            ? native->nativeResourceForWindow(QByteArrayLiteral("surface"), window)
+            : nullptr;
+    }
+#endif
+    if (native_handle == nullptr)
+        return; // Wait for the native Wayland surface to be exposed.
+
+    const QSize pixels(std::max(1, qRound(window->width() * window->devicePixelRatio())),
+                       std::max(1, qRound(window->height() * window->devicePixelRatio())));
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    const BgfxFrameCoordinator::ViewRange range = device.frames().reserve(window, 1);
+    if (!range.valid())
+    {
+        probe.unavailable = true;
+        qWarning() << "bgfx three-view: no view ID for" << index + 2;
+        return;
+    }
+    if (!device.targets().attachWindow(window, range.first, native_handle,
+                                       std::uint16_t(std::min(65535, pixels.width())),
+                                       std::uint16_t(std::min(65535, pixels.height())), true))
+    {
+        device.frames().release(window);
+        probe.unavailable = true;
+        qWarning() << "bgfx three-view: could not attach native swapchain" << index + 2;
+        return;
+    }
+    probe.view_id = range.first;
+    probe.pixels = pixels;
+    probe.attached = true;
+    probe.imagery_layout_key = 0;
+    qInfo() << "bgfx three-view: attached independent map" << index + 2
+            << "bgfx view" << probe.view_id << "pixels" << pixels;
+    requestRedraw();
+}
+
+void MapBgfxSurface::detachThreeViewProbe(int index)
+{
+    ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+    if (!probe.attached || probe.window == nullptr)
+        return;
+    BgfxDeviceManager &device = BgfxDeviceManager::shared();
+    device.targets().release(probe.window);
+    device.frames().release(probe.window);
+    probe.attached = false;
+    probe.view_id = 0;
+    probe.pixels = QSize();
+    probe.imagery_layout_key = 0;
+    probe.imagery_request_batch = 0;
+    probe.dragging = false;
+    // The native surface must outlive the bgfx destroy command. Do not call
+    // the coordinator's single-client present(), which rejects other leases.
+    if (this->initialized && this->native_window != nullptr
+        && this->native_window->isExposed() && device.frames().views(this).valid())
+        device.frames().renderAndPresent({{this, {}}});
+    qInfo() << "bgfx three-view: detached independent map" << index + 2;
+}
+
+void MapBgfxSurface::stopThreeViewProbe()
+{
+    for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+    {
+        ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+        if (probe.window == nullptr)
+            continue;
+        detachThreeViewProbe(index);
+        QWindow *window = probe.window;
+        probe.window = nullptr;
+        window->removeEventFilter(this);
+        delete window;
+        probe = ThreeViewProbe();
+    }
+}
+
+void MapBgfxSurface::drawThreeViewProbe(int index)
+{
+    ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+    if (probe.window == nullptr || !probe.attached || !probe.window->isExposed())
+        return;
+    const QSizeF logical(std::max(1, probe.window->width()),
+                         std::max(1, probe.window->height()));
+    const MapBgfx2d::Camera map_camera = probe.camera.camera(logical.width(), logical.height());
+    const bgfx::ViewId view_id = probe.view_id;
+    bgfx::setViewRect(view_id, 0, 0,
+                      std::uint16_t(std::min(65535, probe.pixels.width())),
+                      std::uint16_t(std::min(65535, probe.pixels.height())));
+    bgfx::setViewMode(view_id, bgfx::ViewMode::Sequential);
+    bgfx::setViewTransform(view_id, nullptr, nullptr);
+    bgfx::setViewClear(view_id, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x16324affu, 1.0f, 0);
+    bgfx::touch(view_id);
+
+    // The same imagery renderer/atlas as the primary map, but a completely
+    // independent camera and viewport-specific tile-request batch.
+    MapBgfx2dImagery::Camera imagery_camera;
+    imagery_camera.center_x = map_camera.center.x;
+    imagery_camera.center_y = map_camera.center.y;
+    imagery_camera.zoom = probe.camera.zoom();
+    imagery_camera.viewport_width = logical.width();
+    imagery_camera.viewport_height = logical.height();
+    const MapBgfx2dImagery::Availability resident = [this](const MapBgfx2dImagery::TileId &tile)
+    {
+        return this->imagery_gpu.hasTexture(tile);
+    };
+    MapBgfx2dImagery::Layout layout = MapBgfx2dImagery::buildLayout(
+        imagery_camera, MapModel::MinZoom, this->map_model->imageryMaximumZoom(), resident);
+    this->imagery_gpu.markUsed(layout);
+    if (this->tile_repository != nullptr
+        && !this->map_model->tileSourcePath(layout.imagery_zoom).isEmpty())
+    {
+        if (probe.imagery_layout_key != layout.layout_key)
+        {
+            probe.imagery_layout_key = layout.layout_key;
+            probe.imagery_request_batch = this->tile_repository->beginTileRequestBatch(
+                probe.window, QStringLiteral("bgfx-three-view|%1|%2")
+                    .arg(index).arg(layout.layout_key));
+        }
+        int uploads = 0;
+        for (const MapBgfx2dImagery::Request &request : layout.requests)
+        {
+            const QString key = this->map_model->tileCacheKey(
+                request.tile.x, request.tile.y, request.tile.zoom);
+            const QImage *image = this->tile_repository->tile(key);
+            if (image != nullptr)
+            {
+                if (uploads < 3 && this->imagery_gpu.uploadTexture(request.tile, *image))
+                    ++uploads;
+            }
+            else
+            {
+                this->tile_repository->requestTile(
+                    this->map_model->tileEndpoint(request.tile.x, request.tile.y, request.tile.zoom),
+                    key, request.tile.x, request.tile.y, request.priority,
+                    probe.imagery_request_batch);
+            }
+        }
+        if (uploads > 0)
+            layout = MapBgfx2dImagery::buildLayout(
+                imagery_camera, MapModel::MinZoom,
+                this->map_model->imageryMaximumZoom(), resident);
+    }
+    this->imagery_gpu.markUsed(layout);
+    this->imagery_gpu.draw(view_id, layout, logical.width(), logical.height(),
+                           palette().color(QPalette::Window),
+                           double(this->background_opacity) / 100.0);
+
+    // Existing uploaded hydraulic network and entity-colour tables are shared
+    // read-only between views; only projection and symbol size differ.
+    if (this->distribution_network_visible)
+    {
+        const double latitude = std::atan(std::sinh(
+            MapBgfx2d::Pi * (1.0 - 2.0 * map_camera.center.y)))
+            / MapBgfx2d::DegreesToRadians;
+        const MapBgfx2dSymbology::Sizes sizes = MapBgfx2dSymbology::sizes(
+            this->symbology, latitude, probe.camera.zoom());
+        MapBgfx2dGpu::Style style;
+        style.link_width_px = sizes.link_width_px;
+        style.attachment_width_px = sizes.attachment_width_px;
+        style.node_half_px = sizes.node_half_px;
+        style.icon_size_px = sizes.icon_size_px;
+        // Deliberately omit flow/heatmap overlays from this diagnostic. The
+        // same network topology and retained GPU mesh are displayed.
+        this->gpu_2d_scene.draw(view_id, map_camera, style, this->entity_style);
+    }
+
+    // A lightweight geographic reference grid keeps the diagnostic useful
+    // without a map server and visibly follows each independent camera.
+    // It is only drawn in the opt-in secondary windows, never the real map.
+    MapBgfxHudCanvas grid;
+    grid.setWhiteTexel(this->hud_text_cache.whiteU(), this->hud_text_cache.whiteV());
+    const double world_step = std::clamp(
+        std::exp2(std::ceil(std::log2(90.0 / map_camera.world_pixels))),
+        1.0 / 262144.0, 0.25);
+    for (int index = -1; index < int(logical.width() / 40.0) + 3; ++index)
+    {
+        const double first = std::floor((map_camera.center.x
+            - 0.5 * logical.width() / map_camera.world_pixels) / world_step) * world_step;
+        const double screen_x = 0.5 * logical.width()
+            + (first + index * world_step - map_camera.center.x) * map_camera.world_pixels;
+        if (screen_x >= 0.0 && screen_x <= logical.width())
+            grid.line(screen_x, 0.0, screen_x, logical.height(), 1.0, 0x6698baca);
+    }
+    for (int index = -1; index < int(logical.height() / 40.0) + 3; ++index)
+    {
+        const double first = std::floor((map_camera.center.y
+            - 0.5 * logical.height() / map_camera.world_pixels) / world_step) * world_step;
+        const double screen_y = 0.5 * logical.height()
+            + (first + index * world_step - map_camera.center.y) * map_camera.world_pixels;
+        if (screen_y >= 0.0 && screen_y <= logical.height())
+            grid.line(0.0, screen_y, logical.width(), screen_y, 1.0, 0x6698baca);
+    }
+    // View-centre marker, always visible even if no tiles have loaded yet.
+    const double cx = logical.width() * 0.5;
+    const double cy = logical.height() * 0.5;
+    grid.line(cx - 8.0, cy, cx + 8.0, cy, 1.5, 0xffd5e6ef);
+    grid.line(cx, cy - 8.0, cx, cy + 8.0, 1.5, 0xffd5e6ef);
+    this->hud_gpu.draw(view_id, grid, logical);
+}
+#endif
+
 void MapBgfxSurface::shutdownBackend()
 {
     if (!this->initialized)
@@ -1142,6 +1440,7 @@ void MapBgfxSurface::shutdownBackend()
     // destroying its swapchain. Qt/Wayland may otherwise destroy wl_surface
     // while the GPU still has an outstanding reference to it.
     detachMultiViewProbe();
+    stopThreeViewProbe();
 #endif
     this->globe_overlay_height_cache.clear();
     BgfxDeviceManager::shared().targets().release(this);
@@ -1904,7 +2203,9 @@ void MapBgfxSurface::showEvent(QShowEvent *event)
         synchronizeGeometry();
         startFrameLoop();
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-        if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
+        if (qEnvironmentVariableIntValue("AOWIS_BGFX_THREE_VIEW_PROBE") != 0)
+            QTimer::singleShot(0, this, [this]() { startThreeViewProbe(); });
+        else if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
             QTimer::singleShot(0, this, [this]() { startMultiViewProbe(); });
 #endif
         return;
@@ -1953,6 +2254,7 @@ void MapBgfxSurface::hideEvent(QHideEvent *event)
     // Do not keep a visible native probe when the Maps page is hidden.
     // Retire its swapchain before Qt destroys the platform surface.
     stopMultiViewProbe();
+    stopThreeViewProbe();
 #endif
     // No popup survives the map being hidden (tab switch, fullscreen).
     this->hud.closePopup();
@@ -2395,15 +2697,32 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         }
     }
 #endif
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    for (ThreeViewProbe &probe : this->three_view_probes)
+    {
+        if (!probe.attached || probe.window == nullptr || !probe.window->isExposed())
+            continue;
+        const QSize desired(std::max(1, qRound(probe.window->width() * probe.window->devicePixelRatio())),
+                            std::max(1, qRound(probe.window->height() * probe.window->devicePixelRatio())));
+        if (desired != probe.pixels && BgfxDeviceManager::shared().targets().resizeWindow(
+                probe.window, std::uint16_t(std::min(65535, desired.width())),
+                std::uint16_t(std::min(65535, desired.height()))))
+            probe.pixels = desired;
+    }
+#endif
     const bool animating = !this->ready_reported || this->debug_overlay_enabled
         || this->hud.animating() || this->imagery_uploads_pending
         || (globe_shown && this->globe_pending)
         || (this->distribution_network_visible && this->label_settings.anyEnabled()
             && this->labels_dirty);
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-    const bool probe_animating = this->multi_view_probe_attached
+    const bool probe_animating = (this->multi_view_probe_attached
         && this->multi_view_probe_window != nullptr
-        && this->multi_view_probe_window->isExposed();
+        && this->multi_view_probe_window->isExposed())
+        || (this->three_view_probes[0].attached && this->three_view_probes[0].window != nullptr
+            && this->three_view_probes[0].window->isExposed())
+        || (this->three_view_probes[1].attached && this->three_view_probes[1].window != nullptr
+            && this->three_view_probes[1].window->isExposed());
 #else
     const bool probe_animating = false;
 #endif
@@ -2495,7 +2814,7 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
                 network_view.center.x -= this->network_screen_translation.x() / view.world_pixels;
                 network_view.center.y -= this->network_screen_translation.y() / view.world_pixels;
             }
-            this->network_frame_stats = this->gpu_2d_scene.draw(network_view, style, this->entity_style);
+            this->network_frame_stats = this->gpu_2d_scene.draw(this->map_view_id, network_view, style, this->entity_style);
             if (layers.editor_overlay_2d)
                 renderOverlay(logical, view);
             // Labels above the network and the editor's icons, below the HUD.
@@ -2533,7 +2852,21 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         renderDebugOverlay();
     bool submitted = false;
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-    if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr)
+    if (this->three_view_probes[0].attached || this->three_view_probes[1].attached)
+    {
+        // All currently exposed maps submit their independent camera/view
+        // into separate native swapchains in ONE global bgfx frame.
+        std::vector<BgfxFrameCoordinator::RenderWork> work;
+        work.push_back({this, {}});
+        for (int index = 0; index < int(this->three_view_probes.size()); ++index)
+        {
+            ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
+            if (probe.attached && probe.window != nullptr && probe.window->isExposed())
+                work.push_back({probe.window, [this, index]() { drawThreeViewProbe(index); }});
+        }
+        submitted = BgfxDeviceManager::shared().frames().renderAndPresent(work);
+    }
+    else if (this->multi_view_probe_attached && this->multi_view_probe_window != nullptr)
     {
         // One and only one bgfx::frame() for both independently targeted views.
         // The map has already queued its draws; the probe submits a second
@@ -2564,7 +2897,9 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         qInfo() << "bgfx map: first frame presented";
         emit signalRendererReady();
 #if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
-        if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
+        if (qEnvironmentVariableIntValue("AOWIS_BGFX_THREE_VIEW_PROBE") != 0)
+            QTimer::singleShot(0, this, [this]() { startThreeViewProbe(); });
+        else if (qEnvironmentVariableIntValue("AOWIS_BGFX_TWO_VIEW_PROBE") != 0)
             QTimer::singleShot(0, this, [this]() { startMultiViewProbe(); });
 #endif
     }
@@ -2655,6 +2990,10 @@ void MapBgfxSurface::fail(const QString &reason)
 {
     this->failed = true;
     stopFrameLoop();
+#if defined(Q_OS_LINUX) && !defined(Q_OS_WASM)
+    stopThreeViewProbe();
+    stopMultiViewProbe();
+#endif
     if (this->initialized) {
         releaseGpuResources();
         BgfxDeviceManager::shared().shutdown(this);

@@ -384,3 +384,55 @@ reproduced with a debugger backtrace. Workspace-before-repository teardown
 ordering is explicit, but the exception's root cause is **not confirmed fixed**.
 Keep shutdown testing (including after 2D/3D and mode transitions) in native
 Linux, Windows and WASM release acceptance, and capture a backtrace if it recurs.
+
+## Three independent map views (Step 5, Linux opt-in diagnostic)
+
+`AOWIS_BGFX_THREE_VIEW_PROBE=1` opens two additional 2D geographic map
+windows when the normal Maps workspace first renders, giving **three
+simultaneously visible maps**: the original Maps viewport plus two windows.
+The existing five Maps modes, their sidebar controls and the original camera
+are unchanged when the diagnostic is disabled (the default).
+
+Each additional native window has its own Mercator camera, viewport dimensions,
+allocated bgfx view ID and secondary swapchain; left-drag pans and the wheel
+zooms around the pointer. Camera changes in one map do not mutate either of
+the other two cameras. The additional views reuse the *existing* 2D bgfx
+imagery renderer and uploaded hydraulic network geometry, with per-view tile
+selection. A Mercator reference grid and centre crosshair remain visible even
+when no basemap imagery has loaded. They are **read-only map diagnostics**, not two new distribution
+editor controllers, graph panels, or 3D globes. Their imagery requests share
+the current MapTileRepository queue, so production multi-source scheduling
+will need its own design when true multi-map editing is introduced.
+
+The main map coordinates one `bgfx::frame()` across all visible attached
+views. The renderer's network draw path now explicitly receives the allocated
+view ID instead of assuming the primary map is always bgfx view 0 (Projects
+may initialize the device first). Secondary resize recreates only that
+swapchain, and closing either diagnostic window releases its own target and
+view reservation without resetting the device. Leaving the Maps main tab
+closes both additional windows; returning to Maps recreates them only if the
+diagnostic environment variable remains set.
+
+Manual test on native Linux after opening Maps:
+
+```bash
+AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
+AOWIS_BGFX_RENDERER=opengl AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
+```
+
+Verify that both new windows show map imagery (when a map source is available)
+and distribution network geometry (when a network is loaded). Pan and zoom
+one independently of the other two. Resize and close them in either order;
+the original map must continue rendering. Switch to Projects and back,
+then exit normally. The headless `aowis-bgfx-three-view-camera` test covers
+independent camera updates, anchored wheel zoom, three view-ID reservations,
+three frame clients, and individual secondary-target retirement. Actual GPU
+swapchain presentation, Qt input routing and Linux windowing still require
+manual native verification.
+
+**Scope boundary:** These probes establish the shared-device and per-camera
+rendering prerequisites for a future three-way project merge view. Production
+multi-map editor models, independent tile request scheduling, map overlays,
+3D globe instances, and WASM multi-canvas integration remain separate work.
+The extraction to an independent AOWIS renderer library is not part of this
+batch.
