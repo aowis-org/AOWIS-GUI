@@ -187,13 +187,14 @@ inline LayeredDag layoutLayeredDag(const std::vector<LayeredVertex> &input,
         }
 
     std::vector<double> order(graph.size(), 0.0);
-    const auto updateOrder = [&]()
-    {
-        for (const std::vector<int> &layer : layers)
-            for (int slot = 0; slot < static_cast<int>(layer.size()); ++slot)
-                order[layer[slot]] = static_cast<double>(slot);
-    };
-    updateOrder();
+    // Updating the order for every rank after sorting one rank would perform
+    // O(number_of_ranks * number_of_vertices) work per sweep. In a long
+    // revision chain each rank has one node, so that becomes O(N^2) even
+    // though the local sort changes at most one slot. Only the sorted rank's
+    // order values can have changed.
+    for (const std::vector<int> &layer : layers)
+        for (int slot = 0; slot < static_cast<int>(layer.size()); ++slot)
+            order[layer[slot]] = static_cast<double>(slot);
 
     // Count inversions between adjacent ranks using a Fenwick tree. Edges
     // with a common source or target do not cross. Complexity is O(E log V)
@@ -239,7 +240,9 @@ inline LayeredDag layoutLayeredDag(const std::vector<LayeredVertex> &input,
 
     std::vector<std::vector<int>> best_layers = layers;
     std::size_t best_crossings = countCrossings();
-    for (int round = 0; round < 18; ++round)
+    // Zero is the global optimum. No barycentric sorting can improve it;
+    // skipping those sweeps is especially valuable for long linear histories.
+    for (int round = 0; round < 18 && best_crossings != 0; ++round)
     {
         for (int pass = 0; pass < 2; ++pass)
         {
@@ -270,7 +273,8 @@ inline LayeredDag layoutLayeredDag(const std::vector<LayeredVertex> &input,
                 });
                 for (int slot = 0; slot < static_cast<int>(scores.size()); ++slot)
                     layer[slot] = scores[slot].second;
-                updateOrder();
+                for (int slot = 0; slot < static_cast<int>(layer.size()); ++slot)
+                    order[layer[slot]] = static_cast<double>(slot);
             }
             const std::size_t crossings = countCrossings();
             if (crossings < best_crossings)
@@ -281,7 +285,9 @@ inline LayeredDag layoutLayeredDag(const std::vector<LayeredVertex> &input,
         }
     }
     layers = best_layers;
-    updateOrder();
+    for (const std::vector<int> &layer : layers)
+        for (int slot = 0; slot < static_cast<int>(layer.size()); ++slot)
+            order[layer[slot]] = static_cast<double>(slot);
 
     std::vector<double> rank_heights(layers.size(), 0.0);
     for (std::size_t rank = 0; rank < layers.size(); ++rank)

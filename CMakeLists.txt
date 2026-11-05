@@ -782,6 +782,23 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-project-graph-bgfx-scene PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # Opt-in CPU benchmark for actual Projects DAG layout and bgfx scene
+    # staging. Deliberately not a GPU/FPS benchmark. The large 100k case is
+    # opt-in (--stress), so normal CTest remains fast and deterministic.
+    add_executable(aowis-project-graph-performance-benchmark
+        tests/project_graph_performance_benchmark.cpp
+        src/tabs/project_graph_bgfx_scene.cpp
+        src/tabs/project_graph_bgfx_scene.h
+        src/tabs/project_graph_placement.h
+        src/map/bgfx/map_bgfx_hud_text_cache.cpp)
+    target_include_directories(aowis-project-graph-performance-benchmark PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-graph-performance-benchmark PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-project-graph-performance-smoke
+        COMMAND aowis-project-graph-performance-benchmark --sizes=64 --repeats=1)
+    set_tests_properties(aowis-project-graph-performance-smoke PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # Deterministic loopback REST contract; no external DVMDB daemon required.
     add_executable(aowis-project-source-reader-tests
         tests/project_source_reader_test.cpp

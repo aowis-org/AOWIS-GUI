@@ -150,6 +150,49 @@ int main(int argc, char **argv)
                  && outside.text_runs == 0,
                  "offscreen cards should not emit GPU card geometry or text")) return 1;
 
+    // Regression: invisible ancestry and structural links must NOT be
+    // tessellated into the GPU staging buffers. Comparing against the same
+    // offscreen cards without edges isolates the route draw-list overhead
+    // from the background grid geometry.
+    const qsizetype offscreen_vertices = canvas.vertices().size();
+    const qsizetype offscreen_indices = canvas.indices().size();
+    QVector<ProjectGraphNode> unlinked = nodes;
+    for (ProjectGraphNode &node : unlinked)
+    {
+        node.container_id.clear();
+        node.parents.clear();
+        node.parent_routes.clear();
+        node.head_revision_id.clear();
+    }
+    const ProjectGraphBgfxScene::Stats unlinked_stats = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, unlinked, {}, view);
+    if (!require(unlinked_stats.cards == 0
+                 && canvas.vertices().size() == offscreen_vertices
+                 && canvas.indices().size() == offscreen_indices,
+                 "offscreen edges generated GPU geometry")) return 1;
+
+    // Endpoints can be offscreen while a long ancestry connection crosses
+    // the viewport. Conservative cubic-hull culling must retain that line.
+    view.zoom = 1.0;
+    view.offset = QPointF(640, 130);
+    ProjectGraphNode upper = revision;
+    ProjectGraphNode lower = revision;
+    upper.id = QStringLiteral("upper");
+    lower.id = QStringLiteral("lower");
+    upper.position = QPointF(0, -1000);
+    lower.position = QPointF(0, 2000);
+    lower.parents = {upper.id};
+    const QVector<ProjectGraphNode> crossing{upper, lower};
+    ProjectGraphBgfxScene::build(&canvas, &atlas, crossing, {}, view);
+    const qsizetype crossing_vertices = canvas.vertices().size();
+    const qsizetype crossing_indices = canvas.indices().size();
+    lower.parents.clear();
+    ProjectGraphBgfxScene::build(&canvas, &atlas,
+                                 QVector<ProjectGraphNode>{upper, lower}, {}, view);
+    if (!require(crossing_vertices > canvas.vertices().size()
+                 && crossing_indices > canvas.indices().size(),
+                 "edge crossing viewport was incorrectly culled")) return 1;
+
     // Fold markers can be emitted with the same project HEAD identity and
     // contain explicit links rather than shortcuts across hidden revisions.
     view.offset = QPointF(640, 130);

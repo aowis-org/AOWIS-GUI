@@ -133,3 +133,11 @@ spatial indexing, persistent GPU geometry, batching and multi-scale LOD are
 reserved for the separate large-graph performance phase (Step 4). The
 multi-map demonstration (Step 5) and standalone renderer-library extraction
 (later, explicitly outside this batch) are not part of this change.
+
+## Performance verification
+
+The independent [Projects graph performance benchmark](project-graph-performance.md)
+measures the existing layered DAG placement, CPU-side bgfx scene preparation,
+visibility/culling and transient draw-list sizes at 1k/10k and optionally
+100k revisions. The benchmark does not initialize bgfx or claim GPU frame
+rates. Profile before introducing any additional graph optimization.

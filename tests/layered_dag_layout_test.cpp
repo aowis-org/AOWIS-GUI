@@ -233,5 +233,24 @@ int main()
         CHECK(checkGeometry(generated, layoutLayeredDag(generated)));
     }
 
+    // A tall project may have tens of thousands of successive revisions.
+    // Barycentric updates must touch the modified rank only; a full-layer
+    // scan inside the per-rank loop used to make this quadratic. The large
+    // case is intentionally bounded and does not run full geometry sampling.
+    std::vector<LayeredVertex> long_history;
+    long_history.reserve(10000);
+    for (int revision = 0; revision < 10000; ++revision)
+    {
+        LayeredVertex vertex;
+        vertex.id = "long-" + std::to_string(revision);
+        if (revision != 0)
+            vertex.parents.push_back(long_history.back().id);
+        long_history.push_back(vertex);
+    }
+    const LayeredDag long_layout = layoutLayeredDag(long_history);
+    CHECK(long_layout.valid && long_layout.ranks.back() == 9999);
+    CHECK(long_layout.parent_routes.back().size() == 1);
+    CHECK(long_layout.width >= 224.0 && long_layout.width < 224.01);
+
     std::printf("Native layered DAG layout: geometry, forks, merges, long edges, card sizes and order passed\n");
 }

@@ -96,7 +96,40 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
            const QVector<QPointF> &control_points, double bend,
            double width, quint32 color, bool dashed = false)
 {
-    if (control_points.size() >= 4 && (control_points.size() - 1) % 3 == 0)
+    // A cubic Bezier stays inside the convex hull of its control points.
+    // Reject wholly offscreen routes BEFORE tessellation: on long histories,
+    // otherwise hundreds of thousands of invisible line segments are added
+    // to the transient GPU draw list on every pan or zoom frame.
+    double min_x = std::min(begin.x(), end.x());
+    double min_y = std::min(begin.y(), end.y());
+    double max_x = std::max(begin.x(), end.x());
+    double max_y = std::max(begin.y(), end.y());
+    const bool valid_route = control_points.size() >= 4
+        && (control_points.size() - 1) % 3 == 0;
+    if (valid_route)
+    {
+        for (const QPointF &point : control_points)
+        {
+            min_x = std::min(min_x, point.x());
+            min_y = std::min(min_y, point.y());
+            max_x = std::max(max_x, point.x());
+            max_y = std::max(max_y, point.y());
+        }
+    }
+    else if (std::fabs(begin.x() - end.x()) >= 0.01)
+    {
+        // The fallback cubic's control points extend vertically by bend.
+        min_y -= std::fabs(bend);
+        max_y += std::fabs(bend);
+    }
+    const QPointF upper_left = screenPoint(QPointF(min_x, min_y), view);
+    const QPointF lower_right = screenPoint(QPointF(max_x, max_y), view);
+    const QRectF projected(upper_left, lower_right);
+    const double margin = std::max(12.0, width + 3.0);
+    if (!projected.adjusted(-margin, -margin, margin, margin)
+             .intersects(view.viewport))
+        return;
+    if (valid_route)
     {
         for (int i = 1; i + 2 < control_points.size(); i += 3)
             cubic(canvas, view, control_points.at(i - 1), control_points.at(i),
