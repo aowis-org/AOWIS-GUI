@@ -70,7 +70,10 @@ int main(int argc, char **argv)
     if (!require(result.cards == 4 && result.structural_edges == 2
                  && result.head_edges == 1 && result.ancestry_edges == 0,
                  "server/project/revision/HEAD geometry or links are missing")) return 1;
-    if (!require(result.text_runs >= 7, "GPU text atlas missing card labels")) return 1;
+    // Only six fields in this fixture have text: server title, project title,
+    // revision title and branch, HEAD title and branch. The server/project
+    // branch fields are intentionally empty and must not create atlas runs.
+    if (!require(result.text_runs == 6, "GPU text atlas label count is incorrect")) return 1;
     if (!require(!canvas.vertices().isEmpty() && !canvas.indices().isEmpty()
                  && !canvas.overflowed(), "GPU geometry is empty or overflowed")) return 1;
     for (const quint32 index : canvas.indices())
@@ -93,8 +96,9 @@ int main(int argc, char **argv)
     view.offset = QPointF(-4000, -4000);
     const ProjectGraphBgfxScene::Stats outside = ProjectGraphBgfxScene::build(
         &canvas, &atlas, nodes, {}, view);
-    if (!require(outside.cards == 0 && outside.culled_cards == 4,
-                 "offscreen cards should not emit GPU card geometry")) return 1;
+    if (!require(outside.cards == 0 && outside.culled_cards == 4
+                 && outside.text_runs == 0,
+                 "offscreen cards should not emit GPU card geometry or text")) return 1;
 
     // Fold markers can be emitted with the same project HEAD identity and
     // contain explicit links rather than shortcuts across hidden revisions.
@@ -104,7 +108,8 @@ int main(int argc, char **argv)
         {QStringLiteral("revision"), QStringLiteral("branch"), QPointF(25, 385), 37}};
     const ProjectGraphBgfxScene::Stats folded = ProjectGraphBgfxScene::build(
         &canvas, &atlas, nodes, folds, view);
-    if (!require(folded.fold_markers == 1, "fold marker not emitted")) return 1;
+    if (!require(folded.fold_markers == 1 && folded.text_runs == 8,
+                 "fold marker or its two labels not emitted")) return 1;
     if (!require(!atlas.atlas().isNull(), "GPU text atlas unavailable")) return 1;
     return 0;
 }
