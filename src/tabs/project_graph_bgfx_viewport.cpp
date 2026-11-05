@@ -115,6 +115,15 @@ void ProjectGraphBgfxViewport::requestRedraw()
         this->redraw_timer.start(0);
 }
 
+void ProjectGraphBgfxViewport::invalidateScene()
+{
+    // Graph rebuilds (including fold/unfold or orientation changes) are the
+    // only source of scene-index invalidation. Camera motion reuses it.
+    this->scene_index.clear();
+    this->scene_dirty = true;
+    requestRedraw();
+}
+
 void ProjectGraphBgfxViewport::checkAvailability()
 {
     if (this->unavailable || !this->graph->isVisible())
@@ -382,19 +391,23 @@ void ProjectGraphBgfxViewport::render()
     view.selection_id = this->graph->selected_revision;
     view.palette = this->graph->palette();
     view.font = this->graph->font();
-    QVector<ProjectGraphBgfxScene::Fold> folds;
-    folds.reserve(this->graph->omissions.size());
-    for (const ProjectRevisionGraph::Omission &omission : this->graph->omissions)
-        folds.append({omission.visible_parent_id, omission.visible_child_id,
-                      omission.position, omission.revision_count});
-
+    if (this->scene_dirty)
+    {
+        QVector<ProjectGraphBgfxScene::Fold> folds;
+        folds.reserve(this->graph->omissions.size());
+        for (const ProjectRevisionGraph::Omission &omission : this->graph->omissions)
+            folds.append({omission.visible_parent_id, omission.visible_child_id,
+                          omission.position, omission.revision_count});
+        this->scene_index.rebuild(this->graph->nodes, folds, this->graph->top_down);
+        this->scene_dirty = false;
+    }
     ProjectGraphBgfxScene::build(&this->canvas, &this->atlas,
-                                 this->graph->nodes, folds, view);
+                                 this->scene_index, view);
     // Qt's text atlas may evict old sprites while building a large scene.
     // Rebuild once with fresh texel references to avoid stale card labels.
     if (this->atlas.evictedSinceFrameStart())
         ProjectGraphBgfxScene::build(&this->canvas, &this->atlas,
-                                     this->graph->nodes, folds, view);
+                                     this->scene_index, view);
     bgfx::setViewRect(this->view_id, 0, 0,
                       targetDimension(pixels.width()), targetDimension(pixels.height()));
     bgfx::setViewMode(this->view_id, bgfx::ViewMode::Sequential);

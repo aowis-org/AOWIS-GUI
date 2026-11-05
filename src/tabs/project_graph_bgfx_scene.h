@@ -5,6 +5,7 @@
 #include "tabs/project_revision_graph.h"
 
 #include <QFont>
+#include <QHash>
 #include <QPalette>
 #include <QPointF>
 #include <QRectF>
@@ -13,8 +14,8 @@
 
 // CPU staging for the Projects DAG's bgfx draw list. This generates native
 // GPU-ready triangles and atlas sprites; it never initializes bgfx or owns a
-// window. The eventual graph surface will submit this canvas through the
-// process-global frame coordinator, using MapBgfxHudGpu's existing shader.
+// window. The native graph viewport submits this canvas through the process-
+// global frame coordinator using MapBgfxHudGpu's existing shader.
 //
 // The widget's camera, graph layout, selection and input handling remain the
 // source of truth. Geometry is generated in *viewport* coordinates, which is
@@ -50,12 +51,73 @@ public:
         int fold_markers = 0;
         int culled_cards = 0;
         int text_runs = 0;
+        // Number of indexed objects inspected after spatial pruning.
+        int candidate_items = 0;
     };
 
-    // Build as many individual draw elements as the atlas and transient
-    // limits permit. A future large-DAG pass will add persistent GPU buffers,
-    // zoom-level LOD and incremental geometry updates. Do not use this
-    // immediate-mode staging as a 100k-revision performance claim.
+    // Retained CPU spatial index. Rebuild when the *displayed* graph/layout
+    // changes, never just because the camera pans, zooms or selection changes.
+    // Node data is implicitly shared with the canonical graph until changed;
+    // stored edges use graph-space coordinates and pre-resolved endpoints.
+    class Index final
+    {
+    public:
+        void rebuild(const QVector<ProjectGraphNode> &nodes, const QVector<Fold> &folds,
+                     bool top_down = true);
+        void clear();
+        int nodeCount() const { return this->nodes.size(); }
+
+    private:
+        friend class ProjectGraphBgfxScene;
+        enum class Type { Structural, FoldEdge, Ancestry, Head, Card, FoldCard };
+        struct Edge
+        {
+            QPointF begin;
+            QPointF end;
+            QVector<QPointF> controls;
+            double bend = 0.0;
+            bool dashed = false;
+        };
+        struct Item
+        {
+            QRectF bounds;
+            Type type = Type::Card;
+            int index = 0;
+        };
+        struct Branch
+        {
+            QRectF bounds;
+            int left = -1;
+            int right = -1;
+            int begin = 0;
+            int end = 0;
+        };
+
+        void appendEdge(const QPointF &begin, const QPointF &end,
+                        const QVector<QPointF> &controls, double bend,
+                        bool dashed, Type type);
+        int buildBranch(int begin, int end);
+        void visibleItems(const QRectF &bounds, QVector<int> *result) const;
+
+        QVector<ProjectGraphNode> nodes;
+        QVector<Fold> folds;
+        QVector<Edge> edges;
+        QVector<Item> items;
+        QVector<int> order;
+        QVector<Branch> branches;
+        int root = -1;
+        int structural_edges = 0;
+        int ancestry_edges = 0;
+        int head_edges = 0;
+    };
+
+    // Fast path: retained graph-space index + viewport-specific GPU geometry.
+    static Stats build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
+                       const Index &index, const View &view);
+
+    // Compatibility entry point for standalone one-shot callers. Production
+    // and the performance benchmark must retain and reuse Index themselves.
+    // This convenience overload intentionally builds a temporary index.
     static Stats build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
                        const QVector<ProjectGraphNode> &nodes,
                        const QVector<Fold> &folds, const View &view);

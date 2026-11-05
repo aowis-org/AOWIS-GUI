@@ -231,11 +231,244 @@ void databaseIcon(MapBgfxHudCanvas *canvas, const QRectF &box, quint32 color,
 }
 }
 
+void ProjectGraphBgfxScene::Index::clear()
+{
+    this->nodes.clear();
+    this->folds.clear();
+    this->edges.clear();
+    this->items.clear();
+    this->order.clear();
+    this->branches.clear();
+    this->root = -1;
+    this->structural_edges = 0;
+    this->ancestry_edges = 0;
+    this->head_edges = 0;
+}
+
+void ProjectGraphBgfxScene::Index::appendEdge(
+    const QPointF &begin, const QPointF &end, const QVector<QPointF> &controls,
+    double bend, bool dashed, Type type)
+{
+    double min_x = std::min(begin.x(), end.x());
+    double min_y = std::min(begin.y(), end.y());
+    double max_x = std::max(begin.x(), end.x());
+    double max_y = std::max(begin.y(), end.y());
+    const bool valid_route = controls.size() >= 4
+        && (controls.size() - 1) % 3 == 0;
+    if (valid_route)
+    {
+        // Bezier curves stay within their control-point convex hull. Keep
+        // long edges whose endpoints are offscreen but whose route crosses
+        // the current viewport.
+        for (const QPointF &point : controls)
+        {
+            min_x = std::min(min_x, point.x());
+            min_y = std::min(min_y, point.y());
+            max_x = std::max(max_x, point.x());
+            max_y = std::max(max_y, point.y());
+        }
+    }
+    else if (std::fabs(begin.x() - end.x()) >= 0.01)
+    {
+        min_y -= std::fabs(bend);
+        max_y += std::fabs(bend);
+    }
+    // A vertical link can have zero width. Give every index entry a
+    // non-empty rectangle so QRectF intersection cannot reject it.
+    const QRectF bounds(min_x - 0.001, min_y - 0.001,
+                        max_x - min_x + 0.002, max_y - min_y + 0.002);
+    const int index = this->edges.size();
+    this->edges.append({begin, end, controls, bend, dashed});
+    this->items.append({bounds, type, index});
+}
+
+int ProjectGraphBgfxScene::Index::buildBranch(int begin, int end)
+{
+    const int index = this->branches.size();
+    this->branches.append(Branch{});
+    QRectF bounds = this->items.at(this->order.at(begin)).bounds;
+    double min_x = bounds.left();
+    double min_y = bounds.top();
+    double max_x = bounds.right();
+    double max_y = bounds.bottom();
+    for (int i = begin + 1; i < end; ++i)
+    {
+        const QRectF &item = this->items.at(this->order.at(i)).bounds;
+        min_x = std::min(min_x, item.left());
+        min_y = std::min(min_y, item.top());
+        max_x = std::max(max_x, item.right());
+        max_y = std::max(max_y, item.bottom());
+    }
+    Branch branch;
+    branch.bounds = QRectF(min_x, min_y, max_x - min_x, max_y - min_y);
+    if (end - begin <= 12)
+    {
+        branch.begin = begin;
+        branch.end = end;
+    }
+    else
+    {
+        const bool split_x = branch.bounds.width() > branch.bounds.height();
+        const int middle = begin + (end - begin) / 2;
+        std::nth_element(this->order.begin() + begin,
+                         this->order.begin() + middle,
+                         this->order.begin() + end,
+                         [this, split_x](int a, int b)
+        {
+            const QRectF &first = this->items.at(a).bounds;
+            const QRectF &second = this->items.at(b).bounds;
+            return split_x ? first.center().x() < second.center().x()
+                           : first.center().y() < second.center().y();
+        });
+        branch.left = buildBranch(begin, middle);
+        branch.right = buildBranch(middle, end);
+    }
+    this->branches[index] = branch;
+    return index;
+}
+
+void ProjectGraphBgfxScene::Index::visibleItems(
+    const QRectF &bounds, QVector<int> *result) const
+{
+    result->clear();
+    if (this->root < 0 || bounds.isEmpty())
+        return;
+    QVector<int> pending{this->root};
+    while (!pending.isEmpty())
+    {
+        const int index = pending.takeLast();
+        const Branch &branch = this->branches.at(index);
+        if (!branch.bounds.intersects(bounds))
+            continue;
+        if (branch.left >= 0)
+        {
+            pending.append(branch.left);
+            pending.append(branch.right);
+        }
+        else
+        {
+            for (int i = branch.begin; i < branch.end; ++i)
+            {
+                const int item_index = this->order.at(i);
+                if (this->items.at(item_index).bounds.intersects(bounds))
+                    result->append(item_index);
+            }
+        }
+    }
+    // Preserve the existing painter order: structural edges, fold routes,
+    // ancestry/HEAD routes, cards, fold labels. Ordering is independent of
+    // BVH partitioning and changes no selection or visual precedence.
+    std::sort(result->begin(), result->end());
+}
+
+void ProjectGraphBgfxScene::Index::rebuild(
+    const QVector<ProjectGraphNode> &nodes,
+    const QVector<Fold> &folds, bool top_down)
+{
+    clear();
+    this->nodes = nodes;
+    this->folds = folds;
+    QHash<QString, int> by_id;
+    by_id.reserve(this->nodes.size());
+    for (int i = 0; i < this->nodes.size(); ++i)
+        by_id.insert(this->nodes.at(i).id, i);
+    const double sign = top_down ? 1.0 : -1.0;
+    // Build in draw order, so visibility queries can preserve layering.
+    for (const ProjectGraphNode &node : this->nodes)
+    {
+        const int parent_index = by_id.value(node.container_id, -1);
+        if (parent_index < 0)
+            continue;
+        const ProjectGraphNode &parent = this->nodes.at(parent_index);
+        const QRectF start = cardBounds(parent);
+        const QRectF end = cardBounds(node);
+        const QPointF begin(parent.position.x(), parent.position.y()
+                             + sign * start.height() * 0.5);
+        const QPointF finish(node.position.x(), node.position.y()
+                              - sign * end.height() * 0.5);
+        const double bend = std::max(24.0, std::fabs(finish.y() - begin.y()) * 0.45);
+        appendEdge(begin, finish, {}, bend, false, Type::Structural);
+        ++this->structural_edges;
+    }
+    for (const Fold &fold : this->folds)
+    {
+        const int child_index = by_id.value(fold.visible_child_id, -1);
+        const int parent_index = by_id.value(fold.visible_parent_id, -1);
+        if (child_index < 0)
+            continue;
+        const ProjectGraphNode &child = this->nodes.at(child_index);
+        if (parent_index < 0 && fold.visible_parent_id.isEmpty())
+        {
+            const int project_index = by_id.value(child.project_group_id, -1);
+            if (project_index >= 0)
+            {
+                const ProjectGraphNode &project = this->nodes.at(project_index);
+                appendEdge(project.position + QPointF(0, sign * project_height * 0.5),
+                           fold.position - QPointF(0, sign * fold_height * 0.5),
+                           {}, 40.0, false, Type::FoldEdge);
+            }
+        }
+        if (parent_index >= 0)
+        {
+            const ProjectGraphNode &parent = this->nodes.at(parent_index);
+            appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
+                       fold.position - QPointF(0, sign * fold_height * 0.5),
+                       {}, 40.0, true, Type::FoldEdge);
+        }
+        appendEdge(fold.position + QPointF(0, sign * fold_height * 0.5),
+                   child.position - QPointF(0, sign * cardBounds(child).height() * 0.5),
+                   {}, 40.0, true, Type::FoldEdge);
+    }
+    for (const ProjectGraphNode &node : this->nodes)
+    {
+        for (const QString &parent_id : node.parents)
+        {
+            const int parent_index = by_id.value(parent_id, -1);
+            if (parent_index < 0)
+                continue;
+            const ProjectGraphNode &parent = this->nodes.at(parent_index);
+            appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
+                       node.position - QPointF(0, sign * cardBounds(node).height() * 0.5),
+                       node.parent_routes.value(parent_id), 42.0, false, Type::Ancestry);
+            ++this->ancestry_edges;
+        }
+        if (node.kind != ProjectGraphNode::Kind::Branch)
+            continue;
+        const int parent_index = by_id.value(node.head_revision_id, -1);
+        if (parent_index < 0)
+            continue;
+        const ProjectGraphNode &parent = this->nodes.at(parent_index);
+        if (parent.kind != ProjectGraphNode::Kind::Revision)
+            continue;
+        appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
+                   node.position - QPointF(0, sign * cardBounds(node).height() * 0.5),
+                   node.parent_routes.value(node.head_revision_id), 42.0, false, Type::Head);
+        ++this->head_edges;
+    }
+    for (int i = 0; i < this->nodes.size(); ++i)
+        this->items.append({cardBounds(this->nodes.at(i)), Type::Card, i});
+    for (int i = 0; i < this->folds.size(); ++i)
+    {
+        const Fold &fold = this->folds.at(i);
+        this->items.append({QRectF(fold.position.x() - ProjectRevisionCardGeometry::width * 0.5,
+                                   fold.position.y() - fold_height * 0.5,
+                                   ProjectRevisionCardGeometry::width, fold_height),
+                            Type::FoldCard, i});
+    }
+    this->order.reserve(this->items.size());
+    this->branches.reserve(this->items.size() / 6 + 2);
+    for (int i = 0; i < this->items.size(); ++i)
+        this->order.append(i);
+    if (!this->items.isEmpty())
+        this->root = buildBranch(0, this->order.size());
+}
+
 ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
     MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
-    const QVector<ProjectGraphNode> &nodes, const QVector<Fold> &folds,
-    const View &view)
+    const Index &index, const View &view)
 {
+    const QVector<ProjectGraphNode> &nodes = index.nodes;
+    const QVector<Fold> &folds = index.folds;
     Stats stats;
     if (canvas == nullptr || atlas == nullptr || view.zoom <= 0.0
         || view.viewport.isEmpty())
@@ -274,88 +507,47 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         return stats;
     }
 
-    QHash<QString, const ProjectGraphNode *> by_id;
-    by_id.reserve(nodes.size());
-    for (const ProjectGraphNode &node : nodes)
-        by_id.insert(node.id, &node);
-    const double sign = view.top_down ? 1.0 : -1.0;
-    for (const ProjectGraphNode &node : nodes)
+    // Convert the viewport to graph-space once. A conservative screen-pixel
+    // margin retains thick edges and cards touching the viewport boundary.
+    const double margin = std::max(12.0, 3.0 * view.zoom + 3.0) / view.zoom;
+    const QRectF graph_view((view.viewport.left() - view.offset.x()) / view.zoom,
+                            (view.viewport.top() - view.offset.y()) / view.zoom,
+                            view.viewport.width() / view.zoom,
+                            view.viewport.height() / view.zoom);
+    QVector<int> visible_items;
+    index.visibleItems(graph_view.adjusted(-margin, -margin, margin, margin),
+                       &visible_items);
+    stats.candidate_items = visible_items.size();
+    stats.structural_edges = index.structural_edges;
+    stats.ancestry_edges = index.ancestry_edges;
+    stats.head_edges = index.head_edges;
+    const QColor flow_green(57, 184, 145);
+    for (const int item_index : visible_items)
     {
-        const ProjectGraphNode *parent = by_id.value(node.container_id, nullptr);
-        if (parent == nullptr)
+        const Index::Item &item = index.items.at(item_index);
+        if (item.type == Index::Type::Card || item.type == Index::Type::FoldCard)
             continue;
-        const QRectF start = cardBounds(*parent);
-        const QRectF end = cardBounds(node);
-        const QPointF begin(parent->position.x(), parent->position.y()
-                             + sign * start.height() * 0.5);
-        const QPointF finish(node.position.x(), node.position.y()
-                              - sign * end.height() * 0.5);
-        const double bend = std::max(24.0, std::fabs(finish.y() - begin.y()) * 0.45);
-        route(canvas, view, begin, finish, {}, bend, 2.5 * view.zoom,
-              tinted(accent, 145));
-        ++stats.structural_edges;
+        const Index::Edge &edge = index.edges.at(item.index);
+        const bool structural = item.type == Index::Type::Structural;
+        const bool fold_edge = item.type == Index::Type::FoldEdge;
+        const bool head = item.type == Index::Type::Head;
+        const double width = (structural || fold_edge || head ? 2.5 : 3.0)
+            * view.zoom;
+        const quint32 color = head ? tinted(flow_green, 190)
+            : tinted(accent, structural || fold_edge ? 145 : 115);
+        route(canvas, view, edge.begin, edge.end, edge.controls, edge.bend,
+              width, color, edge.dashed);
     }
 
-    for (const Fold &fold : folds)
+    for (const int item_index : visible_items)
     {
-        const ProjectGraphNode *child = by_id.value(fold.visible_child_id, nullptr);
-        const ProjectGraphNode *parent = by_id.value(fold.visible_parent_id, nullptr);
-        if (child == nullptr)
+        const Index::Item &item = index.items.at(item_index);
+        if (item.type != Index::Type::Card)
             continue;
-        if (parent == nullptr && fold.visible_parent_id.isEmpty())
-        {
-            const ProjectGraphNode *project = by_id.value(child->project_group_id, nullptr);
-            if (project != nullptr)
-                route(canvas, view,
-                      project->position + QPointF(0, sign * project_height * 0.5),
-                      fold.position - QPointF(0, sign * fold_height * 0.5),
-                      {}, 40.0, 2.5 * view.zoom, tinted(accent, 145));
-        }
-        if (parent != nullptr)
-            route(canvas, view,
-                  parent->position + QPointF(0, sign * cardBounds(*parent).height() * 0.5),
-                  fold.position - QPointF(0, sign * fold_height * 0.5),
-                  {}, 40.0, 2.5 * view.zoom, tinted(accent, 145), true);
-        route(canvas, view, fold.position + QPointF(0, sign * fold_height * 0.5),
-              child->position - QPointF(0, sign * cardBounds(*child).height() * 0.5),
-              {}, 40.0, 2.5 * view.zoom, tinted(accent, 145), true);
-    }
-
-    for (const ProjectGraphNode &node : nodes)
-    {
-        for (const QString &parent_id : node.parents)
-        {
-            const ProjectGraphNode *parent = by_id.value(parent_id, nullptr);
-            if (parent == nullptr)
-                continue;
-            const QPointF begin = parent->position
-                + QPointF(0, sign * cardBounds(*parent).height() * 0.5);
-            const QPointF end = node.position
-                - QPointF(0, sign * cardBounds(node).height() * 0.5);
-            route(canvas, view, begin, end, node.parent_routes.value(parent_id),
-                  42.0, 3.0 * view.zoom, tinted(accent, 115));
-            ++stats.ancestry_edges;
-        }
-        if (node.kind != ProjectGraphNode::Kind::Branch)
-            continue;
-        const ProjectGraphNode *parent = by_id.value(node.head_revision_id, nullptr);
-        if (parent == nullptr || parent->kind != ProjectGraphNode::Kind::Revision)
-            continue;
-        route(canvas, view, parent->position + QPointF(0, sign * cardBounds(*parent).height() * 0.5),
-              node.position - QPointF(0, sign * cardBounds(node).height() * 0.5),
-              node.parent_routes.value(node.head_revision_id), 42.0, 2.5 * view.zoom,
-              tinted(QColor(57, 184, 145), 190));
-        ++stats.head_edges;
-    }
-
-    for (const ProjectGraphNode &node : nodes)
-    {
+        const ProjectGraphNode &node = nodes.at(item.index);
         const QRectF bounds = screenRect(cardBounds(node), view);
         if (!bounds.intersects(view.viewport.adjusted(-12, -12, 12, 12)))
-        {
-            ++stats.culled_cards;
             continue;
-        }
         const bool selected = node.id == view.selection_id;
         const QColor surface = view.palette.color(QPalette::Window);
         QColor border;
@@ -431,8 +623,13 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         }
     }
 
-    for (const Fold &fold : folds)
+    stats.culled_cards = nodes.size() - stats.cards;
+    for (const int item_index : visible_items)
     {
+        const Index::Item &item = index.items.at(item_index);
+        if (item.type != Index::Type::FoldCard)
+            continue;
+        const Fold &fold = folds.at(item.index);
         const QRectF graph_box(fold.position.x() - ProjectRevisionCardGeometry::width * 0.5,
                                fold.position.y() - fold_height * 0.5,
                                ProjectRevisionCardGeometry::width, fold_height);
@@ -455,4 +652,14 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         ++stats.fold_markers;
     }
     return stats;
+}
+
+ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
+    MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
+    const QVector<ProjectGraphNode> &nodes, const QVector<Fold> &folds,
+    const View &view)
+{
+    Index index;
+    index.rebuild(nodes, folds, view.top_down);
+    return build(canvas, atlas, index, view);
 }

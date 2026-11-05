@@ -3,6 +3,7 @@
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_gpu.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
+#include "tabs/project_graph_bgfx_scene.h"
 
 #include <QObject>
 #include <QPointer>
@@ -34,6 +35,7 @@ public:
     void onHidden();
     void resize();
     void requestRedraw();
+    void invalidateScene();
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -55,6 +57,8 @@ private:
     MapBgfxHudCanvas canvas;
     MapBgfxHudTextCache atlas;
     MapBgfxHudGpu gpu;
+    ProjectGraphBgfxScene::Index scene_index;
+    bool scene_dirty = true;
     QSize allocated_pixels;
     std::uint16_t view_id = 0;
     bool attached = false;

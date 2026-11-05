@@ -26,9 +26,11 @@ struct Result
     qint64 peak_kib = -1;
     double generation_ms = 0.0;
     double layout_ms = 0.0;
+    double index_build_ms = 0.0;
     double scene_median_ms = 0.0;
     double scene_max_ms = 0.0;
     int visible_cards = 0;
+    int indexed_candidates = 0;
     int culled_cards = 0;
     int ancestry_edges = 0;
     qsizetype vertices = 0;
@@ -175,6 +177,12 @@ Result measure(int revisions, int repeats, const QApplication &application)
     if (anchor != nullptr)
         view.offset = view.viewport.center() - anchor->position;
 
+    // Index construction is a one-time, data/layout-change cost. Do not
+    // include it in camera movement frames, but report it separately.
+    ProjectGraphBgfxScene::Index index;
+    timer.restart();
+    index.rebuild(nodes, {}, view.top_down);
+    result.index_build_ms = milliseconds(timer);
     QVector<double> samples;
     samples.reserve(repeats);
     for (int i = 0; i < repeats; ++i)
@@ -184,9 +192,10 @@ Result measure(int revisions, int repeats, const QApplication &application)
         view.offset += QPointF(55.0, 30.0);
         timer.restart();
         const ProjectGraphBgfxScene::Stats stats = ProjectGraphBgfxScene::build(
-            &canvas, &atlas, nodes, {}, view);
+            &canvas, &atlas, index, view);
         samples.append(milliseconds(timer));
         result.visible_cards = stats.cards;
+        result.indexed_candidates = stats.candidate_items;
         result.culled_cards = stats.culled_cards;
         result.ancestry_edges = stats.ancestry_edges;
         result.vertices = canvas.vertices().size();
@@ -203,10 +212,11 @@ Result measure(int revisions, int repeats, const QApplication &application)
 void output(const Result &result)
 {
     // One CSV record per dataset, suitable for diffing across patches.
-    std::printf("%d,%d,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%lld,%lld,%d,%lld,%lld,%lld\n",
+    std::printf("%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%d,%d,%d,%d,%lld,%lld,%d,%lld,%lld,%lld\n",
                 result.revisions, result.nodes, result.generation_ms,
-                result.layout_ms, result.scene_median_ms, result.scene_max_ms,
-                result.visible_cards, result.culled_cards, result.ancestry_edges,
+                result.layout_ms, result.index_build_ms, result.scene_median_ms,
+                result.scene_max_ms, result.visible_cards, result.culled_cards,
+                result.ancestry_edges, result.indexed_candidates,
                 static_cast<long long>(result.vertices),
                 static_cast<long long>(result.indices), result.overflow ? 1 : 0,
                 static_cast<long long>(result.generated_kib),
@@ -269,7 +279,7 @@ int main(int argc, char **argv)
         }
     }
 
-    std::puts("revisions,nodes,generate_ms,layout_ms,scene_median_ms,scene_max_ms,visible_cards,culled_cards,ancestry_edges,vertices,indices,overflow,after_generate_rss_kib,after_layout_rss_kib,peak_rss_kib");
+    std::puts("revisions,nodes,generate_ms,layout_ms,index_build_ms,scene_median_ms,scene_max_ms,visible_cards,culled_cards,ancestry_edges,indexed_candidates,vertices,indices,overflow,after_generate_rss_kib,after_layout_rss_kib,peak_rss_kib");
     double ten_thousand_layout_ms = -1.0;
     for (const int size : sizes)
     {

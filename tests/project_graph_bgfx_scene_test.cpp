@@ -193,6 +193,60 @@ int main(int argc, char **argv)
                  && crossing_indices > canvas.indices().size(),
                  "edge crossing viewport was incorrectly culled")) return 1;
 
+    // Production uses a retained spatial index. A long chain must query
+    // only nearby cards/routes per pan frame (not scan the full DAG). The
+    // ancestry total still describes the complete indexed graph.
+    QVector<ProjectGraphNode> long_chain;
+    long_chain.reserve(6000);
+    for (int i = 0; i < 6000; ++i)
+    {
+        ProjectGraphNode item;
+        item.kind = ProjectGraphNode::Kind::Revision;
+        item.id = QStringLiteral("n%1").arg(i);
+        item.title = QStringLiteral("Revision %1").arg(i);
+        item.position = QPointF(0, i * 155.0);
+        if (i > 0)
+            item.parents.append(QStringLiteral("n%1").arg(i - 1));
+        long_chain.append(item);
+    }
+    ProjectGraphBgfxScene::Index spatial_index;
+    spatial_index.rebuild(long_chain, {}, true);
+    view.zoom = 1.0;
+    view.top_down = true;
+    view.offset = QPointF(640, 400 - 3000 * 155.0);
+    const ProjectGraphBgfxScene::Stats indexed = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, spatial_index, view);
+    if (!require(indexed.cards > 0 && indexed.cards < 12
+                 && indexed.candidate_items < 80
+                 && indexed.culled_cards == long_chain.size() - indexed.cards
+                 && indexed.ancestry_edges == 5999,
+                 "spatial query traversed offscreen history or lost ancestry")) return 1;
+    view.offset += QPointF(0, -1550);
+    const ProjectGraphBgfxScene::Stats panned = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, spatial_index, view);
+    if (!require(panned.cards > 0 && panned.candidate_items < 80
+                 && panned.ancestry_edges == indexed.ancestry_edges,
+                 "panning must reuse the retained graph index")) return 1;
+
+    // After a real graph/layout replacement, the previous index must not
+    // continue showing old cards or stale edges.
+    spatial_index.rebuild(nodes, {}, true);
+    view.offset = QPointF(640, 130);
+    const ProjectGraphBgfxScene::Stats replaced = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, spatial_index, view);
+    if (!require(spatial_index.nodeCount() == nodes.size()
+                 && replaced.cards == 4 && replaced.ancestry_edges == 0,
+                 "rebuild did not replace stale spatial/indexed geometry")) return 1;
+
+    // A long line whose endpoints are outside the view must remain indexed.
+    // Otherwise a naive endpoint-only query could silently hide merge routes.
+    spatial_index.rebuild(crossing, {}, true);
+    const ProjectGraphBgfxScene::Stats indexed_crossing = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, spatial_index, view);
+    if (!require(indexed_crossing.cards == 0
+                 && indexed_crossing.candidate_items >= 1,
+                 "indexed edge with offscreen endpoints was lost")) return 1;
+
     // Fold markers can be emitted with the same project HEAD identity and
     // contain explicit links rather than shortcuts across hidden revisions.
     view.offset = QPointF(640, 130);

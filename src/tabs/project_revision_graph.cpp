@@ -143,6 +143,10 @@ ProjectRevisionGraph::ProjectRevisionGraph(QWidget *parent)
 
 void ProjectRevisionGraph::rebuildDisplayNodes()
 {
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->invalidateScene();
+#endif
     this->nodes.clear();
     this->omissions.clear();
     QHash<QString, const ProjectGraphNode *> by_id;
