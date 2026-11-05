@@ -91,13 +91,15 @@ for efficient large-history navigation. The normal Maps workspace retains one
 shared viewport; two additional independent 2D map windows can be enabled
 for diagnostics with `AOWIS_BGFX_THREE_VIEW_PROBE=1`.
 
-The GUI links an **internal static `AOWIS::RenderCore` target** for shared
-bgfx device/frame/target ownership, imagery and HUD GPU helpers, and embedded
-shaders. Native Qt window hosting, map/editor behavior, and Projects interaction
-remain in the GUI. `AOWIS-RENDER` is **not** a separate repository yet. All
-native map swapchains require a depth attachment; otherwise 3D terrain skirts
-can incorrectly occlude nearer ground. Native input focus loss cancels active
-navigation/drag state rather than leaving keys or pointer capture stuck.
+The GUI links the pinned **`AOWIS-GUI-Render` Git submodule** using
+`AOWIS::RenderCore` and `AOWIS::RenderGeometry`. The library owns the shared
+bgfx device/frame/target infrastructure, imagery/HUD GPU helpers, shader
+assets and backend-neutral projection/globe geometry utilities. Native Qt
+window hosting, map/editor scene preparation, and Projects interactions stay
+in the GUI. All native map swapchains require a depth attachment; otherwise
+3D terrain skirts can incorrectly occlude nearer ground. Native input focus
+loss cancels active navigation/drag state rather than leaving keys or pointer
+capture stuck.
 
 See the [rendering architecture](docs/rendering-architecture.md),
 [renderer extraction-readiness guide](docs/renderer-extraction-readiness.md),
@@ -353,9 +355,10 @@ assets, failure recovery, and the standalone test command.
 
 ### Shared rendering repository
 
-The bgfx lifecycle, device/target coordination, map GPU uploaders and shader
-resources are linked from **AOWIS-GUI-Render** (`AOWIS::RenderCore`). During
-normal development initialize its Git submodule at
-`external/AOWIS-GUI-Render`; override `AOWIS_RENDER_SOURCE_DIR` only for
-other layouts. The GUI retains its Qt Widgets adapter, model/data services and
+The bgfx lifecycle, device/target coordination, map GPU uploaders, production
+Mercator/terrain geometry helpers and shader resources are linked from
+**AOWIS-GUI-Render** (`AOWIS::RenderCore`, `AOWIS::RenderGeometry`). Initialize
+and pin the submodule at `external/AOWIS-GUI-Render`; intentionally override
+`AOWIS_RENDER_SOURCE_DIR` only for renderer development. The GUI retains its
+Qt Widgets adapter, model/data services, network scene preparation and
 map/editor scene controllers. See `docs/renderer-extraction-readiness.md`.

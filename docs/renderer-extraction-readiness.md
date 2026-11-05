@@ -1,10 +1,11 @@
 # Shared bgfx renderer: current integration
 
 AOWIS-GUI-Render is now a standalone source repository. The GUI links its
-`AOWIS::RenderCore` target, which in turn links `AOWIS::RenderDevice`. The
-renderer owns the device/frame/swapchain classes, HUD texture cache, 2D tile
-atlas/uploader and all committed shader binaries. It also provides the
-minimal bgfx/bx/bimg unity build when the host has not supplied a `bgfx` target.
+`AOWIS::RenderCore`, `AOWIS::RenderDevice` and `AOWIS::RenderGeometry`
+targets. The renderer owns the device/frame/swapchain classes, HUD texture
+cache, 2D tile atlas/uploader, production Mercator/globe camera and geometry
+helpers, and all committed shader binaries. It also provides the minimal
+bgfx/bx/bimg unity build when the host has not supplied a `bgfx` target.
 
 The GUI retains the Qt Widgets/native-window adapter, map controller, data
 repositories, input handling, editor, three-dimensional scene preparation and
@@ -22,6 +23,8 @@ network dependencies rather than produce a Mobile-ready render interface.
   `AOWIS_RENDER_VENDOR_ROOT` (no second bgfx runtime).
 - `AOWIS_RENDER_BUILD_MAP_CORE=ON` enables map GPU code, Qt resources, and
   shader family embedding; `AOWIS::RenderCore` is the executable's dependency.
+  Pure C++ scene geometry is exposed by `AOWIS::RenderGeometry`, which can be
+  built and tested with device and map core disabled.
 - `AOWIS_BGFX_RENDERERS` retains its OS-specific defaults and override.
 - Shader regeneration uses `-DAOWIS_BGFX_SHADER_TOOLS=ON`; no shaderc needed
   for normal Linux/Windows/macOS/WebAssembly builds.
@@ -32,6 +35,10 @@ network dependencies rather than produce a Mobile-ready render interface.
   `MapBgfxBackend::initializeEmbeddedShaders()` without linking GUI sources.
 - Device owner retirement, generation safety, view reservation and secondary
   swapchain lifecycle have GPU-free tests in the GUI test suite.
+- Render has standalone geometry tests for Mercator projection, three-view
+  camera transforms, globe icon indexing, height-cache invalidation and
+  globe imagery ancestor UV fallback, requiring no Qt or bgfx dependency.
+  Mobile has a separate shared-header contract regression.
 - Qt `QWindow` captures native handles; Render owns them only as borrowed
   descriptors. Primary and secondary window depth must stay D24S8. Removing
   it causes terrain LOD skirt overdraw during orbit/resize.

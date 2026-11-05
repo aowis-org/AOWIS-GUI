@@ -524,7 +524,6 @@ target_link_libraries(aowis-server-gui
 
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
-    src/map/bgfx/map_bgfx_2d_projection.h
     src/map/bgfx/map_bgfx_2d_scene.h
     src/map/bgfx/map_bgfx_2d_scene_variants.h
     src/map/bgfx/map_bgfx_2d_mesh.h
@@ -536,11 +535,8 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_2d_picking.h
     src/map/bgfx/map_bgfx_hud.h
     src/map/bgfx/map_bgfx_hud.cpp
-    src/map/bgfx/map_bgfx_pan_reuse.h
     src/map/bgfx/map_bgfx_legend_content.h
     src/map/bgfx/map_bgfx_legend_content.cpp
-    src/map/bgfx/map_bgfx_globe_icon_index.h
-    src/map/bgfx/map_bgfx_globe_height_cache.h
     src/map/bgfx/map_bgfx_editor_overlay.h
     src/map/bgfx/map_bgfx_editor_overlay.cpp
     src/map/bgfx/map_bgfx_labels.h
@@ -549,7 +545,6 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_editor_icons.cpp
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
-    src/map/bgfx/map_bgfx_globe_imagery.h
     src/map/bgfx/map_bgfx_globe_network.h
     src/map/bgfx/map_bgfx_globe_network.cpp
     src/map/bgfx/map_bgfx_globe_hud_controller.h
@@ -558,7 +553,7 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_globe_surface.cpp
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
-target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore)
+target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -1050,6 +1045,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-bgfx-2d-projection-tests tests/bgfx_2d_projection_test.cpp)
     target_include_directories(aowis-bgfx-2d-projection-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-bgfx-2d-projection-tests PRIVATE AOWIS::RenderGeometry)
     add_test(NAME aowis-bgfx-2d-projection COMMAND aowis-bgfx-2d-projection-tests)
     set_tests_properties(aowis-bgfx-2d-projection PROPERTIES LABELS "aowis")
 
@@ -1188,6 +1184,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_bgfx_globe_icon_index_test.cpp)
     target_include_directories(aowis-map-bgfx-globe-icon-index-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-bgfx-globe-icon-index-tests PRIVATE AOWIS::RenderGeometry)
     add_test(NAME aowis-map-bgfx-globe-icon-index
         COMMAND aowis-map-bgfx-globe-icon-index-tests)
     set_tests_properties(aowis-map-bgfx-globe-icon-index PROPERTIES
@@ -1198,6 +1195,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_bgfx_globe_height_cache_test.cpp)
     target_include_directories(aowis-map-bgfx-globe-height-cache-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-bgfx-globe-height-cache-tests PRIVATE AOWIS::RenderGeometry)
     add_test(NAME aowis-map-bgfx-globe-height-cache
         COMMAND aowis-map-bgfx-globe-height-cache-tests)
     set_tests_properties(aowis-map-bgfx-globe-height-cache PROPERTIES
@@ -1211,6 +1209,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/map_bgfx_globe_icon_benchmark.cpp)
     target_include_directories(aowis-map-bgfx-globe-icon-benchmark PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-bgfx-globe-icon-benchmark PRIVATE AOWIS::RenderGeometry)
     add_test(NAME aowis-map-bgfx-globe-icon-benchmark-smoke
         COMMAND aowis-map-bgfx-globe-icon-benchmark --smoke)
     set_tests_properties(aowis-map-bgfx-globe-icon-benchmark-smoke PROPERTIES

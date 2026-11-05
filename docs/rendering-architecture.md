@@ -2,7 +2,7 @@
 
 This is the **current renderer contract** for the 5 November 2026 GUI source.
 It covers the production Maps workspace, native Linux Projects revision graph,
-internal renderer library, and opt-in multi-window diagnostics. It describes
+shared renderer submodule, and opt-in multi-window diagnostics. It describes
 current behavior and ownership rather than implementation stages. For the
 source/dependency boundary and extraction handoff, see
 [Renderer library readiness](renderer-extraction-readiness.md).
@@ -24,54 +24,39 @@ The map itself has **no QPainter renderer fallback**. On an unsupported or
 failed bgfx backend it reports a renderer status. QPainter fallback applies to
 the **Projects graph**, not the Maps renderer.
 
-## Internal renderer build boundary (pre-extraction)
+## Shared renderer build boundary
 
-The normal application now links **`AOWIS::RenderCore`**, an internal static
-CMake target (`aowis-render-core`). This is a real separate linkable target,
-not a renamed list of executable sources and **not** the external
-`AOWIS-RENDER` repository. It contains the process-global bgfx device,
-frame coordinator, native target registry, reusable imagery atlas/uploaders,
-HUD GPU/text atlas, and compiled shader resources. It
-exports the current source include root and links its public bgfx/Qt Gui
-requirements. The library intentionally retains some existing `MapBgfx*`
-interfaces; extraction into a cleaner standalone repository is separate work.
+The normal application pins `external/AOWIS-GUI-Render` as a Git submodule.
+It links three separate CMake targets from that repository:
 
-The **GUI executable** still owns `MapBgfxSurface`, the Qt native surface
-adapter (`BgfxQtNativeSurface`), `MapModel` and map repositories, the
-hydraulic network GPU and entity-style preparation, the globe UI/controller,
-and the Projects
-widget, layout and Inspector routing. In particular, the QWidget class is
-**not** being presented as a portable render API. Globe/network integration
-and GUI-bound helpers stay in this repository until their inputs can be
-separated without changing map behavior.
+- `AOWIS::RenderDevice`: bgfx device lifecycle, view/frame coordination,
+  native-target registry and toolkit-neutral native surface descriptors.
+- `AOWIS::RenderGeometry`: pure C++ Mercator projection and secondary-view
+  camera, globe icon spatial index and terrain-height cache, and globe imagery
+  fallback UV calculations. No Qt, bgfx or hydraulic data-model dependency;
+  Mobile can build and test these headers independently of Qt Widgets.
+- `AOWIS::RenderCore`: Qt Gui-based GPU uploaders for 2D imagery and HUD,
+  texture/text caches, pan reuse, and embedded bgfx shader families. The
+  `aowis-render-core` static library includes its own resource registration.
 
-**The internal static library is not a portable, Qt-free render engine.**
-It currently links `Qt6::Gui` for shared atlas/text and resource facilities,
-and has public source includes in the GUI tree. Its `MapBgfx*` types are still
-part of the build-facing interface. This is a verified **compilation/link
-boundary in the CMake source**, not yet a separately user-verified native
-link result or a stable SDK.
+The GUI executable retains `MapBgfxSurface`, the Qt native-surface adapter,
+`MapModel`, hydraulic snapshot/scene preparation, 2D network GPU mesh and
+entity styling, globe surface draw code, labels/editor controllers and
+Projects widgets. These components cannot simply move into Render without
+introducing dependencies on the GUI and hydraulic data model.
 
-Shader resources are owned by the internal static library rather than the
-GUI executable. `aowis_bgfx_add_shaders(aowis-render-core)` embeds whichever
-shader families are compiled for the selected backend. A generated library
-translation unit explicitly calls `Q_INIT_RESOURCE()` for each included
-family. `MapBgfxBackend::shaderResourcePath()` initializes these resources
-before checking or loading a shader, including **before `bgfx::init()`** when
-the backend is being selected. This is required for static libraries: a
-Qt resource object is not guaranteed to be linked solely because a host uses
-`QFile`. Resource URL paths are unchanged.
+The renderer registers the shader resources from the static library, so
+`MapBgfxBackend::shaderResourcePath()` resolves the same Qt resource paths
+before device creation. Test `aowis-render-core-link` checks that the GUI
+links and exposes the embedded resources; geometry-only regressions can be
+built directly in Render with `AOWIS_RENDER_BUILD_DEVICE=OFF`,
+`AOWIS_RENDER_BUILD_MAP_CORE=OFF`, and
+`AOWIS_RENDER_BUILD_GEOMETRY_TESTS=ON`.
 
-An executable linking **only** `AOWIS::RenderCore` (no GUI application
-sources) is tested by `aowis-render-core-link`. The test verifies that device
-manager symbols resolve and at least one embedded shader can be opened and
-read without creating a GPU device. Build with
-`cmake --build build-linux-tests --target aowis-render-core-link-tests
- aowis-server-gui` and run
-`ctest --test-dir build-linux-tests --output-on-failure
- -R '^aowis-render-core-link$'`. This proves the **current internal link
-boundary and resource registration**, not complete future standalone
-portability or GPU runtime correctness.
+Mobile currently links `AOWIS::RenderDevice` and `AOWIS::RenderGeometry`
+but continues to render its independent Qt Quick stress-test scene through
+its existing EGL underlay. Scene submission and the production 2D/globe
+renderers have not yet been unified.
 
 ## Process-wide bgfx device and frame contracts
 

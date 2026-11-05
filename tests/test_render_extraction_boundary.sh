@@ -32,7 +32,13 @@ for relative in \
     src/map/bgfx/map_bgfx_backend.h \
     src/map/bgfx/map_bgfx_2d_imagery_gpu.h \
     src/map/bgfx/map_bgfx_hud_gpu.h \
-    src/map/bgfx/map_bgfx_hud_canvas.h; do
+    src/map/bgfx/map_bgfx_hud_canvas.h \
+    src/map/bgfx/map_bgfx_2d_projection.h \
+    src/map/bgfx/map_bgfx_three_view_camera.h \
+    src/map/bgfx/map_bgfx_globe_icon_index.h \
+    src/map/bgfx/map_bgfx_globe_height_cache.h \
+    src/map/bgfx/map_bgfx_globe_imagery.h \
+    src/map/bgfx/map_bgfx_pan_reuse.h; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1
