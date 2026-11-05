@@ -55,11 +55,12 @@ QJsonObject dvmdbError(const QString &code, const QString &message)
     return QJsonObject{{QStringLiteral("code"), code}, {QStringLiteral("message"), message}};
 }
 
-bool until(QCoreApplication &application, const std::function<bool()> &ready)
+bool until(QCoreApplication &application, const std::function<bool()> &ready,
+           int max_ms = 3000)
 {
     QElapsedTimer timer;
     timer.start();
-    while (timer.elapsed() < 3000)
+    while (timer.elapsed() < max_ms)
     {
         application.processEvents();
         if (ready()) return true;
@@ -103,6 +104,9 @@ public:
     bool reject_next_event_save = false;
     bool corrupt_event_reopen = false;
     QString lease_session;
+    QString current_lease_token = lease_token;
+    int lease_acquisitions = 0;
+    bool rotate_lease_on_reacquire = false;
     int save_count = 0;
     int release_count = 0;
     int generation = 0;
@@ -119,6 +123,11 @@ public:
     bool invalid_archive_page = false;
     QStringList archive_paths;
     int history_cursor_reads = 0;
+    int history_reconcile_reads = 0;
+    QString history_selected_position = QStringLiteral("0");
+    bool corrupt_history_reconcile_cursor = false;
+    bool corrupt_history_reconcile_digest = false;
+    int discard_history_before_acceptance = 0;
     bool history_selected_archived = false;
     bool history_can_branch_from_archived = false;
     int history_navigation_requests = 0;
@@ -127,6 +136,8 @@ public:
     int network_import_count = 0;
     QJsonObject last_network_import;
     bool drop_next_history_acknowledgement = false;
+    int drop_history_acknowledgements = 0;
+    bool reject_next_history_navigation = false;
     QJsonObject acknowledged_history_request;
     QJsonObject acknowledged_history_reply;
     bool drop_next_save_acknowledgement = false;
@@ -456,7 +467,10 @@ public:
                              request_line.contains("/lease "))
                     {
                         this->lease_session = request_body.value(QStringLiteral("sessionId")).toString();
-                        document = QJsonObject{{QStringLiteral("token"), lease_token},
+                        ++this->lease_acquisitions;
+                        if (this->rotate_lease_on_reacquire && this->lease_acquisitions > 1)
+                            this->current_lease_token = PersonalWorkingCopyClient::newSessionUuidV7();
+                        document = QJsonObject{{QStringLiteral("token"), this->current_lease_token},
                             {QStringLiteral("generation"), QString::number(this->generation)},
                             {QStringLiteral("expiresAtMs"), QStringLiteral("1800000000000")}};
                     }
@@ -471,7 +485,9 @@ public:
                                 ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
                             {QStringLiteral("journalCount"), QString::number(this->saved_events.size())},
                             {QStringLiteral("actionPosition"), this->history_selected_archived
-                                ? QStringLiteral("0") : QString::number(this->saved_events.size())},
+                                ? QStringLiteral("0") : this->history_selected_position},
+                            {QStringLiteral("archivedActionPosition"), this->history_selected_archived
+                                ? QJsonValue(this->history_selected_position) : QJsonValue(QJsonValue::Null)},
                             {QStringLiteral("selectionKind"), this->history_selected_archived
                                 ? QStringLiteral("archived") : QStringLiteral("draft")},
                             {QStringLiteral("archivedRevisionId"), this->history_selected_archived
@@ -485,15 +501,76 @@ public:
                                 {QStringLiteral("revisionId"), QJsonValue(QJsonValue::Null)},
                                 {QStringLiteral("actionPosition"), QStringLiteral("1")}}}};
                     }
+                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/history/reconcile?"))
+                    {
+                        ++this->history_reconcile_reads;
+                        const QString path = QString::fromLatin1(request_line.split(' ').value(1));
+                        const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
+                        const QString networkId = query.queryItemValue(QStringLiteral("networkId"));
+                        NetworkHydraulic network;
+                        network.uuid = QUuid(networkId);
+                        network.id = QStringLiteral("loaded draft");
+                        const QJsonObject last = this->acknowledged_history_request;
+                        document = QJsonObject{
+                            {QStringLiteral("draftId"), draft_id},
+                            {QStringLiteral("sessionId"), this->lease_session},
+                            {QStringLiteral("networkId"), networkId},
+                            {QStringLiteral("networkSha256"), this->corrupt_history_reconcile_digest
+                                ? QString(64, QLatin1Char('a')) : HydraulicHistoryDelta::digest(network)},
+                            {QStringLiteral("generation"), QString::number(this->generation)},
+                            {QStringLiteral("baseRevision"), this->history_require_committed_head
+                                ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("journalCount"), QString::number(this->saved_events.size())},
+                            {QStringLiteral("selectionKind"), this->history_selected_archived
+                                ? QStringLiteral("archived") : QStringLiteral("draft")},
+                            {QStringLiteral("revisionId"), this->history_selected_archived
+                                ? QJsonValue(head_id) : QJsonValue(QJsonValue::Null)},
+                            {QStringLiteral("actionPosition"), this->corrupt_history_reconcile_cursor
+                                ? QStringLiteral("999") : this->history_selected_position},
+                            {QStringLiteral("lastNavigationOperationId"), last.isEmpty()
+                                ? QJsonValue(QJsonValue::Null) : last.value(QStringLiteral("operationId"))},
+                            {QStringLiteral("lastNavigationSourceGeneration"), last.isEmpty()
+                                ? QJsonValue(QJsonValue::Null) : last.value(QStringLiteral("expectedGeneration"))}};
+                    }
                     else if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
                              request_line.contains("/history/navigate "))
                     {
                         ++this->history_navigation_requests;
                         this->last_history_navigation = request_body;
-                        if (!this->acknowledged_history_request.isEmpty() &&
-                            request_body == this->acknowledged_history_request)
+                        if (this->discard_history_before_acceptance > 0)
                         {
-                            // A lost reply cannot issue a second navigation.
+                            --this->discard_history_before_acceptance;
+                            socket->disconnectFromHost();
+                            return;
+                        }
+                        if (this->reject_next_history_navigation)
+                        {
+                            this->reject_next_history_navigation = false;
+                            status = 409;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("conflict"), QStringLiteral("stale History cursor")));
+                        }
+                        else if (!this->acknowledged_history_request.isEmpty() &&
+                            request_body.value(QStringLiteral("operationId")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("operationId")) &&
+                            request_body.value(QStringLiteral("sessionId")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("sessionId")) &&
+                            request_body.value(QStringLiteral("expectedGeneration")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("expectedGeneration")) &&
+                            request_body.value(QStringLiteral("actionPosition")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("actionPosition")) &&
+                            request_body.value(QStringLiteral("expectedHead")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("expectedHead")) &&
+                            request_body.value(QStringLiteral("revisionId")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("revisionId")) &&
+                            request_body.value(QStringLiteral("networkId")) ==
+                                this->acknowledged_history_request.value(QStringLiteral("networkId")) &&
+                            request_body.value(QStringLiteral("fencingToken")).toString() ==
+                                this->current_lease_token)
+                        {
+                            // An accepted UUID can be replayed after the same
+                            // writer re-leases with a rotated fencing token.
                             document = this->acknowledged_history_reply;
                         }
                         else if (request_body.value(QStringLiteral("expectedGeneration")).toString() !=
@@ -503,7 +580,8 @@ public:
                                   (request_body.contains(QStringLiteral("revisionId")) &&
                                    request_body.value(QStringLiteral("revisionId")).toString() != head_id)
                                 : !request_body.value(QStringLiteral("expectedHead")).isNull()) ||
-                            request_body.value(QStringLiteral("fencingToken")).toString() != lease_token)
+                            request_body.value(QStringLiteral("fencingToken")).toString() !=
+                                this->current_lease_token)
                         {
                             status = 409;
                             document.insert(QStringLiteral("error"), dvmdbError(
@@ -514,6 +592,8 @@ public:
                             ++this->generation;
                             this->history_selected_archived = request_body.contains(
                                 QStringLiteral("revisionId"));
+                            this->history_selected_position = request_body.value(
+                                QStringLiteral("actionPosition")).toString();
                             document = draftRecord(this->lease_session);
                             // Navigation is a state-preserving fixture. The
                             // protocol must still return a verifiable sparse
@@ -727,7 +807,8 @@ public:
                     else if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
                              request_line.contains("/release "))
                     {
-                        if (request_body.value(QStringLiteral("fencingToken")).toString() != lease_token
+                        if (request_body.value(QStringLiteral("fencingToken")).toString() !=
+                                this->current_lease_token
                             || request_body.value(QStringLiteral("sessionId")).toString() != this->lease_session)
                             status = 409;
                         else
@@ -766,9 +847,12 @@ public:
                     }
                     if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
                         request_line.contains("/history/navigate ") &&
-                        this->drop_next_history_acknowledgement && status == 200)
+                        (this->drop_next_history_acknowledgement ||
+                         this->drop_history_acknowledgements > 0) && status == 200)
                     {
                         this->drop_next_history_acknowledgement = false;
+                        if (this->drop_history_acknowledgements > 0)
+                            --this->drop_history_acknowledgements;
                         socket->disconnectFromHost();
                         return;
                     }
@@ -992,6 +1076,155 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
     session.stop();
     return check(until(application, [&] { return stopped; }),
                  "archived cursor fixture could not release its lease");
+}
+
+// After three lost acknowledgements the server and GUI already hold the
+// same canonical MODEL bytes. The SHA-256 receipt proves the operation UUID,
+// generation and archived cursor; no sparse replay is necessary. The lease
+// rotates without a full-network GET.
+bool testHistoryReconnectAfterLostReplies(QCoreApplication &application)
+{
+    Stub stub;
+    if (!check(stub.listen(), "History reconnect fixture could not listen")) return false;
+    QTemporaryDir root;
+    if (!check(root.isValid(), "History reconnect queue root invalid")) return false;
+    const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+    stub.saved_network_id = network_id;
+    stub.history_selected_archived = true;
+    stub.history_require_committed_head = true;
+    stub.history_can_branch_from_archived = true;
+    stub.rotate_lease_on_reacquire = true;
+    PersonalDraftEditSession session;
+    QString problem;
+    int recovered = 0;
+    int completed = 0;
+    QObject::connect(&session, &PersonalDraftEditSession::blocked,
+                     &session, [&](const QString &error) { problem = error; });
+    QObject::connect(&session, &PersonalDraftEditSession::historyNavigationRecovering,
+                     &session, [&] { ++recovered; });
+    QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
+                     &session, [&](const NetworkHydraulic &) { ++completed; });
+    session.start(stub.target(), draft_id, network_id, root.path());
+    if (!check(until(application, [&] {
+            return session.canNavigateHistory() || !problem.isEmpty();
+        }) && problem.isEmpty(), "reconnect fixture could not open History")) return false;
+    const int original_reads = stub.network_read_count;
+    const int original_summaries = stub.network_summary_count;
+    stub.drop_history_acknowledgements = 3;
+    session.navigateHistoryTo(QJsonObject{
+        {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+        {QStringLiteral("revisionId"), head_id},
+        {QStringLiteral("actionPosition"), QStringLiteral("1")}});
+    if (!check(until(application, [&] {
+            return (completed == 1 && session.canCaptureHistoryEdits()) ||
+                !problem.isEmpty();
+        }, 10000) && problem.isEmpty() && recovered == 1 && completed == 1 &&
+        stub.history_navigation_requests == 3 && stub.history_reconcile_reads == 1 &&
+        stub.lease_acquisitions == 2 &&
+        stub.acknowledged_history_request.value(QStringLiteral("operationId")) ==
+            stub.last_history_navigation.value(QStringLiteral("operationId")) &&
+        stub.acknowledged_history_request.value(QStringLiteral("expectedGeneration")) ==
+            stub.last_history_navigation.value(QStringLiteral("expectedGeneration")) &&
+        stub.last_history_navigation.value(QStringLiteral("fencingToken")).toString() ==
+            lease_token && stub.current_lease_token != lease_token &&
+        stub.generation == 1 && stub.network_read_count == original_reads &&
+        stub.network_summary_count == original_summaries &&
+        session.currentGeneration() == QStringLiteral("1"),
+        "reconnecting History did not preserve UUID/generation and avoid full reload")) return false;
+
+    // A server conflict is definitive. It MUST NOT be turned into a
+    // reconnect loop that could replay an unrelated navigation.
+    stub.reject_next_history_navigation = true;
+    session.navigateHistoryTo(QJsonObject{
+        {QStringLiteral("selectionKind"), QStringLiteral("draft")},
+        {QStringLiteral("revisionId"), QJsonValue(QJsonValue::Null)},
+        {QStringLiteral("actionPosition"), QStringLiteral("0")}});
+    if (!check(until(application, [&] { return !problem.isEmpty(); }) &&
+               session.isBlocked() && recovered == 1 &&
+               stub.history_navigation_requests == 4,
+               "definitive History conflict incorrectly entered reconnect recovery")) return false;
+    bool stopped = false;
+    QString stop_error;
+    QObject::connect(&session, &PersonalDraftEditSession::stopped,
+                     &session, [&](const QString &error) { stopped = true; stop_error = error; });
+    session.stop();
+    return check(until(application, [&] { return stopped; }) && stop_error.isEmpty(),
+                 "reconnect fixture could not stop the session");
+}
+
+// A lost request can also have failed BEFORE DVMDB published anything. The
+// receipt then reports the original generation and cursor: resend the same
+// UUID exactly once when connectivity recovers. Never infer success from a
+// matching network hash if the cursor or operation identity disagrees.
+bool testHistoryReconciliationSourceAndDivergence(QCoreApplication &application)
+{
+    for (int scenario = 0; scenario < 3; ++scenario)
+    {
+        Stub stub;
+        if (!check(stub.listen(), "reconciliation edge fixture failed to listen")) return false;
+        QTemporaryDir root;
+        if (!check(root.isValid(), "reconciliation edge queue invalid")) return false;
+        const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+        stub.saved_network_id = network_id;
+        stub.history_selected_archived = true;
+        stub.history_require_committed_head = true;
+        stub.history_can_branch_from_archived = true;
+        stub.rotate_lease_on_reacquire = true;
+        if (scenario == 0) stub.discard_history_before_acceptance = 3;
+        else
+        {
+            stub.drop_history_acknowledgements = 3;
+            stub.corrupt_history_reconcile_cursor = scenario == 1;
+            stub.corrupt_history_reconcile_digest = scenario == 2;
+        }
+        PersonalDraftEditSession session;
+        QString problem;
+        int completed = 0;
+        QObject::connect(&session, &PersonalDraftEditSession::blocked,
+                         &session, [&](const QString &error) { problem = error; });
+        QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
+                         &session, [&](const NetworkHydraulic &) { ++completed; });
+        session.start(stub.target(), draft_id, network_id, root.path());
+        if (!check(until(application, [&] {
+                return session.canNavigateHistory() || !problem.isEmpty();
+            }) && problem.isEmpty(), "reconciliation edge fixture cannot start")) return false;
+        const int fullReads = stub.network_read_count;
+        session.navigateHistoryTo(QJsonObject{
+            {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+            {QStringLiteral("revisionId"), head_id},
+            {QStringLiteral("actionPosition"), QStringLiteral("1")}});
+        if (scenario == 0)
+        {
+            if (!check(until(application, [&] {
+                    return (completed == 1 && session.canCaptureHistoryEdits()) ||
+                        !problem.isEmpty();
+                }, 10000) && problem.isEmpty() &&
+                stub.history_reconcile_reads == 1 &&
+                stub.history_navigation_requests == 4 && stub.generation == 1 &&
+                stub.lease_acquisitions == 2 &&
+                stub.network_read_count == fullReads &&
+                stub.acknowledged_history_request.value(QStringLiteral("operationId")) ==
+                    stub.last_history_navigation.value(QStringLiteral("operationId")),
+                "unpublished navigation did not safely retry its original UUID")) return false;
+        }
+        else
+        {
+            if (!check(until(application, [&] { return !problem.isEmpty(); }, 10000) &&
+                session.isBlocked() && completed == 0 &&
+                stub.history_reconcile_reads == 1 &&
+                stub.history_navigation_requests == (scenario == 1 ? 3 : 4) &&
+                stub.lease_acquisitions == (scenario == 1 ? 1 : 2) &&
+                stub.network_read_count == fullReads,
+                "reconciliation mismatch incorrectly authorized History publication")) return false;
+        }
+        bool stopped = false;
+        QObject::connect(&session, &PersonalDraftEditSession::stopped,
+                         &session, [&](const QString &) { stopped = true; });
+        session.stop();
+        if (!check(until(application, [&] { return stopped; }),
+                   "reconciliation edge fixture could not stop")) return false;
+    }
+    return true;
 }
 
 // A real HTTP session/controller test, with the same private identity,
@@ -1269,6 +1502,8 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     if (!testVerifiedHistoryDelta()) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;
+    if (!testHistoryReconnectAfterLostReplies(application)) return 1;
+    if (!testHistoryReconciliationSourceAndDivergence(application)) return 1;
     if (!testDraftEditSession(application)) return 1;
     if (!testDurableCommitRecovery(application)) return 1;
     Stub stub;

@@ -429,7 +429,8 @@ bool PersonalWorkingCopyClient::parseDraft(const QJsonObject &object,
 void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
                                         const QByteArray &method, const QString &path,
                                         const QJsonObject &body, Response completion,
-                                        int transport_retries)
+                                        int transport_retries,
+                                        std::shared_ptr<bool> uncertain_transport)
 {
     if (target.kind != PersonalRepositoryTarget::Kind::Http &&
         target.kind != PersonalRepositoryTarget::Kind::Embedded)
@@ -450,7 +451,8 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
     QNetworkReply *identity = this->manager.get(verify);
     connect(identity, &QNetworkReply::finished, this,
             [this, identity, root, target, method, path, body,
-             completion = std::move(completion), transport_retries]() mutable
+             completion = std::move(completion), transport_retries,
+             uncertain_transport]() mutable
     {
         const QByteArray bytes = identity->readAll();
         const int identityStatus = identity->attribute(
@@ -459,20 +461,24 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
         identity->deleteLater();
         if (!ok)
         {
+            const bool temporary = identityStatus == 0 || identityStatus == 408 ||
+                identityStatus == 429 || identityStatus == 500 || identityStatus == 502 ||
+                identityStatus == 503 || identityStatus == 504;
             // Navigation retries always repeat the exact same UUID and
             // generation. Never bypass the pinned private-repository check.
-            if (transport_retries > 0 &&
-                identityStatus == 0)
+            if (transport_retries > 0 && temporary)
             {
                 QTimer::singleShot(250, this,
                     [this, target, method, path, body,
-                     completion = std::move(completion), transport_retries]() mutable
+                     completion = std::move(completion), transport_retries,
+                     uncertain_transport]() mutable
                 {
                     request(target, method, path, body, std::move(completion),
-                            transport_retries - 1);
+                            transport_retries - 1, uncertain_transport);
                 });
                 return;
             }
+            if (uncertain_transport && temporary) *uncertain_transport = true;
             completion({}, QStringLiteral("Personal DVMDB identity lookup failed."));
             return;
         }
@@ -497,34 +503,43 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
             : this->manager.post(call, QJsonDocument(body).toJson(QJsonDocument::Compact));
         connect(reply, &QNetworkReply::finished, this,
                 [this, reply, target, method, path, body,
-                 completion = std::move(completion), transport_retries]() mutable
+                 completion = std::move(completion), transport_retries,
+                 uncertain_transport]() mutable
         {
             const QByteArray data = reply->readAll();
             const bool success = reply->error() == QNetworkReply::NoError
                 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() >= 200
                 && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() < 300;
             const QString error = success ? QString() : responseError(reply, data);
-            // Retry only a transport failure, not a definitive DVMDB 4xx/5xx
-            // response. The server keeps the pre-navigation candidate pinned
-            // for the latest operation, and exact UUID replay is idempotent.
+            // Retry transport failures and temporary gateway/server errors,
+            // not a definitive DVMDB validation, identity or conflict reply.
+            // The last History source candidate is pinned for UUID replay.
             const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool transportFailed = !success && (status == 0 ||
                 reply->error() == QNetworkReply::TimeoutError ||
                 reply->error() == QNetworkReply::RemoteHostClosedError);
             reply->deleteLater();
-            const bool temporarilyUnavailable = status == 502 || status == 503 || status == 504;
+            const bool temporarilyUnavailable = status == 408 || status == 429 ||
+                status == 500 || status == 502 || status == 503 || status == 504;
             if ((transportFailed || temporarilyUnavailable) && transport_retries > 0)
             {
                 QTimer::singleShot(250, this,
                     [this, target, method, path, body,
-                     completion = std::move(completion), transport_retries]() mutable
+                     completion = std::move(completion), transport_retries,
+                     uncertain_transport]() mutable
                 {
                     request(target, method, path, body, std::move(completion),
-                            transport_retries - 1);
+                            transport_retries - 1, uncertain_transport);
                 });
                 return;
             }
-            if (!success) { completion({}, error); return; }
+            if (!success)
+            {
+                if (uncertain_transport && (transportFailed || temporarilyUnavailable))
+                    *uncertain_transport = true;
+                completion({}, error);
+                return;
+            }
             QJsonParseError parsing;
             const QJsonDocument document = QJsonDocument::fromJson(data, &parsing);
             if (parsing.error != QJsonParseError::NoError || !document.isObject())
@@ -536,13 +551,15 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
                 {
                     QTimer::singleShot(250, this,
                         [this, target, method, path, body,
-                         completion = std::move(completion), transport_retries]() mutable
+                         completion = std::move(completion), transport_retries,
+                         uncertain_transport]() mutable
                     {
                         request(target, method, path, body, std::move(completion),
-                                transport_retries - 1);
+                                transport_retries - 1, uncertain_transport);
                     });
                     return;
                 }
+                if (uncertain_transport) *uncertain_transport = true;
                 completion({}, QStringLiteral("Invalid personal DVMDB response."));
                 return;
             }
@@ -943,12 +960,79 @@ void PersonalWorkingCopyClient::historyCursor(
     });
 }
 
+void PersonalWorkingCopyClient::reconcileHistory(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &network_id, HistoryReconcileCompletion completion)
+{
+    if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(network_id))
+    {
+        completion({}, false, QStringLiteral("Invalid History reconciliation identity."));
+        return;
+    }
+    const std::shared_ptr<bool> temporary = std::make_shared<bool>(false);
+    request(target, "GET", QStringLiteral("/working-copies/") + draft_id +
+            QStringLiteral("/history/reconcile?networkId=") + network_id, {},
+        [completion = std::move(completion), draft_id, network_id, temporary]
+            (const QJsonObject &result, const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, *temporary, error); return; }
+        const QString digest = result.value(QStringLiteral("networkSha256")).toString();
+        bool digestValid = digest.size() == 64;
+        for (const QChar character : digest)
+            if (!((character >= QLatin1Char('0') && character <= QLatin1Char('9')) ||
+                  (character >= QLatin1Char('a') && character <= QLatin1Char('f'))))
+                digestValid = false;
+        const QJsonValue operation = result.value(QStringLiteral("lastNavigationOperationId"));
+        const QJsonValue source = result.value(QStringLiteral("lastNavigationSourceGeneration"));
+        const QJsonValue base = result.value(QStringLiteral("baseRevision"));
+        const QJsonValue revision = result.value(QStringLiteral("revisionId"));
+        const QString kind = result.value(QStringLiteral("selectionKind")).toString();
+        const QString position = result.value(QStringLiteral("actionPosition")).toString();
+        const QString generation = result.value(QStringLiteral("generation")).toString();
+        const QString journal = result.value(QStringLiteral("journalCount")).toString();
+        const bool baseValid = base.isNull() ||
+            (base.isString() && DvmdbIdentity::isUuidV7(base.toString()));
+        const bool valid = result.value(QStringLiteral("draftId")).toString() == draft_id &&
+            result.value(QStringLiteral("networkId")).toString() == network_id &&
+            DvmdbIdentity::isUuidV7(result.value(QStringLiteral("sessionId")).toString()) &&
+            decimal(generation) && decimal(journal) && decimal(position) && digestValid &&
+            baseValid &&
+            (operation.isNull() || (operation.isString() &&
+                DvmdbIdentity::isUuidV7(operation.toString()))) &&
+            (source.isNull() || (source.isString() && decimal(source.toString()))) &&
+            ((kind == QStringLiteral("draft") && revision.isNull()) ||
+             (kind == QStringLiteral("archived") && revision.isString() &&
+                 DvmdbIdentity::isUuidV7(revision.toString())) ||
+             (kind == QStringLiteral("checkpoint") && revision.isNull()));
+        if (!valid)
+        {
+            completion({}, false, QStringLiteral("Invalid DVMDB History reconciliation receipt."));
+            return;
+        }
+        completion(result, false, {});
+    }, 0, temporary);
+}
+
 void PersonalWorkingCopyClient::navigateHistory(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &operation_id, const QString &session_id,
     const QString &fencing_token, const QString &generation,
     const QString &expected_head, const QJsonObject &coordinate,
     DraftCompletion completion, const QString &network_id)
+{
+    navigateHistoryRecovering(target, draft_id, operation_id, session_id,
+        fencing_token, generation, expected_head, coordinate,
+        [completion = std::move(completion)](const PersonalWorkingCopyInfo &draft,
+                                             bool, const QString &error)
+        { completion(draft, error); }, network_id);
+}
+
+void PersonalWorkingCopyClient::navigateHistoryRecovering(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &operation_id, const QString &session_id,
+    const QString &fencing_token, const QString &generation,
+    const QString &expected_head, const QJsonObject &coordinate,
+    NavigationCompletion completion, const QString &network_id)
 {
     const QString kind = coordinate.value(QStringLiteral("selectionKind")).toString();
     const QString position = coordinate.value(QStringLiteral("actionPosition")).toString();
@@ -963,7 +1047,7 @@ void PersonalWorkingCopyClient::navigateHistory(
         !validHistoryCoordinate(QJsonValue(coordinate)) ||
         (!network_id.isEmpty() && !DvmdbIdentity::isUuidV7(network_id)))
     {
-        completion({}, QStringLiteral("Invalid fenced History navigation request."));
+        completion({}, false, QStringLiteral("Invalid fenced History navigation request."));
         return;
     }
     QJsonObject body{{QStringLiteral("operationId"), operation_id},
@@ -977,12 +1061,13 @@ void PersonalWorkingCopyClient::navigateHistory(
         body.insert(QStringLiteral("revisionId"), revision);
     if (!network_id.isEmpty())
         body.insert(QStringLiteral("networkId"), network_id);
+    const std::shared_ptr<bool> uncertain = std::make_shared<bool>(false);
     request(target, "POST", QStringLiteral("/working-copies/") + draft_id
             + QStringLiteral("/history/navigate"), body,
-        [completion = std::move(completion), draft_id, network_id](const QJsonObject &response,
-                                                        const QString &error)
+        [completion = std::move(completion), draft_id, network_id, uncertain]
+            (const QJsonObject &response, const QString &error)
     {
-        if (!error.isEmpty()) { completion({}, error); return; }
+        if (!error.isEmpty()) { completion({}, *uncertain, error); return; }
         PersonalWorkingCopyInfo draft;
         if (!parseDraft(response, draft) || draft.id != draft_id ||
             (!network_id.isEmpty() &&
@@ -990,32 +1075,43 @@ void PersonalWorkingCopyClient::navigateHistory(
               response.value(QStringLiteral("historyDelta")).toObject()
                 .value(QStringLiteral("networkId")).toString() != network_id)))
         {
-            completion({}, QStringLiteral("Invalid DVMDB History delta/publication response."));
+            completion({}, false, QStringLiteral("Invalid DVMDB History delta/publication response."));
             return;
         }
         draft.history_delta = response.value(QStringLiteral("historyDelta")).toObject();
-        completion(draft, {});
-    }, 2); // two transport retries with the SAME operation UUID and source generation
+        completion(draft, false, {});
+    }, 2, uncertain); // two fast retries, then the session can resume after reconnection
 }
 
 void PersonalWorkingCopyClient::acquireLease(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &session_id, int seconds, LeaseCompletion completion)
 {
+    acquireLeaseRecovering(target, draft_id, session_id, seconds,
+        [completion = std::move(completion)](const PersonalWorkingCopyLease &lease,
+                                             bool, const QString &error)
+        { completion(lease, error); });
+}
+
+void PersonalWorkingCopyClient::acquireLeaseRecovering(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QString &session_id, int seconds, RecoveryLeaseCompletion completion)
+{
     if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(session_id)
         || seconds < 1 || seconds > 120)
     {
-        completion({}, QStringLiteral("Invalid draft/session UUIDv7 or lease duration."));
+        completion({}, false, QStringLiteral("Invalid draft/session UUIDv7 or lease duration."));
         return;
     }
+    const std::shared_ptr<bool> temporary = std::make_shared<bool>(false);
     request(target, "POST", QStringLiteral("/working-copies/") + draft_id
                 + QStringLiteral("/lease"),
             QJsonObject{{QStringLiteral("sessionId"), session_id},
                         {QStringLiteral("seconds"), seconds}},
-            [completion = std::move(completion)](const QJsonObject &response,
-                                                 const QString &error)
+            [completion = std::move(completion), temporary](const QJsonObject &response,
+                                                             const QString &error)
     {
-        if (!error.isEmpty()) { completion({}, error); return; }
+        if (!error.isEmpty()) { completion({}, *temporary, error); return; }
         PersonalWorkingCopyLease lease;
         lease.token = response.value(QStringLiteral("token")).toString();
         lease.generation = response.value(QStringLiteral("generation")).toString();
@@ -1023,11 +1119,11 @@ void PersonalWorkingCopyClient::acquireLease(
         if (!DvmdbIdentity::isUuidV7(lease.token) || !decimal(lease.generation)
             || !decimal(lease.expires_at_ms))
         {
-            completion({}, QStringLiteral("Invalid writer-lease response."));
+            completion({}, false, QStringLiteral("Invalid writer-lease response."));
             return;
         }
-        completion(lease, {});
-    });
+        completion(lease, false, {});
+    }, 0, temporary);
 }
 
 QString PersonalWorkingCopyClient::recordedCommitState(

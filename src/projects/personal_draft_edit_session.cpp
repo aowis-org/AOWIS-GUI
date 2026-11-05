@@ -6,6 +6,7 @@
 #include <QDateTime>
 #include <QJsonArray>
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
@@ -20,6 +21,9 @@ QString normalized(const QUuid &id)
 PersonalDraftEditSession::PersonalDraftEditSession(QObject *parent)
     : QObject(parent), client_(this)
 {
+    this->history_retry_timer_.setSingleShot(true);
+    connect(&this->history_retry_timer_, &QTimer::timeout, this,
+            &PersonalDraftEditSession::recoverHistoryNavigation);
     this->renew_timer_.setInterval(40000);
     connect(&this->renew_timer_, &QTimer::timeout, this, [this]
     {
@@ -35,6 +39,7 @@ PersonalDraftEditSession::~PersonalDraftEditSession()
     // QObject destroys the HTTP client before its pending callbacks can run.
     // An outstanding remote lease expires naturally if no release completes.
     this->renew_timer_.stop();
+    this->history_retry_timer_.stop();
     this->stage_.close();
 }
 
@@ -364,6 +369,9 @@ QString PersonalDraftEditSession::historyNavigationStatus() const
 {
     if (this->state_ == State::Navigating)
         return QStringLiteral("Navigating and verifying History state…");
+    if (this->state_ == State::RecoveringHistory)
+        return QStringLiteral("History acknowledgement uncertain; reconnecting with the same operation UUID. "
+                              "Editing is paused; no full network is being downloaded.");
     if (this->state_ == State::Blocked)
         return QStringLiteral("Private editing is blocked; reopen the draft to recover History.");
     if (this->stage_.pendingCount() > 0)
@@ -489,6 +497,9 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
                 position_string) return;
     }
     else return;
+    // Retain the source coordinate before clearing the GUI's navigable
+    // cursor. A matching SHA alone is insufficient to prove History position.
+    this->history_source_cursor_ = this->history_cursor_;
     this->state_ = State::Navigating;
     this->history_edit_position_verified_ = false;
     this->request_in_flight_ = true;
@@ -505,74 +516,282 @@ void PersonalDraftEditSession::navigateHistoryTo(const QJsonObject &coordinate)
         fail(QStringLiteral("Invalid or exhausted private History generation."));
         return;
     }
-    this->client_.navigateHistory(this->target_, this->draft_id_, operation_id,
+    this->history_operation_id_ = operation_id;
+    this->history_source_generation_ = old_generation;
+    this->history_target_coordinate_ = coordinate;
+    this->history_recovery_attempts_ = 0;
+    this->client_.navigateHistoryRecovering(this->target_, this->draft_id_, operation_id,
         this->session_id_, this->fencing_token_, old_generation,
         this->base_revision_, coordinate,
-        [this, sourceGeneration, coordinate](const PersonalWorkingCopyInfo &result,
-                                             const QString &error)
+        [this](const PersonalWorkingCopyInfo &result, bool uncertain, const QString &error)
     {
-        if (!error.isEmpty() || result.id != this->draft_id_ ||
-            result.generation != QString::number(sourceGeneration + 1) ||
-            result.base_revision != this->base_revision_ ||
-            result.session_id != this->session_id_ ||
-            result.event_count != QString::number(this->saved_history_events_.size()))
+        this->request_in_flight_ = false;
+        if (this->stop_requested_) { releaseAndClose(); return; }
+        if (uncertain && !error.isEmpty())
         {
-            this->request_in_flight_ = false;
-            fail(QStringLiteral("History navigation was not authoritatively confirmed: %1").arg(error));
+            scheduleHistoryRecovery();
             return;
         }
-        // The server reconstructs the full network, but sends only changed
-        // typed MODEL images and sparse membership moves. Nothing is applied
-        // to the local stage until all source images and the final canonical
-        // SHA-256 have been verified against our saved snapshot.
-        NetworkHydraulic network;
-        QString deltaError;
-        if (!HydraulicHistoryDelta::apply(result.history_delta,
-                this->stage_.persistedNetwork(), network, &deltaError) ||
-            normalized(network.uuid) != this->network_id_)
-        {
-            this->request_in_flight_ = false;
-            fail(QStringLiteral("Cannot verify incremental History state: %1").arg(deltaError));
-            return;
-        }
+        finishHistoryNavigation(result, error);
+    }, this->network_id_);
+}
+
+void PersonalDraftEditSession::finishHistoryNavigation(
+    const PersonalWorkingCopyInfo &result, const QString &error)
+{
+    bool sourceGenerationValid = false;
+    const qulonglong sourceGeneration = this->history_source_generation_.toULongLong(
+        &sourceGenerationValid);
+    if (!sourceGenerationValid || sourceGeneration == std::numeric_limits<qulonglong>::max())
+    {
+        fail(QStringLiteral("Invalid pending History source generation."));
+        return;
+    }
+    if (!error.isEmpty() || result.id != this->draft_id_ ||
+        result.generation != QString::number(sourceGeneration + 1) ||
+        result.base_revision != this->base_revision_ ||
+        result.session_id != this->session_id_ ||
+        result.event_count != QString::number(this->saved_history_events_.size()))
+    {
+        fail(QStringLiteral("History navigation was not authoritatively confirmed: %1").arg(error));
+        return;
+    }
+    // The server reconstructs the full network, but sends only changed
+    // typed MODEL images and sparse membership moves. Nothing is applied
+    // to the local stage until all source images and the final canonical
+    // SHA-256 have been verified against our saved snapshot.
+    NetworkHydraulic network;
+    QString deltaError;
+    if (!HydraulicHistoryDelta::apply(result.history_delta,
+            this->stage_.persistedNetwork(), network, &deltaError) ||
+        normalized(network.uuid) != this->network_id_)
+    {
+        fail(QStringLiteral("Cannot verify incremental History state: %1").arg(deltaError));
+        return;
+    }
+    if (!this->history_expected_destination_digest_.isEmpty() &&
+        HydraulicHistoryDelta::digest(network) != this->history_expected_destination_digest_)
+    {
+        fail(QStringLiteral("Sparse History delta disagrees with reconciled destination SHA-256."));
+        return;
+    }
+    completeHistoryNavigation(network, result.generation, true);
+}
+
+void PersonalDraftEditSession::completeHistoryNavigation(
+    const NetworkHydraulic &network, const QString &generation, bool replace_network)
+{
+    // Both a successful sparse delta and a matching SHA reconciliation must
+    // pass this final publication path. The latter never replaces the model.
+    if (replace_network)
+    {
         QString stageError;
         if (!this->stage_.resetVerifiedNetwork(network, &stageError))
         {
-            this->request_in_flight_ = false;
             fail(QStringLiteral("Cannot publish navigated editor state: %1").arg(stageError));
             return;
         }
-        this->generation_ = result.generation;
-        // Navigation did not change network identity or count, and DVMDB
-        // just authenticated this network's new canonical digest. Avoid a
-        // redundant /networks/summary round trip on every Undo/Redo.
-        this->history_network_qualified_ = true;
-        // The immutable Commit archive and the live draft journal did not
-        // change during navigation. Reopening just to download those original
-        // MODEL frames would be redundant and network-expensive.
-        if (coordinate.value(QStringLiteral("selectionKind")).toString() ==
-            QStringLiteral("draft"))
+    }
+    this->generation_ = generation;
+    this->history_network_qualified_ = true;
+    const QJsonObject coordinate = this->history_target_coordinate_;
+    if (coordinate.value(QStringLiteral("selectionKind")).toString() ==
+        QStringLiteral("draft"))
+    {
+        bool valid = false;
+        const qsizetype position = coordinate.value(
+            QStringLiteral("actionPosition")).toString().toLongLong(&valid);
+        if (!valid || position < 0 || position > this->saved_history_events_.size())
         {
-            bool valid = false;
-            const qsizetype position = coordinate.value(
-                QStringLiteral("actionPosition")).toString().toLongLong(&valid);
-            if (!valid || position < 0 || position > this->saved_history_events_.size())
-            {
-                this->request_in_flight_ = false;
-                fail(QStringLiteral("Invalid navigated draft History action position."));
-                return;
-            }
-            this->selected_draft_position_ = position;
+            fail(QStringLiteral("Invalid navigated draft History action position."));
+            return;
         }
-        else
-            this->selected_draft_position_ = 0;
+        this->selected_draft_position_ = position;
+    }
+    else
+        this->selected_draft_position_ = 0;
+    clearHistoryRecovery();
+    if (this->stop_requested_) { releaseAndClose(); return; }
+    this->state_ = State::Ready;
+    emit historyNavigationCompleted(network);
+    refreshHistoryCursor();
+    if (leaseIsExpiring()) renew();
+}
+
+void PersonalDraftEditSession::scheduleHistoryRecovery()
+{
+    if (this->stop_requested_)
+    {
+        releaseAndClose();
+        return;
+    }
+    if (this->history_operation_id_.isEmpty())
+    {
+        fail(QStringLiteral("Lost the pending History navigation identity."));
+        return;
+    }
+    const bool firstRecovery = this->state_ != State::RecoveringHistory;
+    this->state_ = State::RecoveringHistory;
+    this->history_edit_position_verified_ = false;
+    this->history_cursor_ = {};
+    // Back off during outages instead of continuously flooding a remote
+    // personal REST server. Do not impose a short fixed retry deadline:
+    // an offline session can remain safely paused until the link returns.
+    const unsigned int shift = std::min(this->history_recovery_attempts_, 3u);
+    const int delayMs = 1000 * static_cast<int>(1u << shift);
+    if (this->history_recovery_attempts_ < 100) ++this->history_recovery_attempts_;
+    this->history_retry_timer_.start(delayMs);
+    emit historyCursorChanged();
+    if (firstRecovery) emit historyNavigationRecovering();
+}
+
+void PersonalDraftEditSession::recoverHistoryNavigation()
+{
+    if (this->state_ != State::RecoveringHistory || this->request_in_flight_)
+        return;
+    if (this->stop_requested_) { releaseAndClose(); return; }
+    // Read a small authoritative SHA-256 receipt first. This is read-only:
+    // a bad connection does not rotate our lease or accidentally Undo again.
+    this->request_in_flight_ = true;
+    this->client_.reconcileHistory(this->target_, this->draft_id_, this->network_id_,
+        [this](const QJsonObject &receipt, bool temporary, const QString &error)
+    {
         this->request_in_flight_ = false;
         if (this->stop_requested_) { releaseAndClose(); return; }
-        this->state_ = State::Ready;
-        emit historyNavigationCompleted(network);
-        refreshHistoryCursor();
-        if (leaseIsExpiring()) renew();
-    }, this->network_id_);
+        if (!error.isEmpty())
+        {
+            if (temporary) scheduleHistoryRecovery();
+            else fail(QStringLiteral("Cannot verify History reconciliation: %1").arg(error));
+            return;
+        }
+        bool sourceValid = false;
+        const qulonglong source = this->history_source_generation_.toULongLong(&sourceValid);
+        if (!sourceValid || source == std::numeric_limits<qulonglong>::max())
+        {
+            fail(QStringLiteral("Invalid pending History source generation."));
+            return;
+        }
+        const QString targetGeneration = QString::number(source + 1);
+        const QString generation = receipt.value(QStringLiteral("generation")).toString();
+        const QString operation = receipt.value(
+            QStringLiteral("lastNavigationOperationId")).toString();
+        const QString operationSource = receipt.value(
+            QStringLiteral("lastNavigationSourceGeneration")).toString();
+        const QString kind = receipt.value(QStringLiteral("selectionKind")).toString();
+        const QString revision = receipt.value(QStringLiteral("revisionId")).toString();
+        const QString position = receipt.value(QStringLiteral("actionPosition")).toString();
+        const QString localDigest = HydraulicHistoryDelta::digest(this->stage_.persistedNetwork());
+        const QString remoteDigest = receipt.value(QStringLiteral("networkSha256")).toString();
+        if (receipt.value(QStringLiteral("sessionId")).toString() != this->session_id_ ||
+            receipt.value(QStringLiteral("baseRevision")).toString() != this->base_revision_ ||
+            receipt.value(QStringLiteral("journalCount")).toString() !=
+                QString::number(this->saved_history_events_.size()) ||
+            localDigest.isEmpty())
+        {
+            fail(QStringLiteral("The personal working copy changed during History recovery."));
+            return;
+        }
+        const QJsonObject &target = this->history_target_coordinate_;
+        const bool targetMatches = kind == target.value(QStringLiteral("selectionKind")).toString() &&
+            position == target.value(QStringLiteral("actionPosition")).toString() &&
+            (kind != QStringLiteral("archived") ||
+             revision == target.value(QStringLiteral("revisionId")).toString());
+        const QJsonObject &sourceCursor = this->history_source_cursor_;
+        const QString sourceKind = sourceCursor.value(QStringLiteral("selectionKind")).toString();
+        const QString sourcePosition = sourceKind == QStringLiteral("archived")
+            ? sourceCursor.value(QStringLiteral("archivedActionPosition")).toString()
+            : sourceCursor.value(QStringLiteral("actionPosition")).toString();
+        const bool sourceMatches = kind == sourceKind && position == sourcePosition &&
+            (kind != QStringLiteral("archived") ||
+             revision == sourceCursor.value(QStringLiteral("archivedRevisionId")).toString());
+        const bool alreadyPublished = generation == targetGeneration &&
+            operation == this->history_operation_id_ &&
+            operationSource == this->history_source_generation_ && targetMatches;
+        const bool notPublished = generation == this->history_source_generation_ &&
+            sourceMatches && remoteDigest == localDigest;
+        if (!alreadyPublished && !notPublished)
+        {
+            fail(QStringLiteral("History generation, operation or cursor diverged during outage."));
+            return;
+        }
+        // A successful Undo can leave identical network bytes (e.g. a MODEL
+        // value changed and changed back). Its UUID, generation and cursor
+        // must still agree before skipping sparse replay.
+        this->history_expected_destination_digest_ = alreadyPublished ? remoteDigest : QString();
+        resumeHistoryAfterReconcile(alreadyPublished, remoteDigest == localDigest, generation);
+    });
+}
+
+void PersonalDraftEditSession::resumeHistoryAfterReconcile(
+    bool already_published, bool model_matches, const QString &server_generation)
+{
+    // The writer lease may expire during a long outage. Reacquire it with
+    // the same session UUID only AFTER verifying the server's state.
+    this->request_in_flight_ = true;
+    this->client_.acquireLeaseRecovering(this->target_, this->draft_id_,
+        this->session_id_, 90,
+        [this, already_published, model_matches, server_generation](
+            const PersonalWorkingCopyLease &lease, bool temporary, const QString &error)
+    {
+        this->request_in_flight_ = false;
+        if (this->stop_requested_) { releaseAndClose(); return; }
+        if (!error.isEmpty())
+        {
+            if (temporary) scheduleHistoryRecovery();
+            else fail(QStringLiteral("Cannot reacquire History writer lease: %1").arg(error));
+            return;
+        }
+        if (lease.generation != server_generation)
+        {
+            fail(QStringLiteral("History generation changed between reconciliation and lease."));
+            return;
+        }
+        this->fencing_token_ = lease.token;
+        this->lease_expiry_ = lease.expires_at_ms;
+        if (leaseIsExpiring())
+        {
+            fail(QStringLiteral("Recovered writer lease is already expiring."));
+            return;
+        }
+        if (already_published && model_matches)
+        {
+            // The server has the exact requested UUID/cursor and the same
+            // canonical network. No MODEL delta, no network GET, no replay.
+            completeHistoryNavigation(this->stage_.persistedNetwork(),
+                                      server_generation, false);
+            return;
+        }
+        // Not published: execute the original intent. Published but different
+        // hash: replay the same UUID to obtain the retained sparse delta.
+        this->request_in_flight_ = true;
+        this->client_.navigateHistoryRecovering(this->target_, this->draft_id_,
+            this->history_operation_id_, this->session_id_, this->fencing_token_,
+            this->history_source_generation_, this->base_revision_,
+            this->history_target_coordinate_,
+            [this](const PersonalWorkingCopyInfo &result, bool uncertain,
+                   const QString &navigationError)
+        {
+            this->request_in_flight_ = false;
+            if (this->stop_requested_) { releaseAndClose(); return; }
+            if (uncertain && !navigationError.isEmpty())
+            {
+                scheduleHistoryRecovery();
+                return;
+            }
+            finishHistoryNavigation(result, navigationError);
+        }, this->network_id_);
+    });
+}
+
+void PersonalDraftEditSession::clearHistoryRecovery()
+{
+    this->history_retry_timer_.stop();
+    this->history_operation_id_.clear();
+    this->history_source_generation_.clear();
+    this->history_expected_destination_digest_.clear();
+    this->history_target_coordinate_ = {};
+    this->history_source_cursor_ = {};
+    this->history_recovery_attempts_ = 0;
 }
 
 void PersonalDraftEditSession::blockEditing(const QString &message)
@@ -585,6 +804,7 @@ void PersonalDraftEditSession::blockEditing(const QString &message)
 void PersonalDraftEditSession::fail(const QString &message)
 {
     this->renew_timer_.stop();
+    clearHistoryRecovery();
     this->state_ = State::Blocked;
     this->history_edit_position_verified_ = false;
     this->history_cursor_ = {};
@@ -599,6 +819,7 @@ void PersonalDraftEditSession::stop()
     if (this->state_ == State::Idle) return;
     this->stop_requested_ = true;
     this->renew_timer_.stop();
+    this->history_retry_timer_.stop();
     if (this->request_in_flight_ || this->state_ == State::Starting)
         return;
     releaseAndClose();
@@ -632,6 +853,7 @@ void PersonalDraftEditSession::releaseAndClose()
 
 void PersonalDraftEditSession::resetLocal()
 {
+    clearHistoryRecovery();
     this->stage_.close();
     this->saved_history_events_.clear();
     this->history_cursor_ = {};

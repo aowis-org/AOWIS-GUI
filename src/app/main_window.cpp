@@ -454,6 +454,14 @@ MainWindow::MainWindow(QWidget *parent)
         this->top_control_bar->setNetworkStatus(tr("Navigating History…"));
         refreshHistoryDock();
     });
+    connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationRecovering,
+            this, [this]
+    {
+        this->top_control_bar->setNetworkStatus(tr("Reconnecting History…"));
+        statusBar()->showMessage(tr("The History reply is uncertain. Editing is paused while "
+                                    "AOWIS retries the same navigation."));
+        refreshHistoryDock();
+    });
     connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationCompleted,
             this, [this](const NetworkHydraulic &network)
     {

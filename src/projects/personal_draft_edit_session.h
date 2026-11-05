@@ -69,14 +69,27 @@ signals:
     void stopped(const QString &error);
     void historyCursorChanged();
     void historyNavigationStarted();
+    void historyNavigationRecovering();
     void historyNavigationCompleted(const NetworkHydraulic &network);
 
 private:
-    enum class State { Idle, Starting, Ready, Submitting, Renewing, Navigating, Blocked, Stopping };
+    enum class State {
+        Idle, Starting, Ready, Submitting, Renewing, Navigating,
+        RecoveringHistory, Blocked, Stopping
+    };
     void refreshHistoryCursor();
     void scheduleFlush();
     void flush();
     void renew();
+    void finishHistoryNavigation(const PersonalWorkingCopyInfo &result,
+                                 const QString &error);
+    void completeHistoryNavigation(const NetworkHydraulic &network,
+                                   const QString &generation, bool replace_network);
+    void scheduleHistoryRecovery();
+    void resumeHistoryAfterReconcile(bool already_published, bool model_matches,
+                                     const QString &server_generation);
+    void recoverHistoryNavigation();
+    void clearHistoryRecovery();
     void fail(const QString &message);
     void finishStop();
     void releaseAndClose();
@@ -87,6 +100,7 @@ private:
     QList<QByteArray> saved_history_events_;
     PersonalDraftEditStage stage_;
     QTimer renew_timer_;
+    QTimer history_retry_timer_;
     PersonalRepositoryTarget target_;
     QString draft_id_;
     QString project_id_;
@@ -108,4 +122,10 @@ private:
     bool flush_scheduled_ = false;
     bool renewal_due_ = false;
     bool request_in_flight_ = false;
+    QString history_operation_id_;
+    QString history_source_generation_;
+    QString history_expected_destination_digest_;
+    QJsonObject history_target_coordinate_;
+    QJsonObject history_source_cursor_;
+    unsigned int history_recovery_attempts_ = 0;
 };

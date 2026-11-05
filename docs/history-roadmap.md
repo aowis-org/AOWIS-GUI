@@ -38,7 +38,8 @@ A passing component test is not a substitute for the workflow above.
 
 ## 2. Concurrency and uncertain-result recovery (critical)
 
-Verify the implemented bounded same-operation-ID transport retries and
+Verify the implemented bounded immediate same-operation-ID transport retries,
+GUI-session long-outage reconciliation with lease rotation/backoff, and
 server-side retained-source delta regeneration under dropped responses,
 server restart and interrupted connections. Also exercise stale draft generations, expired leases, changed committed HEAD, Save in
 flight, dropped network reload, incomplete/corrupt Commit archives, server
@@ -47,6 +48,11 @@ never claim successful navigation before authoritative acknowledgement and
 canonical sparse-delta verification; it must never resume capture against unverified
 state. Check a suspended active journal's Redo frames survive restart and
 navigation into/out of archived History.
+
+**Still to implement:** durable on-device pending History navigation intents
+so an uncertain navigation can reconcile after the GUI itself restarts,
+without first downloading a complete network. The current open-session
+reconnect is in-memory and therefore cannot provide that guarantee.
 
 ## 3. Independent branch-history paging acceptance (important)
 

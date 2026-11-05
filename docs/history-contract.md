@@ -135,9 +135,27 @@ the sparse `historyDelta` against its cached canonical network and swaps the
 verified destination into the editor; it does not reopen or download the
 complete `NetworkHydraulic` for a routine Undo/Redo/jump. For lost HTTP
 acknowledgements, the client retries the **same** operation UUID and
-source generation (bounded transport retries). DVMDB regenerates the delta
-from its durable pinned source candidate. A rejected, stale or unverifiable
-response blocks capture instead of applying a guessed state. `MainWindow` disables
+source generation (two immediate transport retries). When those are exhausted
+by an uncertain transport failure, the open editing session pauses capture
+and backs off while connectivity is unavailable. Once reachable it first GETs
+`/history/reconcile?networkId=<uuid>`: a small read-only receipt containing
+canonical SHA-256, generation, cursor, journal count and last navigation UUID.
+The UUID/source generation/target cursor must match the pending operation;
+a matching hash **alone** is insufficient because two History positions may
+have identical model bytes. If the correct operation was published and both
+models already match, it reacquires the **same-session** writer lease and
+acknowledges the verified destination with **no sparse replay and no
+full-network GET**. Otherwise it reacquires the lease and replays the **original operation UUID and source
+generation** to get the pinned sparse delta, or executes the previously
+unpublished original request if the complete source state still matches.
+Definitive conflicts stop capture. This works for embedded and REST personal
+DVMDB servers.
+The pending navigation is held in the currently open GUI session, not yet
+persisted across a GUI process restart. Closing the session during an outage
+requires reopening the draft, which presently downloads its full model.
+DVMDB regenerates any needed delta from its durable pinned source candidate.
+A rejected, stale or unverifiable response blocks capture instead of applying
+an unverified state. `MainWindow` disables
 logical edit capture before navigation, replaces the canonical network and
 resumes capture only after the stage has been reset, the network has
 passed its consistency check, **and a fresh authoritative cursor confirms a

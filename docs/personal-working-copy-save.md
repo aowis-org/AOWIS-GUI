@@ -96,8 +96,15 @@ cached model, verifies the final hash, and only then replaces the live editor
 state and refreshes the authoritative History cursor. **Routine navigation
 makes no full-network GET and does not reopen/re-download the event journal.**
 Direct jumps use one publication request, not a succession of locally inferred
-Undo requests. A lost publication response can still require an explicit
-recovery reopen; it must never trigger a second guessed Undo.
+Undo requests. After two immediate same-UUID retries, a temporary transport
+failure leaves the open session in a non-editable reconnect state. Its retry
+timer reacquires the same session's writer lease (which may have expired),
+then replays exactly the original operation UUID, requested position and
+source generation with the renewed fencing token. DVMDB either returns the
+original verified delta or applies the still-unpublished request once.
+Definitive conflicts stop recovery. The pending navigation is not yet durable
+across a GUI process restart, so reopening after a restart still loads the
+authoritative full draft network.
 
 An Undo can retain unapplied draft journal actions as Redo. A subsequent
 ordinary new edit branches the journal: applied prefix plus new MODEL event;
@@ -116,7 +123,7 @@ forward MODEL replay and refuses unborn journal deletions whose original
 membership position cannot be established. Initial network initialization
 or import is not an Undo step. Multi-network navigation remains unsupported;
 **multiple-network native storage remains allowed**.
-V9 DVMDB working-copy metadata persists the selected cursor and optional
+V10 DVMDB working-copy metadata persists the selected cursor and optional
 History fork origin; development drafts made with older pre-release markers
 are not supported.
 

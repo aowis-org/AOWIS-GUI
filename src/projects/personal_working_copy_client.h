@@ -14,6 +14,7 @@
 #include <QUuid>
 
 #include <functional>
+#include <memory>
 
 // Draft identities are local to the personal repository. This client NEVER
 // falls back to a project-source profile and NEVER changes a committed HEAD.
@@ -126,11 +127,28 @@ public:
     // Cursor and adjacency come from DVMDB, never from the GUI's cached timeline.
     void historyCursor(const PersonalRepositoryTarget &target, const QString &draft_id,
                        HistoryCursorCompletion completion);
+    // Read-only receipt for uncertain navigation, pinned to one repository
+    // and one hydraulic network. The response is metadata + SHA-256 only.
+    using HistoryReconcileCompletion = std::function<void(
+        const QJsonObject &, bool temporary, const QString &)>;
+    void reconcileHistory(const PersonalRepositoryTarget &target,
+                          const QString &draft_id, const QString &network_id,
+                          HistoryReconcileCompletion completion);
     void navigateHistory(const PersonalRepositoryTarget &target, const QString &draft_id,
                          const QString &operation_id, const QString &session_id,
                          const QString &fencing_token, const QString &generation,
                          const QString &expected_head, const QJsonObject &coordinate,
                          DraftCompletion completion, const QString &network_id = {});
+    // Unlike an ordinary request, distinguish a lost/uncertain transport reply
+    // from a definitive server rejection. Only the former may be reconciled
+    // after the short HTTP retry window by re-leasing and replaying this UUID.
+    using NavigationCompletion = std::function<void(
+        const PersonalWorkingCopyInfo &, bool uncertain, const QString &)>;
+    void navigateHistoryRecovering(const PersonalRepositoryTarget &target, const QString &draft_id,
+                                  const QString &operation_id, const QString &session_id,
+                                  const QString &fencing_token, const QString &generation,
+                                  const QString &expected_head, const QJsonObject &coordinate,
+                                  NavigationCompletion completion, const QString &network_id = {});
     // Every write is explicitly scoped to the personal repository. A save
     // acknowledges only the exact next generation; uncertain network failures
     // must be resolved by reopen(), never by blindly replaying a batch.
@@ -154,6 +172,11 @@ public:
                           CommitCompletion completion);
     void acquireLease(const PersonalRepositoryTarget &target, const QString &draft_id,
                       const QString &session_id, int seconds, LeaseCompletion completion);
+    using RecoveryLeaseCompletion = std::function<void(
+        const PersonalWorkingCopyLease &, bool temporary_failure, const QString &)>;
+    void acquireLeaseRecovering(const PersonalRepositoryTarget &target, const QString &draft_id,
+                               const QString &session_id, int seconds,
+                               RecoveryLeaseCompletion completion);
     // Create the first hydraulic network in an unborn private draft. The
     // DVMDB server owns the native manifest bytes. This does not commit or
     // advance HEAD. On an uncertain response, reopen before proceeding; the
@@ -269,7 +292,8 @@ private:
     using Response = std::function<void(const QJsonObject &, const QString &)>;
     void request(const PersonalRepositoryTarget &target, const QByteArray &method,
                  const QString &path, const QJsonObject &body, Response completion,
-                 int transport_retries = 0);
+                 int transport_retries = 0,
+                 std::shared_ptr<bool> uncertain_transport = {});
     static bool parseDraft(const QJsonObject &object, PersonalWorkingCopyInfo &draft);
     void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
                   const QString &after, int page_count,
