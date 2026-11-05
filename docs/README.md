@@ -13,7 +13,10 @@ is not described in terms of historical development stages.
 | [DVMDB quickstart](dvmdb-quickstart.md) | Project creation, open/import/export, autosave and Commit |
 | [Distribution Editor](distribution-editor.md) | Shared 2D/3D hydraulic editing, terrain, UI and limitations |
 | [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 18 collections |
-| [Map workspace architecture](map-workspace-architecture.md) | bgfx 2D/3D renderer and widget integration |
+| [Rendering architecture](rendering-architecture.md) | Process-wide bgfx device, view IDs, native targets, frame coordination, Projects graph, three-map diagnostics and tests |
+| [Map workspace architecture](map-workspace-architecture.md) | One shared map across five modes, controllers and native surface ownership |
+| [Projects graph layout](project-graph-layout.md) | Cards, ancestry, picking, GPU fallback and BVH culling |
+| [Projects graph performance](project-graph-performance.md) | CPU benchmark method, current scaling results and limits |
 | [Units](units.md) | User-visible measurement and formatting behavior |
 
 ## History and persistence

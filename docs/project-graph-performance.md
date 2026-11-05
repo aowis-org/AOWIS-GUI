@@ -97,38 +97,32 @@ The benchmark is **measurement infrastructure**. It should not become an
 always-running or 100k-node CTest gate. The smoke CTest uses a 64-revision
 fixture to detect broken wiring quickly.
 
-## Scaling findings from 2026-11-05
+## Measured CPU performance (5 November 2026)
 
-Before the layout correction, an actual 10k-revision dataset took approximately
-10.8–10.9 **seconds** to lay out and 180–196 **milliseconds** per CPU scene
-preparation, despite only ten visible cards. The 100k run was interrupted
-because it saturated one CPU core without timely completion. This is a real
-CPU bottleneck, not evidence that the bgfx GPU drawing backend is slow.
+The current renderer uses layered-DAG ordering without all-rank updates for
+every individual rank, conservative offscreen link culling, and a retained
+BVH for graph-space nodes and curves. A camera movement reuses the index;
+only displayed-graph/layout changes rebuild it. The original painter order is
+preserved, and viewport-crossing ancestry routes remain eligible even when
+neither endpoint is visible.
 
-The layered layout was performing an all-rank `updateOrder()` after sorting
-*each* individual rank; for long linear histories this was quadratic. It now
-updates only the affected rank and skips crossing-reduction sweeps when the
-current crossing count is already zero (the global optimum).
+On the user's Linux GUI test build, using the benchmark's synthetic fixture,
+three scene passes and ten visible cards:
 
-The GPU scene formerly tessellated ancestry/structural links outside the
-viewport even though it culled their cards. It now conservatively rejects
-out-of-view edge control-point hulls before emitting draw geometry, while
-retaining routes which cross the viewport with both endpoints outside.
+| Revisions | Layout | One-time index | Median scene | Index candidates | GPU vertices | Peak RSS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1,000 | 43.4 ms | 8.0 ms | 4.1 ms | 15 | 4,524 | 65,036 KiB |
+| 10,000 | 403.2 ms | 91.5 ms | **3.5 ms** | 15 | 4,524 | 123,688 KiB |
 
-The follow-up benchmark (10k revisions, ten visible cards) measured roughly
-384 ms for layout and 23 ms for per-frame scene staging, down from roughly
-10.8 seconds and 196 ms. GPU geometry shrank from 408,348 to 4,524 vertices.
-Those measurements justify avoiding further full-history scans per frame.
+The 10k layout and index-build costs are **not per-pan-frame costs**. Since
+the 10k frame visits only 15 candidate objects and generates the same small
+draw list as the 1k frame, no additional spatial-index or persistent-buffer
+framework is currently justified by these tests. Layout/build responsiveness
+on even larger or unusually dense graphs can be evaluated if real project
+workloads make it relevant. A previous unbounded 100k run stalled and was
+terminated; it must not be used as a routine test.
 
-The renderer now builds a **retained graph-space BVH** from cards, fold markers,
-structural links, ancestry curves and HEAD links. The index is rebuilt when the
-displayed graph/layout changes, including fold/unfold and top-down/bottom-up
-orientation, but **not** on pan, zoom or selection changes. Each frame queries
-the viewport (with a conservative margin for thick edges) and emits only
-nearby cards and route candidates. Cubic control-point bounds retain long
-routes crossing the viewport even when both endpoints are offscreen. Sorting
-query results by the original painter order preserves card/edge layering.
-
-The benchmark reports index construction separately from camera-frame time.
-A full post-index CPU result and native GPU profiling are still required;
-no FPS improvement should be claimed before those tests run.
+These results come from CPU-side layout, culling, atlas and draw-list staging.
+They do **not** establish 60 FPS, GPU draw performance, full native interaction
+latency or multi-platform release acceptance. Profile native GPU frame pacing
+only when a realistic user-visible problem warrants it.

@@ -92,52 +92,47 @@ including after keyboard panning and a delayed page resize.
 
 ## Rendering implementation
 
-The **native Linux Projects graph uses bgfx by default** on the tested Qt
-`xcb` (X11) and `wayland` platforms. The existing QWidget continues to own
-the graph's layout, camera, inertial navigation, zoom, transformed picking,
-selection and Inspector signals; only its presentation is delegated to
-`ProjectGraphBgfxViewport`. `ProjectGraphBgfxScene` prepares the same nodes,
-structural/ancestry/HEAD routes, fold markers and text atlas as GPU draw data.
-Text atlas rasterization follows zoom and device pixel ratio to avoid scaling
-up low-resolution glyphs on zoom-in.
+On native Linux using Qt `xcb` (X11) or `wayland`, **bgfx is the default
+Projects graph presenter**. `ProjectRevisionGraph` (QWidget) still owns the
+actual graph model, internal layered layout, camera, inertia, zoom, hit-testing,
+selection and Inspector signals. `ProjectGraphBgfxViewport` attaches a native
+child window and renders `ProjectGraphBgfxScene` GPU geometry and text through
+the shared bgfx device and frame coordinator. Text is rasterized at a zoom-
+and device-pixel-ratio-appropriate resolution, rather than magnifying 1× glyphs.
 
-**Device startup is independent of Maps:** opening Projects first initializes
-bgfx against the graph's native window (default swapchain, view 0). Opening
-Maps first allows the graph to use an independent secondary swapchain and
-view ID from the shared bgfx device. Hiding a graph that owns the device
-releases it so Maps can become the new owner. A single bgfx device exists in
-the process, and the established Maps workspace retains its one shared map
-surface and five-mode behavior. This is not yet three independent maps.
+The GPU scene uses a **retained graph-space BVH**, built from nodes, fold
+markers, structural/ancestry/HEAD routes when the displayed graph changes.
+Ordinary pan/zoom and selection reuse that index. Viewport queries conservatively
+include crossing curves even when both endpoints are offscreen; per-frame GPU
+geometry contains only relevant visible cards and routes. The original drawing
+order and graph semantics remain unchanged. No Graphviz dependency is required.
 
-**Fallback:** `AOWIS_PROJECTS_BGFX_GRAPH=0` starts the GUI with the historical
-QPainter graph. The Qt `offscreen`/`minimal` platforms (including headless
-CTest) and non-Linux platforms continue to use QPainter until their native
-bgfx surface adapters are verified. Unsupported swapchains, framebuffer
-allocation failures, or unavailable HUD shaders also fall back to QPainter.
-For manual comparison, use:
+If Projects opens first, its native window may initialize the default bgfx
+device. If Maps opens first, Projects can attach to the already-running device
+through a secondary native swapchain and an allocated view ID. Hiding Projects
+when it owns the device releases it so Maps can take ownership. It must not
+initialize another independent bgfx instance. See the
+[rendering architecture](rendering-architecture.md) for lifecycle details.
+
+**QPainter fallback:** `AOWIS_PROJECTS_BGFX_GRAPH=0` explicitly disables the
+GPU presenter. Qt `offscreen` and `minimal`, non-Linux platforms and failed
+native swapchains/HUD shaders use QPainter; this is not a fallback for the
+Maps renderer. Test both paths with:
 
 ```bash
 ./build-linux-tests/aowis-server-gui
 AOWIS_PROJECTS_BGFX_GRAPH=0 ./build-linux-tests/aowis-server-gui
 ```
 
-The `aowis-project-graph-render-policy` regression test verifies these
-platform and fallback defaults independently of Qt/GPU; the existing
-`aowis-project-revision-graph` and `aowis-project-graph-bgfx-scene` tests
-continue to validate graph behavior and GPU-ready scene geometry.
-
-**Remaining work:** Verify that the default GPU path survives real Vulkan and
-OpenGL tab switching, resized docks, selection, keyboard/mouse navigation and
-shutdown. The transient CPU draw list is still rebuilt on navigation redraws;
-spatial indexing, persistent GPU geometry, batching and multi-scale LOD are
-reserved for the separate large-graph performance phase (Step 4). The
-multi-map demonstration (Step 5) and standalone renderer-library extraction
-(later, explicitly outside this batch) are not part of this change.
+The selection policy, graph geometry and interactive behavior have focused
+regressions: `aowis-project-graph-render-policy`,
+`aowis-project-graph-bgfx-scene` and `aowis-project-revision-graph`.
 
 ## Performance verification
 
-The independent [Projects graph performance benchmark](project-graph-performance.md)
-measures the existing layered DAG placement, CPU-side bgfx scene preparation,
-visibility/culling and transient draw-list sizes at 1k/10k and optionally
-100k revisions. The benchmark does not initialize bgfx or claim GPU frame
-rates. Profile before introducing any additional graph optimization.
+The [CPU performance benchmark](project-graph-performance.md) uses the same
+layered-DAG placement and retained GPU scene builder as the GUI. At 10,000
+synthetic revisions the most recent reported median scene preparation was
+about **3.5 ms** with ten visible cards and 15 spatial-index candidates;
+layout and index construction are measured separately. The benchmark does
+**not** measure native bgfx frame time or FPS.

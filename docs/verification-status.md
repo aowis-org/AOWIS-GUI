@@ -66,3 +66,24 @@ ctest --test-dir build-linux-tests --output-on-failure \
 
 See the [remaining History acceptance](history-roadmap.md) and
 [upcoming GUI–DVMDB capabilities](dvmdb-integration-roadmap.md).
+
+## Renderer implementation and reported verification (5 November 2026)
+
+See [Rendering architecture](rendering-architecture.md) for device/frame/target
+contracts, platform defaults, command lines and future boundaries, and
+[graph performance](project-graph-performance.md) for reproducible CPU numbers.
+These renderer results are separate from the History/DVMDB acceptance table
+above.
+
+- On the supplied Linux build, Projects initialized bgfx as the primary
+  Vulkan target and also attached as a secondary target after Maps.
+- The 10k-revision CPU graph benchmark completed with ~403 ms layout, ~91 ms
+  one-time BVH construction and ~3.5 ms median per-frame scene staging; the
+  graph/scene/smoke CTest selection passed 3/3.
+- The user observed three independent, simultaneously visible 2D maps, with
+  independent pan/zoom and clean diagnostic-window attach/detach. The forced
+  OpenGL run explicitly reported `bgfx / OpenGL 4.3`; Vulkan was also exercised.
+- A complete three-view CTest run, real GPU frame pacing/latency data, and
+  native multi-window qualification on Windows or WASM have **not** been
+  reported. Linux diagnostics do not establish these other platform results.
+- `AOWIS-RENDER` extraction is **deferred**, not present in this source tree.

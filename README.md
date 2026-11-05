@@ -82,8 +82,19 @@ Start with [documentation index](docs/README.md),
 [remaining integration work](docs/dvmdb-integration-roadmap.md), and
 [History acceptance](docs/history-roadmap.md).
 
-The Projects revision graph uses **QWidget/QPainter**; it does not create a
-second bgfx device next to the map renderer.
+The native Linux Projects revision graph uses **bgfx by default** on Qt X11
+and Wayland, sharing the process-global bgfx device with Maps. QWidget still
+owns graph layout, navigation, picking and Inspector interactions; QPainter
+is its fallback on headless/unsupported platforms or with
+`AOWIS_PROJECTS_BGFX_GRAPH=0`. The renderer includes a retained spatial index
+for efficient large-history navigation. The normal Maps workspace retains one
+shared viewport; two additional independent 2D map windows can be enabled
+for diagnostics with `AOWIS_BGFX_THREE_VIEW_PROBE=1`.
+
+See the [rendering architecture and validation guide](docs/rendering-architecture.md),
+[Projects graph semantics](docs/project-graph-layout.md), and
+[graph performance benchmark](docs/project-graph-performance.md). The
+independent renderer-library extraction is intentionally deferred.
 
 ## Hydraulic Distribution Editor
 
@@ -135,7 +146,7 @@ bgfx revision. After `--bgfx`, run `./compile_linux.sh --shader-tools` and commi
 the regenerated shaders together with the new `external/bgfx`, `external/bx`
 and `external/bimg` gitlinks.
 
-**First-time setup of the bgfx patch:** ZIP files cannot contain Git submodule
+**bgfx submodule setup:** ZIP files cannot contain Git submodule
 gitlinks. If the bgfx-group entries exist in `.gitmodules` but have not yet
 been registered in Git, either `git_submodule_init.sh` or
 `git_submodule_update.sh --bgfx` will register them automatically. Review and

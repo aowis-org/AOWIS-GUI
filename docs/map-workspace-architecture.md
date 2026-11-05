@@ -23,39 +23,13 @@ For the current 2D/3D hydraulic editing controls, network workflows and
 height behavior, see the [Distribution Editor guide](distribution-editor.md).
 This page focuses on the shared map workspace and renderer ownership.
 
-## Two-window bgfx proof (Step 2C, Linux diagnostic only)
+## Renderer boundaries
 
-The normal Maps workspace **still uses one shared native map surface** and
-retains its existing five-mode behavior. No additional window is opened unless
-the developer explicitly enables `AOWIS_BGFX_TWO_VIEW_PROBE=1`.
-
-On Linux, with the Maps page visible, the diagnostic opens a separate 480×320
-native window. Its bgfx view is reserved *after* the map's five-view block;
-its secondary swapchain clears alternating teal/green every ~30 frames. The
-main map continues drawing normally. A single frame coordinator submits the
-map's draw commands and the secondary clear before one `bgfx::frame()`.
-Closing the probe releases its framebuffer and view ID without destroying the
-map's bgfx device. The secondary window's size changes must not call
-`bgfx::reset()` or change the primary map's camera or viewport. Platform-surface
-destruction releases the secondary target before Qt destroys its native window.
-
-Run the manual Vulkan/Wayland or OpenGL/X11 proof with:
-
-```bash
-AOWIS_BGFX_TWO_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
-AOWIS_BGFX_RENDERER=opengl AOWIS_BGFX_TWO_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
-```
-
-Open Maps, check that both the real map and pulsing diagnostic window are
-visible, resize the diagnostic window, pan the map, close the diagnostic,
-and verify the map continues working. Then exit and confirm no native-surface
-or bgfx shutdown errors. If `BGFX_CAPS_SWAP_CHAIN` is unavailable, the probe
-logs that it is unsupported and leaves normal map behavior unchanged.
-The native secondary-window test requires actual GPU/desktop verification:
-the GPU-free `aowis-bgfx-two-view-coordination` test validates only view,
-frame, target, resize, and teardown sequencing. No independent geographic map
-model, projects graph, production multi-window UI, or WASM multi-canvas behavior
-is implemented by this diagnostic.
+The normal Maps workspace keeps one persistent native bgfx viewport. The
+process-wide device also supports the Projects graph and independent native
+map targets used by opt-in diagnostics. The complete ownership and frame
+coordination contract, platform qualification, and backend selection are
+specified in [Rendering architecture](rendering-architecture.md).
 
 ## Ownership and boundaries
 
@@ -161,43 +135,32 @@ and shared repositories are supplied from MainWindow. This hierarchy must
 stay attached to its native window / browser canvas while modes change. Mode
 switches will not call `bgfx::shutdown()` or `bgfx::init()`.
 
-**bgfx device lifecycle and frame views:** `BgfxDeviceManager` is the
-process-wide owner of `bgfx::init()`/`bgfx::shutdown()` and the current native
-surface lease. `BgfxFrameCoordinator`, owned by the manager, allocates
-**contiguous, non-overlapping view-ID groups** and centralizes `bgfx::frame()`.
-The current map reserves five views: one map pass and four 3D heatmap-bake
-passes. Bake views are relative to the map's assigned view group, rather than
-being hard-coded global IDs. Device shutdown invalidates all view reservations;
-restart allocates a new group. The coordinator also supports grouping multiple
-registered clients' draw submissions into one bgfx frame, for future use.
+**Shared bgfx lifecycle and frame views:** `BgfxDeviceManager` alone owns
+`bgfx::init()`/`bgfx::shutdown()`. Its `BgfxFrameCoordinator` reserves
+non-overlapping view-ID ranges and performs exactly one `bgfx::frame()` for a
+batch of registered clients. Maps reserves five views (one main pass plus four
+globe heatmap-bake passes), independent of whether Maps or Projects opened
+first. A second visible graph or diagnostic map uses a separately allocated
+view rather than assuming the map is view 0.
 
-**Native render-target lifecycle (step 2B):** `BgfxNativeTargetRegistry`,
-owned by the device manager, records the map's **default** swapchain binding
-and can own secondary native-window framebuffers. Every target is bound to an
-explicit bgfx view, and a secondary view can resize without calling the
-process-global `bgfx::reset()`. Framebuffer release unbinds the view before
-destruction, while device shutdown releases secondary targets before
-`bgfx::shutdown()`. Failed secondary allocation leaves the previous binding
-intact. Native secondary swapchains require `BGFX_CAPS_SWAP_CHAIN` and a valid
-platform window; their behavior on Vulkan, OpenGL, Wayland and Windows still
-requires real-GPU verification. The pure C++ registry test uses injected
-backend functions and does **not** establish device interoperability.
+`BgfxNativeTargetRegistry` binds the primary default backbuffer and owns
+secondary native swapchain framebuffers. Secondary resizing and teardown do
+not reset the device. Its GPU handles and view reservations are valid only
+within the active device generation; secondaries are released before device
+shutdown. Native swapchains require `BGFX_CAPS_SWAP_CHAIN`.
 
-**Current limitation:** only one native map surface may own the initialized
-bgfx device. Hidden-surface handoff still deliberately shuts down and
-reinitializes that device, as it did before this refactor. `MapBgfxSurface`
-continues to own the GPU resource sets, native window, and timer/animation
-clock; it routes its final frame submission through the coordinator. The
-current map uses only the **default** target; secondary target registration
-has no UI client yet, and simultaneous view submission, swapchain capability
-checking, visibility lifecycle and shared resource ownership are not yet
-integrated. The default Maps workspace continues to use exactly one persistent
-viewport across all five modes; hiding/revisiting that workspace does not
-shut down the renderer. The next step-2 slice will prove actual simultaneous
-rendering without changing these existing Maps modes.
+`MapBgfxSurface` still owns the production map's GPU geometry, textures,
+terrain, HUD, and animation/tile clock; controller and Maps-mode switches do
+not create new map surfaces or start another bgfx device. Projects may own
+the initial default swapchain when its graph opens first; when it is hidden,
+that ownership can be retired and Maps may initialize a new primary surface.
+Additional independent maps are currently **opt-in read-only diagnostics**;
+normal mode switches and map tab navigation are not multi-map workflows.
+See [Rendering architecture](rendering-architecture.md) for the precise
+thread, target, frame and teardown rules.
 
-The following contracts guide extraction and prevent reintroducing two
-renderers:
+The following contracts preserve the shared Maps workspace and prevent
+reintroducing duplicate renderers:
 
 - **Tools:** each sidebar owns its controls and user settings, not the camera,
   native window, bgfx resources, or a duplicate renderer. Controls send
@@ -385,7 +348,7 @@ ordering is explicit, but the exception's root cause is **not confirmed fixed**.
 Keep shutdown testing (including after 2D/3D and mode transitions) in native
 Linux, Windows and WASM release acceptance, and capture a backtrace if it recurs.
 
-## Three independent map views (Step 5, Linux opt-in diagnostic)
+## Three independent map views (Linux opt-in diagnostic)
 
 `AOWIS_BGFX_THREE_VIEW_PROBE=1` opens two additional 2D geographic map
 windows when the normal Maps workspace first renders, giving **three
@@ -417,7 +380,9 @@ Manual test on native Linux after opening Maps:
 
 ```bash
 AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
-AOWIS_BGFX_RENDERER=opengl AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
+# Ensure that Maps is the first backend owner for an actual OpenGL test:
+AOWIS_PROJECTS_BGFX_GRAPH=0 AOWIS_BGFX_RENDERER=opengl \
+AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
 ```
 
 Verify that both new windows show map imagery (when a map source is available)
@@ -426,13 +391,14 @@ one independently of the other two. Resize and close them in either order;
 the original map must continue rendering. Switch to Projects and back,
 then exit normally. The headless `aowis-bgfx-three-view-camera` test covers
 independent camera updates, anchored wheel zoom, three view-ID reservations,
-three frame clients, and individual secondary-target retirement. Actual GPU
-swapchain presentation, Qt input routing and Linux windowing still require
-manual native verification.
+three frame clients, and individual secondary-target retirement. Native manual testing has confirmed three simultaneously visible and
+independently pannable/zoomable views on Linux with Vulkan and OpenGL 4.3,
+including clean secondary attachment/detachment. The diagnostic is not a
+production acceptance test for every rendering feature or platform. The
+headless test cannot verify real GPU presentation.
 
 **Scope boundary:** These probes establish the shared-device and per-camera
 rendering prerequisites for a future three-way project merge view. Production
 multi-map editor models, independent tile request scheduling, map overlays,
 3D globe instances, and WASM multi-canvas integration remain separate work.
-The extraction to an independent AOWIS renderer library is not part of this
-batch.
+The standalone renderer-library extraction remains deferred.

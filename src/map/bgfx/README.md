@@ -1,20 +1,21 @@
 # bgfx map (Map Monitor and Map Editor)
 
-The surface draws the Map Monitor and the Map Editor on desktop and WASM;
-it is always built. The desktop CPU (QPainter) map
-monitor was removed: it displayed the network at the integer tile zoom and was
-the source of step-wise zoom. Without a working GPU surface the monitor shows a
-status message, never a CPU-rendered map. bgfx is the only map renderer on
-desktop and WASM: the QRhi renderer (`src/map/rhi`, its `qt_add_shaders`
-shaders and the QWidget HUD controls) was removed once the bgfx globe was
-complete (roadmap Phase 3 exit, 2026-10-17), and with it the renderer
-settings `gui/map_desktop_renderer` and `map_wasm_renderer` (an old native
-line is removed from the file, an old browser line is ignored). Qt
-ShaderTools is no longer needed. The
-map editor draws with bgfx only (roadmap Phase 2); the QPainter editor
-(`MapEditorRenderer`), its QRhi overlay path and `MapWidget`'s CPU tile
-painting were removed. The JavaScript/WebGL map renderer (monitor and
-editor) was removed.
+The shared production map surface draws the Map Monitor and Map Editor on
+desktop and WASM; it is always built. The same process-wide bgfx device and
+frame coordinator also serve the native Linux Projects graph and, when
+enabled, two read-only independent diagnostic map windows. See
+[Rendering architecture](../../../docs/rendering-architecture.md) for the
+current cross-surface lifecycle contract.
+
+The map has no CPU renderer fallback: if bgfx cannot start, Map Monitor
+reports a GPU status instead of painting the map with QPainter.
+bgfx renders both the 2D map and 3D globe on native desktop and WebAssembly
+(WebGL 2 in the browser), and both Distribution Monitor and Editor use that
+same surface. Neither QRhi, a separate JavaScript map renderer nor a CPU
+`MapEditorRenderer` is part of the current product. The old native
+`gui/map_desktop_renderer` preference is discarded, and any browser
+`map_wasm_renderer` preference is ignored. Embedded bgfx shader families are
+selected for the active backend; Qt ShaderTools is not required.
 
 ## Retained 2D network GPU drawing
 
@@ -393,8 +394,13 @@ asset uploads. In the browser the separate map canvas is hidden while Maps
 is not selected, so it cannot cover the active Qt page. A real native-window
 destruction/reparent (rather than a tab hide) still shuts bgfx down before
 the native surface is lost and reinitializes it when the replacement is exposed.
-If a second independent bgfx surface ever needs the global device, it can
-take ownership from the currently hidden surface explicitly.
+The process-wide `BgfxDeviceManager` now also supports the native Projects
+revision graph and secondary native map targets. A graph opened first may own
+the primary device; Maps opened first supplies the primary target and the
+Projects graph can attach as a secondary. `AOWIS_BGFX_THREE_VIEW_PROBE=1`
+opens two independent, read-only secondary geographic map windows on Linux.
+The exact view-ID, swapchain, frame batching, cleanup and fallback rules are
+in [Rendering architecture](../../../docs/rendering-architecture.md).
 
 ## 2D imagery
 
