@@ -806,7 +806,7 @@ void MapEditorContainer::activateSharedSurface(bool active)
             active && !guiShortcutRegistry().shortcutCaptureActive());
     if (!active)
     {
-        this->map->clearKeyboardPanInput();
+        this->map->cancelNavigationInput();
         this->map_canvas->mapCanvasEntities()->cancelActiveMove();
         this->editor_controller->cancelRectangleSelection();
         this->render_move_session_id = 0;
@@ -832,7 +832,7 @@ void MapEditorContainer::activateSharedSurface(bool active)
             QCoreApplication::sendEvent(this->map_canvas, event);
             return event->isAccepted();
         },
-        [this]() { this->map->clearKeyboardPanInput(); });
+        [this]() { this->map_canvas->cancelActiveInput(); });
     surface->setNavigationMouseHandlers(
         [this](QMouseEvent *event) { return QCoreApplication::sendEvent(this->map_canvas, event); },
         [this](QMouseEvent *event) { return QCoreApplication::sendEvent(this->map_canvas, event); },

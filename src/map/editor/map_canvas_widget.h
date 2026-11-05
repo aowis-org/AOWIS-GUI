@@ -43,6 +43,9 @@ public:
     // Whatever the editor shows changed: signalRenderUpdateRequested().
     void requestRenderUpdate();
     void setSharedEditorActive(bool active);
+    // Drop unfinished pointer gestures when input focus is lost, including
+    // when the native bgfx window receives focus events instead of QWidget.
+    void cancelActiveInput();
 
 signals:
     // Whatever the editor shows changed (visual state, selection frames,

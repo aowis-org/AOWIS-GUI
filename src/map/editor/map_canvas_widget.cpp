@@ -1,9 +1,11 @@
 #include "map/editor/map_canvas_widget.h"
+#include "map/core/map_input_focus_policy.h"
 
 #include "map/editor/map_editor_controller.h"
 #include "map/bgfx/map_bgfx_2d_imagery_layout.h"
 
 #include <QFocusEvent>
+#include <QGuiApplication>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QResizeEvent>
@@ -19,6 +21,12 @@ MapCanvasWidget::MapCanvasWidget(MapModel *map_model, MapWidget *map,
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_NoSystemBackground);
     setMouseTracking(true);
+    connect(qApp, &QGuiApplication::applicationStateChanged, this,
+            [this](Qt::ApplicationState state)
+    {
+        if (mapApplicationInputFocusLost(state))
+            cancelActiveInput();
+    });
 
     // Camera motion (every frame while zooming or panning): the pointer now
     // lies over another map position, so the editor re-evaluates it - only
@@ -222,9 +230,22 @@ void MapCanvasWidget::keyReleaseEvent(QKeyEvent *event)
     QWidget::keyReleaseEvent(event);
 }
 
+void MapCanvasWidget::cancelActiveInput()
+{
+    this->map->cancelNavigationInput();
+    // The editor may have captured a press without receiving its release.
+    // Cancel only in-progress drags; do not discard an armed placement tool
+    // or a completed selection merely because the user alt-tabbed.
+    if (this->map_canvas_entities != nullptr)
+        this->map_canvas_entities->cancelActiveMove();
+    if (this->editor_controller && this->editor_controller->rectangleDragging())
+        this->editor_controller->cancelRectangleSelection();
+    this->last_pointer_position_valid = false;
+}
+
 void MapCanvasWidget::focusOutEvent(QFocusEvent *event)
 {
-    this->map->clearKeyboardPanInput();
+    cancelActiveInput();
     QWidget::focusOutEvent(event);
 }
 

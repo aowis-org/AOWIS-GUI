@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_surface.h"
+#include "map/core/map_input_focus_policy.h"
 
 #include "map/bgfx/bgfx_device_manager.h"
 #include "map/bgfx/map_bgfx_backend.h"
@@ -465,8 +466,11 @@ bool MapBgfxSurface::eventFilter(QObject *watched, QEvent *event)
         ThreeViewProbe &probe = this->three_view_probes[std::size_t(index)];
         if (watched != probe.window || probe.window == nullptr)
             continue;
+        if (mapNativeInputFocusLost(event->type()))
+            probe.dragging = false;
         if (event->type() == QEvent::Close)
         {
+            probe.dragging = false;
             detachThreeViewProbe(index);
             return QWidget::eventFilter(watched, event);
         }
@@ -573,6 +577,13 @@ bool MapBgfxSurface::eventFilter(QObject *watched, QEvent *event)
     {
         scheduleBackendRestart();
     }
+    if (watched == this->native_window
+        && mapNativeInputFocusLost(event->type()))
+    {
+        if (this->navigation_cancel)
+            this->navigation_cancel();
+        this->hud.closePopup();
+    }
     if (watched == this->native_window && this->initialized)
     {
         if (event->type() == QEvent::KeyPress && handleHudKeyPress(static_cast<QKeyEvent *>(event)))
@@ -612,11 +623,6 @@ bool MapBgfxSurface::eventFilter(QObject *watched, QEvent *event)
             return this->navigation_mouse_release(static_cast<QMouseEvent *>(event));
         if (event->type() == QEvent::MouseMove && this->navigation_mouse_move)
             return this->navigation_mouse_move(static_cast<QMouseEvent *>(event));
-        if (event->type() == QEvent::FocusOut && this->navigation_cancel)
-            this->navigation_cancel();
-        // Like a Qt popup, an open HUD popup closes when the map loses focus.
-        if (event->type() == QEvent::FocusOut)
-            this->hud.closePopup();
         // The pointer left the map: no HUD button stays hover-highlighted.
         if (event->type() == QEvent::Leave)
             this->hud.clearHover();
@@ -650,6 +656,7 @@ void MapBgfxSurface::focusOutEvent(QFocusEvent *event)
 {
     if (this->navigation_cancel)
         this->navigation_cancel();
+    this->hud.closePopup();
     QWidget::focusOutEvent(event);
 }
 

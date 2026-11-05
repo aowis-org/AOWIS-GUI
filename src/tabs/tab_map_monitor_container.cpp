@@ -424,7 +424,7 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
                 return this->map->handleKeyPressEvent(event);
             },
             [this](QKeyEvent *event) { return this->map->handleKeyReleaseEvent(event); },
-            [this]() { this->map->clearKeyboardPanInput(); });
+            [this]() { this->map->cancelNavigationInput(); });
         surface->setNavigationWheelHandler(
             [this](QWheelEvent *event) { this->map->handleWheelEvent(event); });
         surface->setNavigationFrameHandler(
@@ -1620,7 +1620,7 @@ void MapMonitorContainer::activateMonitorSurface()
             return this->map->handleKeyPressEvent(event);
         },
         [this](QKeyEvent *event) { return this->map->handleKeyReleaseEvent(event); },
-        [this]() { this->map->clearKeyboardPanInput(); });
+        [this]() { this->map->cancelNavigationInput(); });
     surface->setNavigationMouseHandlers(
         [this](QMouseEvent *event) { return QCoreApplication::sendEvent(this->map, event); },
         [this](QMouseEvent *event) { return QCoreApplication::sendEvent(this->map, event); },

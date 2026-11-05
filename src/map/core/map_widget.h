@@ -67,6 +67,9 @@ public:
     void handleWheelEvent(QWheelEvent *event);
 
     void clearKeyboardPanInput();
+    // A lost key/button release must never leave continuous map navigation
+    // running after focus moves to another window or application.
+    void cancelNavigationInput();
 
     // Single navigation clock. A render surface that presents frames itself
     // (bgfx) enables the external driver and calls advanceNavigationFrame()

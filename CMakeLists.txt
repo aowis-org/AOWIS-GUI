@@ -639,6 +639,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-map-workspace-contract-tests)
     set_tests_properties(aowis-map-workspace-contract PROPERTIES LABELS "aowis")
 
+    # Focus loss must release native-window and application-level held input.
+    # Headless QtCore policy test: no map server or GPU required.
+    add_executable(aowis-map-input-focus-policy-tests
+        tests/map_input_focus_policy_test.cpp)
+    target_include_directories(aowis-map-input-focus-policy-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-input-focus-policy-tests PRIVATE Qt6::Core)
+    add_test(NAME aowis-map-input-focus-policy
+        COMMAND aowis-map-input-focus-policy-tests)
+    set_tests_properties(aowis-map-input-focus-policy PROPERTIES LABELS "aowis")
+
     # Step 1 of renderer extraction: process-global bgfx ownership arbitration.
     # Fake init/shutdown callbacks test lifecycle without a GPU or native window.
     add_executable(aowis-bgfx-device-manager-tests

@@ -222,3 +222,25 @@ per-camera isolation contracts. It still needs separately designed QtQuick
 surface adaptation, mobile/platform GPU capabilities, UI/editor input,
 independent map data scheduling, and platform acceptance. Successful Linux
 multi-window diagnostics are not proof of QtQuick or mobile readiness.
+
+## Map input loss and gesture cancellation
+
+`MapWidget` is the navigation state owner even when bgfx's embedded native
+`QWindow` receives mouse and keyboard events. Both the map's widget and its
+native surface must cancel held navigation on focus loss, not merely clear
+keyboard flags. `MapBgfxSurface` forwards `FocusOut` and `WindowDeactivate`
+into the configured navigation cancellation callback; `MapWidget` also watches
+application deactivation for platforms that omit the corresponding native
+release events. Cancellation stops key-driven movement, active mouse panning,
+3D orbit/pointer lock and HUD joystick input, and restores the cursor without
+warping it into an inactive window. The editor canvas additionally aborts
+unfinished entity moves and rectangle drags while preserving completed
+selections and an armed entity-creation tool. The optional three-view probe
+windows release their local drag state on lost focus as well.
+
+`aowis-map-input-focus-policy` tests which native-window and application
+transitions trigger cancellation. Native manual regression: hold a pan/zoom key,
+left-drag, middle-button globe orbit (including pointer lock), or editor drag;
+alt-tab or activate another window before releasing. Returning to the map must
+not resume the old gesture or leave a cursor grab active. Repeat on X11 and
+Wayland when available.

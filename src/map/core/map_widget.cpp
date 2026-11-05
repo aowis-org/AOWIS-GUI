@@ -1,4 +1,5 @@
 #include "map/core/map_widget.h"
+#include "map/core/map_input_focus_policy.h"
 #include "map/core/map_zoom_animation.h"
 #include "config/gui_configuration.h"
 #include "config/shortcut_registry.h"
@@ -98,6 +99,15 @@ MapWidget::MapWidget(MapModel *model, MapTileRepository *tile_repository, GpsPro
     Q_ASSERT(this->tile_repository);
 
     this->init();
+    // QWidget::focusOutEvent is not guaranteed when keyboard focus belongs to
+    // the embedded bgfx QWindow (or when the compositor deactivates the app).
+    // Watch the application as well as the native surface's own focus events.
+    connect(qApp, &QGuiApplication::applicationStateChanged, this,
+            [this](Qt::ApplicationState state)
+    {
+        if (mapApplicationInputFocusLost(state))
+            cancelNavigationInput();
+    });
 }
 
 MapWidget::~MapWidget()
@@ -948,6 +958,16 @@ bool MapWidget::handleKeyReleaseEvent(QKeyEvent *event)
     return true;
 }
 
+void MapWidget::cancelNavigationInput()
+{
+    // A button/key release can be sent to the newly active window instead of
+    // this map. Never carry a drag, orbit/pointer lock, joystick or held key
+    // across focus loss. Do not warp the cursor into an inactive window.
+    if (this->view_3d_orbit_active)
+        endView3dOrbit(false);
+    stopAllPanMovement();
+}
+
 void MapWidget::clearKeyboardPanInput()
 {
     if (this->view_3d_orbit_active
@@ -1010,9 +1030,7 @@ void MapWidget::keyReleaseEvent(QKeyEvent *event)
 
 void MapWidget::focusOutEvent(QFocusEvent *event)
 {
-    this->clearKeyboardPanInput();
-    if (this->view_3d_orbit_active)
-        endView3dOrbit();
+    cancelNavigationInput();
     QWidget::focusOutEvent(event);
 }
 
