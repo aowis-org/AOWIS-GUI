@@ -790,7 +790,8 @@ Slice 3b, the globe heatmap (`map_bgfx_globe_surface.*`):
   `MapGlobeHeatmapScene` gives each window tile its stamps in the tile's
   256 px space.
 * GPU bake: atlas pages of 2048 x 2048 (64 cells, up to 4 pages, created as
-  needed) rendered in bake views 1-4, which `bgfx::setViewOrder()` puts
+  needed) rendered in four bake views reserved alongside the map view (initially
+  1-4), which `bgfx::setViewOrder()` puts
   before the map view 0. Per cell a clear quad (no blending), then the stamp
   quads (`vs/fs_globe_heatmap_bake`, premultiplied source-over, clamped to
   the cell). The bake's Y follows `Caps::originBottomLeft`, so the cell is

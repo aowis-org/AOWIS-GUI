@@ -109,10 +109,10 @@ public:
     void setHeatmapOverlay(const QVector<MapGlobeHeatmapMarker> &markers, double radius_m,
                            double solid_fraction);
 
-    // The heatmap is baked in these views (one per atlas page), ordered
-    // before the map view, which must be view 0.
-    static constexpr bgfx::ViewId HeatmapBakeFirstView = 1;
+    // One bake view per heatmap atlas page, owned by the parent map's
+    // contiguous view reservation. No global view 0..4 assumption.
     static constexpr int HeatmapPageCount = 4;
+    void setHeatmapBakeFirstView(bgfx::ViewId first) { this->heatmap_bake_first_view = first; }
 
     struct FrameInputs
     {
@@ -264,6 +264,7 @@ private:
     bgfx::UniformHandle heatmap_bake_uniform = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle heatmap_sampler = BGFX_INVALID_HANDLE;
     bgfx::VertexLayout heatmap_bake_layout;
+    bgfx::ViewId heatmap_bake_first_view = 1;
     HeatmapPage heatmap_pages[HeatmapPageCount];
     // Cells by tile key (zoom, virtual x, y); slot owners per page.
     QHash<quint64, HeatmapCell> heatmap_cells;

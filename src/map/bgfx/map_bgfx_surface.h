@@ -23,6 +23,8 @@
 #include "map/render/map_render_types.h"
 #include "map/render/map_retained_network_scene.h"
 
+#include <bgfx/bgfx.h>
+
 #include <QElapsedTimer>
 #include <QHash>
 #include <QPointer>
@@ -527,6 +529,7 @@ private:
     double last_frame_time_ms = -1.0;
     QSize last_physical_size;
     MapUndergroundMode underground_mode = MapUndergroundMode::XRay;
+    bgfx::ViewId map_view_id = 0;
     bool initialized = false;
     bool initialization_attempted = false;
     bool failed = false;

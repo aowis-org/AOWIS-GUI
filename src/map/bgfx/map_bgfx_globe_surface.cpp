@@ -647,14 +647,14 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
     // QMatrix4x4 stores column-major, as bgfx's mul(matrix, vector) expects.
     const float *matrix = view_projection.constData();
     const float heatmap_style[4] = {float(std::clamp(inputs.heatmap_opacity, 0.0, 1.0)), 0.0f, 0.0f, 0.0f};
-    // The heatmap bake views run before the map view (which is view 0).
+    // The heatmap bake views run before this map's main view.
     if (bgfx::isValid(this->heatmap_bake_program))
     {
         bgfx::ViewId order[HeatmapPageCount + 1];
         for (int page = 0; page < HeatmapPageCount; ++page)
-            order[page] = bgfx::ViewId(HeatmapBakeFirstView + page);
+            order[page] = bgfx::ViewId(this->heatmap_bake_first_view + page);
         order[HeatmapPageCount] = view;
-        bgfx::setViewOrder(0, HeatmapPageCount + 1, order);
+        bgfx::setViewOrder(view, HeatmapPageCount + 1, order);
     }
     const float background[4] = {
         float(inputs.background.redF()), float(inputs.background.greenF()),
@@ -960,7 +960,7 @@ void MapBgfxGlobeSurface::resolveHeatmap(double opacity, FrameResult *result)
             result->pending = true;
             continue;
         }
-        const bgfx::ViewId bake_view = bgfx::ViewId(HeatmapBakeFirstView + page);
+        const bgfx::ViewId bake_view = bgfx::ViewId(this->heatmap_bake_first_view + page);
         bgfx::setViewFrameBuffer(bake_view, this->heatmap_pages[page].frame_buffer);
         bgfx::setViewRect(bake_view, 0, 0, kHeatmapPageSize, kHeatmapPageSize);
         bgfx::setViewClear(bake_view, BGFX_CLEAR_NONE);

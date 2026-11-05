@@ -55,6 +55,8 @@ int main()
                              }),
           "successful GPU initialization claims device");
     check(manager.owns(&first) && manager.hasOwner(), "first surface owns device");
+    check(manager.frames().reserve(&first, 5).first == 0,
+          "first initialized map gets a contiguous five-view block");
     check(manager.prepareFor(&first), "existing owner may continue");
     check(!manager.initialize(&second, settings, []() { return true; }, []() {}),
           "cannot initialize second device while first owns it");
@@ -67,9 +69,13 @@ int main()
     check(manager.prepareFor(&second), "hidden owner relinquishes the device");
     check(retired == 1 && stops == 1 && !manager.hasOwner(),
           "takeover callback releases exactly once");
+    check(!manager.frames().views(&first).valid(),
+          "device shutdown invalidates all prior view reservations");
     check(manager.initialize(&second, settings, [&second_visible]() { return second_visible; },
                              [&manager, &second]() { manager.shutdown(&second); }),
           "second surface initializes after handoff");
+    check(manager.frames().reserve(&second, 5).first == 0,
+          "reinitialized device can reuse view 0");
     check(!manager.prepareFor(&third), "second visible owner blocks third");
     second_visible = false;
     check(manager.prepareFor(&third) && stops == 2,

@@ -3,7 +3,8 @@
 #include <utility>
 
 BgfxDeviceManager::BgfxDeviceManager(Initialize initialize, Shutdown shutdown)
-    : initialize_api(std::move(initialize)), shutdown_api(std::move(shutdown))
+    : initialize_api(std::move(initialize)), shutdown_api(std::move(shutdown)),
+      frame_coordinator([]() { bgfx::frame(); })
 {
     if (!this->initialize_api)
         this->initialize_api = [](const bgfx::Init &settings) { return bgfx::init(settings); };
@@ -41,6 +42,8 @@ bool BgfxDeviceManager::initialize(const void *requester, const bgfx::Init &sett
     if (!this->initialize_api(settings))
         return false;
 
+    this->native_targets.reset();
+    this->frame_coordinator.reset();
     this->device_owner = requester;
     this->owner_visibility = std::move(visibility);
     this->owner_retire = std::move(retire);
@@ -51,6 +54,10 @@ bool BgfxDeviceManager::shutdown(const void *requester)
 {
     if (!owns(requester))
         return false;
+    // All view IDs belong to this device generation. A new device can
+    // allocate the same IDs after native-surface recreation.
+    this->native_targets.reset();
+    this->frame_coordinator.reset();
     this->shutdown_api();
     this->device_owner = nullptr;
     this->owner_visibility = {};

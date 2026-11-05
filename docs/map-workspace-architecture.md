@@ -127,15 +127,40 @@ and shared repositories are supplied from MainWindow. This hierarchy must
 stay attached to its native window / browser canvas while modes change. Mode
 switches will not call `bgfx::shutdown()` or `bgfx::init()`.
 
-**bgfx device lifecycle:** `BgfxDeviceManager` is the process-wide owner
-of `bgfx::init()`/`bgfx::shutdown()` and the current surface lease. The
-`MapBgfxSurface` still owns its GPU resources, native window, and frame
-submission (`bgfx::frame()`). The manager keeps the existing one-active-
-surface policy: it refuses a second *visible* surface and permits a hidden
-owner to release its resources and yield the device. Simply switching modes
-or hiding the map for another main tab preserves its initialized device.
-This is lifecycle extraction only, **not** multi-view rendering, a frame
-coordinator, or a new graphics abstraction.
+**bgfx device lifecycle and frame views:** `BgfxDeviceManager` is the
+process-wide owner of `bgfx::init()`/`bgfx::shutdown()` and the current native
+surface lease. `BgfxFrameCoordinator`, owned by the manager, allocates
+**contiguous, non-overlapping view-ID groups** and centralizes `bgfx::frame()`.
+The current map reserves five views: one map pass and four 3D heatmap-bake
+passes. Bake views are relative to the map's assigned view group, rather than
+being hard-coded global IDs. Device shutdown invalidates all view reservations;
+restart allocates a new group. The coordinator also supports grouping multiple
+registered clients' draw submissions into one bgfx frame, for future use.
+
+**Native render-target lifecycle (step 2B):** `BgfxNativeTargetRegistry`,
+owned by the device manager, records the map's **default** swapchain binding
+and can own secondary native-window framebuffers. Every target is bound to an
+explicit bgfx view, and a secondary view can resize without calling the
+process-global `bgfx::reset()`. Framebuffer release unbinds the view before
+destruction, while device shutdown releases secondary targets before
+`bgfx::shutdown()`. Failed secondary allocation leaves the previous binding
+intact. Native secondary swapchains require `BGFX_CAPS_SWAP_CHAIN` and a valid
+platform window; their behavior on Vulkan, OpenGL, Wayland and Windows still
+requires real-GPU verification. The pure C++ registry test uses injected
+backend functions and does **not** establish device interoperability.
+
+**Current limitation:** only one native map surface may own the initialized
+bgfx device. Hidden-surface handoff still deliberately shuts down and
+reinitializes that device, as it did before this refactor. `MapBgfxSurface`
+continues to own the GPU resource sets, native window, and timer/animation
+clock; it routes its final frame submission through the coordinator. The
+current map uses only the **default** target; secondary target registration
+has no UI client yet, and simultaneous view submission, swapchain capability
+checking, visibility lifecycle and shared resource ownership are not yet
+integrated. The default Maps workspace continues to use exactly one persistent
+viewport across all five modes; hiding/revisiting that workspace does not
+shut down the renderer. The next step-2 slice will prove actual simultaneous
+rendering without changing these existing Maps modes.
 
 The following contracts guide extraction and prevent reintroducing two
 renderers:

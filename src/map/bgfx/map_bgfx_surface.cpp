@@ -91,7 +91,7 @@ EM_JS(void, aowisBgfxMapRemove, (), {
 #endif
 
 namespace {
-constexpr uint16_t kMapBgfxView = 0;
+constexpr uint16_t kMapBgfxViewCount = 1 + MapBgfxGlobeSurface::HeatmapPageCount;
 // Room for the editor overlay (one icon quad per visible node) on top of the
 // HUD and imagery: bgfx's defaults are 6 MiB vertices / 2 MiB indices.
 constexpr uint32_t kTransientVertexBytes = 16u << 20;
@@ -982,6 +982,7 @@ void MapBgfxSurface::shutdownBackend()
         return;
     stopFrameLoop();
     this->globe_overlay_height_cache.clear();
+    BgfxDeviceManager::shared().targets().release(this);
     releaseGpuResources();
     BgfxDeviceManager::shared().shutdown(this);
     MapRenderDiagnostics::add(MapRenderDiagnostics::Counter::BgfxDeviceStopped);
@@ -1329,7 +1330,7 @@ void MapBgfxSurface::renderOverlay(const QSizeF &logical, const MapBgfx2d::Camer
     const QPointF offset =
         this->overlay_builder(&this->overlay_canvas, &this->overlay_text_cache, camera, logical);
     this->overlay_gpu.uploadAtlas(&this->overlay_text_cache);
-    this->overlay_gpu.draw(kMapBgfxView, this->overlay_canvas, logical, offset);
+    this->overlay_gpu.draw(this->map_view_id, this->overlay_canvas, logical, offset);
 }
 
 void MapBgfxSurface::renderGlobe(const QSizeF &logical)
@@ -1352,7 +1353,7 @@ void MapBgfxSurface::renderGlobe(const QSizeF &logical)
         && this->symbology.visual_heatmap != VisualHeatmap::None
         ? double(this->symbology.heatmap_opacity) / 100.0 : 0.0;
     const MapBgfxGlobeSurface::FrameResult result =
-        this->globe_surface->render(kMapBgfxView, this->globe_camera, &this->imagery_gpu, inputs);
+        this->globe_surface->render(this->map_view_id, this->globe_camera, &this->imagery_gpu, inputs);
     // The atlas' frame (LRU, budget trim) advances in either mode.
     this->imagery_gpu.endFrame();
     this->globe_pending = result.pending;
@@ -1367,7 +1368,7 @@ void MapBgfxSurface::renderGlobe(const QSizeF &logical)
         this->entity_style.setIconDefaultFill(globeSymbology().icon_default_fill_color);
         synchronizeEntityStyle();
         const MapBgfxGlobeNetwork::FrameResult network = this->globe_network.render(
-            kMapBgfxView, this->globe_camera, viewport, this->gpu_2d_scene.iconAtlasTexture(),
+            this->map_view_id, this->globe_camera, viewport, this->gpu_2d_scene.iconAtlasTexture(),
             this->entity_style);
         this->network_frame_stats.draw_calls += network.draw_calls;
     }
@@ -1574,7 +1575,7 @@ void MapBgfxSurface::renderGlobeOverlay(const QSizeF &logical)
                               quint64(this->globe_overlay_height_cache.evictionCount()
                                       - evictions_before));
     this->overlay_gpu.uploadAtlas(&this->overlay_text_cache);
-    this->overlay_gpu.draw(kMapBgfxView, this->overlay_canvas, logical, QPointF());
+    this->overlay_gpu.draw(this->map_view_id, this->overlay_canvas, logical, QPointF());
 }
 
 void MapBgfxSurface::renderLabels(const QSizeF &logical, const MapBgfx2d::Camera &network_camera,
@@ -1686,7 +1687,7 @@ void MapBgfxSurface::renderLabels(const QSizeF &logical, const MapBgfx2d::Camera
         this->label_build_key = key;
     }
     this->label_gpu.uploadAtlas(cache);
-    this->label_gpu.draw(kMapBgfxView, this->label_canvas, logical, offset);
+    this->label_gpu.draw(this->map_view_id, this->label_canvas, logical, offset);
 }
 
 void MapBgfxSurface::renderHud(const QSizeF &logical, const MapBgfx2d::Camera &camera)
@@ -1727,7 +1728,7 @@ void MapBgfxSurface::renderHud(const QSizeF &logical, const MapBgfx2d::Camera &c
     this->hud.build(&this->hud_canvas, &this->hud_text_cache, inputs,
                     MapBgfxHud::Palette::fromQPalette(palette()));
     this->hud_gpu.uploadAtlas(&this->hud_text_cache);
-    this->hud_gpu.draw(kMapBgfxView, this->hud_canvas, logical);
+    this->hud_gpu.draw(this->map_view_id, this->hud_canvas, logical);
 }
 
 void MapBgfxSurface::showEvent(QShowEvent *event)
@@ -2064,6 +2065,24 @@ bool MapBgfxSurface::initializeBackend()
             BgfxDeviceManager::shared().shutdown(this);
             continue;
         }
+        const BgfxFrameCoordinator::ViewRange views =
+            BgfxDeviceManager::shared().frames().reserve(this, kMapBgfxViewCount);
+        if (!views.valid())
+        {
+            qWarning() << "bgfx map could not reserve its rendering views";
+            BgfxDeviceManager::shared().shutdown(this);
+            continue;
+        }
+        this->map_view_id = views.at(0);
+        // Keep the existing native window on bgfx's default swapchain.
+        // Secondary-window framebuffer ownership is deliberately separate.
+        if (!BgfxDeviceManager::shared().targets().attachDefault(this, this->map_view_id))
+        {
+            qWarning() << "bgfx map could not attach the default render target";
+            BgfxDeviceManager::shared().shutdown(this);
+            continue;
+        }
+        this->globe_surface->setHeatmapBakeFirstView(views.at(1));
         this->initialized = true;
         this->startup_step = "creating shaders and GPU resources";
         // Each part reports what it rejected; name the part here as well.
@@ -2183,10 +2202,10 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
     this->redraw_requested = false;
     // AOWIS_MAP_RENDER_DIAGNOSTICS: counts this frame and its CPU time.
     const MapRenderDiagnostics::Scope frame_timing(MapRenderDiagnostics::Counter::Frame);
-    bgfx::setViewRect(kMapBgfxView, 0, 0,
+    bgfx::setViewRect(this->map_view_id, 0, 0,
                       static_cast<uint16_t>(std::min(65535, pixels.width())),
                       static_cast<uint16_t>(std::min(65535, pixels.height())));
-    bgfx::setViewClear(kMapBgfxView, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
+    bgfx::setViewClear(this->map_view_id, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH,
                        globe_shown ? MapBgfxGlobeSurface::SpaceColorRgba : 0x16324affu, 1.0f, 0);
     // The repository keeps one request batch: entering a mode requests its
     // own visible tiles again.
@@ -2196,9 +2215,9 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         this->imagery_layout_key = 0;
         this->globe_surface->requestAgain();
     }
-    bgfx::setViewMode(kMapBgfxView, bgfx::ViewMode::Sequential);
-    bgfx::setViewTransform(kMapBgfxView, nullptr, nullptr);
-    bgfx::touch(kMapBgfxView);
+    bgfx::setViewMode(this->map_view_id, bgfx::ViewMode::Sequential);
+    bgfx::setViewTransform(this->map_view_id, nullptr, nullptr);
+    bgfx::touch(this->map_view_id);
     this->network_frame_stats = MapBgfx2dGpu::FrameStats();
     // Cache/terrain selection overlays belong to the active input mode, not
     // to the distribution network layer. In Map Management the latter is
@@ -2299,7 +2318,11 @@ void MapBgfxSurface::renderFrameAt(double elapsed_seconds)
         this->camera_state.continuous_2d_zoom, logical.width(), logical.height()));
     if (this->debug_overlay_enabled)
         renderDebugOverlay();
-    bgfx::frame();
+    if (!BgfxDeviceManager::shared().frames().present(this))
+    {
+        fail(QStringLiteral("bgfx frame coordinator rejected the active map view"));
+        return;
+    }
     ++this->frame_count;
     MapRenderDiagnostics::reportIfDue();
     this->presented_valid = true;
@@ -2525,7 +2548,7 @@ void MapBgfxSurface::renderImagery(const QSizeF &logical)
     }
 
     this->imagery_quad_count = int(layout.quads.size());
-    this->imagery_gpu.draw(kMapBgfxView, layout, logical.width(), logical.height(),
+    this->imagery_gpu.draw(this->map_view_id, layout, logical.width(), logical.height(),
                            palette().color(QPalette::Window),
                            double(this->background_opacity) / 100.0);
     this->imagery_gpu.endFrame();

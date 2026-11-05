@@ -545,6 +545,10 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_backend.h
     src/map/bgfx/bgfx_device_manager.h
     src/map/bgfx/bgfx_device_manager.cpp
+    src/map/bgfx/bgfx_frame_coordinator.h
+    src/map/bgfx/bgfx_frame_coordinator.cpp
+    src/map/bgfx/bgfx_native_target_registry.h
+    src/map/bgfx/bgfx_native_target_registry.cpp
     src/map/bgfx/map_bgfx_globe_imagery.h
     src/map/bgfx/map_bgfx_globe_network.h
     src/map/bgfx/map_bgfx_globe_network.cpp
@@ -633,12 +637,35 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Fake init/shutdown callbacks test lifecycle without a GPU or native window.
     add_executable(aowis-bgfx-device-manager-tests
         tests/bgfx_device_manager_test.cpp
-        src/map/bgfx/bgfx_device_manager.cpp)
+        src/map/bgfx/bgfx_device_manager.cpp
+        src/map/bgfx/bgfx_frame_coordinator.cpp
+        src/map/bgfx/bgfx_native_target_registry.cpp)
     target_include_directories(aowis-bgfx-device-manager-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-bgfx-device-manager-tests PRIVATE bgfx)
     add_test(NAME aowis-bgfx-device-manager COMMAND aowis-bgfx-device-manager-tests)
     set_tests_properties(aowis-bgfx-device-manager PROPERTIES LABELS "aowis")
+
+    # Step 2: pure C++ view-ID and global frame arbitration tests. No GPU or
+    # native window required (frame API injected).
+    add_executable(aowis-bgfx-frame-coordinator-tests
+        tests/bgfx_frame_coordinator_test.cpp
+        src/map/bgfx/bgfx_frame_coordinator.cpp)
+    target_include_directories(aowis-bgfx-frame-coordinator-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME aowis-bgfx-frame-coordinator COMMAND aowis-bgfx-frame-coordinator-tests)
+    set_tests_properties(aowis-bgfx-frame-coordinator PROPERTIES LABELS "aowis")
+
+    # Step 2B: native swapchain target lifetimes and resize behavior.
+    add_executable(aowis-bgfx-native-target-registry-tests
+        tests/bgfx_native_target_registry_test.cpp
+        src/map/bgfx/bgfx_native_target_registry.cpp)
+    target_include_directories(aowis-bgfx-native-target-registry-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-bgfx-native-target-registry-tests PRIVATE bgfx)
+    add_test(NAME aowis-bgfx-native-target-registry
+        COMMAND aowis-bgfx-native-target-registry-tests)
+    set_tests_properties(aowis-bgfx-native-target-registry PROPERTIES LABELS "aowis")
 
     # Cache-selection overlays must be drawable even when distribution meshes
     # are hidden in Map Management (2D and globe), without a graphics device.
