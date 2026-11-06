@@ -100,7 +100,9 @@ CoordinateWGS84 coordinateWithDeclutterOffset(
 void MapGlobeNetworkScene::setNetworkSnapshot(const NetworkRenderSnapshot &snapshot)
 {
     const MapRetainedNetworkUpdate update = this->retained_network.setSnapshot(snapshot);
-    if (update.geometry_changed)
+    const MapGlobeSceneInvalidation plan =
+        MapGlobeSceneSync::forSnapshot(update.geometry_changed);
+    if (plan.geometry)
     {
         // Use a network-local origin for the retained vertices. Unlike the
         // camera's sticky terrain origin, this anchor changes only on actual
@@ -153,7 +155,7 @@ void MapGlobeNetworkScene::setNetworkSnapshot(const NetworkRenderSnapshot &snaps
                 GeoWgs84Ellipsoid::geodeticToEcefD(
                     anchor.longitude_deg, anchor.latitude_deg, 0.0));
         }
-        rebuildNetworkGeometry();
+        applySceneInvalidation(plan);
     }
 }
 
@@ -165,6 +167,32 @@ bool MapGlobeNetworkScene::setHiddenEntityUuids(const QSet<QUuid> &hidden_entity
     this->hidden_entity_uuids = hidden_entity_uuids;
     rebuildNetworkGeometry();
     return true;
+}
+
+void MapGlobeNetworkScene::applySceneInvalidation(const MapGlobeSceneInvalidation &plan)
+{
+    // One full geometry pass already refreshes dependent streams; never
+    // follow it with redundant icons, X-Ray or flow rebuilds.
+    if (plan.geometry)
+    {
+        rebuildNetworkGeometry();
+        return;
+    }
+    if (plan.icons)
+        rebuildIcons();
+    if (plan.models)
+    {
+        rebuildTankInstances();
+        rebuildReservoirInstances();
+    }
+    if (plan.junctions)
+        rebuildJunctionInstances();
+    if (plan.underground)
+        rebuildUndergroundXRayGeometry();
+    if (plan.flow)
+        rebuildFlowDirections();
+    if (plan.highlights)
+        rebuildHighlights();
 }
 
 void MapGlobeNetworkScene::setSymbology(const MapNetworkRenderSymbology &symbology)
@@ -195,29 +223,18 @@ void MapGlobeNetworkScene::setSymbology(const MapNetworkRenderSymbology &symbolo
     const bool highlights_changed =
         link_thickness_changed || this->symbology.show_junctions != symbology.show_junctions;
 
-    this->symbology = symbology;
-    if (link_thickness_changed && !this->retained_network.snapshot().demand_point_attachments.isEmpty())
-    {
-        rebuildNetworkGeometry();
-        return;
-    }
+    MapGlobeSceneSymbologyChanges changes;
+    changes.link_thickness_changed = link_thickness_changed;
+    changes.icon_changed = icon_changed;
+    changes.junction_size_changed = junction_instance_changed;
+    changes.flow_changed = flow_direction_changed;
+    changes.highlights_changed = highlights_changed;
+    changes.has_demand_attachments =
+        !this->retained_network.snapshot().demand_point_attachments.isEmpty();
+    changes.underground_enabled = this->underground_xray_enabled;
 
-    if (icon_changed)
-    {
-        rebuildIcons();
-        rebuildTankInstances();
-        rebuildReservoirInstances();
-    }
-    if (junction_instance_changed)
-    {
-        rebuildJunctionInstances();
-        if (this->underground_xray_enabled)
-            rebuildUndergroundXRayGeometry();
-    }
-    if (flow_direction_changed)
-        rebuildFlowDirections();
-    if (highlights_changed)
-        rebuildHighlights();
+    this->symbology = symbology;
+    applySceneInvalidation(MapGlobeSceneSync::forSymbology(changes));
 }
 
 void MapGlobeNetworkScene::setSelectedEntity(
@@ -228,10 +245,7 @@ void MapGlobeNetworkScene::setSelectedEntity(
 
     this->selected_entity_type = entity_type;
     this->selected_entity_uuid = uuid;
-    rebuildHighlights();
-    rebuildIcons();
-    rebuildTankInstances();
-    rebuildReservoirInstances();
+    applySceneInvalidation(MapGlobeSceneSync::forSelection());
 }
 
 void MapGlobeNetworkScene::setSimulationErrorEntities(
@@ -240,7 +254,7 @@ void MapGlobeNetworkScene::setSimulationErrorEntities(
 {
     this->simulation_error_entities = error_entities;
     this->simulation_stale_entity_uuids = stale_entity_uuids;
-    rebuildHighlights();
+    applySceneInvalidation(MapGlobeSceneSync::forDiagnostics());
 }
 
 bool MapGlobeNetworkScene::setUse3dIconModels(bool enabled)
@@ -249,9 +263,7 @@ bool MapGlobeNetworkScene::setUse3dIconModels(bool enabled)
         return false;
 
     this->use_3d_icon_models = enabled;
-    rebuildIcons();
-    rebuildTankInstances();
-    rebuildReservoirInstances();
+    applySceneInvalidation(MapGlobeSceneSync::forIconModelMode());
     return true;
 }
 
@@ -478,13 +490,9 @@ bool MapGlobeNetworkScene::setFlowDirectionPixelsPerMeter(double pixels_per_mete
     }
 
     this->flow_direction_pixels_per_meter = bounded_pixels_per_meter;
-    rebuildFlowDirections();
-    if (this->use_3d_icon_models
-        && this->symbology.icon_size_unit == NetworkSymbologySizeUnit::Pixels)
-    {
-        rebuildTankInstances();
-        rebuildReservoirInstances();
-    }
+    applySceneInvalidation(MapGlobeSceneSync::forFlowScale(
+        this->use_3d_icon_models,
+        this->symbology.icon_size_unit == NetworkSymbologySizeUnit::Pixels));
     return true;
 }
 

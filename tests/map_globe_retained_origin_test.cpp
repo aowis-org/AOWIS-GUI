@@ -220,6 +220,30 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    // Render's retained-scene invalidation plan must refresh only the
+    // affected CPU streams. None of these visual/UI changes may retessellate
+    // thousands of demand attachments or re-anchor the ECEF coordinate frame.
+    MapNetworkRenderSymbology display;
+    display.icon_size_px += 2;
+    display.flow_direction_size_px += 2;
+    scene.setSymbology(display);
+    scene.setSelectedEntity(InfrastructureEntity::DemandPoint, original.nodes[0].uuid);
+    scene.setSimulationErrorEntities({}, {});
+    scene.setUse3dIconModels(true);
+    scene.setFlowDirectionPixelsPerMeter(2.0);
+    if (!require(MapRenderDiagnostics::value(
+                    MapRenderDiagnostics::Counter::GlobeGeometryRebuilt) == 1,
+                 "visual invalidations rebuilt network geometry")
+        || !require(sameOrigin(scene.renderOriginEcef(), anchor),
+                    "visual invalidations replaced retained ECEF anchor")
+        || !require(scene.linkVertices().constData() == original_links,
+                    "visual invalidations replaced retained link storage")
+        || !require(scene.nodeVertices().constData() == original_nodes,
+                    "visual invalidations replaced retained node storage"))
+    {
+        return 1;
+    }
+
     original.geometry_revision = 2;
     original.nodes[0].coordinate_wgs84 = coordinate(18.21, 11.95);
     scene.setNetworkSnapshot(original);

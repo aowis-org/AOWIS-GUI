@@ -21,6 +21,8 @@ create_render_repo()
     printf 'link source original\n' > "$path/src/map/render/map_globe_link_geometry.cpp"
     printf 'underground header original\n' > "$path/src/map/render/map_globe_underground_geometry.h"
     printf 'underground source original\n' > "$path/src/map/render/map_globe_underground_geometry.cpp"
+    printf 'scene sync header original\n' > "$path/src/map/render/map_globe_scene_sync.h"
+    printf 'scene sync source original\n' > "$path/src/map/render/map_globe_scene_sync.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -38,7 +40,9 @@ rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
       "$render/src/map/render/map_globe_link_geometry.h" \
       "$render/src/map/render/map_globe_link_geometry.cpp" \
       "$render/src/map/render/map_globe_underground_geometry.h" \
-      "$render/src/map/render/map_globe_underground_geometry.cpp"
+      "$render/src/map/render/map_globe_underground_geometry.cpp" \
+      "$render/src/map/render/map_globe_scene_sync.h" \
+      "$render/src/map/render/map_globe_scene_sync.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
@@ -48,6 +52,8 @@ grep -qx 'link header original' "$render/src/map/render/map_globe_link_geometry.
 grep -qx 'link source original' "$render/src/map/render/map_globe_link_geometry.cpp"
 grep -qx 'underground header original' "$render/src/map/render/map_globe_underground_geometry.h"
 grep -qx 'underground source original' "$render/src/map/render/map_globe_underground_geometry.cpp"
+grep -qx 'scene sync header original' "$render/src/map/render/map_globe_scene_sync.h"
+grep -qx 'scene sync source original' "$render/src/map/render/map_globe_scene_sync.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

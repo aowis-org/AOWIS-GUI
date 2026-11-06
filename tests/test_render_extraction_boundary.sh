@@ -63,6 +63,8 @@ for relative in \
     src/map/render/map_globe_link_geometry.cpp \
     src/map/render/map_globe_underground_geometry.h \
     src/map/render/map_globe_underground_geometry.cpp \
+    src/map/render/map_globe_scene_sync.h \
+    src/map/render/map_globe_scene_sync.cpp \
     src/map/render/map_globe_tank_model.h \
     src/map/render/map_globe_tank_model.cpp \
     src/map/render/map_globe_reservoir_model.h \
@@ -160,4 +162,15 @@ if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
     echo 'GUI X-Ray path bypasses Render underground run classification' >&2
     exit 1
 fi
-printf 'PASS: shared renderer submodule and source ownership boundary\n' 
+
+# Retained Globe scene invalidation is owned by Render. The GUI may execute
+# the plan using its hydraulic/terrain data but cannot decide stream groups.
+if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
+    src/map/render/map_globe_network_scene.cpp || \
+   ! grep -Fq 'applySceneInvalidation(' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI Globe scene bypasses shared retained-scene invalidation policy' >&2
+    exit 1
+fi
+
+printf 'PASS: shared renderer submodule and source ownership boundary\n'

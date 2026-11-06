@@ -6,6 +6,7 @@
 #include "map/render/map_network_render_symbology.h"
 #include "map/render/map_globe_render_instances.h"
 #include "map/render/map_globe_flow_geometry.h"
+#include "map/render/map_globe_scene_sync.h"
 #include "map/render/map_globe_vertical_transform.h"
 #include "map/render/map_network_render_data.h"
 #include "geo/geo_wgs84_ellipsoid.h"
@@ -217,6 +218,7 @@ private:
         InfrastructureEntity entity_type = InfrastructureEntity::Unknown;
     };
 
+    void applySceneInvalidation(const MapGlobeSceneInvalidation &plan);
     void rebuildNetworkGeometry();
     void rebuildUndergroundXRayGeometry();
     QVector3D ecefPosition(const CoordinateWGS84 &coordinate, double elevation_m) const;
