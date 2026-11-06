@@ -76,6 +76,25 @@ if ! grep -Fq 'gpu_buffers.populateInput(&draw_input)' src/map/bgfx/map_bgfx_glo
     echo 'GUI globe draw path bypasses shared GPU stream handles' >&2
     exit 1
 fi
+# Vertex layouts are constructed and validated by Render. GUI supplies the
+# host scene structs' byte strides, then uses Render's five layout accessors.
+if grep -Eq 'this->(link|node|icon|junction|model)_layout' \
+    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
+    echo 'GUI globe network still references removed local vertex layouts' >&2
+    exit 1
+fi
+if ! grep -Fq 'this->gpu_layouts.initialize(strides)' \
+    src/map/bgfx/map_bgfx_globe_network.cpp; then
+    echo 'GUI globe network does not initialize Render-owned vertex layouts' >&2
+    exit 1
+fi
+for layout in link node icon junction model; do
+    if ! grep -Fq "this->gpu_layouts.${layout}()" \
+        src/map/bgfx/map_bgfx_globe_network.cpp; then
+        echo "GUI globe network does not use Render-owned ${layout} layout" >&2
+        exit 1
+    fi
+done
 # Programs, uniforms and GPU material textures now belong to Render.
 if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
     src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then

@@ -30,13 +30,6 @@ namespace
 const float kImpostorCorners[6][2] = {
     {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
 
-// Bytes after the last attribute (render id, entity type, padding).
-template <typename Vertex>
-uint8_t tailBytes(std::size_t last_attribute_end)
-{
-    return uint8_t(sizeof(Vertex) - last_attribute_end);
-}
-
 bool sameSymbologySizes(const MapNetworkRenderSymbology &a, const MapNetworkRenderSymbology &b)
 {
     return a.link_thickness_unit == b.link_thickness_unit && a.link_thickness_px == b.link_thickness_px
@@ -50,53 +43,28 @@ MapBgfxGlobeNetwork::~MapBgfxGlobeNetwork() = default;
 
 bool MapBgfxGlobeNetwork::initialize()
 {
-    // Vertex layouts: the scene's structs uploaded unchanged; the trailing
-    // render id / entity type are skipped.
-    this->link_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord0, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord2, 1, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord3, 3, bgfx::AttribType::Float)
-        .skip(tailBytes<MapNetworkLinkVertex>(offsetof(MapNetworkLinkVertex, width_direction_z) + sizeof(float)))
-        .end();
-    this->node_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord2, 1, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord4, 1, bgfx::AttribType::Float)
-        .skip(tailBytes<MapNetworkNodeVertex>(offsetof(MapNetworkNodeVertex, metric_billboard) + sizeof(float)))
-        .end();
-    this->icon_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord5, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-        .skip(tailBytes<MapNetworkIconVertex>(offsetof(MapNetworkIconVertex, alpha) + sizeof(float)))
-        .end();
-    this->junction_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord2, 1, bgfx::AttribType::Float)
-        .end();
-    // Tank and reservoir model vertices share one layout.
+    // GUI owns the retained scene vertex structs; Render owns the shader-facing
+    // layouts. Verify the float-prefix ABI before passing the exact host strides.
+    static_assert(offsetof(MapNetworkLinkVertex, width_direction_z) + sizeof(float)
+                      == 16 * sizeof(float), "Link vertex shader attributes changed");
+    static_assert(offsetof(MapNetworkNodeVertex, metric_billboard) + sizeof(float)
+                      == 11 * sizeof(float), "Node vertex shader attributes changed");
+    static_assert(offsetof(MapNetworkIconVertex, alpha) + sizeof(float)
+                      == 11 * sizeof(float), "Icon vertex shader attributes changed");
+    static_assert(offsetof(JunctionVertex, radius) + sizeof(float)
+                      == 10 * sizeof(float), "Junction vertex shader attributes changed");
+    static_assert(offsetof(MapGlobeTankModelVertex, selected) + sizeof(float)
+                      == 9 * sizeof(float), "Model vertex shader attributes changed");
+    static_assert(offsetof(MapGlobeReservoirModelVertex, selected) + sizeof(float)
+                      == 9 * sizeof(float), "Reservoir vertex shader attributes changed");
     static_assert(sizeof(MapGlobeTankModelVertex) == sizeof(MapGlobeReservoirModelVertex),
                   "Tank and reservoir model vertices must share one layout");
-    this->model_layout.begin()
-        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord5, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord2, 1, bgfx::AttribType::Float)
-        .skip(tailBytes<MapGlobeTankModelVertex>(offsetof(MapGlobeTankModelVertex, selected) + sizeof(float)))
-        .end();
-    if (this->link_layout.getStride() != sizeof(MapNetworkLinkVertex)
-        || this->node_layout.getStride() != sizeof(MapNetworkNodeVertex)
-        || this->icon_layout.getStride() != sizeof(MapNetworkIconVertex)
-        || this->junction_layout.getStride() != sizeof(JunctionVertex)
-        || this->model_layout.getStride() != sizeof(MapGlobeTankModelVertex))
+
+    const MapBgfxGlobeVertexLayouts::Strides strides = {
+        sizeof(MapNetworkLinkVertex), sizeof(MapNetworkNodeVertex),
+        sizeof(MapNetworkIconVertex), sizeof(JunctionVertex),
+        sizeof(MapGlobeTankModelVertex)};
+    if (!this->gpu_layouts.initialize(strides))
     {
         qWarning() << "bgfx globe network: vertex layouts do not match the scene's vertex structs";
         return false;
@@ -389,8 +357,8 @@ QVector<MapBgfxGlobeNetwork::JunctionVertex> MapBgfxGlobeNetwork::junctionVertic
 
 namespace
 {
-// The GUI still owns scene vertex types and layouts; Render owns the GPU
-// buffer allocations, updates and teardown.
+// GUI owns the scene vertex data; Render owns the shader-facing layouts
+// and GPU buffer allocation, upload and teardown.
 template <typename Vertex>
 quint64 uploadVertices(MapBgfxGlobeBufferPool &pool, MapBgfxGlobeStream stream,
                        const bgfx::VertexLayout &layout, const QVector<Vertex> &vertices)
@@ -406,51 +374,51 @@ void MapBgfxGlobeNetwork::uploadStreams(FrameResult *result)
     quint64 bytes = 0;
     if (this->dirty_streams & GeometryStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Link, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Link, this->gpu_layouts.link(),
                                 scene.linkVertices());
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Node, this->node_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Node, this->gpu_layouts.node(),
                                 scene.nodeVertices());
     }
     if (this->dirty_streams & HighlightStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedLink, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedLink, this->gpu_layouts.link(),
                                 scene.selectedLinkVertices());
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedNode, this->node_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedNode, this->gpu_layouts.node(),
                                 scene.selectedNodeVertices());
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticLink, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticLink, this->gpu_layouts.link(),
                                 scene.diagnosticLinkVertices());
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticNode, this->node_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticNode, this->gpu_layouts.node(),
                                 scene.diagnosticNodeVertices());
     }
     if (this->dirty_streams & FlowStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Flow, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Flow, this->gpu_layouts.link(),
                                 scene.flowDirectionVertices());
     }
     if (this->dirty_streams & IconStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Icon, this->icon_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Icon, this->gpu_layouts.icon(),
                                 scene.iconVertices());
         this->icon_order_dirty = true;
         // The models are built per instance in their local frames (kept for
         // picking).
         ensureModelVertices();
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Tank, this->model_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Tank, this->gpu_layouts.model(),
                                 this->tank_model_vertices);
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Reservoir, this->model_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Reservoir, this->gpu_layouts.model(),
                                 this->reservoir_model_vertices);
     }
     if (this->dirty_streams & UndergroundStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::UndergroundLink, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::UndergroundLink, this->gpu_layouts.link(),
                                 scene.undergroundLinkVertices());
         bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::UndergroundJunction,
-                                this->junction_layout,
+                                this->gpu_layouts.junction(),
                                 junctionVertices(scene.undergroundJunctionInstances()));
     }
     if (this->dirty_streams & JunctionStream)
     {
-        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Junction, this->junction_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Junction, this->gpu_layouts.junction(),
                                 junctionVertices(scene.junctionInstances()));
     }
     this->dirty_streams = 0;
