@@ -1,4 +1,4 @@
-#include "map/render/map_network_render_symbology.h"
+#include "map/render/map_network_symbology_resolver.h"
 
 #include "network/hydraulic_data.h"
 #include "network/network_render_snapshot.h"

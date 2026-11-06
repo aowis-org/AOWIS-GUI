@@ -13,7 +13,7 @@
 #include "config/unit_table_presentation.h"
 #include "config/shortcut_registry.h"
 #include "map/data/map_terrain_repository.h"
-#include "map/render/map_network_render_symbology.h"
+#include "map/render/map_network_symbology_resolver.h"
 #include "map/render/map_render_types.h"
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 #include "map/bgfx/map_bgfx_editor_icons.h"

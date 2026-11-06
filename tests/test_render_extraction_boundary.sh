@@ -117,7 +117,24 @@ for relative in \
     src/map/data/map_terrain_repository.h \
     src/map/data/map_terrain_repository.cpp \
     src/map/data/map_tile_browser_decoder.h \
-    src/map/data/map_tile_browser_decoder.cpp; do
+    src/map/data/map_tile_browser_decoder.cpp \
+    src/network/network_render_snapshot.h \
+    src/network/network_symbology.h \
+    src/network/network_symbology_rendering.h \
+    src/network/infrastructure_entity_traits.h \
+    src/map/render/map_globe_network_scene.h \
+    src/map/render/map_globe_network_scene.cpp \
+    src/map/render/map_globe_render_frame.h \
+    src/map/render/map_globe_render_frame.cpp \
+    src/map/render/map_network_render_data.h \
+    src/map/render/map_retained_network_scene.h \
+    src/map/render/map_globe_icon_draw_order.h \
+    src/map/render/map_icon_atlas.h \
+    src/map/render/map_icon_atlas.cpp \
+    src/map/render/map_label_settings.h \
+    src/map/render/map_tile_streaming_policy.h \
+    src/map/render/map_render_types.h \
+    src/map/render/map_network_render_symbology.h; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1
@@ -220,50 +237,56 @@ if ! grep -Fq 'external/AOWIS-GUI-Render" -o' tools/zip_gui_project.sh; then
     echo 'GUI source snapshots would recurse into the Render submodule' >&2
     exit 1
 fi
-# The Globe scene may adapt flow strokes into its host vertex ABI, but
-# placement and ellipsoid tangent math must remain in the Render library.
-if grep -Eq 'FlowDirection(SpacingPixels|ChevronHalfWidthRatio|MaximumMarkersPerLink)|MapGlobeNetworkScene::ellipsoidNormalAt' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI still owns extracted Globe flow placement or normal calculation' >&2
-    exit 1
-fi
-if ! grep -Fq 'MapGlobeFlowGeometry::emitStrokes(' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI Globe scene bypasses shared flow geometry' >&2
-    exit 1
-fi
-if grep -Eq 'longLinkSubdivisionCount' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI still owns extracted globe link geometry' >&2
-    exit 1
-fi
-if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' src/map/render/map_globe_network_scene.cpp || \
-   ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI is not using shared globe link geometry' >&2
-    exit 1
-fi
-# Terrain-aware X-Ray classification and run coalescing must stay in Render.
-if grep -Eq 'UndergroundSubdivision(FallbackTargetLengthM|MinimumTargetLengthM|TerrainCellFraction|MaximumCount)' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI still owns extracted underground sampling policy' >&2
-    exit 1
-fi
-if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
-    src/map/render/map_globe_network_scene.cpp || \
-   ! grep -Fq 'MapGlobeUndergroundGeometry::emitBuriedRuns(' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI X-Ray path bypasses Render underground run classification' >&2
-    exit 1
-fi
+# The globe network scene lives in Render (AOWIS::RenderGlobeNetwork); it must
+# keep using Render's shared flow, link, underground and invalidation code.
+# Checked against the Render checkout (absent in --source-only snapshots).
+globe_scene="$render/src/map/render/map_globe_network_scene.cpp"
+if [[ -f "$globe_scene" ]]; then
+    # The Globe scene may adapt flow strokes into its host vertex ABI, but
+    # placement and ellipsoid tangent math must remain in the Render library.
+    if grep -Eq 'FlowDirection(SpacingPixels|ChevronHalfWidthRatio|MaximumMarkersPerLink)|MapGlobeNetworkScene::ellipsoidNormalAt' \
+        "$globe_scene"; then
+        echo 'Globe scene: still owns extracted Globe flow placement or normal calculation' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'MapGlobeFlowGeometry::emitStrokes(' \
+        "$globe_scene"; then
+        echo 'Globe scene: Globe scene bypasses shared flow geometry' >&2
+        exit 1
+    fi
+    if grep -Eq 'longLinkSubdivisionCount' \
+        "$globe_scene"; then
+        echo 'Globe scene: still owns extracted globe link geometry' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' "$globe_scene" || \
+       ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' "$globe_scene"; then
+        echo 'Globe scene: is not using shared globe link geometry' >&2
+        exit 1
+    fi
+    # Terrain-aware X-Ray classification and run coalescing must stay in Render.
+    if grep -Eq 'UndergroundSubdivision(FallbackTargetLengthM|MinimumTargetLengthM|TerrainCellFraction|MaximumCount)' \
+        "$globe_scene"; then
+        echo 'Globe scene: still owns extracted underground sampling policy' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
+        "$globe_scene" || \
+       ! grep -Fq 'MapGlobeUndergroundGeometry::emitBuriedRuns(' \
+        "$globe_scene"; then
+        echo 'Globe scene: X-Ray path bypasses Render underground run classification' >&2
+        exit 1
+    fi
 
-# Retained Globe scene invalidation is owned by Render. The GUI may execute
-# the plan using its hydraulic/terrain data but cannot decide stream groups.
-if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
-    src/map/render/map_globe_network_scene.cpp || \
-   ! grep -Fq 'applySceneInvalidation(' \
-    src/map/render/map_globe_network_scene.cpp; then
-    echo 'GUI Globe scene bypasses shared retained-scene invalidation policy' >&2
-    exit 1
+    # Retained Globe scene invalidation is owned by Render. The GUI may execute
+    # the plan using its hydraulic/terrain data but cannot decide stream groups.
+    if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
+        "$globe_scene" || \
+       ! grep -Fq 'applySceneInvalidation(' \
+        "$globe_scene"; then
+        echo 'Globe scene: Globe scene bypasses shared retained-scene invalidation policy' >&2
+        exit 1
+    fi
 fi
 
 # Sky and heatmap GPU resources must not regress to GUI ownership.

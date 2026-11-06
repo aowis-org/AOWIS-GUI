@@ -32,53 +32,9 @@ enum CanvasMode
 
 
 
-enum class VisualNode
-{
-    None,
-    Elevation,
-    BaseDemand,
-    TotalDemand,
-    DemandDeficit,
-    EmitterFlow,
-    Leakage,
-    Head,
-    Pressure,
-    Chlorine,
-    RiverWater,
-    LakeWater,
-    WaterAge
-};
-enum class VisualLink
-{
-    None,
-    Diameter,
-    Length,
-    Roughness,
-    FlowRate,
-    Velocity,
-    HeadLoss,
-    Leakage,
-    Chlorine,
-    RiverWater,
-    LakeWater,
-    WaterAge
-};
-enum class VisualHeatmap
-{
-    None,
-    Elevation,
-    BaseDemand,
-    TotalDemand,
-    DemandDeficit,
-    EmitterFlow,
-    Leakage,
-    Head,
-    Pressure,
-    Chlorine,
-    RiverWater,
-    LakeWater,
-    WaterAge
-};
+// VisualNode, VisualLink, VisualHeatmap and InfrastructureEntity live in
+// AOWIS-GUI-Render with the network render contract.
+#include "map/core/map_network_types.h"
 
 
 
@@ -112,40 +68,6 @@ enum MapEditToolSub
     Tool_5 = 5
 };
 
-enum class InfrastructureEntity : std::uint8_t
-{
-    Unknown = 0,
-    
-    // Hydraulic / EPANET-style node entities
-    Junction,
-    Reservoir,
-    Tank,
-    
-    // Hydraulic / EPANET-style link entities
-    Pipe,
-    Pump,
-    Valve,
-    
-    // AOWIS hydraulic extensions
-    DemandPoint,
-    
-    // Electric node/storage/generation entities
-    ElectricJunction,
-    Battery,
-    Generator,
-    SolarPanel,
-    Inverter,
-    Transformer,
-    
-    // Electric link/control entities
-    Cable,
-    Switch,
-    Fuse,
-    CircuitBreaker,
-    
-    // Non-simulation / UI entities
-    Note
-};
 
 enum class JunctionPhysicalKind
 {

@@ -30,7 +30,7 @@
 
 #include "common/_enums_structs.h"
 #include "network/network_symbology.h"
-#include "map/render/map_network_render_symbology.h"
+#include "map/render/map_network_symbology_resolver.h"
 #include "map/core/map_model.h"
 #include "map/data/map_tile_repository.h"
 #include "map/core/map_widget.h"

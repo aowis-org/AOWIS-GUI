@@ -140,6 +140,9 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/data/map_server_transport.h
         src/map/data/map_tile_repository.cpp
         src/map/data/map_terrain_repository.cpp
+        src/map/core/map_network_types.h
+        src/network/network_render_snapshot.h
+        src/map/render/map_globe_network_scene.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -158,6 +161,9 @@ set(AOWIS_RENDER_BUILD_TERRAIN_DATA ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_VIEW ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_TERRAIN ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_MAP_DATA ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_GLOBE_NETWORK ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_NETWORK_SCENE ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_GLOBE_MODELS ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
 include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
@@ -267,11 +273,8 @@ qt_add_executable(aowis-server-gui
     src/network/hydraulic_entity_table_widget.h
     src/network/hydraulic_network_editor.cpp
     src/network/hydraulic_network_editor.h
-    src/network/infrastructure_entity_traits.h
-    src/network/network_render_snapshot.h
     src/network/network_render_snapshot_builder.cpp
     src/network/network_render_snapshot_builder.h
-    src/network/network_symbology.h
     src/network/network_symbology_values.h
 
     # Simulation
@@ -396,19 +399,10 @@ qt_add_executable(aowis-server-gui
     src/map/render/map_entity_pixmap_renderer.cpp
     src/map/render/map_entity_pixmap_renderer.h
 
-    # Backend-neutral Globe rendering
-    src/map/render/map_globe_icon_draw_order.h
-    src/map/render/map_globe_network_scene.h
-    src/map/render/map_globe_network_scene.cpp
-    src/map/render/map_globe_render_frame.h
-    src/map/render/map_globe_render_frame.cpp
-    src/map/render/map_render_types.h
-    src/map/render/map_network_render_symbology.h
-    src/map/render/map_label_settings.h
-    src/map/render/map_network_render_symbology.cpp
-    src/map/render/map_network_render_data.h
-    src/map/render/map_icon_atlas.h
-    src/map/render/map_icon_atlas.cpp
+    # Resolved network symbology from the hydraulic data (the scene and
+    # the symbology data itself are Render's AOWIS::RenderGlobeNetwork)
+    src/map/render/map_network_symbology_resolver.h
+    src/map/render/map_network_symbology_resolver.cpp
 
     # Entity inspectors
     src/entity_inspector/entity_inspector_demand_point.cpp
@@ -514,6 +508,7 @@ target_link_libraries(aowis-server-gui
         AOWIS::RenderView
         AOWIS::RenderGlobeTerrain
         AOWIS::RenderMapData
+        AOWIS::RenderGlobeNetwork
         GeographicLib_STATIC
 )
 
@@ -1083,13 +1078,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # render id (values, flags, flow), hidden / selected / diagnostic flags,
     # dense resolved values. CPU side only (prepare()); no bgfx device.
     add_executable(aowis-bgfx-entity-style-tests tests/bgfx_entity_style_test.cpp
-        src/map/bgfx/map_bgfx_entity_style.cpp
-        src/map/render/map_icon_atlas.cpp)
+        src/map/bgfx/map_bgfx_entity_style.cpp)
     target_include_directories(aowis-bgfx-entity-style-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-bgfx-entity-style-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel bgfx)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGlobeNetwork bgfx)
     add_test(NAME aowis-bgfx-entity-style COMMAND aowis-bgfx-entity-style-tests)
     set_tests_properties(aowis-bgfx-entity-style PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1415,14 +1409,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Step 4: actual Globe scene remains anchored to its geometry across
     # camera/terrain ECEF origin rebases, including 10,000 demand points.
     add_executable(aowis-map-globe-retained-origin-tests
-        tests/map_globe_retained_origin_test.cpp
-        src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp)
+        tests/map_globe_retained_origin_test.cpp)
     target_include_directories(aowis-map-globe-retained-origin-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-retained-origin-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo AOWIS::RenderGlobeNetwork GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-retained-origin
         COMMAND aowis-map-globe-retained-origin-tests)
     set_tests_properties(aowis-map-globe-retained-origin PROPERTIES
@@ -1443,14 +1435,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # terrain: bare ellipsoid, relief, in-place moves without a network
     # rebuild, attachment lines ending at the network's elevation.
     add_executable(aowis-map-globe-demand-drape-tests
-        tests/map_globe_demand_drape_test.cpp
-        src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp)
+        tests/map_globe_demand_drape_test.cpp)
     target_include_directories(aowis-map-globe-demand-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-demand-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo AOWIS::RenderGlobeNetwork GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-demand-drape
         COMMAND aowis-map-globe-demand-drape-tests)
     set_tests_properties(aowis-map-globe-demand-drape PROPERTIES
@@ -1459,14 +1449,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Intermediate pipe bends follow the drawn globe terrain without changing
     # hydraulic endpoint elevations or rebuilding on unchanged terrain samples.
     add_executable(aowis-map-globe-pipe-bend-drape-tests
-        tests/map_globe_pipe_bend_drape_test.cpp
-        src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp)
+        tests/map_globe_pipe_bend_drape_test.cpp)
     target_include_directories(aowis-map-globe-pipe-bend-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-pipe-bend-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo AOWIS::RenderGlobeNetwork GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-pipe-bend-drape
         COMMAND aowis-map-globe-pipe-bend-drape-tests)
     set_tests_properties(aowis-map-globe-pipe-bend-drape PROPERTIES

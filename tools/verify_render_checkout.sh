@@ -84,6 +84,24 @@ required_files=(
     src/map/data/map_tile_browser_decoder.h
     src/map/data/map_tile_browser_decoder.cpp
     src/map/data/map_server_transport.h
+    src/network/network_render_snapshot.h
+    src/network/network_symbology.h
+    src/network/network_symbology_rendering.h
+    src/network/infrastructure_entity_traits.h
+    src/map/render/map_globe_network_scene.h
+    src/map/render/map_globe_network_scene.cpp
+    src/map/render/map_globe_render_frame.h
+    src/map/render/map_globe_render_frame.cpp
+    src/map/render/map_network_render_data.h
+    src/map/render/map_retained_network_scene.h
+    src/map/render/map_globe_icon_draw_order.h
+    src/map/render/map_icon_atlas.h
+    src/map/render/map_icon_atlas.cpp
+    src/map/render/map_label_settings.h
+    src/map/render/map_tile_streaming_policy.h
+    src/map/render/map_render_types.h
+    src/map/render/map_network_render_symbology.h
+    src/map/core/map_network_types.h
 )
 
 for relative in "${required_files[@]}"; do
