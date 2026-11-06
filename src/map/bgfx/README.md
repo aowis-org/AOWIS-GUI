@@ -482,6 +482,17 @@ LOD will remain independent from retained network geometry.
 
 ## Globe and terrain rendering
 
+The shared `MapBgfxGlobeTerrainGpu` (`AOWIS::RenderCore`) owns the base
+surface/wireframe shader programs, terrain frame uniforms, missing-imagery
+and polar-cap GPU textures, and cap/window-tile/wireframe draw submission.
+`MapBgfxGlobeSurface` provides camera/lighting vectors, per-tile atlas UVs,
+GPU buffer handles and optionally heatmap-compositing resources. Sky drawing,
+heatmap atlas baking, tile/DEM scheduling, and the underlying terrain mesh
+preparation remain GUI responsibilities in this extraction slice. Shared
+terrain buffer and index pools manage the physical GPU geometry; sparse DEM
+updates remain unchanged. The new Render module is tested with recorded bgfx
+submissions and a production archive link regression.
+
 Globe mode draws on bgfx; the QRhi globe it replaces was removed with the
 rest of QRhi. "QRhi" below names the behaviour that was ported. The HUD
 offers 3D in the Map Monitor and the Map Editor once the globe surface

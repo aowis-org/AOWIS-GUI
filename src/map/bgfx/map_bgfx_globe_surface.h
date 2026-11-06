@@ -4,6 +4,7 @@
 #include "map/bgfx/map_bgfx_2d_imagery_gpu.h"
 #include "map/bgfx/map_bgfx_globe_tile_index_pool.h"
 #include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
+#include "map/bgfx/map_bgfx_globe_terrain_gpu.h"
 #include "map/render/map_globe_camera.h"
 #include "map/render/map_globe_heatmap_scene.h"
 #include "map/render/map_globe_surface_preparation.h"
@@ -222,15 +223,9 @@ private:
 
     bgfx::VertexLayout surface_layout;
     bgfx::VertexLayout wireframe_layout;
-    bgfx::ProgramHandle surface_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle wireframe_program = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle view_projection_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle tile_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle background_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle tile_sampler = BGFX_INVALID_HANDLE;
-    // 1x1 solid textures: imagery not loaded yet, polar caps.
-    bgfx::TextureHandle missing_texture = BGFX_INVALID_HANDLE;
-    bgfx::TextureHandle cap_texture = BGFX_INVALID_HANDLE;
+    // Shader programs, frame uniforms, fallback textures and terrain draw
+    // submission are owned by the shared Render terrain GPU module.
+    MapBgfxGlobeTerrainGpu terrain_gpu;
 
     // Render owns the mutable terrain GPU vertex/index streams.
     MapBgfxGlobeTerrainBufferPool terrain_buffers;
@@ -242,12 +237,6 @@ private:
     bool window_tiles_requested = false;
     bool map_visible = true;
     bool hillshade_visible = true;
-    // Hillshading (vs/fs_globe_surface*): the render origin (normals and the
-    // local light frame), the light in east/north/up, x strength y the flat
-    // ground's lambert (normalisation).
-    bgfx::UniformHandle origin_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle light_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle shading_uniform = BGFX_INVALID_HANDLE;
     quint64 surface_revision = 1;
     QVector<TileImagery> window_imagery;
 

@@ -116,6 +116,8 @@ endif()
 # Detect incomplete Render Git checkouts at configure time, before the
 # compiler encounters a missing header or the linker sees an absent object.
 foreach(_aowis_render_required_file IN ITEMS
+        src/map/bgfx/map_bgfx_globe_terrain_gpu.h
+        src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp
         src/map/bgfx/map_bgfx_globe_vertex_layouts.h
         src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp
         src/map/render/map_globe_flow_geometry.h

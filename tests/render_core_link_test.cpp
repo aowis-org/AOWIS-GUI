@@ -2,6 +2,7 @@
 #include "map/bgfx/map_bgfx_backend.h"
 #include "map/bgfx/map_bgfx_globe_vertex_layouts.h"
 #include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
+#include "map/bgfx/map_bgfx_globe_terrain_gpu.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -44,6 +45,16 @@ int main(int argc, char **argv)
     if (bgfx::isValid(terrain_buffers.window()))
     {
         std::cerr << "Fresh terrain buffer pool contains stale handles\n";
+        return EXIT_FAILURE;
+    }
+
+    // Resolve the production terrain draw/resource implementation from the
+    // RenderCore archive. release() is safe without an initialized bgfx GPU.
+    MapBgfxGlobeTerrainGpu terrain_gpu;
+    terrain_gpu.release();
+    if (terrain_gpu.ready())
+    {
+        std::cerr << "New terrain GPU resource pool unexpectedly ready\n";
         return EXIT_FAILURE;
     }
 

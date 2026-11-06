@@ -63,6 +63,8 @@ for relative in \
     src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp \
     src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h \
     src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp \
+    src/map/bgfx/map_bgfx_globe_terrain_gpu.h \
+    src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp \
     src/map/render/map_globe_flow_geometry.h \
     src/map/render/map_globe_flow_geometry.cpp \
     src/map/render/map_globe_link_geometry.h \
@@ -130,6 +132,26 @@ fi
 if ! grep -Fq 'this->terrain_buffers.patchWindow(' \
     src/map/bgfx/map_bgfx_globe_surface.cpp; then
     echo 'GUI globe terrain surface bypasses sparse Render patch uploads' >&2
+    exit 1
+fi
+
+# Globe terrain GPU programs, frame uniforms, fallback textures and draw
+# submission must all remain in Render. Heatmap baking/sky are separate.
+if grep -Eq 'this->(surface_program|wireframe_program|tile_sampler|view_projection_uniform|missing_texture|cap_texture|tile_uniform|background_uniform|origin_uniform|light_uniform|shading_uniform)' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
+    echo 'GUI still owns extracted terrain GPU programs or uniforms' >&2
+    exit 1
+fi
+if sed -n '/MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(/,/\/\/ --- Heatmap/p' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp \
+    | grep -Eq 'bgfx::(setIndexBuffer|setVertexBuffer|submit)\('; then
+    echo 'GUI globe frame still submits terrain draws directly' >&2
+    exit 1
+fi
+if ! grep -Fq 'this->terrain_gpu.drawTile(' src/map/bgfx/map_bgfx_globe_surface.cpp || \
+   ! grep -Fq 'this->terrain_gpu.drawCap(' src/map/bgfx/map_bgfx_globe_surface.cpp || \
+   ! grep -Fq 'this->terrain_gpu.drawWireframe(' src/map/bgfx/map_bgfx_globe_surface.cpp; then
+    echo 'GUI surface bypasses shared terrain GPU drawing' >&2
     exit 1
 fi
 

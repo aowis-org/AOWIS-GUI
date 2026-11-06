@@ -13,23 +13,14 @@
 #include <QtMath>
 
 #include <algorithm>
-#include <functional>
 #include <cmath>
 
 namespace
 {
-// Imagery like the 2D map: linear, clamped (the atlas gutters do the rest).
-constexpr uint64_t kTileSamplerFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
-// Opaque surface with depth, as the QRhi tile pipeline (LessOrEqual, write).
-constexpr uint64_t kSurfaceState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-    | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_MSAA;
 // Sky: added onto the cleared space colour, no depth (the surface follows).
 constexpr uint64_t kSkyState = BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ADD | BGFX_STATE_MSAA;
 // One triangle covering the screen (normalised device coordinates).
 const float kSkyTriangle[6] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
-// Wireframe lines on top of the surface they belong to: tested, not written.
-constexpr uint64_t kWireframeState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-    | BGFX_STATE_DEPTH_TEST_LEQUAL | BGFX_STATE_PT_LINES | BGFX_STATE_MSAA;
 // The QRhi globe's colours: tiles whose imagery (and every ancestor's) is
 // not loaded yet, and the polar caps beyond Web Mercator's latitude limit.
 const QColor GlobeMissingTileColor(18, 58, 72);
@@ -74,14 +65,6 @@ void destroyHandle(Handle *handle)
     }
 }
 
-bgfx::TextureHandle solidTexture(const QColor &color)
-{
-    const uint8_t texel[4] = {uint8_t(color.red()), uint8_t(color.green()),
-                              uint8_t(color.blue()), 255};
-    return bgfx::createTexture2D(1, 1, false, 1, bgfx::TextureFormat::RGBA8,
-                                 kTileSamplerFlags, bgfx::copy(texel, sizeof(texel)));
-}
-
 
 }
 
@@ -108,17 +91,12 @@ bool MapBgfxGlobeSurface::initialize()
     this->wireframe_layout.begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
         .end();
-    this->surface_program = MapBgfxBackend::loadProgram("vs_globe_surface", "fs_globe_surface");
-    this->wireframe_program = MapBgfxBackend::loadProgram("vs_globe_wireframe", "fs_globe_wireframe");
-    this->view_projection_uniform = bgfx::createUniform("u_globe_view_proj", bgfx::UniformType::Mat4);
-    this->tile_uniform = bgfx::createUniform("u_globe_tile", bgfx::UniformType::Vec4);
-    this->background_uniform = bgfx::createUniform("u_globe_background", bgfx::UniformType::Vec4);
-    this->origin_uniform = bgfx::createUniform("u_globe_origin", bgfx::UniformType::Vec4);
-    this->light_uniform = bgfx::createUniform("u_globe_light", bgfx::UniformType::Vec4);
-    this->shading_uniform = bgfx::createUniform("u_globe_shading", bgfx::UniformType::Vec4);
-    this->tile_sampler = bgfx::createUniform("s_globe_tile", bgfx::UniformType::Sampler);
-    this->missing_texture = solidTexture(GlobeMissingTileColor);
-    this->cap_texture = solidTexture(GlobePolarCapColor);
+    this->terrain_gpu.initialize(
+        &MapBgfxBackend::loadProgram,
+        {std::uint8_t(GlobeMissingTileColor.red()), std::uint8_t(GlobeMissingTileColor.green()),
+         std::uint8_t(GlobeMissingTileColor.blue()), std::uint8_t(255)},
+        {std::uint8_t(GlobePolarCapColor.red()), std::uint8_t(GlobePolarCapColor.green()),
+         std::uint8_t(GlobePolarCapColor.blue()), std::uint8_t(255)});
     // Heatmap (optional: without its programs the terrain draws as before).
     this->heatmap_bake_layout.begin()
         .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
@@ -162,7 +140,7 @@ bool MapBgfxGlobeSurface::initialize()
     if (!ready())
     {
         qWarning() << "bgfx globe surface unavailable: programs"
-                   << bgfx::isValid(this->surface_program) << bgfx::isValid(this->wireframe_program);
+                   << this->terrain_gpu.ready();
         release();
         return false;
     }
@@ -171,10 +149,7 @@ bool MapBgfxGlobeSurface::initialize()
 
 bool MapBgfxGlobeSurface::ready() const
 {
-    return bgfx::isValid(this->surface_program) && bgfx::isValid(this->wireframe_program)
-        && bgfx::isValid(this->view_projection_uniform) && bgfx::isValid(this->tile_uniform)
-        && bgfx::isValid(this->background_uniform) && bgfx::isValid(this->tile_sampler)
-        && bgfx::isValid(this->missing_texture) && bgfx::isValid(this->cap_texture);
+    return this->terrain_gpu.ready();
 }
 
 void MapBgfxGlobeSurface::destroyBuffers()
@@ -258,17 +233,7 @@ void MapBgfxGlobeSurface::release()
     releaseSky();
     releaseHeatmap();
     destroyBuffers();
-    destroyHandle(&this->missing_texture);
-    destroyHandle(&this->cap_texture);
-    destroyHandle(&this->tile_sampler);
-    destroyHandle(&this->background_uniform);
-    destroyHandle(&this->origin_uniform);
-    destroyHandle(&this->light_uniform);
-    destroyHandle(&this->shading_uniform);
-    destroyHandle(&this->tile_uniform);
-    destroyHandle(&this->view_projection_uniform);
-    destroyHandle(&this->wireframe_program);
-    destroyHandle(&this->surface_program);
+    this->terrain_gpu.release();
     this->window_imagery.clear();
 }
 
@@ -437,7 +402,7 @@ void MapBgfxGlobeSurface::resolveImagery(MapBgfx2dImageryGpu *imagery, FrameResu
     {
         const MapGlobeSurfaceTile &tile = tiles.at(index);
         TileImagery &state = this->window_imagery[index];
-        state.texture = this->missing_texture;
+        state.texture = this->terrain_gpu.missingTexture();
         std::copy_n(kWholeTexture, 4, state.uniform);
         MapBgfx2dImagery::TileId id;
         id.zoom = tile.zoom;
@@ -640,38 +605,28 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
                               float(std::sin(light_altitude_rad)), 0.0f, 0.0f};
     const GeoWgs84Ellipsoid::EcefPositionD &origin_ecef = camera.renderOriginEcef();
     const float origin[4] = {float(origin_ecef.x), float(origin_ecef.y), float(origin_ecef.z), 0.0f};
-    const std::function<void()> set_shading_uniforms = [this, &light, &shading, &origin]()
-    {
-        bgfx::setUniform(this->origin_uniform, origin);
-        bgfx::setUniform(this->light_uniform, light);
-        bgfx::setUniform(this->shading_uniform, shading);
-    };
+    MapBgfxGlobeTerrainGpu::Frame gpu_frame;
+    std::copy_n(matrix, 16, gpu_frame.view_projection.begin());
+    std::copy_n(background, 4, gpu_frame.background.begin());
+    std::copy_n(origin, 4, gpu_frame.origin.begin());
+    std::copy_n(light, 4, gpu_frame.light.begin());
+    std::copy_n(shading, 4, gpu_frame.shading.begin());
 
     if (this->map_visible)
     {
         // The sky first (the view is sequential): the surface covers it.
         if (bgfx::isValid(this->sky_program))
             drawSky(view, camera_basis, camera.renderOriginEcef(), inputs.logical_viewport);
-        // Polar caps: flat colour beyond Web Mercator's latitude limit.
-        if (bgfx::isValid(this->terrain_buffers.caps()) && bgfx::isValid(this->terrain_buffers.capIndices()))
+        // Caps and per-tile imagery now submit through the shared Render GPU.
+        for (const MapGlobeSurfaceTile &tile : this->surface_preparation.capTiles())
         {
-            for (const MapGlobeSurfaceTile &tile : this->surface_preparation.capTiles())
-            {
-                if (tile.index_count <= 0)
-                    continue;
-                bgfx::setVertexBuffer(0, this->terrain_buffers.caps());
-                bgfx::setIndexBuffer(this->terrain_buffers.capIndices(), uint32_t(tile.first_index),
-                                     uint32_t(tile.index_count));
-                bgfx::setTexture(0, this->tile_sampler, this->cap_texture, uint32_t(kTileSamplerFlags));
-                bgfx::setUniform(this->view_projection_uniform, matrix);
-                bgfx::setUniform(this->tile_uniform, kWholeTexture);
-                bgfx::setUniform(this->background_uniform, background);
-                set_shading_uniforms();
-                bgfx::setState(kSurfaceState);
-                bgfx::submit(view, this->surface_program);
-            }
+            if (tile.index_count <= 0)
+                continue;
+            this->terrain_gpu.drawCap(view, this->terrain_buffers.caps(),
+                                      this->terrain_buffers.capIndices(),
+                                      std::uint32_t(tile.first_index),
+                                      std::uint32_t(tile.index_count), gpu_frame);
         }
-        // Window tiles: one indexed draw each with its atlas rectangle.
         const QVector<MapGlobeSurfaceTile> &tiles = this->surface_preparation.windowTiles();
         if (bgfx::isValid(this->terrain_buffers.window()))
         {
@@ -684,45 +639,34 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
                 if (!bgfx::isValid(tile_indices))
                     continue;
                 const TileImagery &state = this->window_imagery.at(index);
-                // The shared topology, offset to the tile's vertices: every
-                // backend applies the start vertex as base vertex.
-                bgfx::setVertexBuffer(0, this->terrain_buffers.window(), uint32_t(tile.first_vertex),
-                                      uint32_t(tile.vertex_count));
-                bgfx::setIndexBuffer(tile_indices);
-                bgfx::setTexture(0, this->tile_sampler, state.texture, uint32_t(kTileSamplerFlags));
-                bgfx::setUniform(this->view_projection_uniform, matrix);
-                bgfx::setUniform(this->tile_uniform, state.uniform);
-                bgfx::setUniform(this->background_uniform, background);
-                set_shading_uniforms();
-                bgfx::setState(kSurfaceState);
+                MapBgfxGlobeTerrainGpu::Heatmap heatmap;
+                const MapBgfxGlobeTerrainGpu::Heatmap *overlay = nullptr;
                 if (state.heatmap_page >= 0)
                 {
-                    // Its baked heatmap cell composited over the imagery.
-                    bgfx::setTexture(1, this->heatmap_sampler, this->heatmap_pages[state.heatmap_page].texture,
-                                     uint32_t(kHeatmapSamplerFlags));
-                    bgfx::setUniform(this->heatmap_tile_uniform, state.heatmap_uniform);
-                    bgfx::setUniform(this->heatmap_style_uniform, heatmap_style);
-                    bgfx::submit(view, this->heatmap_surface_program);
+                    heatmap.program = this->heatmap_surface_program;
+                    heatmap.sampler = this->heatmap_sampler;
+                    heatmap.tile_uniform = this->heatmap_tile_uniform;
+                    heatmap.style_uniform = this->heatmap_style_uniform;
+                    heatmap.texture = this->heatmap_pages[state.heatmap_page].texture;
+                    heatmap.tile_rect = state.heatmap_uniform;
+                    heatmap.style = heatmap_style;
+                    overlay = &heatmap;
                 }
-                else
-                {
-                    bgfx::submit(view, this->surface_program);
-                }
-                ++result.tiles_drawn;
+                if (this->terrain_gpu.drawTile(view, this->terrain_buffers.window(),
+                                               std::uint32_t(tile.first_vertex),
+                                               std::uint32_t(tile.vertex_count),
+                                               tile_indices, state.texture,
+                                               state.uniform, gpu_frame, overlay))
+                    ++result.tiles_drawn;
             }
         }
     }
-    // Wireframe (debug): every triangle edge, also with the map tiles off.
+    // Wireframe is also supported when map imagery is hidden.
     const QVector<MapGlobeSurfaceWireframeVertex> &wireframe =
         this->surface_preparation.wireframeVertices();
-    if (this->surface_preparation.wireframeVisible() && bgfx::isValid(this->terrain_buffers.wireframe())
-        && !wireframe.isEmpty())
-    {
-        bgfx::setVertexBuffer(0, this->terrain_buffers.wireframe(), 0, uint32_t(wireframe.size()));
-        bgfx::setUniform(this->view_projection_uniform, matrix);
-        bgfx::setState(kWireframeState);
-        bgfx::submit(view, this->wireframe_program);
-    }
+    if (this->surface_preparation.wireframeVisible() && !wireframe.isEmpty())
+        this->terrain_gpu.drawWireframe(view, this->terrain_buffers.wireframe(),
+                                        std::uint32_t(wireframe.size()), gpu_frame);
 
     result.pending = result.pending || this->surface_preparation.hasPendingTerrainMeshes();
     return result;

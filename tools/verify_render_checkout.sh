@@ -35,6 +35,8 @@ required_files=(
     src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp
     src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h
     src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp
+    src/map/bgfx/map_bgfx_globe_terrain_gpu.h
+    src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp
 )
 
 for relative in "${required_files[@]}"; do
