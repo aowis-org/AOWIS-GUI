@@ -4,6 +4,7 @@
 #include "tabs/tab_projects_widget.h"
 #include "config/gui_configuration.h"
 #include "map/core/map_provider_catalog.h"
+#include "services/map_server_transport_factory.h"
 #include "config/unit_profile_manager.h"
 #include "config/shortcut_registry.h"
 #include "config/map_server_client_configuration.h"
@@ -55,8 +56,8 @@ MainWindow::MainWindow(QWidget *parent)
     dock_entity_map_legend( new EntityMapLegendDock(hydraulic_data, this)),
     dock_map_editor_guide( new MapEditorGuideDock(this) ),
     top_control_bar( new TopControlBar(this) ),
-    map_tile_repository( new MapTileRepository(this) ),
-    map_terrain_repository( new MapTerrainRepository(this) ),
+    map_tile_repository( new MapTileRepository(guiMapServerTransport(), this) ),
+    map_terrain_repository( new MapTerrainRepository(guiMapServerTransport(), this) ),
     map_model_monitor( new MapModel(&mapProviderCatalog(), this) ),
     settings( new SettingsWidget(this) ),
     map_monitor( new MapMonitorContainer(this->map_model_monitor, this->map_tile_repository,
@@ -850,6 +851,10 @@ MainWindow::MainWindow(QWidget *parent)
     // live so a changed value applies to the next drag.
     connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
             this->map_model_monitor, &MapModel::providerCatalogChanged);
+    // Provider URLs may change under stable ids: cached tiles of a changed
+    // provider are dropped (the repository is Render's, without the catalog).
+    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
+            this->map_tile_repository, &MapTileRepository::invalidateProviderCatalog);
     connect(&mapProviderCatalog(), &MapProviderCatalog::fallbackChanged,
             this->map_model_monitor, &MapModel::providerFallbackChanged);
     const std::function<double()> orbit_sensitivity = []()

@@ -136,6 +136,10 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/data/map_terrain_tile_source.h
         src/map/render/map_globe_surface_preparation.h
         src/map/render/map_globe_surface_preparation.cpp
+        src/services/interface_server_map.h
+        src/map/data/map_server_transport.h
+        src/map/data/map_tile_repository.cpp
+        src/map/data/map_terrain_repository.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -153,6 +157,7 @@ set(AOWIS_RENDER_BUILD_GEO ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_TERRAIN_DATA ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_VIEW ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_TERRAIN ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_MAP_DATA ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
 include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
@@ -346,9 +351,10 @@ qt_add_executable(aowis-server-gui
     src/tabs/tab_valves_widget.h
 
     # Services
-    src/services/interface_server_map.h
     src/services/interface_server_map_rest.cpp
     src/services/interface_server_map_rest.h
+    src/services/map_server_transport_factory.cpp
+    src/services/map_server_transport_factory.h
     src/services/rest_client.cpp
     src/services/rest_client.h
 
@@ -362,12 +368,6 @@ qt_add_executable(aowis-server-gui
     src/map/core/map_wayland_pointer_lock.h
     src/map/core/map_widget.cpp
     src/map/core/map_widget.h
-
-    # Map data
-    src/map/data/map_terrain_repository.cpp
-    src/map/data/map_terrain_repository.h
-    src/map/data/map_tile_repository.cpp
-    src/map/data/map_tile_repository.h
 
     # Map editor
     src/map/editor/map_canvas_devicelinks.cpp
@@ -485,13 +485,6 @@ target_include_directories(aowis-server-gui
 )
 
 if(EMSCRIPTEN)
-    # Map tiles decoded by the browser's native decoders on a dedicated
-    # worker (createImageBitmap + OffscreenCanvas); Qt's decoders remain the
-    # fallback and the desktop path.
-    target_sources(aowis-server-gui PRIVATE
-        src/map/data/map_tile_browser_decoder.h
-        src/map/data/map_tile_browser_decoder.cpp)
-
     # WebAssembly SIMD (128 bit): clang auto-vectorizes the app's hot loops
     # (vertex generation of the map, editor overlay, labels and HUD, tile
     # format handling) into wasm SIMD instead of scalar code. Every browser
@@ -520,6 +513,7 @@ target_link_libraries(aowis-server-gui
         AOWIS::RenderTerrainData
         AOWIS::RenderView
         AOWIS::RenderGlobeTerrain
+        AOWIS::RenderMapData
         GeographicLib_STATIC
 )
 

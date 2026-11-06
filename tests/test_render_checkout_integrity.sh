@@ -42,6 +42,11 @@ create_render_repo()
         printf 'moved source original\n' > "$path/$moved.cpp"
     done
     printf 'dependencies original\n' > "$path/cmake/aowis_render_dependencies.cmake"
+    # Map data repositories and the map server transport contract moved to Render.
+    mkdir -p "$path/src/services"
+    for moved in src/services/interface_server_map.h src/map/data/map_tile_repository.h src/map/data/map_tile_repository.cpp src/map/data/map_terrain_repository.h src/map/data/map_terrain_repository.cpp src/map/data/map_tile_browser_decoder.h src/map/data/map_tile_browser_decoder.cpp src/map/data/map_server_transport.h; do
+        printf 'moved map data source original\n' > "$path/$moved"
+    done
     # Globe terrain pipeline moved to Render.
     for moved in src/map/render/map_globe_surface_scene.h src/map/render/map_globe_surface_scene.cpp src/map/render/map_globe_surface_preparation.h src/map/render/map_globe_surface_preparation.cpp src/map/render/map_terrain_mesh_scheduler.h src/map/render/map_terrain_mesh_scheduler.cpp src/map/render/map_globe_terrain_navigation.h src/map/render/map_globe_terrain_navigation.cpp src/map/render/map_globe_camera.h src/map/render/map_globe_camera.cpp src/map/render/map_globe_heatmap_scene.h src/map/render/map_globe_heatmap_scene.cpp src/map/render/map_globe_retained_origin.h src/map/render/map_globe_terrain_levels.h src/map/data/map_terrain_tile_source.h src/map/render/map_globe_surface_hit.h; do
         printf 'moved terrain source original\n' > "$path/$moved"

@@ -76,6 +76,14 @@ required_files=(
     src/map/render/map_globe_terrain_levels.h
     src/map/data/map_terrain_tile_source.h
     src/map/render/map_globe_surface_hit.h
+    src/services/interface_server_map.h
+    src/map/data/map_tile_repository.h
+    src/map/data/map_tile_repository.cpp
+    src/map/data/map_terrain_repository.h
+    src/map/data/map_terrain_repository.cpp
+    src/map/data/map_tile_browser_decoder.h
+    src/map/data/map_tile_browser_decoder.cpp
+    src/map/data/map_server_transport.h
 )
 
 for relative in "${required_files[@]}"; do

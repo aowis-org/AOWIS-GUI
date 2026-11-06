@@ -110,7 +110,14 @@ for relative in \
     src/map/render/map_globe_heatmap_scene.h \
     src/map/render/map_globe_heatmap_scene.cpp \
     src/map/render/map_globe_retained_origin.h \
-    src/map/render/map_globe_terrain_levels.h; do
+    src/map/render/map_globe_terrain_levels.h \
+    src/services/interface_server_map.h \
+    src/map/data/map_tile_repository.h \
+    src/map/data/map_tile_repository.cpp \
+    src/map/data/map_terrain_repository.h \
+    src/map/data/map_terrain_repository.cpp \
+    src/map/data/map_tile_browser_decoder.h \
+    src/map/data/map_tile_browser_decoder.cpp; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1
