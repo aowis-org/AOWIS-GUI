@@ -25,6 +25,8 @@ required_files=(
     src/map/render/map_globe_link_geometry.cpp
     src/map/render/map_globe_flow_geometry.h
     src/map/render/map_globe_flow_geometry.cpp
+    src/map/render/map_globe_underground_geometry.h
+    src/map/render/map_globe_underground_geometry.cpp
 )
 
 for relative in "${required_files[@]}"; do

@@ -19,6 +19,8 @@ create_render_repo()
     printf 'flow source original\n' > "$path/src/map/render/map_globe_flow_geometry.cpp"
     printf 'link header original\n' > "$path/src/map/render/map_globe_link_geometry.h"
     printf 'link source original\n' > "$path/src/map/render/map_globe_link_geometry.cpp"
+    printf 'underground header original\n' > "$path/src/map/render/map_globe_underground_geometry.h"
+    printf 'underground source original\n' > "$path/src/map/render/map_globe_underground_geometry.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -34,7 +36,9 @@ rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
       "$render/src/map/render/map_globe_flow_geometry.h" \
       "$render/src/map/render/map_globe_flow_geometry.cpp" \
       "$render/src/map/render/map_globe_link_geometry.h" \
-      "$render/src/map/render/map_globe_link_geometry.cpp"
+      "$render/src/map/render/map_globe_link_geometry.cpp" \
+      "$render/src/map/render/map_globe_underground_geometry.h" \
+      "$render/src/map/render/map_globe_underground_geometry.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
@@ -42,6 +46,8 @@ grep -qx 'flow header original' "$render/src/map/render/map_globe_flow_geometry.
 grep -qx 'flow source original' "$render/src/map/render/map_globe_flow_geometry.cpp"
 grep -qx 'link header original' "$render/src/map/render/map_globe_link_geometry.h"
 grep -qx 'link source original' "$render/src/map/render/map_globe_link_geometry.cpp"
+grep -qx 'underground header original' "$render/src/map/render/map_globe_underground_geometry.h"
+grep -qx 'underground source original' "$render/src/map/render/map_globe_underground_geometry.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

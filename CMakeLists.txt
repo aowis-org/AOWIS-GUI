@@ -119,7 +119,9 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_globe_vertex_layouts.h
         src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp
         src/map/render/map_globe_flow_geometry.h
-        src/map/render/map_globe_flow_geometry.cpp)
+        src/map/render/map_globe_flow_geometry.cpp
+        src/map/render/map_globe_underground_geometry.h
+        src/map/render/map_globe_underground_geometry.cpp)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
             "AOWIS-GUI-Render checkout is incomplete: ${_aowis_render_required_file} is missing at ${AOWIS_RENDER_SOURCE_DIR}.\n"

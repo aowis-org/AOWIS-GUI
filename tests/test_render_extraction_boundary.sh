@@ -61,6 +61,8 @@ for relative in \
     src/map/render/map_globe_flow_geometry.cpp \
     src/map/render/map_globe_link_geometry.h \
     src/map/render/map_globe_link_geometry.cpp \
+    src/map/render/map_globe_underground_geometry.h \
+    src/map/render/map_globe_underground_geometry.cpp \
     src/map/render/map_globe_tank_model.h \
     src/map/render/map_globe_tank_model.cpp \
     src/map/render/map_globe_reservoir_model.h \
@@ -143,6 +145,19 @@ fi
 if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' src/map/render/map_globe_network_scene.cpp || \
    ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' src/map/render/map_globe_network_scene.cpp; then
     echo 'GUI is not using shared globe link geometry' >&2
+    exit 1
+fi
+# Terrain-aware X-Ray classification and run coalescing must stay in Render.
+if grep -Eq 'UndergroundSubdivision(FallbackTargetLengthM|MinimumTargetLengthM|TerrainCellFraction|MaximumCount)' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI still owns extracted underground sampling policy' >&2
+    exit 1
+fi
+if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
+    src/map/render/map_globe_network_scene.cpp || \
+   ! grep -Fq 'MapGlobeUndergroundGeometry::emitBuriedRuns(' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI X-Ray path bypasses Render underground run classification' >&2
     exit 1
 fi
 printf 'PASS: shared renderer submodule and source ownership boundary\n' 

@@ -3,6 +3,7 @@
 #include "map/core/map_model.h"
 #include "map/render/map_icon_atlas.h"
 #include "map/render/map_globe_link_geometry.h"
+#include "map/render/map_globe_underground_geometry.h"
 #include "map/render/map_node_declutter.h"
 #include "map/render/map_render_diagnostics.h"
 #include "geo/geo_wgs84_ellipsoid.h"
@@ -12,7 +13,6 @@
 #include <GeographicLib/Geodesic.hpp>
 
 #include <cmath>
-#include <limits>
 
 namespace
 {
@@ -26,10 +26,6 @@ bool finiteCoordinate(const CoordinateWGS84 &coordinate)
     return std::isfinite(coordinate.longitude_deg) && std::isfinite(coordinate.latitude_deg);
 }
 
-constexpr double UndergroundSubdivisionFallbackTargetLengthM = 20.0;
-constexpr double UndergroundSubdivisionMinimumTargetLengthM = 0.25;
-constexpr double UndergroundSubdivisionTerrainCellFraction = 0.5;
-constexpr int UndergroundSubdivisionMaximumCount = 128;
 // How far below the sampled terrain a point has to sit before it counts as
 // "buried" -- small enough to ignore DEM sampling noise/float error for a
 // pipe running essentially at grade, large enough to not flag on that noise.
@@ -1269,149 +1265,81 @@ void MapGlobeNetworkScene::appendUndergroundSubdivisions(
         ? geodesic_span.distance_m
         : double((end_ecef - start_ecef).length());
 
-    double target_length_m = UndergroundSubdivisionFallbackTargetLengthM;
-    double minimum_cell_size_m = std::numeric_limits<double>::infinity();
-    const double probe_ratios[3] = {0.0, 0.5, 1.0};
-    for (double probe_ratio : probe_ratios)
-    {
-        CoordinateWGS84 probe_coordinate = start_coordinate;
-        if (probe_ratio >= 1.0)
-        {
-            probe_coordinate = end_coordinate;
-        }
-        else if (probe_ratio > 0.0 && have_geodesic_span)
-        {
-            geodesicCoordinateAtDistance(
-                start_coordinate, geodesic_span.initial_azimuth_deg,
-                geodesic_span.distance_m * probe_ratio, &probe_coordinate);
-        }
-        else if (probe_ratio > 0.0)
-        {
-            probe_coordinate.longitude_deg = start_coordinate.longitude_deg
-                + (end_coordinate.longitude_deg - start_coordinate.longitude_deg)
-                    * probe_ratio;
-            probe_coordinate.latitude_deg = start_coordinate.latitude_deg
-                + (end_coordinate.latitude_deg - start_coordinate.latitude_deg)
-                    * probe_ratio;
-        }
+    // Only the host knows the GeographicLib geodesic and terrain LOD. Render
+    // owns the sample density and contiguous buried-run policy; intermediate
+    // classification samples are not individual dashed draw segments.
+    const std::function<CoordinateWGS84(double)> coordinate_at_ratio =
+        [&](double ratio) -> CoordinateWGS84 {
+            if (ratio >= 1.0)
+                return end_coordinate;
+            CoordinateWGS84 coordinate = start_coordinate;
+            if (ratio > 0.0 && have_geodesic_span)
+            {
+                geodesicCoordinateAtDistance(
+                    start_coordinate, geodesic_span.initial_azimuth_deg,
+                    geodesic_span.distance_m * ratio, &coordinate);
+            }
+            else if (ratio > 0.0)
+            {
+                // Same defensive linear fallback as the previous X-Ray path.
+                coordinate.longitude_deg = start_coordinate.longitude_deg
+                    + (end_coordinate.longitude_deg - start_coordinate.longitude_deg) * ratio;
+                coordinate.latitude_deg = start_coordinate.latitude_deg
+                    + (end_coordinate.latitude_deg - start_coordinate.latitude_deg) * ratio;
+            }
+            return coordinate;
+        };
 
-        double ignored_elevation_m = 0.0;
-        double terrain_cell_size_m = 0.0;
-        if (this->terrain_elevation_resolver
-            && this->terrain_elevation_resolver(
-                probe_coordinate, &ignored_elevation_m, &terrain_cell_size_m)
-            && std::isfinite(terrain_cell_size_m) && terrain_cell_size_m > 0.0)
-        {
-            minimum_cell_size_m = qMin(minimum_cell_size_m, terrain_cell_size_m);
-        }
-    }
+    const int subdivision_count = MapGlobeUndergroundGeometry::subdivisionCount(
+        span_length_m,
+        [&](double ratio) -> double {
+            double ignored_elevation_m = 0.0;
+            double terrain_cell_size_m = 0.0;
+            if (this->terrain_elevation_resolver
+                && this->terrain_elevation_resolver(
+                    coordinate_at_ratio(ratio), &ignored_elevation_m,
+                    &terrain_cell_size_m))
+            {
+                return terrain_cell_size_m;
+            }
+            return 0.0;
+        });
 
-    if (std::isfinite(minimum_cell_size_m))
-    {
-        target_length_m = qMax(
-            UndergroundSubdivisionMinimumTargetLengthM,
-            minimum_cell_size_m * UndergroundSubdivisionTerrainCellFraction);
-    }
-
-    const int subdivision_count = qBound(
-        1,
-        int(std::ceil(span_length_m / target_length_m)),
-        UndergroundSubdivisionMaximumCount);
-
-    // Classification samples must not become render-segment boundaries.
-    // The X-Ray rendering restarts its screen-space broken-stroke phase at each
-    // render segment, so emitting every classification interval as its own render segment would
-    // make the pattern look solid until the camera is very close.
-    // Coalesce consecutive buried samples into one run, as before the curved
-    // link work, then subdivide only that run as much as WGS84 curvature
-    // actually requires.
-    bool buried_run_active = false;
-    CoordinateWGS84 buried_run_start_coordinate = start_coordinate;
-    double buried_run_start_elevation_m = start_elevation_m;
-    QVector3D buried_run_start = start_ecef;
-
-    CoordinateWGS84 previous_sample_coordinate = start_coordinate;
-    double previous_sample_elevation_m = start_elevation_m;
-    QVector3D previous_point = start_ecef;
-
-    for (int subdivision = 0; subdivision <= subdivision_count; ++subdivision)
-    {
-        const double ratio = double(subdivision) / double(subdivision_count);
-        CoordinateWGS84 sample_coordinate = start_coordinate;
-        if (subdivision == subdivision_count)
-        {
-            sample_coordinate = end_coordinate;
-        }
-        else if (subdivision > 0 && have_geodesic_span)
-        {
-            geodesicCoordinateAtDistance(
-                start_coordinate, geodesic_span.initial_azimuth_deg,
-                geodesic_span.distance_m * ratio, &sample_coordinate);
-        }
-        else if (subdivision > 0)
-        {
-            // Defensive fallback only: valid WGS84 endpoints should always
-            // produce a GeographicLib geodesic. Keep the old linear path if
-            // they do not, rather than dropping X-Ray classification.
-            sample_coordinate.longitude_deg = start_coordinate.longitude_deg
-                + (end_coordinate.longitude_deg - start_coordinate.longitude_deg) * ratio;
-            sample_coordinate.latitude_deg = start_coordinate.latitude_deg
-                + (end_coordinate.latitude_deg - start_coordinate.latitude_deg) * ratio;
-        }
-
-        const double sample_elevation_m =
-            start_elevation_m + (end_elevation_m - start_elevation_m) * ratio;
-        const QVector3D sample_point = subdivision == 0
-            ? start_ecef
-            : (subdivision == subdivision_count
-                ? end_ecef
-                : ecefPosition(sample_coordinate, sample_elevation_m));
-
-        double terrain_elevation_m = 0.0;
-        double terrain_cell_size_m = 0.0;
-        const bool terrain_resolved = this->terrain_elevation_resolver
-            && this->terrain_elevation_resolver(
-                sample_coordinate, &terrain_elevation_m, &terrain_cell_size_m);
-        const double rendered_underground_tolerance_m =
-            this->vertical_transform.renderedVerticalDistanceM(
-                UndergroundToleranceM);
-        const bool buried = terrain_resolved
-            && this->vertical_transform.networkDepthBelowTerrainM(
-                sample_elevation_m, terrain_elevation_m)
-                > rendered_underground_tolerance_m;
-
-        if (buried && !buried_run_active)
-        {
-            buried_run_active = true;
-            buried_run_start_coordinate = previous_sample_coordinate;
-            buried_run_start_elevation_m = previous_sample_elevation_m;
-            buried_run_start = previous_point;
-        }
-        else if (!buried && buried_run_active)
-        {
+    const double rendered_underground_tolerance_m =
+        this->vertical_transform.renderedVerticalDistanceM(UndergroundToleranceM);
+    MapGlobeUndergroundGeometry::emitBuriedRuns(
+        subdivision_count,
+        [&](double ratio) -> bool {
+            const CoordinateWGS84 coordinate = coordinate_at_ratio(ratio);
+            const double elevation_m = start_elevation_m
+                + (end_elevation_m - start_elevation_m) * ratio;
+            double terrain_elevation_m = 0.0;
+            double terrain_cell_size_m = 0.0;
+            return this->terrain_elevation_resolver
+                && this->terrain_elevation_resolver(
+                    coordinate, &terrain_elevation_m, &terrain_cell_size_m)
+                && this->vertical_transform.networkDepthBelowTerrainM(
+                    elevation_m, terrain_elevation_m)
+                    > rendered_underground_tolerance_m;
+        },
+        [&](double start_ratio, double end_ratio) {
+            const CoordinateWGS84 run_start = coordinate_at_ratio(start_ratio);
+            const CoordinateWGS84 run_end = coordinate_at_ratio(end_ratio);
+            const double run_start_elevation_m = start_elevation_m
+                + (end_elevation_m - start_elevation_m) * start_ratio;
+            const double run_end_elevation_m = start_elevation_m
+                + (end_elevation_m - start_elevation_m) * end_ratio;
+            const QVector3D run_start_ecef = start_ratio <= 0.0
+                ? start_ecef : (start_ratio >= 1.0
+                    ? end_ecef : ecefPosition(run_start, run_start_elevation_m));
+            const QVector3D run_end_ecef = end_ratio <= 0.0
+                ? start_ecef : (end_ratio >= 1.0
+                    ? end_ecef : ecefPosition(run_end, run_end_elevation_m));
             appendUndergroundCurvedRun(
                 entity_type, render_id,
-                buried_run_start_coordinate, buried_run_start_elevation_m,
-                buried_run_start,
-                previous_sample_coordinate, previous_sample_elevation_m,
-                previous_point);
-            buried_run_active = false;
-        }
-
-        previous_sample_coordinate = sample_coordinate;
-        previous_sample_elevation_m = sample_elevation_m;
-        previous_point = sample_point;
-    }
-
-    if (buried_run_active)
-    {
-        appendUndergroundCurvedRun(
-            entity_type, render_id,
-            buried_run_start_coordinate, buried_run_start_elevation_m,
-            buried_run_start,
-            previous_sample_coordinate, previous_sample_elevation_m,
-            previous_point);
-    }
+                run_start, run_start_elevation_m, run_start_ecef,
+                run_end, run_end_elevation_m, run_end_ecef);
+        });
 }
 
 void MapGlobeNetworkScene::appendNode(

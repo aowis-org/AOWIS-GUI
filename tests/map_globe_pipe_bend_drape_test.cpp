@@ -156,6 +156,42 @@ int main(int argc, char **argv)
                     "visual terrain drape changed the hydraulic model"))
         return 1;
 
+    // X-Ray classification uses the actual terrain LOD and must preserve
+    // the normal retained link geometry while entering/leaving underground.
+    double classification_terrain_m = 400.0;
+    scene.setTerrainElevationResolver(
+        [&classification_terrain_m](const CoordinateWGS84 &,
+                                    double *terrain_m, double *cell_size_m) {
+            *terrain_m = classification_terrain_m;
+            *cell_size_m = 50.0;
+            return true;
+        });
+    const qsizetype normal_link_count = scene.linkVertices().size();
+    if (!require(scene.setUndergroundXRayEnabled(true), "could not enable X-Ray")
+        || !require(!scene.undergroundLinkVertices().isEmpty(), "buried pipe has no X-Ray segments")
+        || !require(scene.undergroundLinkVertices().size() % 6 == 0,
+                    "X-Ray ribbons do not contain six vertices per segment")
+        || !require(scene.linkVertices().size() == normal_link_count,
+                    "X-Ray modified the normal network geometry"))
+        return 1;
+
+    classification_terrain_m = -1000.0;
+    if (!require(scene.refreshUndergroundXRayGeometry(), "X-Ray did not refresh terrain")
+        || !require(scene.undergroundLinkVertices().isEmpty(),
+                    "visible pipe incorrectly classified as buried")
+        || !require(scene.linkVertices().size() == normal_link_count,
+                    "terrain-only X-Ray refresh rebuilt normal links"))
+        return 1;
+
+    classification_terrain_m = 400.0;
+    if (!require(scene.refreshUndergroundXRayGeometry(), "X-Ray did not refresh buried pipe")
+        || !require(!scene.undergroundLinkVertices().isEmpty(),
+                    "buried pipe did not reappear in X-Ray")
+        || !require(scene.setUndergroundXRayEnabled(false), "could not disable X-Ray")
+        || !require(scene.undergroundLinkVertices().isEmpty(),
+                    "disabled X-Ray retained underground geometry"))
+        return 1;
+
     std::printf("globe pipe bend drape: ellipsoid, relief, LOD change, no redundant rebuild, offsets\n");
     return 0;
 }
