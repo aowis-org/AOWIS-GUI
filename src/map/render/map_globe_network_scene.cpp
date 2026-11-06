@@ -2,6 +2,7 @@
 
 #include "map/core/map_model.h"
 #include "map/render/map_icon_atlas.h"
+#include "map/render/map_globe_link_geometry.h"
 #include "map/render/map_node_declutter.h"
 #include "map/render/map_render_diagnostics.h"
 #include "geo/geo_wgs84_ellipsoid.h"
@@ -29,25 +30,10 @@ constexpr double UndergroundSubdivisionFallbackTargetLengthM = 20.0;
 constexpr double UndergroundSubdivisionMinimumTargetLengthM = 0.25;
 constexpr double UndergroundSubdivisionTerrainCellFraction = 0.5;
 constexpr int UndergroundSubdivisionMaximumCount = 128;
-// Subdivide long digitized Globe spans so their rendered centerline follows
-// WGS84 curvature instead of cutting through the ellipsoid as one long ECEF
-// chord. 0.5 m is deliberately far below any normal water-network visual
-// tolerance while still leaving ordinary local pipes (roughly <= 5 km per
-// digitized span) as a single segment with zero extra vertices. The 4096
-// safety cap still covers even an almost-antipodal span at approximately
-// this error bound, while preventing malformed inputs from exploding memory.
-constexpr double LongLinkMaximumChordSagittaM = 0.5;
-constexpr int LongLinkMaximumSubdivisionCount = 4096;
 // How far below the sampled terrain a point has to sit before it counts as
 // "buried" -- small enough to ignore DEM sampling noise/float error for a
 // pipe running essentially at grade, large enough to not flag on that noise.
 constexpr double UndergroundToleranceM = 0.1;
-constexpr double FlowDirectionMinimumLinkPixels = 18.0;
-constexpr double FlowDirectionSpacingPixels = 100.0;
-constexpr double FlowDirectionChevronHalfWidthRatio = 0.4;
-constexpr double FlowDirectionStrokeWidthRatio = 0.2;
-constexpr double FlowDirectionMinimumElevationPixels = 4.0;
-constexpr int FlowDirectionMaximumMarkersPerLink = 32;
 
 struct GeodesicSpan
 {
@@ -70,29 +56,6 @@ bool geodesicSpanBetween(
     return std::isfinite(span->distance_m)
         && std::isfinite(span->initial_azimuth_deg)
         && span->distance_m >= 0.0;
-}
-
-int longLinkSubdivisionCount(const GeodesicSpan &span)
-{
-    if (!std::isfinite(span.distance_m) || span.distance_m <= 0.0)
-        return 1;
-
-    // Conservative use of the polar radius: it is the smaller WGS84 radius,
-    // so the same chord length bends at least as much here as anywhere else
-    // on the ellipsoid. For a circle, sagitta s and chord length c satisfy
-    // c = 2*sqrt(2*R*s - s^2).
-    const double radius_m = GeoWgs84Ellipsoid::PolarRadiusM;
-    const double maximum_chord_length_m = 2.0 * std::sqrt(qMax(
-        0.0,
-        2.0 * radius_m * LongLinkMaximumChordSagittaM
-            - LongLinkMaximumChordSagittaM * LongLinkMaximumChordSagittaM));
-    if (!std::isfinite(maximum_chord_length_m) || maximum_chord_length_m <= 0.0)
-        return 1;
-
-    return qBound(
-        1,
-        int(std::ceil(span.distance_m / maximum_chord_length_m)),
-        LongLinkMaximumSubdivisionCount);
 }
 
 bool geodesicCoordinateAtDistance(
@@ -936,44 +899,30 @@ void MapGlobeNetworkScene::rebuildNetworkGeometry()
                 GeodesicSpan geodesic_span;
                 const bool have_geodesic_span = geodesicSpanBetween(
                     previous_coordinate, coordinate, &geodesic_span);
-                const int subdivision_count = have_geodesic_span
-                    ? longLinkSubdivisionCount(geodesic_span)
-                    : 1;
-
-                QVector3D segment_start = previous;
-                for (int subdivision = 1; subdivision <= subdivision_count; ++subdivision)
-                {
-                    const double ratio =
-                        double(subdivision) / double(subdivision_count);
-                    QVector3D segment_end = current;
-                    if (subdivision < subdivision_count && have_geodesic_span)
-                    {
+                const double span_length_m = have_geodesic_span
+                    ? geodesic_span.distance_m : 0.0;
+                MapGlobeLinkGeometry::emitCurvedSegments(
+                    previous, current, span_length_m,
+                    [&](double ratio, QVector3D *sample_ecef) -> bool {
                         CoordinateWGS84 sample_coordinate;
-                        if (geodesicCoordinateAtDistance(
+                        if (!geodesicCoordinateAtDistance(
                                 previous_coordinate, geodesic_span.initial_azimuth_deg,
                                 geodesic_span.distance_m * ratio, &sample_coordinate))
-                        {
-                            const double sample_height_m = previous_render_height_m
-                                + (render_height_m - previous_render_height_m) * ratio;
-                            segment_end = ecefPositionAtHeight(
-                                sample_coordinate, sample_height_m);
-                        }
-                        else
-                        {
-                            segment_end = previous
-                                + (current - previous) * float(ratio);
-                        }
-                    }
-
-                    appendLinkSegment(
-                        link.entity_type, link.render_id, segment_start, segment_end);
-                    const float segment_length_m =
-                        (segment_end - segment_start).length();
-                    link_path.segments.append(
-                        {segment_start, segment_end, segment_length_m});
-                    link_path.total_length_m += double(segment_length_m);
-                    segment_start = segment_end;
-                }
+                            return false;
+                        const double sample_height_m = previous_render_height_m
+                            + (render_height_m - previous_render_height_m) * ratio;
+                        *sample_ecef = ecefPositionAtHeight(sample_coordinate, sample_height_m);
+                        return true;
+                    },
+                    [&](const QVector3D &segment_start, const QVector3D &segment_end) {
+                        appendLinkSegment(
+                            link.entity_type, link.render_id, segment_start, segment_end);
+                        const float segment_length_m =
+                            (segment_end - segment_start).length();
+                        link_path.segments.append(
+                            {segment_start, segment_end, segment_length_m});
+                        link_path.total_length_m += double(segment_length_m);
+                    });
             }
 
             previous = current;
@@ -1198,8 +1147,7 @@ void MapGlobeNetworkScene::rebuildUndergroundXRayGeometry()
 QVector3D MapGlobeNetworkScene::linkWidthDirection(
     const QVector3D &start, const QVector3D &end) const
 {
-    const QVector3D segment_direction = end - start;
-    if (segment_direction.lengthSquared() <= 1e-12f)
+    if ((end - start).lengthSquared() <= 1e-12f)
         return QVector3D();
 
     const QVector3D midpoint_relative = (start + end) * 0.5f;
@@ -1212,20 +1160,11 @@ QVector3D MapGlobeNetworkScene::linkWidthDirection(
     double latitude_deg = 0.0;
     if (!GeoWgs84Ellipsoid::ecefToGeodetic(
             midpoint_ecef, &longitude_deg, &latitude_deg))
-    {
         return QVector3D();
-    }
 
     const GeoWgs84Ellipsoid::LocalFrame local_frame =
-        GeoWgs84Ellipsoid::localFrameAtGeodetic(
-            longitude_deg, latitude_deg, 0.0);
-    QVector3D width_direction = QVector3D::crossProduct(
-        local_frame.up, segment_direction);
-    if (width_direction.lengthSquared() <= 1e-12f)
-        return QVector3D();
-
-    width_direction.normalize();
-    return width_direction;
+        GeoWgs84Ellipsoid::localFrameAtGeodetic(longitude_deg, latitude_deg, 0.0);
+    return MapGlobeLinkGeometry::widthDirection(start, end, local_frame.up);
 }
 
 void MapGlobeNetworkScene::appendLinkSegment(
@@ -1234,35 +1173,27 @@ void MapGlobeNetworkScene::appendLinkSegment(
 {
     const quint64 entity_key = entityRenderKey(entity_type, render_id);
     const QVector3D width_direction = linkWidthDirection(start, end);
-    const float corners[6][2] = {
-        {0.0f, -1.0f},
-        {1.0f, -1.0f},
-        {1.0f, 1.0f},
-        {0.0f, -1.0f},
-        {1.0f, 1.0f},
-        {0.0f, 1.0f}
-    };
-
-    for (int index = 0; index < 6; ++index)
-    {
-        MapNetworkLinkVertex vertex;
-        vertex.start_x = start.x();
-        vertex.start_y = start.y();
-        vertex.start_z = start.z();
-        vertex.end_x = end.x();
-        vertex.end_y = end.y();
-        vertex.end_z = end.z();
-        vertex.along = corners[index][0];
-        vertex.side = corners[index][1];
-        vertex.width_direction_x = width_direction.x();
-        vertex.width_direction_y = width_direction.y();
-        vertex.width_direction_z = width_direction.z();
-        vertex.render_id = render_id;
-        vertex.entity_type = entity_type;
-        applyLinkColor(&vertex);
-        this->link_vertices.append(vertex);
-        this->link_vertex_indices_by_entity[entity_key].append(this->link_vertices.size() - 1);
-    }
+    MapGlobeLinkGeometry::emitRibbonCorners(
+        start, end, width_direction,
+        [&](const MapGlobeRibbonCorner &corner) {
+            MapNetworkLinkVertex vertex;
+            vertex.start_x = corner.start.x();
+            vertex.start_y = corner.start.y();
+            vertex.start_z = corner.start.z();
+            vertex.end_x = corner.end.x();
+            vertex.end_y = corner.end.y();
+            vertex.end_z = corner.end.z();
+            vertex.along = corner.along;
+            vertex.side = corner.side;
+            vertex.width_direction_x = corner.width_direction.x();
+            vertex.width_direction_y = corner.width_direction.y();
+            vertex.width_direction_z = corner.width_direction.z();
+            vertex.render_id = render_id;
+            vertex.entity_type = entity_type;
+            applyLinkColor(&vertex);
+            this->link_vertices.append(vertex);
+            this->link_vertex_indices_by_entity[entity_key].append(this->link_vertices.size() - 1);
+        });
 }
 
 void MapGlobeNetworkScene::appendUndergroundLinkSegment(
@@ -1270,35 +1201,27 @@ void MapGlobeNetworkScene::appendUndergroundLinkSegment(
     const QVector3D &start, const QVector3D &end)
 {
     const QVector3D width_direction = linkWidthDirection(start, end);
-    const float corners[6][2] = {
-        {0.0f, -1.0f},
-        {1.0f, -1.0f},
-        {1.0f, 1.0f},
-        {0.0f, -1.0f},
-        {1.0f, 1.0f},
-        {0.0f, 1.0f}
-    };
-
-    for (int index = 0; index < 6; ++index)
-    {
-        MapNetworkLinkVertex vertex;
-        vertex.start_x = start.x();
-        vertex.start_y = start.y();
-        vertex.start_z = start.z();
-        vertex.end_x = end.x();
-        vertex.end_y = end.y();
-        vertex.end_z = end.z();
-        vertex.along = corners[index][0];
-        vertex.side = corners[index][1];
-        vertex.render_id = render_id;
-        vertex.width_direction_x = width_direction.x();
-        vertex.width_direction_y = width_direction.y();
-        vertex.width_direction_z = width_direction.z();
-        vertex.entity_type = entity_type;
-        // The X-Ray path draws the entity's normal colour, dashed.
-        applyLinkColor(&vertex);
-        this->underground_link_vertices.append(vertex);
-    }
+    MapGlobeLinkGeometry::emitRibbonCorners(
+        start, end, width_direction,
+        [&](const MapGlobeRibbonCorner &corner) {
+            MapNetworkLinkVertex vertex;
+            vertex.start_x = corner.start.x();
+            vertex.start_y = corner.start.y();
+            vertex.start_z = corner.start.z();
+            vertex.end_x = corner.end.x();
+            vertex.end_y = corner.end.y();
+            vertex.end_z = corner.end.z();
+            vertex.along = corner.along;
+            vertex.side = corner.side;
+            vertex.render_id = render_id;
+            vertex.width_direction_x = corner.width_direction.x();
+            vertex.width_direction_y = corner.width_direction.y();
+            vertex.width_direction_z = corner.width_direction.z();
+            vertex.entity_type = entity_type;
+            // The X-Ray path draws the entity's normal colour, dashed.
+            applyLinkColor(&vertex);
+            this->underground_link_vertices.append(vertex);
+        });
 }
 
 void MapGlobeNetworkScene::appendUndergroundCurvedRun(
@@ -1311,37 +1234,25 @@ void MapGlobeNetworkScene::appendUndergroundCurvedRun(
     GeodesicSpan geodesic_span;
     const bool have_geodesic_span = geodesicSpanBetween(
         start_coordinate, end_coordinate, &geodesic_span);
-    const int subdivision_count = have_geodesic_span
-        ? longLinkSubdivisionCount(geodesic_span)
-        : 1;
-
-    QVector3D segment_start = start_ecef;
-    for (int subdivision = 1; subdivision <= subdivision_count; ++subdivision)
-    {
-        const double ratio = double(subdivision) / double(subdivision_count);
-        QVector3D segment_end = end_ecef;
-        if (subdivision < subdivision_count && have_geodesic_span)
-        {
+    const double span_length_m = have_geodesic_span
+        ? geodesic_span.distance_m : 0.0;
+    MapGlobeLinkGeometry::emitCurvedSegments(
+        start_ecef, end_ecef, span_length_m,
+        [&](double ratio, QVector3D *sample_ecef) -> bool {
             CoordinateWGS84 sample_coordinate;
-            if (geodesicCoordinateAtDistance(
+            if (!geodesicCoordinateAtDistance(
                     start_coordinate, geodesic_span.initial_azimuth_deg,
                     geodesic_span.distance_m * ratio, &sample_coordinate))
-            {
-                const double sample_elevation_m = start_elevation_m
-                    + (end_elevation_m - start_elevation_m) * ratio;
-                segment_end = ecefPosition(sample_coordinate, sample_elevation_m);
-            }
-            else
-            {
-                segment_end = start_ecef
-                    + (end_ecef - start_ecef) * float(ratio);
-            }
-        }
-
-        appendUndergroundLinkSegment(
-            entity_type, render_id, segment_start, segment_end);
-        segment_start = segment_end;
-    }
+                return false;
+            const double sample_elevation_m = start_elevation_m
+                + (end_elevation_m - start_elevation_m) * ratio;
+            *sample_ecef = ecefPosition(sample_coordinate, sample_elevation_m);
+            return true;
+        },
+        [&](const QVector3D &segment_start, const QVector3D &segment_end) {
+            appendUndergroundLinkSegment(
+                entity_type, render_id, segment_start, segment_end);
+        });
 }
 
 void MapGlobeNetworkScene::appendUndergroundSubdivisions(
@@ -1569,115 +1480,34 @@ void MapGlobeNetworkScene::rebuildFlowDirections()
         return;
     }
 
+    const MapGlobeFlowSettings settings{
+        this->flow_direction_pixels_per_meter,
+        this->symbology.flow_direction_size_px,
+        this->symbology.link_thickness_px
+    };
+    const GeoWgs84Ellipsoid::EcefPositionD &origin = this->retained_origin.originEcef();
+    const MapGlobeFlowFrame frame{
+        origin.x, origin.y, origin.z,
+        GeoWgs84Ellipsoid::EquatorialRadiusM,
+        GeoWgs84Ellipsoid::PolarRadiusM
+    };
+
     qsizetype estimated_marker_count = 0;
     for (const LinkPath &path : this->link_paths)
-    {
-        const double total_screen_length_px =
-            path.total_length_m * this->flow_direction_pixels_per_meter;
-        if (total_screen_length_px < FlowDirectionMinimumLinkPixels)
-            continue;
-
-        estimated_marker_count += qBound(
-            1, int(std::floor(total_screen_length_px / FlowDirectionSpacingPixels)),
-            FlowDirectionMaximumMarkersPerLink);
-    }
+        estimated_marker_count += MapGlobeFlowGeometry::markerCount(path, settings);
     this->flow_direction_vertices.reserve(estimated_marker_count * 24);
-
-    const double chevron_length_m = double(this->symbology.flow_direction_size_px)
-        / this->flow_direction_pixels_per_meter;
-    const double chevron_half_width_m =
-        chevron_length_m * FlowDirectionChevronHalfWidthRatio;
-    const double elevation_pixels = qMax(
-        FlowDirectionMinimumElevationPixels,
-        double(this->symbology.link_thickness_px) / 2.0 + 2.0);
-    const float elevation_m = float(
-        elevation_pixels / this->flow_direction_pixels_per_meter);
-    const double stroke_width_px = qMax(
-        1.0,
-        double(this->symbology.flow_direction_size_px)
-            * FlowDirectionStrokeWidthRatio);
-    const float half_stroke_px = float(stroke_width_px / 2.0);
 
     for (const LinkPath &path : this->link_paths)
     {
-        if (path.segments.isEmpty())
-            continue;
-
-        const double total_screen_length_px =
-            path.total_length_m * this->flow_direction_pixels_per_meter;
-        if (total_screen_length_px < FlowDirectionMinimumLinkPixels
-            || path.total_length_m <= 0.0)
-        {
-            continue;
-        }
-
-        const int marker_count = qBound(
-            1, int(std::floor(total_screen_length_px / FlowDirectionSpacingPixels)),
-            FlowDirectionMaximumMarkersPerLink);
-
-        for (int marker_index = 0; marker_index < marker_count; ++marker_index)
-        {
-            double target_world_distance_m = path.total_length_m
-                * double(marker_index + 1) / double(marker_count + 1);
-            if (marker_count == 1 && path.entity_type != InfrastructureEntity::Pipe)
-                target_world_distance_m = path.total_length_m * 0.3;
-
-            double traversed_world_distance_m = 0.0;
-            for (const SceneSegment &segment : path.segments)
+        MapGlobeFlowGeometry::emitStrokes(
+            path, path.entity_type == InfrastructureEntity::Pipe,
+            settings, frame,
+            [this](const MapGlobeFlowStroke &stroke)
             {
-                const QVector3D segment_vector = segment.end - segment.start;
-                const double segment_world_length_m = double(segment.length_m);
-                if (segment_world_length_m <= 0.0)
-                    continue;
-                if (traversed_world_distance_m + segment_world_length_m
-                    < target_world_distance_m)
-                {
-                    traversed_world_distance_m += segment_world_length_m;
-                    continue;
-                }
-
-                const double ratio = qBound(
-                    0.0,
-                    (target_world_distance_m - traversed_world_distance_m)
-                        / segment_world_length_m,
-                    1.0);
-                QVector3D center = segment.start + segment_vector * float(ratio);
-                const QVector3D surface_normal = ellipsoidNormalAt(center);
-                if (surface_normal.lengthSquared() <= 0.0f)
-                    break;
-
-                QVector3D direction = segment_vector
-                    - surface_normal
-                        * QVector3D::dotProduct(segment_vector, surface_normal);
-                if (direction.lengthSquared() <= 1.0e-12f)
-                    break;
-                direction.normalize();
-
-                QVector3D normal = QVector3D::crossProduct(surface_normal, direction);
-                if (normal.lengthSquared() <= 1.0e-12f)
-                    break;
-                normal.normalize();
-
-                center += surface_normal * elevation_m;
-                for (const float orientation : {1.0f, -1.0f})
-                {
-                    const QVector3D tip = center
-                        + direction * float(orientation * chevron_length_m / 2.0);
-                    const QVector3D base = center
-                        - direction * float(orientation * chevron_length_m / 2.0);
-                    const QVector3D tail_first = base
-                        + normal * float(chevron_half_width_m);
-                    const QVector3D tail_second = base
-                        - normal * float(chevron_half_width_m);
-
-                    appendFlowDirectionStroke(
-                        tail_first, tip, path.render_id, orientation, half_stroke_px);
-                    appendFlowDirectionStroke(
-                        tail_second, tip, path.render_id, orientation, half_stroke_px);
-                }
-                break;
-            }
-        }
+                appendFlowDirectionStroke(
+                    stroke.start, stroke.end, stroke.render_id,
+                    stroke.orientation, stroke.half_width_px);
+            });
     }
 }
 
@@ -1715,30 +1545,6 @@ void MapGlobeNetworkScene::appendFlowDirectionStroke(
             : half_width_px - base_half_width_px;
         this->flow_direction_vertices.append(vertex);
     }
-}
-
-QVector3D MapGlobeNetworkScene::ellipsoidNormalAt(
-    const QVector3D &relative_ecef) const
-{
-    const double absolute_x = this->retained_origin.originEcef().x + double(relative_ecef.x());
-    const double absolute_y = this->retained_origin.originEcef().y + double(relative_ecef.y());
-    const double absolute_z = this->retained_origin.originEcef().z + double(relative_ecef.z());
-    const double equatorial_radius_squared =
-        GeoWgs84Ellipsoid::EquatorialRadiusM * GeoWgs84Ellipsoid::EquatorialRadiusM;
-    const double polar_radius_squared =
-        GeoWgs84Ellipsoid::PolarRadiusM * GeoWgs84Ellipsoid::PolarRadiusM;
-    const double normal_x = absolute_x / equatorial_radius_squared;
-    const double normal_y = absolute_y / equatorial_radius_squared;
-    const double normal_z = absolute_z / polar_radius_squared;
-    const double normal_length = std::sqrt(
-        normal_x * normal_x + normal_y * normal_y + normal_z * normal_z);
-    if (!std::isfinite(normal_length) || normal_length <= 0.0)
-        return QVector3D();
-
-    return QVector3D(
-        float(normal_x / normal_length),
-        float(normal_y / normal_length),
-        float(normal_z / normal_length));
 }
 
 void MapGlobeNetworkScene::rebuildIcons()
@@ -1807,33 +1613,14 @@ bool MapGlobeNetworkScene::modelBasisAt(
     QVector3D *basis_y,
     QVector3D *basis_z) const
 {
-    if (basis_x == nullptr || basis_y == nullptr || basis_z == nullptr)
-        return false;
-
-    const QVector3D up = ellipsoidNormalAt(center);
-    if (up.lengthSquared() <= 1e-8f)
-        return false;
-
-    QVector3D horizontal = QVector3D::crossProduct(up, QVector3D(0.0f, 0.0f, 1.0f));
-    if (horizontal.lengthSquared() <= 1e-8f)
-        horizontal = QVector3D::crossProduct(up, QVector3D(0.0f, 1.0f, 0.0f));
-    if (horizontal.lengthSquared() <= 1e-8f)
-        return false;
-
-    horizontal.normalize();
-    QVector3D tangent_y = QVector3D::crossProduct(horizontal, up);
-    if (tangent_y.lengthSquared() <= 1e-8f)
-        return false;
-    tangent_y.normalize();
-
-    // The tank/reservoir mesh winding intentionally includes the
-    // flat-map projection's horizontal reflection. Keep a left-handed local
-    // tangent basis here so that reflection is cancelled on the globe and
-    // back-face-culling rendering remains valid.
-    *basis_x = horizontal;
-    *basis_y = tangent_y;
-    *basis_z = up;
-    return true;
+    const GeoWgs84Ellipsoid::EcefPositionD &origin = this->retained_origin.originEcef();
+    const MapGlobeFlowFrame frame{
+        origin.x, origin.y, origin.z,
+        GeoWgs84Ellipsoid::EquatorialRadiusM,
+        GeoWgs84Ellipsoid::PolarRadiusM
+    };
+    return MapGlobeFlowGeometry::modelBasisAt(
+        center, frame, basis_x, basis_y, basis_z);
 }
 
 void MapGlobeNetworkScene::rebuildTankInstances()

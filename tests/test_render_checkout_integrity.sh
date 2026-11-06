@@ -12,9 +12,13 @@ create_render_repo()
     git init -q -b main "$path"
     git -C "$path" config user.name 'AOWIS Test'
     git -C "$path" config user.email 'test@example.invalid'
-    mkdir -p "$path/src/map/bgfx" "$path/tools"
+    mkdir -p "$path/src/map/bgfx" "$path/src/map/render" "$path/tools"
     printf 'header original\n' > "$path/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
     printf 'source original\n' > "$path/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
+    printf 'flow header original\n' > "$path/src/map/render/map_globe_flow_geometry.h"
+    printf 'flow source original\n' > "$path/src/map/render/map_globe_flow_geometry.cpp"
+    printf 'link header original\n' > "$path/src/map/render/map_globe_link_geometry.h"
+    printf 'link source original\n' > "$path/src/map/render/map_globe_link_geometry.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -26,10 +30,18 @@ create_render_repo "$render"
 echo 'PASS: complete tracked checkout accepted'
 
 rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
-      "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
+      "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp" \
+      "$render/src/map/render/map_globe_flow_geometry.h" \
+      "$render/src/map/render/map_globe_flow_geometry.cpp" \
+      "$render/src/map/render/map_globe_link_geometry.h" \
+      "$render/src/map/render/map_globe_link_geometry.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
+grep -qx 'flow header original' "$render/src/map/render/map_globe_flow_geometry.h"
+grep -qx 'flow source original' "$render/src/map/render/map_globe_flow_geometry.cpp"
+grep -qx 'link header original' "$render/src/map/render/map_globe_link_geometry.h"
+grep -qx 'link source original' "$render/src/map/render/map_globe_link_geometry.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

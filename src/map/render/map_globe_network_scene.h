@@ -5,6 +5,7 @@
 #include "map/render/map_globe_retained_origin.h"
 #include "map/render/map_network_render_symbology.h"
 #include "map/render/map_globe_render_instances.h"
+#include "map/render/map_globe_flow_geometry.h"
 #include "map/render/map_globe_vertical_transform.h"
 #include "map/render/map_network_render_data.h"
 #include "geo/geo_wgs84_ellipsoid.h"
@@ -207,19 +208,13 @@ private:
         QVector3D center;
     };
 
-    struct SceneSegment
-    {
-        QVector3D start;
-        QVector3D end;
-        float length_m = 0.0f;
-    };
+    using SceneSegment = MapGlobeFlowSegment;
 
-    struct LinkPath
+    // GUI retains the hydraulic entity type; Render owns the neutral path
+    // geometry and consumes only the pipe/non-pipe placement distinction.
+    struct LinkPath : MapGlobeFlowPath
     {
         InfrastructureEntity entity_type = InfrastructureEntity::Unknown;
-        quint32 render_id = 0;
-        QVector<SceneSegment> segments;
-        double total_length_m = 0.0;
     };
 
     void rebuildNetworkGeometry();
@@ -249,7 +244,6 @@ private:
     void appendFlowDirectionStroke(
         const QVector3D &start, const QVector3D &end,
         quint32 render_id, float orientation, float half_width_px);
-    QVector3D ellipsoidNormalAt(const QVector3D &relative_ecef) const;
     void rebuildIcons();
     void appendIcon(const IconMarker &marker);
     void rebuildTankInstances();

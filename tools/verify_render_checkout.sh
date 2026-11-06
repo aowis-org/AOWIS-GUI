@@ -21,6 +21,10 @@ fi
 required_files=(
     src/map/bgfx/map_bgfx_globe_vertex_layouts.h
     src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp
+    src/map/render/map_globe_link_geometry.h
+    src/map/render/map_globe_link_geometry.cpp
+    src/map/render/map_globe_flow_geometry.h
+    src/map/render/map_globe_flow_geometry.cpp
 )
 
 for relative in "${required_files[@]}"; do
@@ -49,4 +53,4 @@ for relative in "${required_files[@]}"; do
     fi
 done
 
-printf 'PASS: Render checkout contains required globe vertex-layout sources.\n'
+printf 'PASS: Render checkout contains required globe scene and layout sources.\n'

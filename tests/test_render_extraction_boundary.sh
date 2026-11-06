@@ -57,6 +57,10 @@ for relative in \
     src/map/render/map_globe_render_instances.h \
     src/map/render/map_globe_vertical_transform.h \
     src/map/render/map_globe_surface_vertex.h \
+    src/map/render/map_globe_flow_geometry.h \
+    src/map/render/map_globe_flow_geometry.cpp \
+    src/map/render/map_globe_link_geometry.h \
+    src/map/render/map_globe_link_geometry.cpp \
     src/map/render/map_globe_tank_model.h \
     src/map/render/map_globe_tank_model.cpp \
     src/map/render/map_globe_reservoir_model.h \
@@ -119,4 +123,26 @@ if ! grep -Fq 'external/AOWIS-GUI-Render" -o' tools/zip_gui_project.sh; then
     echo 'GUI source snapshots would recurse into the Render submodule' >&2
     exit 1
 fi
-printf 'PASS: shared renderer submodule and source ownership boundary\n'
+# The Globe scene may adapt flow strokes into its host vertex ABI, but
+# placement and ellipsoid tangent math must remain in the Render library.
+if grep -Eq 'FlowDirection(SpacingPixels|ChevronHalfWidthRatio|MaximumMarkersPerLink)|MapGlobeNetworkScene::ellipsoidNormalAt' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI still owns extracted Globe flow placement or normal calculation' >&2
+    exit 1
+fi
+if ! grep -Fq 'MapGlobeFlowGeometry::emitStrokes(' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI Globe scene bypasses shared flow geometry' >&2
+    exit 1
+fi
+if grep -Eq 'longLinkSubdivisionCount' \
+    src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI still owns extracted globe link geometry' >&2
+    exit 1
+fi
+if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' src/map/render/map_globe_network_scene.cpp || \
+   ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' src/map/render/map_globe_network_scene.cpp; then
+    echo 'GUI is not using shared globe link geometry' >&2
+    exit 1
+fi
+printf 'PASS: shared renderer submodule and source ownership boundary\n' 

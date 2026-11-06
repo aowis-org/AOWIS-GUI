@@ -117,7 +117,9 @@ endif()
 # compiler encounters a missing header or the linker sees an absent object.
 foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_globe_vertex_layouts.h
-        src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp)
+        src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp
+        src/map/render/map_globe_flow_geometry.h
+        src/map/render/map_globe_flow_geometry.cpp)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
             "AOWIS-GUI-Render checkout is incomplete: ${_aowis_render_required_file} is missing at ${AOWIS_RENDER_SOURCE_DIR}.\n"
@@ -1432,7 +1434,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-retained-origin-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-retained-origin
         COMMAND aowis-map-globe-retained-origin-tests)
     set_tests_properties(aowis-map-globe-retained-origin PROPERTIES
@@ -1461,7 +1463,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-demand-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-demand-drape
         COMMAND aowis-map-globe-demand-drape-tests)
     set_tests_properties(aowis-map-globe-demand-drape PROPERTIES
@@ -1478,7 +1480,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-pipe-bend-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-pipe-bend-drape
         COMMAND aowis-map-globe-pipe-bend-drape-tests)
     set_tests_properties(aowis-map-globe-pipe-bend-drape PROPERTIES
