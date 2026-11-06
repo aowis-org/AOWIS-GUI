@@ -5,6 +5,7 @@
 #include "map/bgfx/map_bgfx_globe_gpu.h"
 #include "map/bgfx/map_bgfx_globe_buffer_pool.h"
 #include "map/bgfx/map_bgfx_globe_resource_pool.h"
+#include "map/bgfx/map_bgfx_globe_vertex_layouts.h"
 #include "map/render/map_globe_network_scene.h"
 #include "map/render/map_globe_reservoir_model.h"
 #include "map/render/map_globe_tank_model.h"
@@ -201,12 +202,12 @@ private:
     quint64 terrain_surface_revision = 0;
     quint64 draped_surface_revision = 0;
     quint32 dirty_streams = AllStreams;
+    // Camera-dependent icon index order is cached by the GUI scene adapter.
+    // Reset when the icon vertex stream changes or the GPU device is released.
+    bool icon_order_dirty = true;
+    QVector3D icon_order_eye;
 
-    bgfx::VertexLayout link_layout;
-    bgfx::VertexLayout node_layout;
-    bgfx::VertexLayout icon_layout;
-    bgfx::VertexLayout junction_layout;
-    bgfx::VertexLayout model_layout;
+    MapBgfxGlobeVertexLayouts gpu_layouts;
     MapBgfxGlobeResourcePool gpu_resources;
     MapBgfxGlobeBufferPool gpu_buffers;
 };
