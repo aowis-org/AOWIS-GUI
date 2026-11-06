@@ -143,6 +143,9 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/core/map_network_types.h
         src/network/network_render_snapshot.h
         src/map/render/map_globe_network_scene.cpp
+        src/map/bgfx/map_bgfx_globe_network.cpp
+        src/map/bgfx/map_bgfx_globe_surface.cpp
+        src/map/bgfx/map_bgfx_hud.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -164,6 +167,7 @@ set(AOWIS_RENDER_BUILD_MAP_DATA ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_NETWORK ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_NETWORK_SCENE ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_MODELS ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_MAP ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
 include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
@@ -514,34 +518,22 @@ target_link_libraries(aowis-server-gui
 
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_PROJECTS_BGFX_BRIDGE=1)
 target_sources(aowis-server-gui PRIVATE
-    src/map/bgfx/map_bgfx_2d_snapshot_adapter.h
-    src/map/bgfx/map_bgfx_entity_style.h
-    src/map/bgfx/map_bgfx_entity_style.cpp
-    src/map/bgfx/map_bgfx_2d_symbology.h
-    src/map/bgfx/map_bgfx_2d_picking.h
-    src/map/bgfx/map_bgfx_hud.h
-    src/map/bgfx/map_bgfx_hud.cpp
     src/map/bgfx/map_bgfx_legend_content.h
     src/map/bgfx/map_bgfx_legend_content.cpp
     src/map/bgfx/map_bgfx_editor_overlay.h
     src/map/bgfx/map_bgfx_editor_overlay.cpp
-    src/map/bgfx/map_bgfx_labels.h
-    src/map/bgfx/map_bgfx_labels.cpp
     src/map/bgfx/map_bgfx_editor_icons.h
     src/map/bgfx/map_bgfx_editor_icons.cpp
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
-    src/map/bgfx/map_bgfx_globe_network.h
     src/map/bgfx/map_bgfx_globe_model_images.h
     src/map/bgfx/map_bgfx_globe_model_images.cpp
-    src/map/bgfx/map_bgfx_globe_network.cpp
     src/map/bgfx/map_bgfx_globe_hud_controller.h
     src/map/bgfx/map_bgfx_globe_hud_controller.cpp
-    src/map/bgfx/map_bgfx_globe_surface.h
-    src/map/bgfx/map_bgfx_globe_surface.cpp
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
-target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry AOWIS::RenderGlobe)
+target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry AOWIS::RenderGlobe
+    AOWIS::RenderMap)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -690,16 +682,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-bgfx-three-view-camera
         COMMAND aowis-bgfx-three-view-camera-tests)
     set_tests_properties(aowis-bgfx-three-view-camera PROPERTIES LABELS "aowis")
-
-    # Cache-selection overlays must be drawable even when distribution meshes
-    # are hidden in Map Management (2D and globe), without a graphics device.
-    add_executable(aowis-map-bgfx-layer-visibility-tests
-        tests/map_bgfx_layer_visibility_test.cpp)
-    target_include_directories(aowis-map-bgfx-layer-visibility-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    add_test(NAME aowis-map-bgfx-layer-visibility
-        COMMAND aowis-map-bgfx-layer-visibility-tests)
-    set_tests_properties(aowis-map-bgfx-layer-visibility PROPERTIES LABELS "aowis")
 
     add_executable(aowis-map-workspace-diagnostics-tests
         tests/map_workspace_diagnostics_test.cpp)
@@ -1074,46 +1056,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-bgfx-2d-mesh COMMAND aowis-bgfx-2d-mesh-tests)
     set_tests_properties(aowis-bgfx-2d-mesh PROPERTIES LABELS "aowis")
 
-    # GPU network colouring data (MapBgfxEntityStyle): per-entity texels by
-    # render id (values, flags, flow), hidden / selected / diagnostic flags,
-    # dense resolved values. CPU side only (prepare()); no bgfx device.
-    add_executable(aowis-bgfx-entity-style-tests tests/bgfx_entity_style_test.cpp
-        src/map/bgfx/map_bgfx_entity_style.cpp)
-    target_include_directories(aowis-bgfx-entity-style-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
-    target_link_libraries(aowis-bgfx-entity-style-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGlobeNetwork bgfx)
-    add_test(NAME aowis-bgfx-entity-style COMMAND aowis-bgfx-entity-style-tests)
-    set_tests_properties(aowis-bgfx-entity-style PROPERTIES
-        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-
-    # bgfx 2D picking (click selection, hover) and highlight subsets.
-    add_executable(aowis-bgfx-2d-picking-tests tests/bgfx_2d_picking_test.cpp)
-    target_include_directories(aowis-bgfx-2d-picking-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
-    target_link_libraries(aowis-bgfx-2d-picking-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderCore)
-    add_test(NAME aowis-bgfx-2d-picking COMMAND aowis-bgfx-2d-picking-tests)
-    set_tests_properties(aowis-bgfx-2d-picking PROPERTIES LABELS "aowis")
-
-    # Native bgfx HUD without a GPU: draw-list canvas, text/image atlas and
-    # the HUD layout/input contract (slice 6a), the map legend with its
-    # combo lists, palette menu and tooltips (slice 6b). Fonts need
-    # QGuiApplication.
-    add_executable(aowis-bgfx-hud-tests tests/bgfx_hud_test.cpp
-        src/map/bgfx/map_bgfx_hud.cpp)
-    target_include_directories(aowis-bgfx-hud-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-bgfx-hud-tests PRIVATE Qt6::Core Qt6::Gui AOWIS::RenderCore)
-    add_test(NAME aowis-bgfx-hud COMMAND aowis-bgfx-hud-tests)
-    # Full-viewport input sweeps are CPU-intensive. Do not run this test
-    # concurrently with other tests: contention can push it past its limit.
-    # Retain a bounded timeout to detect genuine hangs.
-    set_tests_properties(aowis-bgfx-hud PROPERTIES
-        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        RUN_SERIAL TRUE TIMEOUT 240)
-
     # Map editor on bgfx (Phase 2) without a GPU: what the overlay builder
     # draws for each editor state, positioned with the continuous camera.
     add_executable(aowis-bgfx-editor-overlay-tests tests/bgfx_editor_overlay_test.cpp
@@ -1196,20 +1138,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-map-bgfx-globe-icon-benchmark --smoke)
     set_tests_properties(aowis-map-bgfx-globe-icon-benchmark-smoke PROPERTIES
         LABELS "aowis;performance")
-
-    # Map labels on the bgfx 2D map without a GPU: decluttered placement,
-    # priorities, values, viewport edges, rasterization budget, stability.
-    add_executable(aowis-bgfx-labels-tests tests/bgfx_labels_test.cpp
-        src/map/bgfx/map_bgfx_labels.cpp
-        src/map/bgfx/map_bgfx_hud.cpp)
-    target_include_directories(aowis-bgfx-labels-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
-    target_link_libraries(aowis-bgfx-labels-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderCore)
-    add_test(NAME aowis-bgfx-labels COMMAND aowis-bgfx-labels-tests)
-    set_tests_properties(aowis-bgfx-labels PROPERTIES
-        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # The Model owns the unit-conversion regression test, but not every Model
     # revision or build configuration registers it. Query the Model directory:

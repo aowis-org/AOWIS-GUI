@@ -102,6 +102,20 @@ required_files=(
     src/map/render/map_render_types.h
     src/map/render/map_network_render_symbology.h
     src/map/core/map_network_types.h
+    src/map/bgfx/map_bgfx_entity_style.h
+    src/map/bgfx/map_bgfx_entity_style.cpp
+    src/map/bgfx/map_bgfx_globe_network.h
+    src/map/bgfx/map_bgfx_globe_network.cpp
+    src/map/bgfx/map_bgfx_globe_surface.h
+    src/map/bgfx/map_bgfx_globe_surface.cpp
+    src/map/bgfx/map_bgfx_2d_symbology.h
+    src/map/bgfx/map_bgfx_2d_snapshot_adapter.h
+    src/map/bgfx/map_bgfx_2d_picking.h
+    src/map/bgfx/map_bgfx_layer_visibility.h
+    src/map/bgfx/map_bgfx_hud.h
+    src/map/bgfx/map_bgfx_hud.cpp
+    src/map/bgfx/map_bgfx_labels.h
+    src/map/bgfx/map_bgfx_labels.cpp
 )
 
 for relative in "${required_files[@]}"; do

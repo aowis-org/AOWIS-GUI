@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_surface.h"
+#include "map/bgfx/map_bgfx_globe_model_images.h"
 #include "config/gui_configuration.h"
 #include <functional>
 #include "map/bgfx/map_bgfx_2d_snapshot_adapter.h"
@@ -186,12 +187,16 @@ MapBgfxSurface::MapBgfxSurface(MapModel *model, QWidget *parent)
     this->globe_surface = std::make_unique<MapBgfxGlobeSurface>(this->map_model);
     // Rays and the visible terrain LOD come from the meshes the globe draws.
     this->terrain_navigation.setSurfacePreparation(&this->globe_surface->preparation());
-    // Same terrain detail setting as the globe surface's preparation.
+    // The globe (Render) reads the user's terrain detail setting live; the
+    // surface preparation and the navigation share it.
     const std::function<int()> terrain_detail_reduction = []()
     {
         return guiConfiguration().map_performance.terrain_detail_reduction;
     };
+    this->globe_surface->setTerrainDetailReductionSource(terrain_detail_reduction);
     this->terrain_navigation.setTerrainDetailReductionSource(terrain_detail_reduction);
+    // Tank and reservoir model textures are GUI resources.
+    this->globe_network.setModelImages(mapGlobeTankAlbedoImage(), mapGlobeReservoirAlbedoImage());
     // --- Globe network (slice 3) --------------------------------------------
     // X-Ray classifies the network against the DEM the globe shows; the
     // network follows the shared vertical transform (exaggeration, ground

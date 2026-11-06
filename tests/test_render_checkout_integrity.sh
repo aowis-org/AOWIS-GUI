@@ -42,6 +42,11 @@ create_render_repo()
         printf 'moved source original\n' > "$path/$moved.cpp"
     done
     printf 'dependencies original\n' > "$path/cmake/aowis_render_dependencies.cmake"
+    # bgfx map renderers moved to Render.
+    mkdir -p "$path/src/map/bgfx"
+    for moved in src/map/bgfx/map_bgfx_entity_style.h src/map/bgfx/map_bgfx_entity_style.cpp src/map/bgfx/map_bgfx_globe_network.h src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_surface.h src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_2d_symbology.h src/map/bgfx/map_bgfx_2d_snapshot_adapter.h src/map/bgfx/map_bgfx_2d_picking.h src/map/bgfx/map_bgfx_layer_visibility.h src/map/bgfx/map_bgfx_hud.h src/map/bgfx/map_bgfx_hud.cpp src/map/bgfx/map_bgfx_labels.h src/map/bgfx/map_bgfx_labels.cpp; do
+        printf 'moved bgfx source original\n' > "$path/$moved"
+    done
     # Network render contract and globe network scene moved to Render.
     mkdir -p "$path/src/network"
     for moved in src/network/network_render_snapshot.h src/network/network_symbology.h src/network/network_symbology_rendering.h src/network/infrastructure_entity_traits.h src/map/render/map_globe_network_scene.h src/map/render/map_globe_network_scene.cpp src/map/render/map_globe_render_frame.h src/map/render/map_globe_render_frame.cpp src/map/render/map_network_render_data.h src/map/render/map_retained_network_scene.h src/map/render/map_globe_icon_draw_order.h src/map/render/map_icon_atlas.h src/map/render/map_icon_atlas.cpp src/map/render/map_label_settings.h src/map/render/map_tile_streaming_policy.h src/map/render/map_render_types.h src/map/render/map_network_render_symbology.h src/map/core/map_network_types.h; do

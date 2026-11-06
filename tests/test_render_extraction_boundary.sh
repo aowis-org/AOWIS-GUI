@@ -134,172 +134,197 @@ for relative in \
     src/map/render/map_label_settings.h \
     src/map/render/map_tile_streaming_policy.h \
     src/map/render/map_render_types.h \
-    src/map/render/map_network_render_symbology.h; do
+    src/map/render/map_network_render_symbology.h \
+    src/map/bgfx/map_bgfx_entity_style.h \
+    src/map/bgfx/map_bgfx_entity_style.cpp \
+    src/map/bgfx/map_bgfx_globe_network.h \
+    src/map/bgfx/map_bgfx_globe_network.cpp \
+    src/map/bgfx/map_bgfx_globe_surface.h \
+    src/map/bgfx/map_bgfx_globe_surface.cpp \
+    src/map/bgfx/map_bgfx_2d_symbology.h \
+    src/map/bgfx/map_bgfx_2d_snapshot_adapter.h \
+    src/map/bgfx/map_bgfx_2d_picking.h \
+    src/map/bgfx/map_bgfx_layer_visibility.h \
+    src/map/bgfx/map_bgfx_hud.h \
+    src/map/bgfx/map_bgfx_hud.cpp \
+    src/map/bgfx/map_bgfx_labels.h \
+    src/map/bgfx/map_bgfx_labels.cpp \
+    tests/bgfx_entity_style_test.cpp \
+    tests/bgfx_hud_test.cpp \
+    tests/bgfx_labels_test.cpp \
+    tests/bgfx_2d_picking_test.cpp \
+    tests/map_bgfx_layer_visibility_test.cpp; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1
     fi
 done
-# All retained globe network buffers are owned by Render, not by the host.
-if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
-    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
-    echo 'GUI globe network still owns bgfx dynamic GPU buffers' >&2
-    exit 1
-fi
-if ! grep -Fq 'gpu_buffers.populateInput(&draw_input)' src/map/bgfx/map_bgfx_globe_network.cpp; then
-    echo 'GUI globe draw path bypasses shared GPU stream handles' >&2
-    exit 1
-fi
-# Vertex layouts are constructed and validated by Render. GUI supplies the
-# host scene structs' byte strides, then uses Render's five layout accessors.
-if grep -Eq 'this->(link|node|icon|junction|model)_layout' \
-    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
-    echo 'GUI globe network still references removed local vertex layouts' >&2
-    exit 1
-fi
-if ! grep -Fq 'this->gpu_layouts.initialize(strides)' \
-    src/map/bgfx/map_bgfx_globe_network.cpp; then
-    echo 'GUI globe network does not initialize Render-owned vertex layouts' >&2
-    exit 1
-fi
-for layout in link node icon junction model; do
-    if ! grep -Fq "this->gpu_layouts.${layout}()" \
-        src/map/bgfx/map_bgfx_globe_network.cpp; then
-        echo "GUI globe network does not use Render-owned ${layout} layout" >&2
+# The bgfx globe network and surface live in Render (AOWIS::RenderMap); they
+# must keep using Render's GPU pools, layouts, programs and overlay GPU.
+# Checked against the Render checkout (absent in --source-only snapshots);
+# Render's tests/test_extraction_contract.py enforces the same.
+if [[ -f "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" ]]; then
+    # All retained globe network buffers are owned by Render, not by the host.
+    if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
+        "$render/src/map/bgfx/map_bgfx_globe_network.cpp" "$render/src/map/bgfx/map_bgfx_globe_network.h"; then
+        echo 'GUI globe network still owns bgfx dynamic GPU buffers' >&2
         exit 1
     fi
-done
-# Globe surface topology and GPU tile index buffers also belong to Render.
-if grep -Eq 'tile_index_buffers|MapBgfxGlobeSurface::tileIndexBuffer\(' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
-    echo 'GUI globe surface still owns terrain tile GPU index buffers' >&2
-    exit 1
-fi
-if ! grep -Fq 'this->tile_index_pool.get(tile.grid_cell_count)' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp; then
-    echo 'GUI globe surface bypasses Render tile index pool' >&2
-    exit 1
-fi
-# Terrain dynamic vertex/cap-index ownership and sparse GPU updates belong
-# to Render; GUI supplies only the geometry and patch offsets.
-if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
-    src/map/bgfx/map_bgfx_globe_surface.h src/map/bgfx/map_bgfx_globe_surface.cpp; then
-    echo 'GUI globe terrain surface still owns mutable GPU buffers' >&2
-    exit 1
-fi
-if ! grep -Fq 'this->terrain_buffers.patchWindow(' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp; then
-    echo 'GUI globe terrain surface bypasses sparse Render patch uploads' >&2
-    exit 1
-fi
-
-# Globe terrain GPU programs, frame uniforms, fallback textures and draw
-# submission must all remain in Render. Heatmap baking/sky are separate.
-if grep -Eq 'this->(surface_program|wireframe_program|tile_sampler|view_projection_uniform|missing_texture|cap_texture|tile_uniform|background_uniform|origin_uniform|light_uniform|shading_uniform)' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
-    echo 'GUI still owns extracted terrain GPU programs or uniforms' >&2
-    exit 1
-fi
-if sed -n '/MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(/,/\/\/ --- Heatmap/p' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp \
-    | grep -Eq 'bgfx::(setIndexBuffer|setVertexBuffer|submit)\('; then
-    echo 'GUI globe frame still submits terrain draws directly' >&2
-    exit 1
-fi
-if ! grep -Fq 'this->terrain_gpu.drawTile(' src/map/bgfx/map_bgfx_globe_surface.cpp || \
-   ! grep -Fq 'this->terrain_gpu.drawCap(' src/map/bgfx/map_bgfx_globe_surface.cpp || \
-   ! grep -Fq 'this->terrain_gpu.drawWireframe(' src/map/bgfx/map_bgfx_globe_surface.cpp; then
-    echo 'GUI surface bypasses shared terrain GPU drawing' >&2
-    exit 1
-fi
-
-# Programs, uniforms and GPU material textures now belong to Render.
-if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
-    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
-    echo 'GUI globe network still creates or destroys Render-owned GPU resources' >&2
-    exit 1
-fi
-if ! grep -Fq 'gpu_resources.populateInput(&draw_input)' \
-    src/map/bgfx/map_bgfx_globe_network.cpp; then
-    echo 'GUI globe draw path bypasses Render-owned shader/texture handles' >&2
-    exit 1
-fi
-if [[ -d src/map/bgfx/shaders ]] && \
-   find src/map/bgfx/shaders -type f -print -quit | grep -q .; then
-    echo 'GUI still contains Render-owned shaders' >&2
-    exit 1
-fi
-if grep -Fq '"${CMAKE_CURRENT_SOURCE_DIR}/../AOWIS-GUI-Render"' CMakeLists.txt; then
-    echo 'Implicit sibling checkout fallback remains in GUI CMake' >&2
-    exit 1
-fi
-if ! grep -Fq 'external/AOWIS-GUI-Render" -o' tools/zip_gui_project.sh; then
-    echo 'GUI source snapshots would recurse into the Render submodule' >&2
-    exit 1
-fi
-# The globe network scene lives in Render (AOWIS::RenderGlobeNetwork); it must
-# keep using Render's shared flow, link, underground and invalidation code.
-# Checked against the Render checkout (absent in --source-only snapshots).
-globe_scene="$render/src/map/render/map_globe_network_scene.cpp"
-if [[ -f "$globe_scene" ]]; then
-    # The Globe scene may adapt flow strokes into its host vertex ABI, but
-    # placement and ellipsoid tangent math must remain in the Render library.
-    if grep -Eq 'FlowDirection(SpacingPixels|ChevronHalfWidthRatio|MaximumMarkersPerLink)|MapGlobeNetworkScene::ellipsoidNormalAt' \
-        "$globe_scene"; then
-        echo 'Globe scene: still owns extracted Globe flow placement or normal calculation' >&2
+    if ! grep -Fq 'gpu_buffers.populateInput(&draw_input)' "$render/src/map/bgfx/map_bgfx_globe_network.cpp"; then
+        echo 'GUI globe draw path bypasses shared GPU stream handles' >&2
         exit 1
     fi
-    if ! grep -Fq 'MapGlobeFlowGeometry::emitStrokes(' \
-        "$globe_scene"; then
-        echo 'Globe scene: Globe scene bypasses shared flow geometry' >&2
+    # Vertex layouts are constructed and validated by Render. GUI supplies the
+    # host scene structs' byte strides, then uses Render's five layout accessors.
+    if grep -Eq 'this->(link|node|icon|junction|model)_layout' \
+        "$render/src/map/bgfx/map_bgfx_globe_network.cpp" "$render/src/map/bgfx/map_bgfx_globe_network.h"; then
+        echo 'GUI globe network still references removed local vertex layouts' >&2
         exit 1
     fi
-    if grep -Eq 'longLinkSubdivisionCount' \
-        "$globe_scene"; then
-        echo 'Globe scene: still owns extracted globe link geometry' >&2
+    if ! grep -Fq 'this->gpu_layouts.initialize(strides)' \
+        "$render/src/map/bgfx/map_bgfx_globe_network.cpp"; then
+        echo 'GUI globe network does not initialize Render-owned vertex layouts' >&2
         exit 1
     fi
-    if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' "$globe_scene" || \
-       ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' "$globe_scene"; then
-        echo 'Globe scene: is not using shared globe link geometry' >&2
+    for layout in link node icon junction model; do
+        if ! grep -Fq "this->gpu_layouts.${layout}()" \
+            "$render/src/map/bgfx/map_bgfx_globe_network.cpp"; then
+            echo "GUI globe network does not use Render-owned ${layout} layout" >&2
+            exit 1
+        fi
+    done
+    # Globe surface topology and GPU tile index buffers also belong to Render.
+    if grep -Eq 'tile_index_buffers|MapBgfxGlobeSurface::tileIndexBuffer\(' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" "$render/src/map/bgfx/map_bgfx_globe_surface.h"; then
+        echo 'GUI globe surface still owns terrain tile GPU index buffers' >&2
         exit 1
     fi
-    # Terrain-aware X-Ray classification and run coalescing must stay in Render.
-    if grep -Eq 'UndergroundSubdivision(FallbackTargetLengthM|MinimumTargetLengthM|TerrainCellFraction|MaximumCount)' \
-        "$globe_scene"; then
-        echo 'Globe scene: still owns extracted underground sampling policy' >&2
+    if ! grep -Fq 'this->tile_index_pool.get(tile.grid_cell_count)' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp"; then
+        echo 'GUI globe surface bypasses Render tile index pool' >&2
         exit 1
     fi
-    if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
-        "$globe_scene" || \
-       ! grep -Fq 'MapGlobeUndergroundGeometry::emitBuriedRuns(' \
-        "$globe_scene"; then
-        echo 'Globe scene: X-Ray path bypasses Render underground run classification' >&2
+    # Terrain dynamic vertex/cap-index ownership and sparse GPU updates belong
+    # to Render; GUI supplies only the geometry and patch offsets.
+    if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.h" "$render/src/map/bgfx/map_bgfx_globe_surface.cpp"; then
+        echo 'GUI globe terrain surface still owns mutable GPU buffers' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'this->terrain_buffers.patchWindow(' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp"; then
+        echo 'GUI globe terrain surface bypasses sparse Render patch uploads' >&2
         exit 1
     fi
 
-    # Retained Globe scene invalidation is owned by Render. The GUI may execute
-    # the plan using its hydraulic/terrain data but cannot decide stream groups.
-    if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
-        "$globe_scene" || \
-       ! grep -Fq 'applySceneInvalidation(' \
-        "$globe_scene"; then
-        echo 'Globe scene: Globe scene bypasses shared retained-scene invalidation policy' >&2
+    # Globe terrain GPU programs, frame uniforms, fallback textures and draw
+    # submission must all remain in Render. Heatmap baking/sky are separate.
+    if grep -Eq 'this->(surface_program|wireframe_program|tile_sampler|view_projection_uniform|missing_texture|cap_texture|tile_uniform|background_uniform|origin_uniform|light_uniform|shading_uniform)' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" "$render/src/map/bgfx/map_bgfx_globe_surface.h"; then
+        echo 'GUI still owns extracted terrain GPU programs or uniforms' >&2
         exit 1
     fi
-fi
+    if sed -n '/MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(/,/\/\/ --- Heatmap/p' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" \
+        | grep -Eq 'bgfx::(setIndexBuffer|setVertexBuffer|submit)\('; then
+        echo 'GUI globe frame still submits terrain draws directly' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'this->terrain_gpu.drawTile(' "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" || \
+       ! grep -Fq 'this->terrain_gpu.drawCap(' "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" || \
+       ! grep -Fq 'this->terrain_gpu.drawWireframe(' "$render/src/map/bgfx/map_bgfx_globe_surface.cpp"; then
+        echo 'GUI surface bypasses shared terrain GPU drawing' >&2
+        exit 1
+    fi
 
-# Sky and heatmap GPU resources must not regress to GUI ownership.
-if grep -Eq 'this->(sky_program|sky_triangle|sky_forward_uniform|heatmap_bake_program|heatmap_surface_program|heatmap_pages)|bgfx::createFrameBuffer\(|bgfx::allocTransientVertexBuffer\(' \
-    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
-    echo 'GUI globe surface owns GPU sky or heatmap resources again' >&2
-    exit 1
-fi
-for token in 'this->sky_gpu.initialize(' 'this->sky_gpu.draw(' 'this->heatmap_gpu.initialize(' 'this->heatmap_gpu.bakePage('; do
-    if ! grep -Fq "$token" src/map/bgfx/map_bgfx_globe_surface.cpp; then
-        echo "GUI globe surface bypasses shared overlay GPU: $token" >&2
+    # Programs, uniforms and GPU material textures now belong to Render.
+    if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
+        "$render/src/map/bgfx/map_bgfx_globe_network.cpp" "$render/src/map/bgfx/map_bgfx_globe_network.h"; then
+        echo 'GUI globe network still creates or destroys Render-owned GPU resources' >&2
         exit 1
     fi
-done
+    if ! grep -Fq 'gpu_resources.populateInput(&draw_input)' \
+        "$render/src/map/bgfx/map_bgfx_globe_network.cpp"; then
+        echo 'GUI globe draw path bypasses Render-owned shader/texture handles' >&2
+        exit 1
+    fi
+    if [[ -d src/map/bgfx/shaders ]] && \
+       find src/map/bgfx/shaders -type f -print -quit | grep -q .; then
+        echo 'GUI still contains Render-owned shaders' >&2
+        exit 1
+    fi
+    if grep -Fq '"${CMAKE_CURRENT_SOURCE_DIR}/../AOWIS-GUI-Render"' CMakeLists.txt; then
+        echo 'Implicit sibling checkout fallback remains in GUI CMake' >&2
+        exit 1
+    fi
+    if ! grep -Fq 'external/AOWIS-GUI-Render" -o' tools/zip_gui_project.sh; then
+        echo 'GUI source snapshots would recurse into the Render submodule' >&2
+        exit 1
+    fi
+    # The globe network scene lives in Render (AOWIS::RenderGlobeNetwork); it must
+    # keep using Render's shared flow, link, underground and invalidation code.
+    # Checked against the Render checkout (absent in --source-only snapshots).
+    globe_scene="$render/src/map/render/map_globe_network_scene.cpp"
+    if [[ -f "$globe_scene" ]]; then
+        # The Globe scene may adapt flow strokes into its host vertex ABI, but
+        # placement and ellipsoid tangent math must remain in the Render library.
+        if grep -Eq 'FlowDirection(SpacingPixels|ChevronHalfWidthRatio|MaximumMarkersPerLink)|MapGlobeNetworkScene::ellipsoidNormalAt' \
+            "$globe_scene"; then
+            echo 'Globe scene: still owns extracted Globe flow placement or normal calculation' >&2
+            exit 1
+        fi
+        if ! grep -Fq 'MapGlobeFlowGeometry::emitStrokes(' \
+            "$globe_scene"; then
+            echo 'Globe scene: Globe scene bypasses shared flow geometry' >&2
+            exit 1
+        fi
+        if grep -Eq 'longLinkSubdivisionCount' \
+            "$globe_scene"; then
+            echo 'Globe scene: still owns extracted globe link geometry' >&2
+            exit 1
+        fi
+        if ! grep -Fq 'MapGlobeLinkGeometry::emitCurvedSegments' "$globe_scene" || \
+           ! grep -Fq 'MapGlobeLinkGeometry::emitRibbonCorners' "$globe_scene"; then
+            echo 'Globe scene: is not using shared globe link geometry' >&2
+            exit 1
+        fi
+        # Terrain-aware X-Ray classification and run coalescing must stay in Render.
+        if grep -Eq 'UndergroundSubdivision(FallbackTargetLengthM|MinimumTargetLengthM|TerrainCellFraction|MaximumCount)' \
+            "$globe_scene"; then
+            echo 'Globe scene: still owns extracted underground sampling policy' >&2
+            exit 1
+        fi
+        if ! grep -Fq 'MapGlobeUndergroundGeometry::subdivisionCount(' \
+            "$globe_scene" || \
+           ! grep -Fq 'MapGlobeUndergroundGeometry::emitBuriedRuns(' \
+            "$globe_scene"; then
+            echo 'Globe scene: X-Ray path bypasses Render underground run classification' >&2
+            exit 1
+        fi
+
+        # Retained Globe scene invalidation is owned by Render. The GUI may execute
+        # the plan using its hydraulic/terrain data but cannot decide stream groups.
+        if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
+            "$globe_scene" || \
+           ! grep -Fq 'applySceneInvalidation(' \
+            "$globe_scene"; then
+            echo 'Globe scene: Globe scene bypasses shared retained-scene invalidation policy' >&2
+            exit 1
+        fi
+    fi
+
+    # Sky and heatmap GPU resources must not regress to GUI ownership.
+    if grep -Eq 'this->(sky_program|sky_triangle|sky_forward_uniform|heatmap_bake_program|heatmap_surface_program|heatmap_pages)|bgfx::createFrameBuffer\(|bgfx::allocTransientVertexBuffer\(' \
+        "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" "$render/src/map/bgfx/map_bgfx_globe_surface.h"; then
+        echo 'GUI globe surface owns GPU sky or heatmap resources again' >&2
+        exit 1
+    fi
+    for token in 'this->sky_gpu.initialize(' 'this->sky_gpu.draw(' 'this->heatmap_gpu.initialize(' 'this->heatmap_gpu.bakePage('; do
+        if ! grep -Fq "$token" "$render/src/map/bgfx/map_bgfx_globe_surface.cpp"; then
+            echo "GUI globe surface bypasses shared overlay GPU: $token" >&2
+            exit 1
+        fi
+    done
+fi
 
 printf 'PASS: shared renderer submodule and source ownership boundary\n'
