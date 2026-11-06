@@ -29,6 +29,10 @@ required_files=(
     src/map/render/map_globe_underground_geometry.cpp
     src/map/render/map_globe_scene_sync.h
     src/map/render/map_globe_scene_sync.cpp
+    src/map/render/map_globe_tile_topology.h
+    src/map/render/map_globe_tile_topology.cpp
+    src/map/bgfx/map_bgfx_globe_tile_index_pool.h
+    src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp
 )
 
 for relative in "${required_files[@]}"; do

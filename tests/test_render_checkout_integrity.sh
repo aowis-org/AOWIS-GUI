@@ -23,6 +23,10 @@ create_render_repo()
     printf 'underground source original\n' > "$path/src/map/render/map_globe_underground_geometry.cpp"
     printf 'scene sync header original\n' > "$path/src/map/render/map_globe_scene_sync.h"
     printf 'scene sync source original\n' > "$path/src/map/render/map_globe_scene_sync.cpp"
+    printf 'tile topology header original\n' > "$path/src/map/render/map_globe_tile_topology.h"
+    printf 'tile topology source original\n' > "$path/src/map/render/map_globe_tile_topology.cpp"
+    printf 'tile GPU pool header original\n' > "$path/src/map/bgfx/map_bgfx_globe_tile_index_pool.h"
+    printf 'tile GPU pool source original\n' > "$path/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -42,7 +46,11 @@ rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
       "$render/src/map/render/map_globe_underground_geometry.h" \
       "$render/src/map/render/map_globe_underground_geometry.cpp" \
       "$render/src/map/render/map_globe_scene_sync.h" \
-      "$render/src/map/render/map_globe_scene_sync.cpp"
+      "$render/src/map/render/map_globe_scene_sync.cpp" \
+      "$render/src/map/render/map_globe_tile_topology.h" \
+      "$render/src/map/render/map_globe_tile_topology.cpp" \
+      "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.h" \
+      "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
@@ -54,6 +62,10 @@ grep -qx 'underground header original' "$render/src/map/render/map_globe_undergr
 grep -qx 'underground source original' "$render/src/map/render/map_globe_underground_geometry.cpp"
 grep -qx 'scene sync header original' "$render/src/map/render/map_globe_scene_sync.h"
 grep -qx 'scene sync source original' "$render/src/map/render/map_globe_scene_sync.cpp"
+grep -qx 'tile topology header original' "$render/src/map/render/map_globe_tile_topology.h"
+grep -qx 'tile topology source original' "$render/src/map/render/map_globe_tile_topology.cpp"
+grep -qx 'tile GPU pool header original' "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.h"
+grep -qx 'tile GPU pool source original' "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

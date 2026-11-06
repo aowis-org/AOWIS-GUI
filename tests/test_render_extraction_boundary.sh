@@ -57,6 +57,10 @@ for relative in \
     src/map/render/map_globe_render_instances.h \
     src/map/render/map_globe_vertical_transform.h \
     src/map/render/map_globe_surface_vertex.h \
+    src/map/render/map_globe_tile_topology.h \
+    src/map/render/map_globe_tile_topology.cpp \
+    src/map/bgfx/map_bgfx_globe_tile_index_pool.h \
+    src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp \
     src/map/render/map_globe_flow_geometry.h \
     src/map/render/map_globe_flow_geometry.cpp \
     src/map/render/map_globe_link_geometry.h \
@@ -103,6 +107,17 @@ for layout in link node icon junction model; do
         exit 1
     fi
 done
+# Globe surface topology and GPU tile index buffers also belong to Render.
+if grep -Eq 'tile_index_buffers|MapBgfxGlobeSurface::tileIndexBuffer\(' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
+    echo 'GUI globe surface still owns terrain tile GPU index buffers' >&2
+    exit 1
+fi
+if ! grep -Fq 'this->tile_index_pool.get(tile.grid_cell_count)' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp; then
+    echo 'GUI globe surface bypasses Render tile index pool' >&2
+    exit 1
+fi
 # Programs, uniforms and GPU material textures now belong to Render.
 if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
     src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then

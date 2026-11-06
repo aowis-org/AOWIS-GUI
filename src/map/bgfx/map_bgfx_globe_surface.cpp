@@ -111,7 +111,6 @@ MapBgfxGlobeSurface::MapBgfxGlobeSurface(MapModel *map_model)
       surface_preparation(map_model),
       heatmap_scene(MapModel::MaxZoom)
 {
-    this->tile_index_buffers.fill(BGFX_INVALID_HANDLE);
 }
 
 MapBgfxGlobeSurface::~MapBgfxGlobeSurface() = default;
@@ -202,8 +201,7 @@ bool MapBgfxGlobeSurface::ready() const
 void MapBgfxGlobeSurface::destroyBuffers()
 {
     destroyHandle(&this->window_vertices);
-    for (bgfx::IndexBufferHandle &handle : this->tile_index_buffers)
-        destroyHandle(&handle);
+    this->tile_index_pool.release();
     destroyHandle(&this->cap_vertices);
     destroyHandle(&this->cap_indices);
     destroyHandle(&this->wireframe_vertices);
@@ -385,27 +383,10 @@ void MapBgfxGlobeSurface::terrainMeshProgress(int *completed, int *total, bool *
 
 void MapBgfxGlobeSurface::uploadWindowGeometry()
 {
-    // Vertices only: the tiles' topology is shared (tileIndexBuffer()).
+    // Vertices only: Render owns the shared tile/skirt index buffers.
     replaceVertices(&this->window_vertices, this->surface_layout,
                     this->surface_preparation.windowVertices());
     this->window_upload_pending = false;
-}
-
-bgfx::IndexBufferHandle MapBgfxGlobeSurface::tileIndexBuffer(int cells)
-{
-    if (cells < 1 || cells > MapGlobeTileMaximumCellCount)
-        return BGFX_INVALID_HANDLE;
-    bgfx::IndexBufferHandle &handle = this->tile_index_buffers[std::size_t(cells)];
-    if (!bgfx::isValid(handle))
-    {
-        // The topology lives for the process: referenced, not copied.
-        const QVector<quint16> &indices = mapGlobeTileIndices(cells);
-        if (indices.isEmpty())
-            return BGFX_INVALID_HANDLE;
-        handle = bgfx::createIndexBuffer(bgfx::makeRef(
-            indices.constData(), uint32_t(indices.size() * qsizetype(sizeof(quint16)))));
-    }
-    return handle;
 }
 
 void MapBgfxGlobeSurface::uploadCapGeometry()
@@ -716,7 +697,7 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
                 const MapGlobeSurfaceTile &tile = tiles.at(index);
                 if (tile.index_count <= 0 || tile.vertex_count <= 0)
                     continue;
-                const bgfx::IndexBufferHandle tile_indices = tileIndexBuffer(tile.grid_cell_count);
+                const bgfx::IndexBufferHandle tile_indices = this->tile_index_pool.get(tile.grid_cell_count);
                 if (!bgfx::isValid(tile_indices))
                     continue;
                 const TileImagery &state = this->window_imagery.at(index);

@@ -708,8 +708,8 @@ Terrain surface (`map_bgfx_globe_surface.*`):
   per new tile and finished mesh; caps: full upload on a rebuild), one
   indexed draw per tile, depth test and write LessEqual. Window tiles have no index buffer
   of their own: the topology depends on the cell count only, so one static
-  16-bit index buffer per cell count (`mapGlobeTileIndices()`, created on
-  first use) serves every tile, drawn with the tile's first vertex as start
+  16-bit index buffer per cell count (topology from Render's
+  `mapGlobeTileIndices()`, GPU cache in `MapBgfxGlobeTileIndexPool`) serves every tile, drawn with the tile's first vertex as start
   vertex (bgfx applies it as base vertex on GL/WebGL, D3D11, Vulkan and
   Metal). A window rebuild writes and uploads no indices (at 64 cells that
   was more than half of a tile's upload); picking and the wireframe read the

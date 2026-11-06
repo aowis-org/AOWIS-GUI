@@ -2,6 +2,7 @@
 #define MAP_BGFX_GLOBE_SURFACE_H
 
 #include "map/bgfx/map_bgfx_2d_imagery_gpu.h"
+#include "map/bgfx/map_bgfx_globe_tile_index_pool.h"
 #include "map/render/map_globe_camera.h"
 #include "map/render/map_globe_heatmap_scene.h"
 #include "map/render/map_globe_surface_preparation.h"
@@ -36,7 +37,7 @@ class MapTileRepository;
 // - window and cap vertices in dynamic buffers: uploaded completely when
 //   the window or the caps are rebuilt, terrain meshes as patches of the
 //   tile's vertex range; window tiles share one static index buffer per
-//   cell count (tileIndexBuffer()), the caps have their own;
+//   cell count (Render's MapBgfxGlobeTileIndexPool), the caps have their own;
 // - imagery from the 2D imagery atlas (MapBgfx2dImageryGpu, shared: a tile
 //   is uploaded once for both views). Each tile is one indexed draw (its
 //   cell count's topology from its first vertex) with its atlas rectangle
@@ -196,8 +197,6 @@ private:
     };
 
     void uploadWindowGeometry();
-    // The shared index buffer of cell count `cells`; invalid outside 1..64.
-    bgfx::IndexBufferHandle tileIndexBuffer(int cells);
     void uploadCapGeometry();
     void uploadWireframe();
     void requestImagery();
@@ -233,10 +232,8 @@ private:
     bgfx::TextureHandle cap_texture = BGFX_INVALID_HANDLE;
 
     bgfx::DynamicVertexBufferHandle window_vertices = BGFX_INVALID_HANDLE;
-    // One static index buffer per cell count, shared by every window tile
-    // with that count (mapGlobeTileIndices(), drawn with the tile's first
-    // vertex as base vertex); created on first use, kept until shutdown.
-    std::array<bgfx::IndexBufferHandle, MapGlobeTileMaximumCellCount + 1> tile_index_buffers;
+    // GPU ownership and reuse of per-resolution tile/skirt topology.
+    MapBgfxGlobeTileIndexPool tile_index_pool;
     bgfx::DynamicVertexBufferHandle cap_vertices = BGFX_INVALID_HANDLE;
     bgfx::DynamicIndexBufferHandle cap_indices = BGFX_INVALID_HANDLE;
     bgfx::DynamicVertexBufferHandle wireframe_vertices = BGFX_INVALID_HANDLE;
