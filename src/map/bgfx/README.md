@@ -1064,5 +1064,8 @@ spatial index is tied to zoom buckets or network geometry re-preparation.
 
 The production globe network draw-order and bgfx stream-submission path now
 lives in `AOWIS::RenderCore` (`MapBgfxGlobeGpu`). `MapBgfxGlobeNetwork` still
-owns the GUI snapshot adapter, picking, resource lifetime, and per-frame
-camera uniforms; it passes only handles and values to the shared draw layer.
+owns the GUI snapshot adapter, picking, vertex layouts and per-frame camera
+uniform values. `MapBgfxGlobeBufferPool` owns GPU streams, while
+`MapBgfxGlobeResourcePool` owns shaders, uniforms and GPU model textures;
+Render prepares the smooth mip chain from GUI-provided tank/reservoir images.
+The shared icon atlas remains owned separately, not by the resource pool.

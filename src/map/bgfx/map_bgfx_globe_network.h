@@ -4,6 +4,7 @@
 #include "map/bgfx/map_bgfx_entity_style.h"
 #include "map/bgfx/map_bgfx_globe_gpu.h"
 #include "map/bgfx/map_bgfx_globe_buffer_pool.h"
+#include "map/bgfx/map_bgfx_globe_resource_pool.h"
 #include "map/render/map_globe_network_scene.h"
 #include "map/render/map_globe_reservoir_model.h"
 #include "map/render/map_globe_tank_model.h"
@@ -206,25 +207,7 @@ private:
     bgfx::VertexLayout icon_layout;
     bgfx::VertexLayout junction_layout;
     bgfx::VertexLayout model_layout;
-    bgfx::ProgramHandle link_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle link_xray_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle flow_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle node_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle junction_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle junction_xray_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle icon_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle model_program = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle view_projection_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle viewport_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle params_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle camera_right_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle camera_up_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle camera_eye_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle icon_sampler = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle albedo_sampler = BGFX_INVALID_HANDLE;
-    bgfx::TextureHandle tank_texture = BGFX_INVALID_HANDLE;
-    bgfx::TextureHandle reservoir_texture = BGFX_INVALID_HANDLE;
-
+    MapBgfxGlobeResourcePool gpu_resources;
     MapBgfxGlobeBufferPool gpu_buffers;
 };
 

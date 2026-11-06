@@ -11,9 +11,7 @@
 #include "map/render/map_globe_tank_model.h"
 #include "network/network_symbology_rendering.h"
 
-#include <QByteArray>
 #include <QDebug>
-#include <QImage>
 #include <QLineF>
 #include <QMatrix4x4>
 #include <QSet>
@@ -28,53 +26,15 @@
 
 namespace
 {
-constexpr uint64_t kAlbedoSamplerFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
 // The six corners of an impostor quad (MapGlobeJunctionImpostorVertex).
 const float kImpostorCorners[6][2] = {
     {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
-
-template <typename Handle>
-void destroyHandle(Handle *handle)
-{
-    if (bgfx::isValid(*handle))
-    {
-        bgfx::destroy(*handle);
-        *handle = BGFX_INVALID_HANDLE;
-    }
-}
 
 // Bytes after the last attribute (render id, entity type, padding).
 template <typename Vertex>
 uint8_t tailBytes(std::size_t last_attribute_end)
 {
     return uint8_t(sizeof(Vertex) - last_attribute_end);
-}
-
-// RGBA8 texture with its complete mip chain (premultiplied, smooth
-// scaling), as the 2D icon atlas: the models are seen at every distance.
-bgfx::TextureHandle mipmappedTexture(const QImage &source, uint64_t flags)
-{
-    if (source.isNull())
-        return BGFX_INVALID_HANDLE;
-    QImage level = source.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
-    const int width = level.width();
-    const int height = level.height();
-    QByteArray pixels;
-    int level_width = width;
-    int level_height = height;
-    while (true)
-    {
-        for (int row = 0; row < level.height(); ++row)
-            pixels.append(reinterpret_cast<const char *>(level.constScanLine(row)), level.width() * 4);
-        if (level_width == 1 && level_height == 1)
-            break;
-        level_width = std::max(1, level_width / 2);
-        level_height = std::max(1, level_height / 2);
-        level = level.scaled(level_width, level_height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-                    .convertToFormat(QImage::Format_RGBA8888_Premultiplied);
-    }
-    return bgfx::createTexture2D(uint16_t(width), uint16_t(height), true, 1, bgfx::TextureFormat::RGBA8,
-                                 flags, bgfx::copy(pixels.constData(), uint32_t(pixels.size())));
 }
 
 bool sameSymbologySizes(const MapNetworkRenderSymbology &a, const MapNetworkRenderSymbology &b)
@@ -142,74 +102,29 @@ bool MapBgfxGlobeNetwork::initialize()
         return false;
     }
 
-    this->link_program = MapBgfxBackend::loadProgram("vs_globe_link", "fs_globe_link");
-    this->link_xray_program = MapBgfxBackend::loadProgram("vs_globe_link", "fs_globe_link_xray");
-    this->flow_program = MapBgfxBackend::loadProgram("vs_globe_flow", "fs_globe_link");
-    this->node_program = MapBgfxBackend::loadProgram("vs_globe_node", "fs_globe_node");
-    this->junction_program = MapBgfxBackend::loadProgram("vs_globe_junction", "fs_globe_junction");
-    this->junction_xray_program = MapBgfxBackend::loadProgram("vs_globe_junction", "fs_globe_junction_xray");
-    this->icon_program = MapBgfxBackend::loadProgram("vs_globe_icon", "fs_globe_icon");
-    this->model_program = MapBgfxBackend::loadProgram("vs_globe_model", "fs_globe_model");
-    this->view_projection_uniform = bgfx::createUniform("u_net_view_proj", bgfx::UniformType::Mat4);
-    this->viewport_uniform = bgfx::createUniform("u_net_viewport", bgfx::UniformType::Vec4);
-    this->params_uniform = bgfx::createUniform("u_net_params", bgfx::UniformType::Vec4);
-    this->camera_right_uniform = bgfx::createUniform("u_net_camera_right", bgfx::UniformType::Vec4);
-    this->camera_up_uniform = bgfx::createUniform("u_net_camera_up", bgfx::UniformType::Vec4);
-    this->camera_eye_uniform = bgfx::createUniform("u_net_camera_eye", bgfx::UniformType::Vec4);
-    this->icon_sampler = bgfx::createUniform("s_net_icons", bgfx::UniformType::Sampler);
-    this->albedo_sampler = bgfx::createUniform("s_net_albedo", bgfx::UniformType::Sampler);
-    this->tank_texture = mipmappedTexture(mapGlobeTankAlbedoImage(), kAlbedoSamplerFlags);
-    this->reservoir_texture = mipmappedTexture(mapGlobeReservoirAlbedoImage(), kAlbedoSamplerFlags);
-    // Everything goes up again on the (new) device.
-    markDirty(AllStreams);
-    if (!ready())
+    if (!this->gpu_resources.initialize(MapBgfxBackend::loadProgram,
+                                        mapBgfxGlobeMipTexture(mapGlobeTankAlbedoImage()),
+                                        mapBgfxGlobeMipTexture(mapGlobeReservoirAlbedoImage())))
     {
-        qWarning() << "bgfx globe network unavailable: programs" << bgfx::isValid(this->link_program)
-                   << bgfx::isValid(this->link_xray_program) << bgfx::isValid(this->flow_program)
-                   << bgfx::isValid(this->node_program) << bgfx::isValid(this->junction_program)
-                   << bgfx::isValid(this->junction_xray_program) << bgfx::isValid(this->icon_program)
-                   << bgfx::isValid(this->model_program);
+        qWarning() << "bgfx globe network unavailable: shader programs, uniforms or model textures";
         release();
         return false;
     }
+    // Everything goes up again on the (new) device.
+    markDirty(AllStreams);
     return true;
 }
 
 bool MapBgfxGlobeNetwork::ready() const
 {
-    return bgfx::isValid(this->link_program) && bgfx::isValid(this->link_xray_program)
-        && bgfx::isValid(this->flow_program) && bgfx::isValid(this->node_program)
-        && bgfx::isValid(this->junction_program) && bgfx::isValid(this->junction_xray_program)
-        && bgfx::isValid(this->icon_program) && bgfx::isValid(this->model_program)
-        && bgfx::isValid(this->view_projection_uniform) && bgfx::isValid(this->viewport_uniform)
-        && bgfx::isValid(this->params_uniform) && bgfx::isValid(this->camera_right_uniform)
-        && bgfx::isValid(this->camera_up_uniform) && bgfx::isValid(this->camera_eye_uniform)
-        && bgfx::isValid(this->icon_sampler) && bgfx::isValid(this->albedo_sampler)
-        && bgfx::isValid(this->tank_texture) && bgfx::isValid(this->reservoir_texture);
+    return this->gpu_resources.ready();
 }
 
 void MapBgfxGlobeNetwork::release()
 {
     this->gpu_buffers.release();
+    this->gpu_resources.release();
     this->icon_order_dirty = true;
-    destroyHandle(&this->reservoir_texture);
-    destroyHandle(&this->tank_texture);
-    destroyHandle(&this->albedo_sampler);
-    destroyHandle(&this->icon_sampler);
-    destroyHandle(&this->camera_eye_uniform);
-    destroyHandle(&this->camera_up_uniform);
-    destroyHandle(&this->camera_right_uniform);
-    destroyHandle(&this->params_uniform);
-    destroyHandle(&this->viewport_uniform);
-    destroyHandle(&this->view_projection_uniform);
-    destroyHandle(&this->model_program);
-    destroyHandle(&this->icon_program);
-    destroyHandle(&this->junction_xray_program);
-    destroyHandle(&this->junction_program);
-    destroyHandle(&this->node_program);
-    destroyHandle(&this->flow_program);
-    destroyHandle(&this->link_xray_program);
-    destroyHandle(&this->link_program);
     markDirty(AllStreams);
 }
 
@@ -639,23 +554,8 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
     // new GPU pass cannot silently shift an existing handle to the wrong
     // shader or vertex layout.
     this->gpu_buffers.populateInput(&draw_input);
-    draw_input.setProgram(MapBgfxGlobeProgram::Link, this->link_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::LinkXRay, this->link_xray_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::Flow, this->flow_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::Node, this->node_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::Junction, this->junction_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::JunctionXRay, this->junction_xray_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::Icon, this->icon_program);
-    draw_input.setProgram(MapBgfxGlobeProgram::Model, this->model_program);
-    draw_input.uniforms = {
-        this->view_projection_uniform, this->viewport_uniform, this->params_uniform,
-        this->camera_right_uniform, this->camera_up_uniform, this->camera_eye_uniform
-    };
+    this->gpu_resources.populateInput(&draw_input);
     draw_input.icon_atlas = icon_atlas;
-    draw_input.tank_texture = this->tank_texture;
-    draw_input.reservoir_texture = this->reservoir_texture;
-    draw_input.icon_sampler = this->icon_sampler;
-    draw_input.albedo_sampler = this->albedo_sampler;
     draw_input.show_junctions = resources.show_junctions;
     switch (this->underground_mode)
     {

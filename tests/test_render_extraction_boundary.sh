@@ -48,6 +48,9 @@ for relative in \
     src/map/bgfx/map_bgfx_globe_gpu.cpp \
     src/map/bgfx/map_bgfx_globe_buffer_pool.h \
     src/map/bgfx/map_bgfx_globe_buffer_pool.cpp \
+    src/map/bgfx/map_bgfx_globe_resource_pool.h \
+    src/map/bgfx/map_bgfx_globe_resource_pool.cpp \
+    src/map/bgfx/map_bgfx_globe_texture_pixels.cpp \
     src/map/bgfx/map_bgfx_globe_draw_plan.h \
     src/map/render/map_node_declutter.h \
     src/map/render/map_node_declutter.cpp \
@@ -71,6 +74,17 @@ if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer
 fi
 if ! grep -Fq 'gpu_buffers.populateInput(&draw_input)' src/map/bgfx/map_bgfx_globe_network.cpp; then
     echo 'GUI globe draw path bypasses shared GPU stream handles' >&2
+    exit 1
+fi
+# Programs, uniforms and GPU material textures now belong to Render.
+if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
+    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
+    echo 'GUI globe network still creates or destroys Render-owned GPU resources' >&2
+    exit 1
+fi
+if ! grep -Fq 'gpu_resources.populateInput(&draw_input)' \
+    src/map/bgfx/map_bgfx_globe_network.cpp; then
+    echo 'GUI globe draw path bypasses Render-owned shader/texture handles' >&2
     exit 1
 fi
 if [[ -d src/map/bgfx/shaders ]] && \
