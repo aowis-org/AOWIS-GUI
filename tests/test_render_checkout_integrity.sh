@@ -31,6 +31,8 @@ create_render_repo()
     printf 'terrain vertex pool source original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp"
     printf 'terrain GPU header original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_gpu.h"
     printf 'terrain GPU source original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp"
+    printf 'overlay GPU header original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.h"
+    printf 'overlay GPU source original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -58,7 +60,9 @@ rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
       "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h" \
       "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp" \
       "$render/src/map/bgfx/map_bgfx_globe_terrain_gpu.h" \
-      "$render/src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp"
+      "$render/src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp" \
+      "$render/src/map/bgfx/map_bgfx_globe_overlay_gpu.h" \
+      "$render/src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
@@ -78,6 +82,8 @@ grep -qx 'terrain vertex pool header original' "$render/src/map/bgfx/map_bgfx_gl
 grep -qx 'terrain vertex pool source original' "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp"
 grep -qx 'terrain GPU header original' "$render/src/map/bgfx/map_bgfx_globe_terrain_gpu.h"
 grep -qx 'terrain GPU source original' "$render/src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp"
+grep -qx 'overlay GPU header original' "$render/src/map/bgfx/map_bgfx_globe_overlay_gpu.h"
+grep -qx 'overlay GPU source original' "$render/src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

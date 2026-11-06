@@ -3,6 +3,7 @@
 #include "map/bgfx/map_bgfx_globe_vertex_layouts.h"
 #include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
 #include "map/bgfx/map_bgfx_globe_terrain_gpu.h"
+#include "map/bgfx/map_bgfx_globe_overlay_gpu.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -55,6 +56,23 @@ int main(int argc, char **argv)
     if (terrain_gpu.ready())
     {
         std::cerr << "New terrain GPU resource pool unexpectedly ready\n";
+        return EXIT_FAILURE;
+    }
+
+    // Production sky/heatmap GPU ownership must link from RenderCore, not
+    // merely from the lightweight mock target. No device is initialized.
+    MapBgfxGlobeSkyGpu sky_gpu;
+    sky_gpu.release();
+    if (sky_gpu.ready())
+    {
+        std::cerr << "Fresh sky GPU resource pool unexpectedly ready\n";
+        return EXIT_FAILURE;
+    }
+    MapBgfxGlobeHeatmapGpu heatmap_gpu;
+    heatmap_gpu.release();
+    if (heatmap_gpu.ready())
+    {
+        std::cerr << "Fresh heatmap GPU resource pool unexpectedly ready\n";
         return EXIT_FAILURE;
     }
 

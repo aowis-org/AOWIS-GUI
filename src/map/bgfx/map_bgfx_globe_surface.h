@@ -5,6 +5,7 @@
 #include "map/bgfx/map_bgfx_globe_tile_index_pool.h"
 #include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
 #include "map/bgfx/map_bgfx_globe_terrain_gpu.h"
+#include "map/bgfx/map_bgfx_globe_overlay_gpu.h"
 #include "map/render/map_globe_camera.h"
 #include "map/render/map_globe_heatmap_scene.h"
 #include "map/render/map_globe_surface_preparation.h"
@@ -114,7 +115,7 @@ public:
 
     // One bake view per heatmap atlas page, owned by the parent map's
     // contiguous view reservation. No global view 0..4 assumption.
-    static constexpr int HeatmapPageCount = 4;
+    static constexpr int HeatmapPageCount = MapBgfxGlobeHeatmapGpu::PageCount;
     void setHeatmapBakeFirstView(bgfx::ViewId first) { this->heatmap_bake_first_view = first; }
 
     struct FrameInputs
@@ -165,12 +166,6 @@ private:
         int heatmap_page = -1;
         float heatmap_uniform[4] = {0.0f, 0.0f, 1.0f, 1.0f};
     };
-    // One heatmap atlas page: render target texture and its frame buffer.
-    struct HeatmapPage
-    {
-        bgfx::TextureHandle texture = BGFX_INVALID_HANDLE;
-        bgfx::FrameBufferHandle frame_buffer = BGFX_INVALID_HANDLE;
-    };
     // A tile's heatmap: the scene revision it shows, its cell (if it has
     // content) and the stamp layout cache of MapGlobeHeatmapScene.
     struct HeatmapCell
@@ -181,22 +176,7 @@ private:
         quint64 last_used_frame = 0;
         MapGlobeHeatmapTileLayoutCache layout_cache;
     };
-    // One stamp-quad corner of the bake (vs_globe_heatmap_bake).
-    struct HeatmapBakeVertex
-    {
-        float corner_x = 0.0f;
-        float corner_y = 0.0f;
-        float center_x = 0.0f;
-        float center_y = 0.0f;
-        float radius = 0.0f;
-        float solid_fraction = 0.0f;
-        float red = 0.0f;
-        float green = 0.0f;
-        float blue = 0.0f;
-        float alpha = 1.0f;
-        float cell_x = 0.0f;
-        float cell_y = 0.0f;
-    };
+    using HeatmapBakeVertex = MapBgfxGlobeHeatmapGpu::BakeVertex;
 
     void uploadWindowGeometry();
     void uploadCapGeometry();
@@ -214,7 +194,6 @@ private:
     // The sky triangle (see above); before everything else in the view.
     void drawSky(bgfx::ViewId view, const MapGlobeCameraBasis &basis,
                  const GeoWgs84Ellipsoid::EcefPositionD &render_origin, const QSize &logical_viewport);
-    void releaseSky();
     void destroyBuffers();
 
     MapModel *map_model = nullptr;
@@ -240,31 +219,18 @@ private:
     quint64 surface_revision = 1;
     QVector<TileImagery> window_imagery;
 
-    // Heatmap (slice 3b).
+    // Heatmap stamps/cell LRU are host state; Render owns the GPU atlas,
+    // programs, uniforms, bake layout and submission.
     MapGlobeHeatmapScene heatmap_scene;
-    bgfx::ProgramHandle heatmap_surface_program = BGFX_INVALID_HANDLE;
-    bgfx::ProgramHandle heatmap_bake_program = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle heatmap_tile_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle heatmap_style_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle heatmap_bake_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle heatmap_sampler = BGFX_INVALID_HANDLE;
-    bgfx::VertexLayout heatmap_bake_layout;
+    MapBgfxGlobeHeatmapGpu heatmap_gpu;
     bgfx::ViewId heatmap_bake_first_view = 1;
-    HeatmapPage heatmap_pages[HeatmapPageCount];
     // Cells by tile key (zoom, virtual x, y); slot owners per page.
     QHash<quint64, HeatmapCell> heatmap_cells;
     QVector<quint64> heatmap_slot_owners[HeatmapPageCount];
     quint64 heatmap_frame = 0;
 
-    // Sky (optional: without its program the globe draws as before).
-    bgfx::ProgramHandle sky_program = BGFX_INVALID_HANDLE;
-    bgfx::VertexLayout sky_layout;
-    bgfx::VertexBufferHandle sky_triangle = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle sky_forward_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle sky_right_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle sky_up_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle sky_vertical_uniform = BGFX_INVALID_HANDLE;
-    bgfx::UniformHandle sky_params_uniform = BGFX_INVALID_HANDLE;
+    // Shared Render owns the sky GPU resources. GUI computes camera vectors.
+    MapBgfxGlobeSkyGpu sky_gpu;
 };
 
 #endif // MAP_BGFX_GLOBE_SURFACE_H

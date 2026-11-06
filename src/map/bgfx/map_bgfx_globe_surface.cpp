@@ -17,10 +17,6 @@
 
 namespace
 {
-// Sky: added onto the cleared space colour, no depth (the surface follows).
-constexpr uint64_t kSkyState = BGFX_STATE_WRITE_RGB | BGFX_STATE_BLEND_ADD | BGFX_STATE_MSAA;
-// One triangle covering the screen (normalised device coordinates).
-const float kSkyTriangle[6] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
 // The QRhi globe's colours: tiles whose imagery (and every ancestor's) is
 // not loaded yet, and the polar caps beyond Web Mercator's latitude limit.
 const QColor GlobeMissingTileColor(18, 58, 72);
@@ -32,18 +28,12 @@ constexpr double GlobeHillshadeAltitudeDeg = 45.0;
 constexpr double GlobeHillshadeStrength = 0.8;
 const float kWholeTexture[4] = {0.0f, 0.0f, 1.0f, 1.0f};
 // Heatmap atlas pages: 2048 x 2048, 8 x 8 cells of the scene's 256 px.
-constexpr int kHeatmapPageSize = 2048;
+constexpr int kHeatmapPageSize = MapBgfxGlobeHeatmapGpu::PageSize;
 constexpr int kHeatmapCellSize = MapGlobeHeatmapScene::TextureSize;
 constexpr int kHeatmapCellsPerRow = kHeatmapPageSize / kHeatmapCellSize;
 constexpr int kHeatmapCellsPerPage = kHeatmapCellsPerRow * kHeatmapCellsPerRow;
 // Tiles (re)baked per frame: the stamp layout is CPU work per tile.
 constexpr int kHeatmapBakesPerFrame = 24;
-constexpr uint64_t kHeatmapSamplerFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
-// Bake: the cell is cleared without blending, the stamps accumulate with
-// premultiplied source-over (as QPainter's premultiplied raster).
-constexpr uint64_t kHeatmapClearState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A;
-constexpr uint64_t kHeatmapStampState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A
-    | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA);
 // The six corners of a stamp quad.
 const float kStampCorners[6][2] = {
     {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
@@ -54,18 +44,6 @@ quint64 heatmapTileKey(int zoom, int virtual_x, int tile_y)
     return (quint64(quint32(zoom)) << 58) | ((quint64(quint32(virtual_x)) & 0x1fffffffu) << 29)
         | (quint64(quint32(tile_y)) & 0x1fffffffu);
 }
-
-template <typename Handle>
-void destroyHandle(Handle *handle)
-{
-    if (bgfx::isValid(*handle))
-    {
-        bgfx::destroy(*handle);
-        *handle = BGFX_INVALID_HANDLE;
-    }
-}
-
-
 }
 
 MapBgfxGlobeSurface::MapBgfxGlobeSurface(MapModel *map_model)
@@ -97,41 +75,12 @@ bool MapBgfxGlobeSurface::initialize()
          std::uint8_t(GlobeMissingTileColor.blue()), std::uint8_t(255)},
         {std::uint8_t(GlobePolarCapColor.red()), std::uint8_t(GlobePolarCapColor.green()),
          std::uint8_t(GlobePolarCapColor.blue()), std::uint8_t(255)});
-    // Heatmap (optional: without its programs the terrain draws as before).
-    this->heatmap_bake_layout.begin()
-        .add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Float)
-        .add(bgfx::Attrib::TexCoord1, 2, bgfx::AttribType::Float)
-        .end();
-    this->heatmap_surface_program =
-        MapBgfxBackend::loadProgram("vs_globe_surface_heatmap", "fs_globe_surface_heatmap");
-    this->heatmap_bake_program = MapBgfxBackend::loadProgram("vs_globe_heatmap_bake", "fs_globe_heatmap_bake");
-    this->heatmap_tile_uniform = bgfx::createUniform("u_globe_heatmap", bgfx::UniformType::Vec4);
-    this->heatmap_style_uniform = bgfx::createUniform("u_globe_heatmap_style", bgfx::UniformType::Vec4);
-    this->heatmap_bake_uniform = bgfx::createUniform("u_heat_bake", bgfx::UniformType::Vec4);
-    this->heatmap_sampler = bgfx::createUniform("s_globe_heatmap", bgfx::UniformType::Sampler);
-    if (!bgfx::isValid(this->heatmap_surface_program) || !bgfx::isValid(this->heatmap_bake_program)
-        || this->heatmap_bake_layout.getStride() != sizeof(HeatmapBakeVertex))
-    {
+    // Both optional overlays are owned by Render. Failure retains the
+    // previous plain-terrain fallback behavior.
+    if (!this->heatmap_gpu.initialize(&MapBgfxBackend::loadProgram))
         qWarning() << "bgfx globe heatmap unavailable";
-        releaseHeatmap();
-    }
-    // Sky (optional as well).
-    this->sky_layout.begin().add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float).end();
-    this->sky_program = MapBgfxBackend::loadProgram("vs_globe_sky", "fs_globe_sky");
-    this->sky_triangle = bgfx::createVertexBuffer(bgfx::copy(kSkyTriangle, sizeof(kSkyTriangle)),
-                                                  this->sky_layout);
-    this->sky_forward_uniform = bgfx::createUniform("u_sky_forward", bgfx::UniformType::Vec4);
-    this->sky_right_uniform = bgfx::createUniform("u_sky_right", bgfx::UniformType::Vec4);
-    this->sky_up_uniform = bgfx::createUniform("u_sky_up", bgfx::UniformType::Vec4);
-    this->sky_vertical_uniform = bgfx::createUniform("u_sky_vertical", bgfx::UniformType::Vec4);
-    this->sky_params_uniform = bgfx::createUniform("u_sky_params", bgfx::UniformType::Vec4);
-    if (!bgfx::isValid(this->sky_program))
-    {
+    if (!this->sky_gpu.initialize(&MapBgfxBackend::loadProgram))
         qWarning() << "bgfx globe sky unavailable";
-        releaseSky();
-    }
     // Everything goes up again on the (new) device.
     this->window_upload_pending = true;
     this->cap_upload_pending = true;
@@ -160,31 +109,10 @@ void MapBgfxGlobeSurface::destroyBuffers()
 
 void MapBgfxGlobeSurface::releaseHeatmap()
 {
-    for (HeatmapPage &page : this->heatmap_pages)
-    {
-        destroyHandle(&page.frame_buffer);
-        destroyHandle(&page.texture);
-    }
     for (QVector<quint64> &owners : this->heatmap_slot_owners)
         owners.clear();
     this->heatmap_cells.clear();
-    destroyHandle(&this->heatmap_sampler);
-    destroyHandle(&this->heatmap_bake_uniform);
-    destroyHandle(&this->heatmap_style_uniform);
-    destroyHandle(&this->heatmap_tile_uniform);
-    destroyHandle(&this->heatmap_bake_program);
-    destroyHandle(&this->heatmap_surface_program);
-}
-
-void MapBgfxGlobeSurface::releaseSky()
-{
-    destroyHandle(&this->sky_params_uniform);
-    destroyHandle(&this->sky_vertical_uniform);
-    destroyHandle(&this->sky_up_uniform);
-    destroyHandle(&this->sky_right_uniform);
-    destroyHandle(&this->sky_forward_uniform);
-    destroyHandle(&this->sky_triangle);
-    destroyHandle(&this->sky_program);
+    this->heatmap_gpu.release();
 }
 
 void MapBgfxGlobeSurface::drawSky(bgfx::ViewId view, const MapGlobeCameraBasis &basis,
@@ -218,19 +146,18 @@ void MapBgfxGlobeSurface::drawSky(bgfx::ViewId view, const MapGlobeCameraBasis &
                                        float(eye.z / eye_radius_m), 0.0f};
     const float params_uniform[4] = {float(height_m / 1000.0), float((eye_radius_m - height_m) / 1000.0),
                                      0.0f, 0.0f};
-    bgfx::setVertexBuffer(0, this->sky_triangle);
-    bgfx::setUniform(this->sky_forward_uniform, forward_uniform);
-    bgfx::setUniform(this->sky_right_uniform, right_uniform);
-    bgfx::setUniform(this->sky_up_uniform, up_uniform);
-    bgfx::setUniform(this->sky_vertical_uniform, vertical_uniform);
-    bgfx::setUniform(this->sky_params_uniform, params_uniform);
-    bgfx::setState(kSkyState);
-    bgfx::submit(view, this->sky_program);
+    MapBgfxGlobeSkyGpu::Frame frame;
+    std::copy_n(forward_uniform, 4, frame.forward.begin());
+    std::copy_n(right_uniform, 4, frame.right.begin());
+    std::copy_n(up_uniform, 4, frame.up.begin());
+    std::copy_n(vertical_uniform, 4, frame.vertical.begin());
+    std::copy_n(params_uniform, 4, frame.params.begin());
+    this->sky_gpu.draw(view, frame);
 }
 
 void MapBgfxGlobeSurface::release()
 {
-    releaseSky();
+    this->sky_gpu.release();
     releaseHeatmap();
     destroyBuffers();
     this->terrain_gpu.release();
@@ -579,14 +506,7 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
     const float *matrix = view_projection.constData();
     const float heatmap_style[4] = {float(std::clamp(inputs.heatmap_opacity, 0.0, 1.0)), 0.0f, 0.0f, 0.0f};
     // The heatmap bake views run before this map's main view.
-    if (bgfx::isValid(this->heatmap_bake_program))
-    {
-        bgfx::ViewId order[HeatmapPageCount + 1];
-        for (int page = 0; page < HeatmapPageCount; ++page)
-            order[page] = bgfx::ViewId(this->heatmap_bake_first_view + page);
-        order[HeatmapPageCount] = view;
-        bgfx::setViewOrder(view, HeatmapPageCount + 1, order);
-    }
+    this->heatmap_gpu.orderViews(view, this->heatmap_bake_first_view);
     const float background[4] = {
         float(inputs.background.redF()), float(inputs.background.greenF()),
         float(inputs.background.blueF()),
@@ -615,7 +535,7 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
     if (this->map_visible)
     {
         // The sky first (the view is sequential): the surface covers it.
-        if (bgfx::isValid(this->sky_program))
+        if (this->sky_gpu.ready())
             drawSky(view, camera_basis, camera.renderOriginEcef(), inputs.logical_viewport);
         // Caps and per-tile imagery now submit through the shared Render GPU.
         for (const MapGlobeSurfaceTile &tile : this->surface_preparation.capTiles())
@@ -643,14 +563,10 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
                 const MapBgfxGlobeTerrainGpu::Heatmap *overlay = nullptr;
                 if (state.heatmap_page >= 0)
                 {
-                    heatmap.program = this->heatmap_surface_program;
-                    heatmap.sampler = this->heatmap_sampler;
-                    heatmap.tile_uniform = this->heatmap_tile_uniform;
-                    heatmap.style_uniform = this->heatmap_style_uniform;
-                    heatmap.texture = this->heatmap_pages[state.heatmap_page].texture;
-                    heatmap.tile_rect = state.heatmap_uniform;
-                    heatmap.style = heatmap_style;
-                    overlay = &heatmap;
+                    heatmap = this->heatmap_gpu.composite(state.heatmap_page,
+                                                          state.heatmap_uniform, heatmap_style);
+                    if (bgfx::isValid(heatmap.program))
+                        overlay = &heatmap;
                 }
                 if (this->terrain_gpu.drawTile(view, this->terrain_buffers.window(),
                                                std::uint32_t(tile.first_vertex),
@@ -680,18 +596,11 @@ bool MapBgfxGlobeSurface::allocateHeatmapCell(HeatmapCell *cell)
     for (int page = 0; page < HeatmapPageCount; ++page)
     {
         QVector<quint64> &owners = this->heatmap_slot_owners[page];
-        if (!bgfx::isValid(this->heatmap_pages[page].texture))
+        if (!bgfx::isValid(this->heatmap_gpu.pageTexture(page)))
         {
-            HeatmapPage &created = this->heatmap_pages[page];
-            created.texture = bgfx::createTexture2D(kHeatmapPageSize, kHeatmapPageSize, false, 1,
-                                                    bgfx::TextureFormat::RGBA8,
-                                                    BGFX_TEXTURE_RT | kHeatmapSamplerFlags);
-            if (bgfx::isValid(created.texture))
-                created.frame_buffer = bgfx::createFrameBuffer(1, &created.texture, false);
-            if (!bgfx::isValid(created.frame_buffer))
+            if (!this->heatmap_gpu.ensurePage(page))
             {
                 qWarning() << "bgfx globe heatmap: atlas page" << page << "could not be created";
-                destroyHandle(&created.texture);
                 return false;
             }
             owners.fill(0, kHeatmapCellsPerPage);
@@ -745,7 +654,7 @@ void MapBgfxGlobeSurface::resolveHeatmap(double opacity, FrameResult *result)
     }
     for (TileImagery &state : this->window_imagery)
         state.heatmap_page = -1;
-    if (!bgfx::isValid(this->heatmap_bake_program) || this->heatmap_scene.isEmpty() || opacity <= 0.0)
+    if (!this->heatmap_gpu.ready() || this->heatmap_scene.isEmpty() || opacity <= 0.0)
         return;
 
     const quint64 revision = this->heatmap_scene.revision();
@@ -851,47 +760,24 @@ void MapBgfxGlobeSurface::resolveHeatmap(double opacity, FrameResult *result)
         }
     }
 
-    // Bake views (ordered before the map view in render()).
-    const bgfx::Caps *caps = bgfx::getCaps();
-    const float bake_parameters[4] = {float(kHeatmapPageSize),
-                                      caps != nullptr && caps->originBottomLeft ? -1.0f : 1.0f, 0.0f, 0.0f};
+    // Bake views (ordered before the map view in render()). Render owns
+    // transient allocations, render targets and GPU submissions.
     for (int page = 0; page < HeatmapPageCount; ++page)
     {
         if (clears[page].isEmpty())
             continue;
-        const uint32_t clear_count = uint32_t(clears[page].size());
-        const uint32_t stamp_count = uint32_t(stamps[page].size());
-        if (bgfx::getAvailTransientVertexBuffer(clear_count + stamp_count, this->heatmap_bake_layout)
-            < clear_count + stamp_count)
+        const bool baked = this->heatmap_gpu.bakePage(
+            bgfx::ViewId(this->heatmap_bake_first_view + page), page,
+            clears[page].constData(), std::uint32_t(clears[page].size()),
+            stamps[page].constData(), std::uint32_t(stamps[page].size()));
+        if (!baked)
         {
-            // No transient space left this frame: these cells bake later.
+            // Roll back revision stamps: retry the page on a later frame.
             for (const quint64 key : baked_keys[page])
                 this->heatmap_cells[key].revision = 0;
             result->pending = true;
             continue;
         }
-        const bgfx::ViewId bake_view = bgfx::ViewId(this->heatmap_bake_first_view + page);
-        bgfx::setViewFrameBuffer(bake_view, this->heatmap_pages[page].frame_buffer);
-        bgfx::setViewRect(bake_view, 0, 0, kHeatmapPageSize, kHeatmapPageSize);
-        bgfx::setViewClear(bake_view, BGFX_CLEAR_NONE);
-        bgfx::setViewMode(bake_view, bgfx::ViewMode::Sequential);
-        bgfx::setViewTransform(bake_view, nullptr, nullptr);
-        bgfx::TransientVertexBuffer clear_buffer;
-        bgfx::allocTransientVertexBuffer(&clear_buffer, clear_count, this->heatmap_bake_layout);
-        std::copy_n(clears[page].constData(), clear_count,
-                    reinterpret_cast<HeatmapBakeVertex *>(clear_buffer.data));
-        bgfx::setVertexBuffer(0, &clear_buffer);
-        bgfx::setUniform(this->heatmap_bake_uniform, bake_parameters);
-        bgfx::setState(kHeatmapClearState);
-        bgfx::submit(bake_view, this->heatmap_bake_program);
-        bgfx::TransientVertexBuffer stamp_buffer;
-        bgfx::allocTransientVertexBuffer(&stamp_buffer, stamp_count, this->heatmap_bake_layout);
-        std::copy_n(stamps[page].constData(), stamp_count,
-                    reinterpret_cast<HeatmapBakeVertex *>(stamp_buffer.data));
-        bgfx::setVertexBuffer(0, &stamp_buffer);
-        bgfx::setUniform(this->heatmap_bake_uniform, bake_parameters);
-        bgfx::setState(kHeatmapStampState);
-        bgfx::submit(bake_view, this->heatmap_bake_program);
         result->heatmap_bakes += baked_keys[page].size();
     }
 }

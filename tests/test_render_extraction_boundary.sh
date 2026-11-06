@@ -65,6 +65,8 @@ for relative in \
     src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp \
     src/map/bgfx/map_bgfx_globe_terrain_gpu.h \
     src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp \
+    src/map/bgfx/map_bgfx_globe_overlay_gpu.h \
+    src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp \
     src/map/render/map_globe_flow_geometry.h \
     src/map/render/map_globe_flow_geometry.cpp \
     src/map/render/map_globe_link_geometry.h \
@@ -224,5 +226,18 @@ if ! grep -Fq 'MapGlobeSceneSync::forSymbology(changes)' \
     echo 'GUI Globe scene bypasses shared retained-scene invalidation policy' >&2
     exit 1
 fi
+
+# Sky and heatmap GPU resources must not regress to GUI ownership.
+if grep -Eq 'this->(sky_program|sky_triangle|sky_forward_uniform|heatmap_bake_program|heatmap_surface_program|heatmap_pages)|bgfx::createFrameBuffer\(|bgfx::allocTransientVertexBuffer\(' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_globe_surface.h; then
+    echo 'GUI globe surface owns GPU sky or heatmap resources again' >&2
+    exit 1
+fi
+for token in 'this->sky_gpu.initialize(' 'this->sky_gpu.draw(' 'this->heatmap_gpu.initialize(' 'this->heatmap_gpu.bakePage('; do
+    if ! grep -Fq "$token" src/map/bgfx/map_bgfx_globe_surface.cpp; then
+        echo "GUI globe surface bypasses shared overlay GPU: $token" >&2
+        exit 1
+    fi
+done
 
 printf 'PASS: shared renderer submodule and source ownership boundary\n'
