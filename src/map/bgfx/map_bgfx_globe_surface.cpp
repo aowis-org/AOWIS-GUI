@@ -82,28 +82,7 @@ bgfx::TextureHandle solidTexture(const QColor &color)
                                  kTileSamplerFlags, bgfx::copy(texel, sizeof(texel)));
 }
 
-// Grows (or creates) a dynamic buffer and replaces its content.
-template <typename Element>
-void replaceVertices(bgfx::DynamicVertexBufferHandle *handle, const bgfx::VertexLayout &layout,
-                     const QVector<Element> &elements)
-{
-    if (!bgfx::isValid(*handle))
-        *handle = bgfx::createDynamicVertexBuffer(uint32_t(std::max<qsizetype>(1, elements.size())),
-                                                  layout, BGFX_BUFFER_ALLOW_RESIZE);
-    if (!elements.isEmpty())
-        bgfx::update(*handle, 0, bgfx::copy(elements.constData(),
-                                            uint32_t(elements.size() * qsizetype(sizeof(Element)))));
-}
 
-void replaceIndices(bgfx::DynamicIndexBufferHandle *handle, const QVector<quint32> &indices)
-{
-    if (!bgfx::isValid(*handle))
-        *handle = bgfx::createDynamicIndexBuffer(uint32_t(std::max<qsizetype>(1, indices.size())),
-                                                 BGFX_BUFFER_INDEX32 | BGFX_BUFFER_ALLOW_RESIZE);
-    if (!indices.isEmpty())
-        bgfx::update(*handle, 0, bgfx::copy(indices.constData(),
-                                            uint32_t(indices.size() * qsizetype(sizeof(quint32)))));
-}
 }
 
 MapBgfxGlobeSurface::MapBgfxGlobeSurface(MapModel *map_model)
@@ -200,11 +179,8 @@ bool MapBgfxGlobeSurface::ready() const
 
 void MapBgfxGlobeSurface::destroyBuffers()
 {
-    destroyHandle(&this->window_vertices);
+    this->terrain_buffers.release();
     this->tile_index_pool.release();
-    destroyHandle(&this->cap_vertices);
-    destroyHandle(&this->cap_indices);
-    destroyHandle(&this->wireframe_vertices);
 }
 
 void MapBgfxGlobeSurface::releaseHeatmap()
@@ -383,25 +359,29 @@ void MapBgfxGlobeSurface::terrainMeshProgress(int *completed, int *total, bool *
 
 void MapBgfxGlobeSurface::uploadWindowGeometry()
 {
-    // Vertices only: Render owns the shared tile/skirt index buffers.
-    replaceVertices(&this->window_vertices, this->surface_layout,
-                    this->surface_preparation.windowVertices());
-    this->window_upload_pending = false;
+    const QVector<MapGlobeSurfaceVertex> &vertices = this->surface_preparation.windowVertices();
+    if (this->terrain_buffers.uploadWindow(this->surface_layout, vertices.constData(),
+                                           std::size_t(vertices.size()), sizeof(MapGlobeSurfaceVertex)))
+        this->window_upload_pending = false;
 }
 
 void MapBgfxGlobeSurface::uploadCapGeometry()
 {
-    replaceVertices(&this->cap_vertices, this->surface_layout,
-                    this->surface_preparation.capVertices());
-    replaceIndices(&this->cap_indices, this->surface_preparation.capIndices());
-    this->cap_upload_pending = false;
+    const QVector<MapGlobeSurfaceVertex> &vertices = this->surface_preparation.capVertices();
+    const QVector<quint32> &indices = this->surface_preparation.capIndices();
+    if (this->terrain_buffers.uploadCaps(this->surface_layout, vertices.constData(),
+                                         std::size_t(vertices.size()), sizeof(MapGlobeSurfaceVertex),
+                                         indices.constData(), std::size_t(indices.size())))
+        this->cap_upload_pending = false;
 }
 
 void MapBgfxGlobeSurface::uploadWireframe()
 {
-    replaceVertices(&this->wireframe_vertices, this->wireframe_layout,
-                    this->surface_preparation.wireframeVertices());
-    this->wireframe_upload_pending = false;
+    const QVector<MapGlobeSurfaceWireframeVertex> &vertices = this->surface_preparation.wireframeVertices();
+    if (this->terrain_buffers.uploadWireframe(this->wireframe_layout, vertices.constData(),
+                                              std::size_t(vertices.size()),
+                                              sizeof(MapGlobeSurfaceWireframeVertex)))
+        this->wireframe_upload_pending = false;
 }
 
 void MapBgfxGlobeSurface::requestImagery()
@@ -585,19 +565,22 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
     this->surface_preparation.requestMissingTerrainTiles();
     this->surface_preparation.scheduleReadyTerrainMeshes();
 
-    if (!this->window_upload_pending && bgfx::isValid(this->window_vertices))
+    if (!this->window_upload_pending && bgfx::isValid(this->terrain_buffers.window()))
     {
         const QVector<MapGlobeSurfaceVertex> &vertices = this->surface_preparation.windowVertices();
         for (const MapGlobeSurfaceVertexPatch &patch : patches)
         {
-            if (patch.first_vertex < 0 || patch.vertex_count <= 0
-                || patch.first_vertex + patch.vertex_count > vertices.size())
+            // Render validates retained-window identity and GPU byte bounds.
+            // A rejected patch requests a complete refresh on this frame.
+            if (patch.first_vertex < 0 || patch.vertex_count < 0
+                || !this->terrain_buffers.patchWindow(
+                    vertices.constData(), std::size_t(vertices.size()),
+                    std::size_t(patch.first_vertex), std::size_t(patch.vertex_count),
+                    sizeof(MapGlobeSurfaceVertex)))
             {
-                continue;
+                this->window_upload_pending = true;
+                break;
             }
-            bgfx::update(this->window_vertices, uint32_t(patch.first_vertex),
-                         bgfx::copy(vertices.constData() + patch.first_vertex,
-                                    uint32_t(patch.vertex_count * qsizetype(sizeof(MapGlobeSurfaceVertex)))));
         }
     }
     if (this->window_upload_pending)
@@ -670,14 +653,14 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
         if (bgfx::isValid(this->sky_program))
             drawSky(view, camera_basis, camera.renderOriginEcef(), inputs.logical_viewport);
         // Polar caps: flat colour beyond Web Mercator's latitude limit.
-        if (bgfx::isValid(this->cap_vertices) && bgfx::isValid(this->cap_indices))
+        if (bgfx::isValid(this->terrain_buffers.caps()) && bgfx::isValid(this->terrain_buffers.capIndices()))
         {
             for (const MapGlobeSurfaceTile &tile : this->surface_preparation.capTiles())
             {
                 if (tile.index_count <= 0)
                     continue;
-                bgfx::setVertexBuffer(0, this->cap_vertices);
-                bgfx::setIndexBuffer(this->cap_indices, uint32_t(tile.first_index),
+                bgfx::setVertexBuffer(0, this->terrain_buffers.caps());
+                bgfx::setIndexBuffer(this->terrain_buffers.capIndices(), uint32_t(tile.first_index),
                                      uint32_t(tile.index_count));
                 bgfx::setTexture(0, this->tile_sampler, this->cap_texture, uint32_t(kTileSamplerFlags));
                 bgfx::setUniform(this->view_projection_uniform, matrix);
@@ -690,7 +673,7 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
         }
         // Window tiles: one indexed draw each with its atlas rectangle.
         const QVector<MapGlobeSurfaceTile> &tiles = this->surface_preparation.windowTiles();
-        if (bgfx::isValid(this->window_vertices))
+        if (bgfx::isValid(this->terrain_buffers.window()))
         {
             for (qsizetype index = 0; index < tiles.size(); ++index)
             {
@@ -703,7 +686,7 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
                 const TileImagery &state = this->window_imagery.at(index);
                 // The shared topology, offset to the tile's vertices: every
                 // backend applies the start vertex as base vertex.
-                bgfx::setVertexBuffer(0, this->window_vertices, uint32_t(tile.first_vertex),
+                bgfx::setVertexBuffer(0, this->terrain_buffers.window(), uint32_t(tile.first_vertex),
                                       uint32_t(tile.vertex_count));
                 bgfx::setIndexBuffer(tile_indices);
                 bgfx::setTexture(0, this->tile_sampler, state.texture, uint32_t(kTileSamplerFlags));
@@ -732,10 +715,10 @@ MapBgfxGlobeSurface::FrameResult MapBgfxGlobeSurface::render(
     // Wireframe (debug): every triangle edge, also with the map tiles off.
     const QVector<MapGlobeSurfaceWireframeVertex> &wireframe =
         this->surface_preparation.wireframeVertices();
-    if (this->surface_preparation.wireframeVisible() && bgfx::isValid(this->wireframe_vertices)
+    if (this->surface_preparation.wireframeVisible() && bgfx::isValid(this->terrain_buffers.wireframe())
         && !wireframe.isEmpty())
     {
-        bgfx::setVertexBuffer(0, this->wireframe_vertices, 0, uint32_t(wireframe.size()));
+        bgfx::setVertexBuffer(0, this->terrain_buffers.wireframe(), 0, uint32_t(wireframe.size()));
         bgfx::setUniform(this->view_projection_uniform, matrix);
         bgfx::setState(kWireframeState);
         bgfx::submit(view, this->wireframe_program);

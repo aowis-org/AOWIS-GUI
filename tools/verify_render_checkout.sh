@@ -33,6 +33,8 @@ required_files=(
     src/map/render/map_globe_tile_topology.cpp
     src/map/bgfx/map_bgfx_globe_tile_index_pool.h
     src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp
+    src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h
+    src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp
 )
 
 for relative in "${required_files[@]}"; do

@@ -27,6 +27,8 @@ create_render_repo()
     printf 'tile topology source original\n' > "$path/src/map/render/map_globe_tile_topology.cpp"
     printf 'tile GPU pool header original\n' > "$path/src/map/bgfx/map_bgfx_globe_tile_index_pool.h"
     printf 'tile GPU pool source original\n' > "$path/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
+    printf 'terrain vertex pool header original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
+    printf 'terrain vertex pool source original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'
@@ -50,7 +52,9 @@ rm -- "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h" \
       "$render/src/map/render/map_globe_tile_topology.h" \
       "$render/src/map/render/map_globe_tile_topology.cpp" \
       "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.h" \
-      "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
+      "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp" \
+      "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h" \
+      "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp"
 "$verifier" "$render" >/dev/null
 grep -qx 'header original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"
 grep -qx 'source original' "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp"
@@ -66,6 +70,8 @@ grep -qx 'tile topology header original' "$render/src/map/render/map_globe_tile_
 grep -qx 'tile topology source original' "$render/src/map/render/map_globe_tile_topology.cpp"
 grep -qx 'tile GPU pool header original' "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.h"
 grep -qx 'tile GPU pool source original' "$render/src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp"
+grep -qx 'terrain vertex pool header original' "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
+grep -qx 'terrain vertex pool source original' "$render/src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp"
 echo 'PASS: missing files restored from pinned HEAD'
 
 printf 'local edited header\n' > "$render/src/map/bgfx/map_bgfx_globe_vertex_layouts.h"

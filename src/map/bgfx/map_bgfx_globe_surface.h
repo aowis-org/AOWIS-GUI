@@ -3,6 +3,7 @@
 
 #include "map/bgfx/map_bgfx_2d_imagery_gpu.h"
 #include "map/bgfx/map_bgfx_globe_tile_index_pool.h"
+#include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
 #include "map/render/map_globe_camera.h"
 #include "map/render/map_globe_heatmap_scene.h"
 #include "map/render/map_globe_surface_preparation.h"
@@ -34,9 +35,9 @@ class MapTileRepository;
 // as vertex-range patches) and the wireframe edges. This class only keeps
 // that geometry on the GPU and draws it:
 //
-// - window and cap vertices in dynamic buffers: uploaded completely when
-//   the window or the caps are rebuilt, terrain meshes as patches of the
-//   tile's vertex range; window tiles share one static index buffer per
+// - window, cap and wireframe dynamic buffers owned by shared Render: uploaded
+//   completely when the window or caps are rebuilt, terrain meshes as
+//   patches of the tile's vertex range; window tiles share one index buffer per
 //   cell count (Render's MapBgfxGlobeTileIndexPool), the caps have their own;
 // - imagery from the 2D imagery atlas (MapBgfx2dImageryGpu, shared: a tile
 //   is uploaded once for both views). Each tile is one indexed draw (its
@@ -231,12 +232,10 @@ private:
     bgfx::TextureHandle missing_texture = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle cap_texture = BGFX_INVALID_HANDLE;
 
-    bgfx::DynamicVertexBufferHandle window_vertices = BGFX_INVALID_HANDLE;
-    // GPU ownership and reuse of per-resolution tile/skirt topology.
+    // Render owns the mutable terrain GPU vertex/index streams.
+    MapBgfxGlobeTerrainBufferPool terrain_buffers;
+    // Render also owns the immutable, shared tile/skirt index topology.
     MapBgfxGlobeTileIndexPool tile_index_pool;
-    bgfx::DynamicVertexBufferHandle cap_vertices = BGFX_INVALID_HANDLE;
-    bgfx::DynamicIndexBufferHandle cap_indices = BGFX_INVALID_HANDLE;
-    bgfx::DynamicVertexBufferHandle wireframe_vertices = BGFX_INVALID_HANDLE;
     bool window_upload_pending = true;
     bool cap_upload_pending = true;
     bool wireframe_upload_pending = true;

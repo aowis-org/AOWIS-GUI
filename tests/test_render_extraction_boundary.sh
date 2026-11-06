@@ -61,6 +61,8 @@ for relative in \
     src/map/render/map_globe_tile_topology.cpp \
     src/map/bgfx/map_bgfx_globe_tile_index_pool.h \
     src/map/bgfx/map_bgfx_globe_tile_index_pool.cpp \
+    src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.h \
+    src/map/bgfx/map_bgfx_globe_terrain_buffer_pool.cpp \
     src/map/render/map_globe_flow_geometry.h \
     src/map/render/map_globe_flow_geometry.cpp \
     src/map/render/map_globe_link_geometry.h \
@@ -118,6 +120,19 @@ if ! grep -Fq 'this->tile_index_pool.get(tile.grid_cell_count)' \
     echo 'GUI globe surface bypasses Render tile index pool' >&2
     exit 1
 fi
+# Terrain dynamic vertex/cap-index ownership and sparse GPU updates belong
+# to Render; GUI supplies only the geometry and patch offsets.
+if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
+    src/map/bgfx/map_bgfx_globe_surface.h src/map/bgfx/map_bgfx_globe_surface.cpp; then
+    echo 'GUI globe terrain surface still owns mutable GPU buffers' >&2
+    exit 1
+fi
+if ! grep -Fq 'this->terrain_buffers.patchWindow(' \
+    src/map/bgfx/map_bgfx_globe_surface.cpp; then
+    echo 'GUI globe terrain surface bypasses sparse Render patch uploads' >&2
+    exit 1
+fi
+
 # Programs, uniforms and GPU material textures now belong to Render.
 if grep -Eq 'bgfx::(createUniform|createTexture2D|destroy\()' \
     src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then

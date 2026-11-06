@@ -1,6 +1,7 @@
 #include "map/bgfx/bgfx_device_manager.h"
 #include "map/bgfx/map_bgfx_backend.h"
 #include "map/bgfx/map_bgfx_globe_vertex_layouts.h"
+#include "map/bgfx/map_bgfx_globe_terrain_buffer_pool.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -33,6 +34,16 @@ int main(int argc, char **argv)
     if (globe_layouts.initialize(MapBgfxGlobeVertexLayouts::Strides{}))
     {
         std::cerr << "Invalid globe vertex layout unexpectedly accepted\n";
+        return EXIT_FAILURE;
+    }
+
+    // Resolve the production terrain buffer-pool object, not merely its
+    // mock test. release() is safe without a bgfx device when never allocated.
+    MapBgfxGlobeTerrainBufferPool terrain_buffers;
+    terrain_buffers.release();
+    if (bgfx::isValid(terrain_buffers.window()))
+    {
+        std::cerr << "Fresh terrain buffer pool contains stale handles\n";
         return EXIT_FAILURE;
     }
 
