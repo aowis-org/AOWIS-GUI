@@ -1,11 +1,10 @@
 # GUI implementation and verification status
 
-**Source inspected:** uploaded `gui(20261105-191917).zip` (5 November 2026).
-The renderer audit below reflects that source, including the internal static
-library, native-surface abstraction, focus-loss cancellation, and D24S8
-swapchain fix.
-This page distinguishes functionality visible in source from tests whose
-execution has actually been reported. It is **not** a release sign-off.
+**Source basis:** general GUI/DVMDB product audit from 5 November 2026;
+renderer ownership cross-checked against the 6 November 2026 GUI and Render
+snapshots. The verification evidence below states which later builds were
+actually reported, rather than treating the existence of test source as a
+successful test run. This is **not** a release sign-off.
 
 ## Implemented in this GUI snapshot
 
@@ -70,29 +69,32 @@ ctest --test-dir build-linux-tests --output-on-failure \
 See the [remaining History acceptance](history-roadmap.md) and
 [upcoming GUI–DVMDB capabilities](dvmdb-integration-roadmap.md).
 
-## Renderer implementation and reported verification (5 November 2026)
+## Renderer implementation and reported verification (6 November 2026)
 
-See [Rendering architecture](rendering-architecture.md) for the operative
-contracts, [Renderer library readiness](renderer-extraction-readiness.md) for
-the actual source/link boundary, and [graph performance](project-graph-performance.md)
-for reproducible CPU benchmarks. This is **not a release sign-off**.
+See [Rendering architecture](rendering-architecture.md),
+[Shared renderer integration](renderer-extraction-readiness.md), and the
+Render repository's `docs/map-engine-boundary.md` / `docs/roadmap.md`.
 
-| Area | Implemented in current source | Evidence actually reported | Still to qualify |
+| Area | Current source state | Evidence reported | Acceptance still required |
 | --- | --- | --- | --- |
-| Shared bgfx device, views and native targets | Device generations, client-retirement barrier, view reservations and swapchain registry | Mock-C++ infrastructure tests passed during preparation; user reported lifecycle changes fine | Complete post-split targeted CTest run, shutdown/restart under real native windows |
-| Native-surface boundary | Qt adapter to Qt-independent window/display/type/pixels descriptor | Mock-target tests passed during preparation | Real X11 and Wayland native-surface replacement and resize stress |
-| Internal renderer library | `aowis-render-core` static target (`AOWIS::RenderCore` alias), GPU helpers, embedded shader resources, executable-independent link test | CMake shader configuration and patch application validated while preparing change | User's full Qt build, `aowis-render-core-link` CTest and shader loading with both backends after the split |
-| 3D terrain depth | Primary Init preserves D24S8; secondary target and resize request D24S8 | User saw vertical skirt stripes after native-surface/library work, then confirmed the fix resolved them | Full native Vulkan/OpenGL globe pan, orbit, resize, LOD transition and return-from-hide regression |
-| Map focus loss | Navigation, pointer grabs and editor drags cancelled on FocusOut/WindowDeactivate | Focus policy test code and patch checks were supplied; no focused native test log provided | Native X11/Wayland Alt+Tab during pan, orbit, joystick and entity drag |
-| Projects GPU graph | Native Linux bgfx default; headless/unsupported QPainter; retained BVH, zoom-aware text | Projects-first and Maps-first Vulkan attachment logged; project graph/scene/performance smoke selection passed 3/3 | Real GPU frame pacing and platform acceptance |
-| Graph CPU staging | Retained spatial index used during pan/zoom | 10k: ~403 ms layout, ~91 ms one-time BVH build, ~3.5 ms median scene staging, 15 candidates | No further optimization needed on current evidence; GPU FPS not measured |
-| Three independent 2D maps | Read-only Linux diagnostic, independent cameras, shared device/geometry, view IDs | Three visible independently pannable/zoomable maps on Vulkan; forced OpenGL run confirmed `bgfx / OpenGL 4.3`; attach/detach logged | Complete new native replay following final fixes; non-Linux and QtQuick multi-view unsupported/unverified |
+| Standalone Render | Five CMake targets; production 2D network and globe GPU code, terrain buffers/topology and sky/heatmap GPU ownership | User reported **19/19** standalone Render tests passing after globe link extraction; subsequent extraction slices have focused or local/mock validations only | Full standalone production+test build after the latest GPU changes |
+| GUI integration | Pinned Render gitlink, explicit checkout verifier, production link test, strict build-before-CTest gate | User reported complete GUI compile/link followed by **83/83** passing tests after globe link extraction; subsequent terrain GPU patches lack an equivalent user build log | Complete GUI build-gated suite on newest source/gateway revisions |
+| Globe scene data | Render owns CPU link/flow/X-Ray algorithms and invalidation policy; GUI owns retained scene and terrain queries | Earlier GUI suite covers globe origin, draping and drawing boundaries; isolated Render tests added | Full runtime visual parity, editor picking and terrain-backed networks |
+| Terrain, sky, heatmap | Render owns shared GPU handles/submission; GUI owns DEM/imagery data pipeline and tile residency decisions | Recording-bgfx mock tests and source-boundary checks for newer slices; not an independent native GPU sign-off | OpenGL/Vulkan terrain LOD, skirting, partial DEM updates, wireframe, caps, sky and heatmap |
+| Device and native window | Shared device/client retirement and swapchain registry; Qt adapter stays in GUI | Focused lifecycle tests and earlier native smoke checks reported | Native X11/Wayland swapchain resize/reparent, shutdown/recreation, WebAssembly and Mobile |
+
+The latest proposed common-engine extraction (DEM decode, quadtree/LOD,
+terrain mesh scheduling, tile streaming, imagery residency and terrain
+queries) is **future implementation work**, not a capability of the current
+Render library. Provider configuration and server transport stay in the host.
 
 ### Focused renderer regression
 
-Run in the configured GUI repository. These tests are named in the current
-`CMakeLists.txt`; keep them focused rather than rebuilding all unrelated
-submodules for a documentation check.
+For complete production acceptance use `./compile_linux_tests.sh`, which
+builds the complete GUI and every test executable before invoking CTest.
+The following is a **focused** renderer subset only; its build and CTest
+commands must be chained with `&&` so old test binaries cannot run after
+compilation failure.
 
 ```bash
 cmake --build build-linux-tests --target \
@@ -105,8 +107,7 @@ cmake --build build-linux-tests --target \
   aowis-map-input-focus-policy-tests \
   aowis-project-graph-render-policy-tests \
   aowis-project-graph-bgfx-scene-tests \
-  aowis-project-revision-graph-tests -j 8
-
+  aowis-project-revision-graph-tests -j 8 && \
 ctest --test-dir build-linux-tests --output-on-failure \
   -R '^(aowis-render-core-link|aowis-bgfx-device-manager|aowis-bgfx-frame-coordinator|aowis-bgfx-native-target-registry|aowis-bgfx-three-view-camera|aowis-map-input-focus-policy|aowis-project-graph-render-policy|aowis-project-graph-bgfx-scene|aowis-project-revision-graph)$'
 ```

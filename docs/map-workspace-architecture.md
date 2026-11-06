@@ -154,9 +154,13 @@ secondary targets and primary resets. **Terrain tile skirts need working
 depth testing**; they must not be removed to conceal a missing depth buffer.
 The user confirmed the resulting vertical-stripe regression was corrected.
 
-`MapBgfxSurface` still owns the production map's GPU geometry, textures,
-terrain, HUD, and animation/tile clock; controller and Maps-mode switches do
-not create new map surfaces or start another bgfx device. Projects may own
+`MapBgfxSurface` still owns the production map's scene/frame orchestration,
+network adaptation, tile/terrain preparation, HUD content and animation/tile
+clock. Shared `AOWIS-GUI-Render` targets now own many of the GPU buffers,
+textures, shader programs and draw submissions behind this surface. Controller
+and Maps-mode switches do not create new map surfaces or start another bgfx
+device. The unextracted tile repositories and terrain quadtree/mesh scheduling
+are engine candidates, not permanently UI-specific responsibilities. Projects may own
 the initial default swapchain when its graph opens first; when it is hidden,
 that ownership can be retired and Maps may initialize a new primary surface.
 Additional independent maps are currently **opt-in read-only diagnostics**;

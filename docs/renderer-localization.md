@@ -4,7 +4,7 @@
 catalogues without owning language selection. AOWIS-GUI has **not** implemented
 the language selector, shipped translated catalogues, Arabic RTL layouts, or a
 `LanguageManager`. Those belong to the later multilingual GUI implementation.
-This contract must be preserved if the renderer is extracted into AOWIS-RENDER.
+This contract applies across the existing `AOWIS-GUI-Render` submodule and GUI host boundary.
 
 ## Responsibility and catalogue contexts
 
@@ -21,7 +21,7 @@ required), plus `QT_TRANSLATE_NOOP` for compass abbreviations. **Do not change
 `MapBgfxHud` as a translation context when moving files.** GUI-originated
 strings are translated before passing them to the renderer; do not import any
 GUI `LanguageManager`, `MapModel`, hydraulic model, or unit-profile dependency
-into the renderer. Future catalogue split: `aowis-render_*.qm` for
+into the renderer. Planned catalogue split: `aowis-render_*.qm` for
 renderer-owned messages and `aowis-gui_*.qm` for application-owned ones. Both
 are installed/removed centrally by the GUI.
 

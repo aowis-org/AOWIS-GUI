@@ -1,6 +1,6 @@
 # AOWIS GUI documentation
 
-These guides describe the **current GUI source as of 5 November 2026**. They
+These guides describe the **current GUI source as of 6 November 2026**. They
 separate implemented functionality from end-to-end acceptance. The product
 is not described in terms of historical development stages.
 
@@ -13,8 +13,8 @@ is not described in terms of historical development stages.
 | [DVMDB quickstart](dvmdb-quickstart.md) | Project creation, open/import/export, autosave and Commit |
 | [Distribution Editor](distribution-editor.md) | Shared 2D/3D hydraulic editing, terrain, UI and limitations |
 | [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 18 collections |
-| [Rendering architecture](rendering-architecture.md) | Current Maps/Projects GPU ownership, views, native targets, depth attachments, frame coordination and input contracts |
-| [Renderer library readiness](renderer-extraction-readiness.md) | Actual `AOWIS::RenderCore` CMake boundary, source inventory, independent link test, extraction constraints and remaining acceptance |
+| [Rendering architecture](rendering-architecture.md) | Maps/Projects GPU frame ownership, shared Render targets, native targets, depth, input and device lifecycle |
+| [Shared renderer integration](renderer-extraction-readiness.md) | Five Render CMake targets, GPU ownership, remaining GUI terrain/tile pipeline, build gate and acceptance |
 | [Renderer HUD localization](renderer-localization.md) | Translation contexts, ownership split, live HUD text refresh and extraction-safe test contract |
 | [Map workspace architecture](map-workspace-architecture.md) | One shared map across five modes, controllers and native surface ownership |
 | [Projects graph layout](project-graph-layout.md) | Cards, ancestry, picking, GPU fallback and BVH culling |
@@ -45,6 +45,21 @@ server may be designated personal (notably for WebAssembly). Other servers
 remain browsing/checkout sources. The present GUI chooses one personal
 server at a time; future per-project personal-server routing is a design
 extension, not current UI behavior.
+
+## Shared map engine: product boundary and remaining work
+
+`AOWIS-GUI-Render` already owns the production 2D network drawing, much of the
+3D hydraulic GPU code, terrain geometry/topology, terrain GPU buffers,
+shader resources, sky and heatmap draws. **This does not yet mean it is a
+complete map engine.** The GUI still contains DEM decoding, tile repositories,
+quadtree selection, terrain mesh scheduling, imagery request/lookup and
+terrain queries. These engine-neutral components are also intended for
+extraction, while provider administration, HTTP/server settings, Qt UI and
+hydraulic editing remain host-owned.
+
+See [Shared renderer integration](renderer-extraction-readiness.md) and the
+Render repository's `docs/map-engine-boundary.md` / `docs/roadmap.md`. The
+latter are forward-looking documents rather than historic patch stages.
 
 ## Verification and next work
 

@@ -355,10 +355,30 @@ assets, failure recovery, and the standalone test command.
 
 ### Shared rendering repository
 
-The bgfx lifecycle, device/target coordination, map GPU uploaders, production
-Mercator/terrain geometry helpers and shader resources are linked from
-**AOWIS-GUI-Render** (`AOWIS::RenderCore`, `AOWIS::RenderGeometry`). Initialize
-and pin the submodule at `external/AOWIS-GUI-Render`; intentionally override
-`AOWIS_RENDER_SOURCE_DIR` only for renderer development. The GUI retains its
-Qt Widgets adapter, model/data services, network scene preparation and
-map/editor scene controllers. See `docs/renderer-extraction-readiness.md`.
+**AOWIS-GUI-Render** is an independently buildable Git submodule pinned at
+`external/AOWIS-GUI-Render`. The GUI links its `AOWIS::RenderGeometry`,
+`AOWIS::RenderNetwork`, `AOWIS::RenderGlobe`, `AOWIS::RenderDevice` and
+`AOWIS::RenderCore` targets. Those own the shared device and shader resources,
+production 2D network drawing, globe-network buffers/drawing, terrain topology
+and GPU buffers, sky and heatmap GPU submissions. GUI still provides its Qt
+native adapter, frame/scene orchestration, DEM/tile repositories, visible-LOD
+selection, terrain mesh preparation, provider settings, network MODEL adapter
+and editor interaction.
+
+The intended shared library also covers the reusable **CPU-side map engine**:
+DEM decode, tile streaming/caches, globe selection/LOD, terrain meshes,
+imagery residency and terrain queries. These are **not yet extracted**.
+Read `docs/renderer-extraction-readiness.md` for the current boundary and the
+Render repository's `docs/map-engine-boundary.md` and `docs/roadmap.md` for
+the remaining work. Mobile production integration remains deferred.
+
+After updating the Render gitlink, build and test with the strict gate:
+
+```bash
+./git_submodule_update.sh --render && \
+./tools/verify_render_checkout.sh && \
+./compile_linux_tests.sh
+```
+
+`./compile_linux_tests.sh` builds and links the **complete application and
+all test executables before CTest**. Tests never start after a failed build.

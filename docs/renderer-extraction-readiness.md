@@ -1,61 +1,107 @@
-# Shared bgfx renderer: current integration
+# Shared renderer integration in the GUI
 
-AOWIS-GUI-Render is now a standalone source repository. The GUI links its
-`AOWIS::RenderCore`, `AOWIS::RenderDevice` and `AOWIS::RenderGeometry`
-targets. The renderer owns the device/frame/swapchain classes, HUD texture
-cache, 2D tile atlas/uploader, production Mercator/globe camera and geometry
-helpers, and all committed shader binaries. It also provides the minimal
-bgfx/bx/bimg unity build when the host has not supplied a `bgfx` target.
+**Current source boundary — 6 November 2026.** `AOWIS-GUI-Render` is a real,
+standalone, independently built repository. The GUI consumes it at
+`external/AOWIS-GUI-Render` as a pinned Git submodule. It is not merely an
+internal GUI static library and it is **not yet** a complete map engine:
+CPU-side terrain/imagery preparation and the host-owned render loop remain
+in GUI. See the Render repository's `README.md`,
+`docs/map-engine-boundary.md`, and `docs/roadmap.md` for source ownership and
+remaining forward work.
 
-The GUI retains the Qt Widgets/native-window adapter, map controller, data
-repositories, input handling, editor, three-dimensional scene preparation and
-Projects DAG view. Those are *not* standalone library APIs yet. Moving the
-entire `MapBgfxSurface` into Render today would import GUI lifecycle and
-network dependencies rather than produce a Mobile-ready render interface.
+## Build and dependency boundary
 
-## Integration
+| Render library | Implemented responsibility | GUI-side dependency/adapter |
+| --- | --- | --- |
+| `AOWIS::RenderGeometry` | Header-only C++20 Mercator/camera/icon/height-cache and imagery fallback helpers | MapModel/camera and scene state remain with host |
+| `AOWIS::RenderNetwork` | CPU 2D network scene, variants, mesh staging | `map_bgfx_2d_snapshot_adapter.h` and host style binding |
+| `AOWIS::RenderGlobe` | Tank/reservoir, link, flow and underground geometry, terrain tile topology and retained scene invalidation policy | Hydraulic scene snapshots, GeographicLib sampling, terrain queries and scene updates |
+| `AOWIS::RenderDevice` | Single bgfx device, frame/view coordination, native target registry | Qt native/window adapter and toolkit event routing |
+| `AOWIS::RenderCore` | 2D GPU/imagery atlas and HUD caches; globe network resources/draw; terrain buffer/index pools, terrain draw, sky and heatmap GPU owners, shader assets | `MapBgfxSurface`, `MapBgfxGlobeSurface`, QImage model resources, frame and tile preparation |
 
-- The default checkout is the pinned `external/AOWIS-GUI-Render` Git submodule.
-  `AOWIS_RENDER_SOURCE_DIR` permits an explicit developer override; no sibling
-  checkout is selected implicitly. `./git_submodule_init.sh --render` initializes
-  the pinned revision and `./git_submodule_update.sh --render` advances it.
-- The GUI provides the existing `external/{bx,bimg,bgfx}` vendor sources using
-  `AOWIS_RENDER_VENDOR_ROOT` (no second bgfx runtime).
-- `AOWIS_RENDER_BUILD_MAP_CORE=ON` enables map GPU code, Qt resources, and
-  shader family embedding; `AOWIS::RenderCore` is the executable's dependency.
-  Pure C++ scene geometry is exposed by `AOWIS::RenderGeometry`, which can be
-  built and tested with device and map core disabled.
-- `AOWIS_BGFX_RENDERERS` retains its OS-specific defaults and override.
-- Shader regeneration uses `-DAOWIS_BGFX_SHADER_TOOLS=ON`; no shaderc needed
-  for normal Linux/Windows/macOS/WebAssembly builds.
+CMake includes Render via `add_subdirectory(...)`, using a caller-owned
+`bgfx` target and pinned vendor checkouts. `AOWIS_RENDER_SOURCE_DIR` supports
+**only explicit** development overrides; otherwise the GUI gitlink is the
+source of truth. There is no independent GUI-owned bgfx runtime or second
+shader pack. Embedded shader resource URLs stay
+`:/aowis/map/bgfx/<family>/<shader>.bin`.
 
-## Existing acceptance contracts
+### Current GPU resource owners
 
-- The renderer static-link test must open a committed shader resource via
-  `MapBgfxBackend::initializeEmbeddedShaders()` without linking GUI sources.
-- Device owner retirement, generation safety, view reservation and secondary
-  swapchain lifecycle have GPU-free tests in the GUI test suite.
-- Render has standalone geometry tests for Mercator projection, three-view
-  camera transforms, globe icon indexing, height-cache invalidation and
-  globe imagery ancestor UV fallback, requiring no Qt or bgfx dependency.
-  Mobile has a separate shared-header contract regression.
-- Qt `QWindow` captures native handles; Render owns them only as borrowed
-  descriptors. Primary and secondary window depth must stay D24S8. Removing
-  it causes terrain LOD skirt overdraw during orbit/resize.
-- Native and WASM Map/Projects HUD resources keep their original resource path
-  `:/aowis/map/bgfx/<family>/<shader>.bin`.
-- Localization of HUD labels remains a rendering-input boundary: the GUI owns
-  dynamic text changes; the same `MapBgfxHud` context can be translated.
+- `MapBgfxGlobeGpu`, `MapBgfxGlobeBufferPool`,
+  `MapBgfxGlobeResourcePool` and `MapBgfxGlobeVertexLayouts`: 3D network
+  submission, vertex/index streams, shader programs, uniforms, samplers,
+  tank/reservoir material textures and shader-facing layout descriptors.
+- `MapGlobeTileTopology`, `MapBgfxGlobeTileIndexPool` and
+  `MapBgfxGlobeTerrainBufferPool`: terrain grid/skirt topology, cached indices,
+  window/cap/wireframe buffers and sparse DEM range uploads.
+- `MapBgfxGlobeTerrainGpu`: terrain, caps and wireframe drawing.
+- `MapBgfxGlobeSkyGpu` and `MapBgfxGlobeHeatmapGpu`: sky and heatmap draw
+  submission, bake render targets and resource lifecycle.
 
-## Qualification still required on real devices
+**Do not bring these GPU handles back into `map_bgfx_globe_network.cpp` or
+`map_bgfx_globe_surface.cpp`.** GUI supplies neutral geometry and asset
+inputs, plus camera/tile selections, rather than duplicating ownership.
 
-Reconfigure GUI from a clean build dir, build and execute the five device/view
-lifecycle tests plus `aowis-render-core-link`, HUD/atlas/graph smoke tests,
-then test Linux Vulkan and OpenGL, Android OpenGLES, WebAssembly WebGL 2,
-Map↔Projects switching, resize, focus loss and scenegraph/context recreation.
-These GPU/platform checks cannot be established by source inspection alone.
+## Still in GUI — by design for now
 
-Next extraction: move the GPU-neutral 2D/3D scene-frame model and map draw
-encoding into Render, expose explicit host callbacks, and have Mobile draw the
-same production network/terrain/HUD. Keep Mobile's tested QtQuick EGL context
-owner and Android lifecycle controls in Mobile.
+- `src/map/render/map_globe_surface_scene.*`: visible-quadtree selection,
+  view/horizon culling, LOD hysteresis, terrain levels.
+- `src/map/render/map_globe_surface_preparation.*`: retained visible tile
+  pool, DEM requests and mesh updates, terrain-height queries and ray hits.
+- `src/map/render/map_terrain_mesh_scheduler.*`: asynchronous DEM mesh
+  generation, neighbor normals, ancestor stand-in geometry.
+- `src/map/data/map_terrain_tile.*` / `map_terrain_repository.*`:
+  normalized DEM decode, dataset metadata, network requests, caching.
+- `src/map/data/map_tile_repository.*` and
+  `src/map/render/map_tile_streaming_policy.h`: imagery request scheduling,
+  priorities, decoded tile cache and cancellation.
+- `src/map/core/map_provider_catalog.*` and server/config files: provider
+  administration, fallback selection, server transport.
+- Qt Widgets/native-surface/event lifecycle, hydraulic/model adaptation,
+  picking/placement, locale/unit configuration and UI controllers.
+
+Engine-neutral **CPU** logic will also move into Render. The stable boundary
+is the host's tile/source interface: application settings and server request
+adapters stay outside. Do not embed `MapModel`, widgets, server interfaces or
+hydraulic MODEL types in the shared cache/scene/GPU targets just to move a
+large class verbatim.
+
+## Apply, build and test
+
+For Render-first changes:
+
+```sh
+# In AOWIS-GUI-Render, after applying its patch
+./compile_linux.sh && ./compile_linux_tests.sh
+# Commit + push Render's actual tracked sources before updating GUI.
+```
+
+```sh
+# In AOWIS-SERVER-GUI, after publishing Render and applying the GUI adapter
+./git_submodule_update.sh --render && \
+  ./tools/verify_render_checkout.sh && \
+  ./compile_linux_tests.sh
+```
+
+`compile_linux_tests.sh` must **successfully build and link the complete GUI
+application and all test executables** before starting CTest. A successful
+CTest run from an old binary after a compile failure is invalid. The GUI
+suite includes `aowis-render-extraction-boundary`,
+`aowis-render-core-link`, terrain/scene regressions and device tests. The
+checkout verifier prevents missing Render files from reaching compilation.
+
+Source/mock regressions prove algorithms and GPU call sequences—not real
+OpenGL/Vulkan/WASM/Android rendering. Native checks should cover terrain LOD
+skirt stitching and D24S8 depth, sparse DEM arrival, imagery fallback and
+provider changes, Solid/X-Ray/Hide, heatmaps, sky, resize and repeated device
+retirement/recreation.
+
+## Forward direction
+
+The next engineering work is a complete shared **terrain/imagery data-to-GPU
+pipeline**, not merely more GPU code: imagery residency, normalized DEM
+format, quadtree and LOD, terrain mesh scheduling, streaming/caching and
+terrain ray/height queries. Then common HUD/labels/overlays, stable scene
+interfaces and host lifecycle cleanup. Mobile's production renderer
+integration remains deferred until those boundaries are demonstrated in GUI.

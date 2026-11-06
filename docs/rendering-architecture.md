@@ -1,11 +1,11 @@
 # Rendering architecture
 
-This is the **current renderer contract** for the 5 November 2026 GUI source.
+This is the **current renderer contract** for the 6 November 2026 GUI source.
 It covers the production Maps workspace, native Linux Projects revision graph,
 shared renderer submodule, and opt-in multi-window diagnostics. It describes
 current behavior and ownership rather than implementation stages. For the
-source/dependency boundary and extraction handoff, see
-[Renderer library readiness](renderer-extraction-readiness.md).
+source/dependency boundary and remaining map-engine work, see
+[Shared renderer integration](renderer-extraction-readiness.md).
 
 ## What renders where
 
@@ -26,37 +26,36 @@ the **Projects graph**, not the Maps renderer.
 
 ## Shared renderer build boundary
 
-The normal application pins `external/AOWIS-GUI-Render` as a Git submodule.
-It links three separate CMake targets from that repository:
+`external/AOWIS-GUI-Render` is a **pinned standalone repository**, not an
+internal GUI-only CMake library. GUI consumes five shared targets:
 
-- `AOWIS::RenderDevice`: bgfx device lifecycle, view/frame coordination,
-  native-target registry and toolkit-neutral native surface descriptors.
-- `AOWIS::RenderGeometry`: pure C++ Mercator projection and secondary-view
-  camera, globe icon spatial index and terrain-height cache, and globe imagery
-  fallback UV calculations. No Qt, bgfx or hydraulic data-model dependency;
-  Mobile can build and test these headers independently of Qt Widgets.
-- `AOWIS::RenderCore`: Qt Gui-based GPU uploaders for 2D imagery and HUD,
-  texture/text caches, pan reuse, and embedded bgfx shader families. The
-  `aowis-render-core` static library includes its own resource registration.
+| Target | Current role |
+| --- | --- |
+| `AOWIS::RenderGeometry` | Pure C++20 projection, camera, icon/height-cache and imagery fallback helpers |
+| `AOWIS::RenderNetwork` | 2D network CPU scene and mesh preparation |
+| `AOWIS::RenderGlobe` | 3D model, flow, link, buried-run geometry, retained scene invalidation and terrain topology |
+| `AOWIS::RenderDevice` | Single bgfx device, frame coordinator, native swapchain registry |
+| `AOWIS::RenderCore` | 2D and globe network GPU submission, atlases, shader resources, terrain buffers/index caches/drawing, sky and heatmap GPU ownership, HUD caches |
 
-The GUI executable retains `MapBgfxSurface`, the Qt native-surface adapter,
-`MapModel`, hydraulic snapshot/scene preparation, 2D network GPU mesh and
-entity styling, globe surface draw code, labels/editor controllers and
-Projects widgets. These components cannot simply move into Render without
-introducing dependencies on the GUI and hydraulic data model.
+The library registers the shader resources itself at
+`:/aowis/map/bgfx/<family>/<shader>.bin`. The `aowis-render-core-link`
+test verifies that actual Render objects and embedded resources link into a
+GUI-independent test executable. GUI still supplies the single native map
+viewport, scene and frame scheduling, camera adaptation, image resources,
+network MODEL adapter, picking/editor tools and the Qt/WebAssembly host.
 
-The renderer registers the shader resources from the static library, so
-`MapBgfxBackend::shaderResourcePath()` resolves the same Qt resource paths
-before device creation. Test `aowis-render-core-link` checks that the GUI
-links and exposes the embedded resources; geometry-only regressions can be
-built directly in Render with `AOWIS_RENDER_BUILD_DEVICE=OFF`,
-`AOWIS_RENDER_BUILD_MAP_CORE=OFF`, and
-`AOWIS_RENDER_BUILD_GEOMETRY_TESTS=ON`.
+**The remaining common map-engine pipeline is not yet in Render:**
+`MapGlobeSurfaceScene`, `MapGlobeSurfacePreparation`,
+`MapTerrainMeshScheduler`, `MapTerrainTile`, `MapTerrainRepository`,
+`MapTileRepository`, `MapTileStreamingPolicy` and provider-source adapters
+still coordinate CPU terrain/imagery work in GUI. These need a neutral
+engine/source split; merely moving `MapBgfxSurface` verbatim would introduce
+Qt Widgets, service and MODEL dependencies. See
+[Shared renderer integration](renderer-extraction-readiness.md).
 
-Mobile currently links `AOWIS::RenderDevice` and `AOWIS::RenderGeometry`
-but continues to render its independent Qt Quick stress-test scene through
-its existing EGL underlay. Scene submission and the production 2D/globe
-renderers have not yet been unified.
+Mobile currently exercises shared device/geometry contracts but has not
+adopted the production 2D/globe GPU pipeline. A successful GUI build is not
+Android or WebAssembly GPU qualification.
 
 ## Process-wide bgfx device and frame contracts
 
@@ -290,19 +289,18 @@ native regression results are still separate acceptance evidence; see
 
 ## Scope and extension boundary
 
-This repository currently contains the shared renderer infrastructure and
-its native Linux diagnostics. It **does not** contain a standalone
-`AOWIS-RENDER` library or an extracted, platform-neutral renderer API. The separate-repository renderer extraction is **not implemented**. Its
-current source boundary, known coupling and outstanding qualification are
-recorded in [Renderer library readiness](renderer-extraction-readiness.md).
-Do not confuse the internal static target with a stable public library.
+The production globe/network GPU buffers, shader programs, vertex layouts,
+terrain topology, sparse terrain uploads, base terrain draws, sky and heatmap
+GPU resources have already moved into `AOWIS-GUI-Render`. The GUI owns
+**which** visible network and terrain content to prepare, **when** to request
+it, and the host's window/frame/event loop. That boundary is provisional
+until DEM decoding, tile selection, streaming, and terrain preparation become
+reusable engine modules with host-supplied data sources.
 
-Future QtQuick/mobile or production multi-map integration must preserve the
-same single-device, explicit view-ID, target-lifetime, frame batching and
-per-camera isolation contracts. It still needs separately designed QtQuick
-surface adaptation, mobile/platform GPU capabilities, UI/editor input,
-independent map data scheduling, and platform acceptance. Successful Linux
-multi-window diagnostics are not proof of QtQuick or mobile readiness.
+All future Qt Quick/Mobile and multi-map integrations must preserve the
+single-device, explicit view-ID, target-lifetime, frame batching, depth and
+per-camera-isolation contracts. The Linux diagnostic views do not establish
+production multi-map or Android support.
 
 ## Map input loss and gesture cancellation
 

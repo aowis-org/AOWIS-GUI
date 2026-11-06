@@ -7,20 +7,22 @@ enabled, two read-only independent diagnostic map windows. See
 [Rendering architecture](../../../docs/rendering-architecture.md) for the
 current cross-surface lifecycle contract.
 
-The pinned `external/AOWIS-GUI-Render` Git submodule provides the shared
-`AOWIS::RenderDevice`, `AOWIS::RenderCore`, and Qt/bgfx-independent
-`AOWIS::RenderGeometry` CMake targets. The renderer owns the bgfx device,
-frame/target coordination, imagery and HUD GPU helpers, shader resources,
-continuous Mercator projection, secondary-view camera, globe icon index,
-terrain-height cache, imagery fallback UV math, pan reuse helper,
-retained 2D scene preparation, mesh/chunk staging and bgfx network draw submission.
-Shared shader resources are explicitly registered by the library.
+The pinned `external/AOWIS-GUI-Render` submodule exposes
+`AOWIS::RenderGeometry`, `AOWIS::RenderNetwork`, `AOWIS::RenderGlobe`,
+`AOWIS::RenderDevice` and `AOWIS::RenderCore`. It owns the shared bgfx
+runtime/device/targets, network and globe geometry algorithms, production
+2D/3D GPU draws, imagery/HUD GPU helpers, shader assets, terrain index/vertex
+pools, sky and heatmap GPU resources. No second bgfx runtime is created.
 
-The GUI executable owns the QWidget/QWindow surface adapter,
-`BgfxQtNativeSurface`, hydraulic model/data services, authoritative network snapshots and
-`map_bgfx_2d_snapshot_adapter.h`, entity styles, the still-GUI-specific 3D
-scene controller, editor tools and Projects UI.
-See the [rendering architecture](../../../docs/rendering-architecture.md#shared-renderer-build-boundary).
+This GUI host retains `MapBgfxSurface` and `MapBgfxGlobeSurface` scene/frame
+orchestration, the Qt native adapter, `MapModel`, decoded terrain and imagery
+repositories, DEM mesh scheduling, globe quadtree/LOD, provider/server
+settings, authoritative hydraulic snapshots, picking/editing, HUD text
+content and Projects UI. The shared engine pipeline for these reusable
+CPU-side tile/terrain algorithms is planned but not implemented yet.
+See [shared renderer integration](../../../docs/renderer-extraction-readiness.md)
+and the Render repository's `docs/map-engine-boundary.md` for current
+ownership and the forward scope.
 
 Desktop native Qt windows are captured through `BgfxQtNativeSurface` into the
 Qt-free `BgfxNativeSurface` descriptor (window, display, handle type,
@@ -1075,8 +1077,9 @@ spatial index is tied to zoom buckets or network geometry re-preparation.
 
 The production globe network draw-order and bgfx stream-submission path now
 lives in `AOWIS::RenderCore` (`MapBgfxGlobeGpu`). `MapBgfxGlobeNetwork` still
-owns the GUI snapshot adapter, picking, vertex layouts and per-frame camera
-uniform values. `MapBgfxGlobeBufferPool` owns GPU streams, while
+owns the GUI snapshot adapter, picking, shader-facing vertex payloads and
+per-frame camera uniform **values**. The five bgfx vertex-layout descriptors
+are built by `MapBgfxGlobeVertexLayouts` in Render. `MapBgfxGlobeBufferPool` owns GPU streams, while
 `MapBgfxGlobeResourcePool` owns shaders, uniforms and GPU model textures;
 Render prepares the smooth mip chain from GUI-provided tank/reservoir images.
 The shared icon atlas remains owned separately, not by the resource pool.
