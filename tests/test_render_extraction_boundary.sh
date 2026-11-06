@@ -46,6 +46,8 @@ for relative in \
     src/map/bgfx/map_bgfx_2d_gpu.h \
     src/map/bgfx/map_bgfx_globe_gpu.h \
     src/map/bgfx/map_bgfx_globe_gpu.cpp \
+    src/map/bgfx/map_bgfx_globe_buffer_pool.h \
+    src/map/bgfx/map_bgfx_globe_buffer_pool.cpp \
     src/map/bgfx/map_bgfx_globe_draw_plan.h \
     src/map/render/map_node_declutter.h \
     src/map/render/map_node_declutter.cpp \
@@ -61,6 +63,16 @@ for relative in \
         exit 1
     fi
 done
+# All retained globe network buffers are owned by Render, not by the host.
+if grep -Eq 'Dynamic(Vertex|Index)BufferHandle|createDynamic(Vertex|Index)Buffer|bgfx::update\(' \
+    src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_network.h; then
+    echo 'GUI globe network still owns bgfx dynamic GPU buffers' >&2
+    exit 1
+fi
+if ! grep -Fq 'gpu_buffers.populateInput(&draw_input)' src/map/bgfx/map_bgfx_globe_network.cpp; then
+    echo 'GUI globe draw path bypasses shared GPU stream handles' >&2
+    exit 1
+fi
 if [[ -d src/map/bgfx/shaders ]] && \
    find src/map/bgfx/shaders -type f -print -quit | grep -q .; then
     echo 'GUI still contains Render-owned shaders' >&2

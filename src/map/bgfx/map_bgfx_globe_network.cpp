@@ -188,24 +188,9 @@ bool MapBgfxGlobeNetwork::ready() const
         && bgfx::isValid(this->tank_texture) && bgfx::isValid(this->reservoir_texture);
 }
 
-void MapBgfxGlobeNetwork::destroyBuffers()
-{
-    for (Buffer *buffer : {&this->link_buffer, &this->node_buffer, &this->selected_link_buffer,
-                           &this->selected_node_buffer, &this->diagnostic_link_buffer,
-                           &this->diagnostic_node_buffer, &this->flow_buffer, &this->icon_buffer,
-                           &this->underground_link_buffer, &this->junction_buffer,
-                           &this->underground_junction_buffer, &this->tank_buffer, &this->reservoir_buffer})
-    {
-        destroyHandle(&buffer->handle);
-        buffer->count = 0;
-    }
-}
-
 void MapBgfxGlobeNetwork::release()
 {
-    destroyBuffers();
-    destroyHandle(&this->icon_order_buffer);
-    this->icon_order_count = 0;
+    this->gpu_buffers.release();
     this->icon_order_dirty = true;
     destroyHandle(&this->reservoir_texture);
     destroyHandle(&this->tank_texture);
@@ -489,19 +474,14 @@ QVector<MapBgfxGlobeNetwork::JunctionVertex> MapBgfxGlobeNetwork::junctionVertic
 
 namespace
 {
-// Replaces a stream's content; the buffer grows as needed.
+// The GUI still owns scene vertex types and layouts; Render owns the GPU
+// buffer allocations, updates and teardown.
 template <typename Vertex>
-quint64 uploadVertices(bgfx::DynamicVertexBufferHandle *handle, quint32 *count,
+quint64 uploadVertices(MapBgfxGlobeBufferPool &pool, MapBgfxGlobeStream stream,
                        const bgfx::VertexLayout &layout, const QVector<Vertex> &vertices)
 {
-    *count = quint32(vertices.size());
-    if (vertices.isEmpty())
-        return 0;
-    if (!bgfx::isValid(*handle))
-        *handle = bgfx::createDynamicVertexBuffer(*count, layout, BGFX_BUFFER_ALLOW_RESIZE);
-    const uint32_t bytes = uint32_t(vertices.size() * qsizetype(sizeof(Vertex)));
-    bgfx::update(*handle, 0, bgfx::copy(vertices.constData(), bytes));
-    return bytes;
+    return pool.upload(stream, layout, vertices.constData(),
+                       std::size_t(vertices.size()), sizeof(Vertex));
 }
 }
 
@@ -511,52 +491,52 @@ void MapBgfxGlobeNetwork::uploadStreams(FrameResult *result)
     quint64 bytes = 0;
     if (this->dirty_streams & GeometryStream)
     {
-        bytes += uploadVertices(&this->link_buffer.handle, &this->link_buffer.count, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Link, this->link_layout,
                                 scene.linkVertices());
-        bytes += uploadVertices(&this->node_buffer.handle, &this->node_buffer.count, this->node_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Node, this->node_layout,
                                 scene.nodeVertices());
     }
     if (this->dirty_streams & HighlightStream)
     {
-        bytes += uploadVertices(&this->selected_link_buffer.handle, &this->selected_link_buffer.count,
-                                this->link_layout, scene.selectedLinkVertices());
-        bytes += uploadVertices(&this->selected_node_buffer.handle, &this->selected_node_buffer.count,
-                                this->node_layout, scene.selectedNodeVertices());
-        bytes += uploadVertices(&this->diagnostic_link_buffer.handle, &this->diagnostic_link_buffer.count,
-                                this->link_layout, scene.diagnosticLinkVertices());
-        bytes += uploadVertices(&this->diagnostic_node_buffer.handle, &this->diagnostic_node_buffer.count,
-                                this->node_layout, scene.diagnosticNodeVertices());
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedLink, this->link_layout,
+                                scene.selectedLinkVertices());
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::SelectedNode, this->node_layout,
+                                scene.selectedNodeVertices());
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticLink, this->link_layout,
+                                scene.diagnosticLinkVertices());
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::DiagnosticNode, this->node_layout,
+                                scene.diagnosticNodeVertices());
     }
     if (this->dirty_streams & FlowStream)
     {
-        bytes += uploadVertices(&this->flow_buffer.handle, &this->flow_buffer.count, this->link_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Flow, this->link_layout,
                                 scene.flowDirectionVertices());
     }
     if (this->dirty_streams & IconStream)
     {
-        bytes += uploadVertices(&this->icon_buffer.handle, &this->icon_buffer.count, this->icon_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Icon, this->icon_layout,
                                 scene.iconVertices());
         this->icon_order_dirty = true;
         // The models are built per instance in their local frames (kept for
         // picking).
         ensureModelVertices();
-        bytes += uploadVertices(&this->tank_buffer.handle, &this->tank_buffer.count, this->model_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Tank, this->model_layout,
                                 this->tank_model_vertices);
-        bytes += uploadVertices(&this->reservoir_buffer.handle, &this->reservoir_buffer.count,
-                                this->model_layout, this->reservoir_model_vertices);
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Reservoir, this->model_layout,
+                                this->reservoir_model_vertices);
     }
     if (this->dirty_streams & UndergroundStream)
     {
-        bytes += uploadVertices(&this->underground_link_buffer.handle, &this->underground_link_buffer.count,
-                                this->link_layout, scene.undergroundLinkVertices());
-        bytes += uploadVertices(&this->underground_junction_buffer.handle,
-                                &this->underground_junction_buffer.count, this->junction_layout,
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::UndergroundLink, this->link_layout,
+                                scene.undergroundLinkVertices());
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::UndergroundJunction,
+                                this->junction_layout,
                                 junctionVertices(scene.undergroundJunctionInstances()));
     }
     if (this->dirty_streams & JunctionStream)
     {
-        bytes += uploadVertices(&this->junction_buffer.handle, &this->junction_buffer.count,
-                                this->junction_layout, junctionVertices(scene.junctionInstances()));
+        bytes += uploadVertices(this->gpu_buffers, MapBgfxGlobeStream::Junction, this->junction_layout,
+                                junctionVertices(scene.junctionInstances()));
     }
     this->dirty_streams = 0;
     result->upload_bytes += bytes;
@@ -569,18 +549,8 @@ void MapBgfxGlobeNetwork::updateIconDrawOrder(const QVector3D &eye, FrameResult 
     this->icon_order_eye = eye;
     this->icon_order_dirty = false;
     const QVector<quint32> indices = mapGlobeIconDrawOrder(this->network_scene.iconVertices(), eye);
-    this->icon_order_count = quint32(indices.size());
-    if (indices.isEmpty())
-        return;
-    if (!bgfx::isValid(this->icon_order_buffer))
-        this->icon_order_buffer = bgfx::createDynamicIndexBuffer(
-            this->icon_order_count, BGFX_BUFFER_INDEX32 | BGFX_BUFFER_ALLOW_RESIZE);
-    if (bgfx::isValid(this->icon_order_buffer))
-    {
-        const uint32_t bytes = uint32_t(indices.size() * qsizetype(sizeof(quint32)));
-        bgfx::update(this->icon_order_buffer, 0, bgfx::copy(indices.constData(), bytes));
-        result->upload_bytes += bytes;
-    }
+    result->upload_bytes += this->gpu_buffers.uploadIconOrder(indices.constData(),
+                                                              std::size_t(indices.size()));
 }
 
 MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, const MapGlobeCamera &camera,
@@ -668,27 +638,7 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
     // Use named stream/program slots rather than positional copies: adding a
     // new GPU pass cannot silently shift an existing handle to the wrong
     // shader or vertex layout.
-    draw_input.setStream(MapBgfxGlobeStream::Link, this->link_buffer.handle, this->link_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Node, this->node_buffer.handle, this->node_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::SelectedLink, this->selected_link_buffer.handle,
-                         this->selected_link_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::SelectedNode, this->selected_node_buffer.handle,
-                         this->selected_node_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::DiagnosticLink, this->diagnostic_link_buffer.handle,
-                         this->diagnostic_link_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::DiagnosticNode, this->diagnostic_node_buffer.handle,
-                         this->diagnostic_node_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Flow, this->flow_buffer.handle, this->flow_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Icon, this->icon_buffer.handle, this->icon_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::UndergroundLink, this->underground_link_buffer.handle,
-                         this->underground_link_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Junction, this->junction_buffer.handle,
-                         this->junction_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::UndergroundJunction, this->underground_junction_buffer.handle,
-                         this->underground_junction_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Tank, this->tank_buffer.handle, this->tank_buffer.count);
-    draw_input.setStream(MapBgfxGlobeStream::Reservoir, this->reservoir_buffer.handle,
-                         this->reservoir_buffer.count);
+    this->gpu_buffers.populateInput(&draw_input);
     draw_input.setProgram(MapBgfxGlobeProgram::Link, this->link_program);
     draw_input.setProgram(MapBgfxGlobeProgram::LinkXRay, this->link_xray_program);
     draw_input.setProgram(MapBgfxGlobeProgram::Flow, this->flow_program);
@@ -706,8 +656,6 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
     draw_input.reservoir_texture = this->reservoir_texture;
     draw_input.icon_sampler = this->icon_sampler;
     draw_input.albedo_sampler = this->albedo_sampler;
-    draw_input.icon_indices = this->icon_order_buffer;
-    draw_input.icon_index_count = this->icon_order_count;
     draw_input.show_junctions = resources.show_junctions;
     switch (this->underground_mode)
     {

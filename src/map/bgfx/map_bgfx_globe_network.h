@@ -3,6 +3,7 @@
 
 #include "map/bgfx/map_bgfx_entity_style.h"
 #include "map/bgfx/map_bgfx_globe_gpu.h"
+#include "map/bgfx/map_bgfx_globe_buffer_pool.h"
 #include "map/render/map_globe_network_scene.h"
 #include "map/render/map_globe_reservoir_model.h"
 #include "map/render/map_globe_tank_model.h"
@@ -129,12 +130,6 @@ private:
         JunctionStream = 1u << 5,     // junction impostors (instances, colours)
         AllStreams = 0x3fu
     };
-    // One dynamic vertex buffer and the vertex count uploaded into it.
-    struct Buffer
-    {
-        bgfx::DynamicVertexBufferHandle handle = BGFX_INVALID_HANDLE;
-        quint32 count = 0;
-    };
     // A junction impostor corner: centre, corner, entity reference
     // (mapNetworkSetEntityReference()), radius.
     struct JunctionVertex
@@ -162,7 +157,6 @@ private:
     QVector<JunctionVertex> junctionVertices(const QVector<MapGlobeJunctionInstance> &instances) const;
     // Whether a junction is drawn (junctions shown, not hidden): picking.
     bool junctionDrawn(quint32 render_id) const;
-    void destroyBuffers();
 
     MapGlobeNetworkScene network_scene;
 
@@ -231,23 +225,7 @@ private:
     bgfx::TextureHandle tank_texture = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle reservoir_texture = BGFX_INVALID_HANDLE;
 
-    Buffer link_buffer;
-    Buffer node_buffer;
-    Buffer selected_link_buffer;
-    Buffer selected_node_buffer;
-    Buffer diagnostic_link_buffer;
-    Buffer diagnostic_node_buffer;
-    Buffer flow_buffer;
-    Buffer icon_buffer;
-    bgfx::DynamicIndexBufferHandle icon_order_buffer = BGFX_INVALID_HANDLE;
-    quint32 icon_order_count = 0;
-    QVector3D icon_order_eye;
-    bool icon_order_dirty = true;
-    Buffer underground_link_buffer;
-    Buffer junction_buffer;
-    Buffer underground_junction_buffer;
-    Buffer tank_buffer;
-    Buffer reservoir_buffer;
+    MapBgfxGlobeBufferPool gpu_buffers;
 };
 
 #endif // MAP_BGFX_GLOBE_NETWORK_H
