@@ -2,6 +2,7 @@
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 
+#include <QElapsedTimer>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHash>
@@ -77,22 +78,53 @@ struct ActionScan
     }
 };
 
+// Record actual HUD commands, not just geometric proximity. The click is
+// intentional: Cancel and popup actions have stateful release semantics.
+void recordActionAt(MapBgfxHud *hud, ActionScan *scan, double x, double y, int expected_key)
+{
+    hud->mousePress(x, y);
+    bool consumed = false;
+    const MapBgfxHud::Action action = hud->mouseRelease(x, y, &consumed);
+    if (action == MapBgfxHud::Action::None)
+        return;
+    const int key = static_cast<int>(action);
+    if (expected_key >= 0 && key != expected_key)
+        return;
+    const QRectF point(x, y, 0.001, 0.001);
+    scan->bounds.insert(key, scan->bounds.contains(key)
+        ? scan->bounds.value(key).united(point) : point);
+}
+
 ActionScan scanActions(MapBgfxHud *hud, double step)
 {
+    // A full 800 x 600 sweep at 1-pixel intervals causes ~480,000 pairs
+    // of mouse events per call, repeated throughout this test. Discover
+    // targets on an 8-pixel grid, then retain the requested precision when
+    // measuring the actual button bounds. All actionable HUD rectangles are
+    // wider/taller than this discovery spacing.
+    const double discovery_step = std::max(8.0, step);
     ActionScan scan;
-    for (double y = 0.5; y < ViewportHeight; y += step)
+    for (double y = 0.5; y < ViewportHeight; y += discovery_step)
     {
-        for (double x = 0.5; x < ViewportWidth; x += step)
+        for (double x = 0.5; x < ViewportWidth; x += discovery_step)
+            recordActionAt(hud, &scan, x, y, -1);
+    }
+
+    // Refine only the discovered buttons, including both edges of their
+    // coarse bounds. This preserves precise centers, ordering and hit-area
+    // assertions without rescanning hundreds of thousands of empty pixels.
+    const QHash<int, QRectF> discovered = scan.bounds;
+    for (QHash<int, QRectF>::const_iterator it = discovered.cbegin(); it != discovered.cend(); ++it)
+    {
+        const QRectF bounds = it.value();
+        const double left = std::max(0.5, bounds.left() - discovery_step);
+        const double right = std::min(ViewportWidth - 0.5, bounds.right() + discovery_step);
+        const double top = std::max(0.5, bounds.top() - discovery_step);
+        const double bottom = std::min(ViewportHeight - 0.5, bounds.bottom() + discovery_step);
+        for (double y = top; y <= bottom; y += step)
         {
-            hud->mousePress(x, y);
-            bool consumed = false;
-            const MapBgfxHud::Action action = hud->mouseRelease(x, y, &consumed);
-            if (action == MapBgfxHud::Action::None)
-                continue;
-            const int key = static_cast<int>(action);
-            const QRectF point(x, y, 0.001, 0.001);
-            scan.bounds.insert(key, scan.bounds.contains(key)
-                ? scan.bounds.value(key).united(point) : point);
+            for (double x = left; x <= right; x += step)
+                recordActionAt(hud, &scan, x, y, it.key());
         }
     }
     return scan;
@@ -999,7 +1031,14 @@ void testLegend()
                 hud.mouseRelease(ramp_mid_x, ramp_mid_y, &consumed, &command);
                 hud.build(&canvas, &cache, frameInputs(true), palette);
             }
-            hud.mouseMove(x, y, nullptr);
+            // Outside the menu, a press closes the popup. The old sweep
+            // reopened and fully rebuilt the HUD at almost every one of
+            // ~27,000 grid positions. Only actual clickable targets need a
+            // press; menu background and empty viewport cannot select one.
+            bool over_button = false;
+            hud.mouseMove(x, y, &over_button);
+            if (!over_button)
+                continue;
             hud.mousePress(x, y);
             const MapBgfxHud::Action action = hud.mouseRelease(x, y, &consumed, &command);
             if (action != MapBgfxHud::Action::LegendPalette)
@@ -1126,25 +1165,47 @@ MapBgfxHud::Globe globeState()
 
 // First grid point whose press queues a command of action (its group for
 // sliders); every press is released again.
+bool commandPointAt(MapBgfxHud *hud, MapBgfxHud::Action action, int group,
+                    double x, double y)
+{
+    hud->mousePress(x, y);
+    const QVector<MapBgfxHud::Command> commands = hud->takeCommands();
+    bool consumed = false;
+    hud->mouseRelease(x, y, &consumed);
+    hud->takeCommands();
+    return !commands.isEmpty() && commands.first().action == action
+        && (group < 0 || commands.first().group == group);
+}
+
 bool findCommandPoint(MapBgfxHud *hud, MapBgfxHud::Action action, int group, double *found_x,
                       double *found_y)
 {
-    for (double y = 0.5; y < ViewportHeight; y += 2.0)
+    // Slider tracks and the compass have large hit areas. Locate one with a
+    // coarse sweep, then recover the original two-pixel first-hit precision.
+    constexpr double coarse_step = 8.0;
+    for (double y = 0.5; y < ViewportHeight; y += coarse_step)
     {
-        for (double x = 0.5; x < ViewportWidth; x += 2.0)
+        for (double x = 0.5; x < ViewportWidth; x += coarse_step)
         {
-            hud->mousePress(x, y);
-            const QVector<MapBgfxHud::Command> commands = hud->takeCommands();
-            bool consumed = false;
-            hud->mouseRelease(x, y, &consumed);
-            hud->takeCommands();
-            if (!commands.isEmpty() && commands.first().action == action
-                && (group < 0 || commands.first().group == group))
+            if (!commandPointAt(hud, action, group, x, y))
+                continue;
+            const double top = std::max(0.5, y - coarse_step);
+            const double left = std::max(0.5, x - coarse_step);
+            for (double fine_y = top; fine_y <= y; fine_y += 2.0)
             {
-                *found_x = x;
-                *found_y = y;
-                return true;
+                for (double fine_x = left; fine_x <= x; fine_x += 2.0)
+                {
+                    if (commandPointAt(hud, action, group, fine_x, fine_y))
+                    {
+                        *found_x = fine_x;
+                        *found_y = fine_y;
+                        return true;
+                    }
+                }
             }
+            *found_x = x;
+            *found_y = y;
+            return true;
         }
     }
     return false;
@@ -1462,14 +1523,31 @@ int main(int argc, char **argv)
     // the expectations below are written for the C locale.
     QLocale::setDefault(QLocale::c());
 
-    testCanvas();
-    testTextCache();
-    testHud();
-    testLegendFormatting();
-    testGradient();
-    testLegend();
-    testGlobe();
-    testRuntimeLanguageRefresh();
+    // When a test does regress, leave the name of its expensive section in
+    // CTest output rather than just a 240-second generic timeout.
+    struct TimedTest
+    {
+        const char *name;
+        void (*run)();
+    };
+    const TimedTest tests[] = {
+        {"canvas", testCanvas},
+        {"text cache", testTextCache},
+        {"HUD controls", testHud},
+        {"legend formatting", testLegendFormatting},
+        {"gradient", testGradient},
+        {"legend/palette", testLegend},
+        {"globe controls", testGlobe},
+        {"runtime translations", testRuntimeLanguageRefresh}
+    };
+    for (const TimedTest &test : tests)
+    {
+        QElapsedTimer elapsed;
+        elapsed.start();
+        test.run();
+        std::fprintf(stderr, "HUD subtest %s: %lld ms\n", test.name,
+                     static_cast<long long>(elapsed.elapsed()));
+    }
 
     if (fails == 0)
         std::printf("bgfx HUD tests passed\n");
