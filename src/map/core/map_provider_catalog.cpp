@@ -90,6 +90,38 @@ QString MapProviderCatalog::builtinId(int provider_enum)
     }
 }
 
+bool MapProviderCatalog::isProviderEnabled(const QString &provider_id) const
+{
+    const MapProviderEntry *entry = provider(provider_id);
+    return entry != nullptr && entry->enabled;
+}
+
+QString MapProviderCatalog::firstEnabledProviderId() const
+{
+    for (const MapProviderEntry &candidate : this->entries)
+    {
+        if (candidate.enabled)
+            return candidate.id;
+    }
+    return QString();
+}
+
+bool MapProviderCatalog::sourceZoomRange(const QString &source, int *minimum_zoom,
+                                         int *maximum_zoom) const
+{
+    const MapProviderEntry *entry = provider(source);
+    if (entry == nullptr || minimum_zoom == nullptr || maximum_zoom == nullptr)
+        return false;
+    *minimum_zoom = entry->minimum_zoom;
+    *maximum_zoom = entry->maximum_zoom;
+    return true;
+}
+
+QString MapProviderCatalog::builtinProviderId(MapProvider provider) const
+{
+    return builtinId(int(provider));
+}
+
 QString MapProviderCatalog::fallback(const QString &provider_id) const
 {
     // Called on every map frame: never construct QSettings or touch disk here.

@@ -3,6 +3,7 @@
 #include "tabs/tab_map_workspace.h"
 #include "tabs/tab_projects_widget.h"
 #include "config/gui_configuration.h"
+#include "map/core/map_provider_catalog.h"
 #include "config/unit_profile_manager.h"
 #include "config/shortcut_registry.h"
 #include "config/map_server_client_configuration.h"
@@ -56,7 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
     top_control_bar( new TopControlBar(this) ),
     map_tile_repository( new MapTileRepository(this) ),
     map_terrain_repository( new MapTerrainRepository(this) ),
-    map_model_monitor( new MapModel(this) ),
+    map_model_monitor( new MapModel(&mapProviderCatalog(), this) ),
     settings( new SettingsWidget(this) ),
     map_monitor( new MapMonitorContainer(this->map_model_monitor, this->map_tile_repository,
                                          this->map_terrain_repository, this->hydraulic_data,
@@ -844,6 +845,19 @@ MainWindow::MainWindow(QWidget *parent)
             active_model->setView2dContinuousZoom(zoom, active_widget->size());
     });
     
+    // The model (Render) sees the providers only through its directory
+    // interface: forward the catalog's changes, and read the orbit setting
+    // live so a changed value applies to the next drag.
+    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
+            this->map_model_monitor, &MapModel::providerCatalogChanged);
+    connect(&mapProviderCatalog(), &MapProviderCatalog::fallbackChanged,
+            this->map_model_monitor, &MapModel::providerFallbackChanged);
+    const std::function<double()> orbit_sensitivity = []()
+    {
+        return guiConfiguration().map_navigation.orbit_3d_sensitivity;
+    };
+    this->map_model_monitor->setOrbitSensitivitySource(orbit_sensitivity);
+
     // Both distribution toolbars select providers on the same MapModel.
     // The model itself owns the 2D/3D camera-scale transfer in setViewMode().
     // No editor/monitor synchronization or per-view camera snapshots exist.

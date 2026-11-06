@@ -34,7 +34,7 @@ create_render_repo()
     printf 'overlay GPU header original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.h"
     printf 'overlay GPU source original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp"
     # Geodesy and terrain data moved to Render with their own CMake module.
-    mkdir -p "$path/src/geo" "$path/src/map/data" "$path/cmake"
+    mkdir -p "$path/src/geo" "$path/src/map/data" "$path/src/map/core" "$path/cmake"
     for moved in src/geo/geo_metric_projection src/geo/geo_web_mercator \
                  src/geo/geo_wgs84_ellipsoid src/map/data/map_terrain_tile \
                  src/map/data/map_terrain_dataset; do
@@ -42,6 +42,14 @@ create_render_repo()
         printf 'moved source original\n' > "$path/$moved.cpp"
     done
     printf 'dependencies original\n' > "$path/cmake/aowis_render_dependencies.cmake"
+    # Globe terrain pipeline moved to Render.
+    for moved in src/map/render/map_globe_surface_scene.h src/map/render/map_globe_surface_scene.cpp src/map/render/map_globe_surface_preparation.h src/map/render/map_globe_surface_preparation.cpp src/map/render/map_terrain_mesh_scheduler.h src/map/render/map_terrain_mesh_scheduler.cpp src/map/render/map_globe_terrain_navigation.h src/map/render/map_globe_terrain_navigation.cpp src/map/render/map_globe_camera.h src/map/render/map_globe_camera.cpp src/map/render/map_globe_heatmap_scene.h src/map/render/map_globe_heatmap_scene.cpp src/map/render/map_globe_retained_origin.h src/map/render/map_globe_terrain_levels.h src/map/data/map_terrain_tile_source.h src/map/render/map_globe_surface_hit.h; do
+        printf 'moved terrain source original\n' > "$path/$moved"
+    done
+    # MapModel and its helpers moved to Render.
+    for moved in src/map/core/map_model.h src/map/core/map_model.cpp src/map/core/map_view_types.h src/map/core/map_imagery_provider_directory.h src/map/render/map_camera_view_state.h src/map/render/map_render_diagnostics.h src/map/render/map_globe_picking.h src/map/render/map_globe_picking.cpp src/map/render/map_render_cache_math.h src/map/render/map_render_cache_math.cpp; do
+        printf 'moved view source original\n' > "$path/$moved"
+    done
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'

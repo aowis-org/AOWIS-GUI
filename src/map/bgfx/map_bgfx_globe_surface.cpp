@@ -1,4 +1,6 @@
 #include "map/bgfx/map_bgfx_globe_surface.h"
+#include "config/gui_configuration.h"
+#include <functional>
 #include "map/render/map_render_diagnostics.h"
 
 #include "map/bgfx/map_bgfx_backend.h"
@@ -51,6 +53,12 @@ MapBgfxGlobeSurface::MapBgfxGlobeSurface(MapModel *map_model)
       surface_preparation(map_model),
       heatmap_scene(MapModel::MaxZoom)
 {
+    // The pipeline (Render) reads the user's terrain detail setting live.
+    const std::function<int()> terrain_detail_reduction = []()
+    {
+        return guiConfiguration().map_performance.terrain_detail_reduction;
+    };
+    this->surface_preparation.setTerrainDetailReductionSource(terrain_detail_reduction);
 }
 
 MapBgfxGlobeSurface::~MapBgfxGlobeSurface() = default;

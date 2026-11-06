@@ -14,6 +14,7 @@
 #include "services/interface_server_map.h"
 #include "map/data/map_terrain_dataset.h"
 #include "map/data/map_terrain_tile.h"
+#include "map/data/map_terrain_tile_source.h"
 
 #include <QVector>
 
@@ -31,7 +32,9 @@ struct MapTerrainCacheDeletionRange
     int tile_y_max = -1;
 };
 
-class MapTerrainRepository : public QObject
+// Also the globe terrain pipeline's (Render) MapTerrainTileSource; the
+// map surfaces forward its tile signals to the pipeline.
+class MapTerrainRepository : public QObject, public MapTerrainTileSource
 {
     Q_OBJECT
 
@@ -39,14 +42,14 @@ public:
     explicit MapTerrainRepository(QObject *parent = nullptr);
     ~MapTerrainRepository() override;
 
-    const MapTerrainTile *tile(const QString &key) const;
-    const MapTerrainTile *tile(const QString &dataset, int zoom, quint32 x, quint32 y) const;
-    void requestTile(const QString &dataset, int zoom, quint32 x, quint32 y);
+    const MapTerrainTile *tile(const QString &key) const override;
+    const MapTerrainTile *tile(const QString &dataset, int zoom, quint32 x, quint32 y) const override;
+    void requestTile(const QString &dataset, int zoom, quint32 x, quint32 y) override;
     // The dataset the map draws: the terrain service's default dataset, as
     // described by its catalog (GET /terrain/v1/datasets). nullptr until the
     // catalog arrived, or when it does not describe its default dataset:
     // then no relief is drawn rather than guessing a provider.
-    const MapTerrainDatasetInfo *activeDataset() const;
+    const MapTerrainDatasetInfo *activeDataset() const override;
     void setMapServerMode(MapServerMode mode);
     void requestUpstreamActivity();
     void cancelUpstreamDownloads();

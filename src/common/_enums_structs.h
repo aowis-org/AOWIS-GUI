@@ -13,14 +13,8 @@ enum MapServerMode
     Standalone
 };
 
-enum MapProvider
-{
-    ArcGISSat       = 1,
-    OpenStreetMap   = 2,
-    OpenTopoMap     = 3,
-    OSMCyclo        = 4,
-    Custom          = 5
-};
+// MapProvider and MapViewMode live in AOWIS-GUI-Render with MapModel.
+#include "map/core/map_view_types.h"
 
 enum StatusColorCode
 {
@@ -36,11 +30,7 @@ enum CanvasMode
     Monitor
 };
 
-enum class MapViewMode
-{
-    TwoD,
-    Globe
-};
+
 
 enum class VisualNode
 {

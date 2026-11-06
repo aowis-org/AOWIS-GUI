@@ -15,6 +15,8 @@ remaining forward work.
 | --- | --- | --- |
 | `AOWIS::RenderGeometry` | Header-only C++20 Mercator/camera/icon/height-cache and imagery fallback helpers | MapModel/camera and scene state remain with host |
 | `AOWIS::RenderGeo` | `src/geo/`: WGS84/ECEF and orbit camera basis, Web Mercator tile math, UTM / project-local metric projection | Links the GUI's `GeographicLib_STATIC` and `AOWIS::Model` (added before Render) |
+| `AOWIS::RenderView` | `MapModel` (camera/view state, screen <-> WGS84, imagery tile addressing), `MapCameraViewState`, globe picking, render cache math, render diagnostics | `MapProviderCatalog` implements `MapImageryProviderDirectory`; `MainWindow` forwards its change signals and injects the orbit sensitivity |
+| `AOWIS::RenderGlobeTerrain` | Globe terrain CPU pipeline: quadtree selection/LOD, surface preparation (tile window, sparse DEM patches, terrain queries), mesh scheduler, terrain navigation, globe camera, heatmap scene | `MapTerrainRepository` implements `MapTerrainTileSource`; `MapBgfxGlobeSurface` / `MapBgfxSurface` inject the terrain detail setting and forward tile signals |
 | `AOWIS::RenderTerrainData` | `src/map/data/map_terrain_tile.*`, `map_terrain_dataset.*`: DEM tile decoder, tile keys/endpoints, dataset catalog | `map_terrain_repository.*` requests, caches and transports the bytes |
 | `AOWIS::RenderNetwork` | CPU 2D network scene, variants, mesh staging | `map_bgfx_2d_snapshot_adapter.h` and host style binding |
 | `AOWIS::RenderGlobe` | Tank/reservoir, link, flow and underground geometry, terrain tile topology and retained scene invalidation policy | Hydraulic scene snapshots, GeographicLib sampling, terrain queries and scene updates |
@@ -47,12 +49,6 @@ inputs, plus camera/tile selections, rather than duplicating ownership.
 
 ## Still in GUI — by design for now
 
-- `src/map/render/map_globe_surface_scene.*`: visible-quadtree selection,
-  view/horizon culling, LOD hysteresis, terrain levels.
-- `src/map/render/map_globe_surface_preparation.*`: retained visible tile
-  pool, DEM requests and mesh updates, terrain-height queries and ray hits.
-- `src/map/render/map_terrain_mesh_scheduler.*`: asynchronous DEM mesh
-  generation, neighbor normals, ancestor stand-in geometry.
 - `src/map/data/map_terrain_repository.*`: dataset catalog request, DEM
   tile requests, caching (decoding is Render's `AOWIS::RenderTerrainData`).
 - `src/map/data/map_tile_repository.*` and

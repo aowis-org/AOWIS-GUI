@@ -88,7 +88,29 @@ for relative in \
     src/map/data/map_terrain_tile.h \
     src/map/data/map_terrain_tile.cpp \
     src/map/data/map_terrain_dataset.h \
-    src/map/data/map_terrain_dataset.cpp; do
+    src/map/data/map_terrain_dataset.cpp \
+    src/map/core/map_model.h \
+    src/map/core/map_model.cpp \
+    src/map/render/map_camera_view_state.h \
+    src/map/render/map_render_diagnostics.h \
+    src/map/render/map_globe_picking.h \
+    src/map/render/map_globe_picking.cpp \
+    src/map/render/map_render_cache_math.h \
+    src/map/render/map_render_cache_math.cpp \
+    src/map/render/map_globe_surface_scene.h \
+    src/map/render/map_globe_surface_scene.cpp \
+    src/map/render/map_globe_surface_preparation.h \
+    src/map/render/map_globe_surface_preparation.cpp \
+    src/map/render/map_terrain_mesh_scheduler.h \
+    src/map/render/map_terrain_mesh_scheduler.cpp \
+    src/map/render/map_globe_terrain_navigation.h \
+    src/map/render/map_globe_terrain_navigation.cpp \
+    src/map/render/map_globe_camera.h \
+    src/map/render/map_globe_camera.cpp \
+    src/map/render/map_globe_heatmap_scene.h \
+    src/map/render/map_globe_heatmap_scene.cpp \
+    src/map/render/map_globe_retained_origin.h \
+    src/map/render/map_globe_terrain_levels.h; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1

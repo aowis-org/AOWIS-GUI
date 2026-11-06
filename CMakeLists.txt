@@ -130,6 +130,12 @@ foreach(_aowis_render_required_file IN ITEMS
         src/geo/geo_wgs84_ellipsoid.cpp
         src/map/data/map_terrain_tile.h
         src/map/data/map_terrain_tile.cpp
+        src/map/core/map_model.h
+        src/map/core/map_model.cpp
+        src/map/core/map_imagery_provider_directory.h
+        src/map/data/map_terrain_tile_source.h
+        src/map/render/map_globe_surface_preparation.h
+        src/map/render/map_globe_surface_preparation.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -145,6 +151,8 @@ set(AOWIS_RENDER_BUILD_MAP_CORE ON CACHE BOOL "" FORCE)
 # and never builds its own submodules inside the GUI.
 set(AOWIS_RENDER_BUILD_GEO ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_TERRAIN_DATA ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_VIEW ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_GLOBE_TERRAIN ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
 include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
@@ -346,8 +354,6 @@ qt_add_executable(aowis-server-gui
 
     # Map core
     src/map/core/map_provider_catalog.cpp
-    src/map/core/map_model.cpp
-    src/map/core/map_model.h
     src/map/core/map_models.h
     src/map/core/map_navigation_widget.cpp
     src/map/core/map_navigation_widget.h
@@ -389,35 +395,18 @@ qt_add_executable(aowis-server-gui
     # Map rendering
     src/map/render/map_entity_pixmap_renderer.cpp
     src/map/render/map_entity_pixmap_renderer.h
-    src/map/render/map_render_cache_math.cpp
-    src/map/render/map_render_cache_math.h
 
     # Backend-neutral Globe rendering
-    src/map/render/map_terrain_mesh_scheduler.h
-    src/map/render/map_terrain_mesh_scheduler.cpp
-    src/map/render/map_globe_camera.h
-    src/map/render/map_globe_camera.cpp
     src/map/render/map_globe_icon_draw_order.h
     src/map/render/map_globe_network_scene.h
     src/map/render/map_globe_network_scene.cpp
     src/map/render/map_globe_render_frame.h
     src/map/render/map_globe_render_frame.cpp
-    src/map/render/map_globe_surface_scene.h
-    src/map/render/map_globe_surface_scene.cpp
-    src/map/render/map_globe_surface_preparation.h
-    src/map/render/map_globe_surface_preparation.cpp
-    src/map/render/map_globe_terrain_levels.h
-    src/map/render/map_globe_terrain_navigation.h
-    src/map/render/map_globe_terrain_navigation.cpp
-    src/map/render/map_globe_heatmap_scene.h
-    src/map/render/map_globe_heatmap_scene.cpp
     src/map/render/map_render_types.h
     src/map/render/map_network_render_symbology.h
     src/map/render/map_label_settings.h
     src/map/render/map_network_render_symbology.cpp
     src/map/render/map_network_render_data.h
-    src/map/render/map_globe_picking.h
-    src/map/render/map_globe_picking.cpp
     src/map/render/map_icon_atlas.h
     src/map/render/map_icon_atlas.cpp
 
@@ -529,6 +518,8 @@ target_link_libraries(aowis-server-gui
         AOWIS::ServerEpanet
         AOWIS::RenderGeo
         AOWIS::RenderTerrainData
+        AOWIS::RenderView
+        AOWIS::RenderGlobeTerrain
         GeographicLib_STATIC
 )
 
@@ -1518,15 +1509,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-map-render-neutral-tests
         tests/map_render_neutral_tests.cpp
         tests/test_harness.h
-        src/map/render/map_globe_terrain_levels.h
-        src/map/render/map_globe_heatmap_scene.cpp
-        src/map/render/map_globe_heatmap_scene.h
-        src/map/render/map_globe_picking.cpp
-        src/map/render/map_globe_picking.h
-                                        src/map/render/map_render_cache_math.cpp
-        src/map/render/map_render_cache_math.h
-        src/map/render/map_terrain_mesh_scheduler.cpp
-        src/map/render/map_terrain_mesh_scheduler.h
     )
     target_include_directories(aowis-map-render-neutral-tests
         PRIVATE
@@ -1540,6 +1522,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             AOWIS::ServerModel
             AOWIS::RenderGeo
             AOWIS::RenderTerrainData
+            AOWIS::RenderView
+            AOWIS::RenderGlobeTerrain
             GeographicLib_STATIC
             AOWIS::RenderCore
             AOWIS::RenderGlobe)
