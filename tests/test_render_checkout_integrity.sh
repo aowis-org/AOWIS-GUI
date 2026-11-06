@@ -33,6 +33,15 @@ create_render_repo()
     printf 'terrain GPU source original\n' > "$path/src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp"
     printf 'overlay GPU header original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.h"
     printf 'overlay GPU source original\n' > "$path/src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp"
+    # Geodesy and terrain data moved to Render with their own CMake module.
+    mkdir -p "$path/src/geo" "$path/src/map/data" "$path/cmake"
+    for moved in src/geo/geo_metric_projection src/geo/geo_web_mercator \
+                 src/geo/geo_wgs84_ellipsoid src/map/data/map_terrain_tile \
+                 src/map/data/map_terrain_dataset; do
+        printf 'moved header original\n' > "$path/$moved.h"
+        printf 'moved source original\n' > "$path/$moved.cpp"
+    done
+    printf 'dependencies original\n' > "$path/cmake/aowis_render_dependencies.cmake"
     printf 'test helper\n' > "$path/tools/readme"
     git -C "$path" add .
     git -C "$path" commit -qm 'fixture'

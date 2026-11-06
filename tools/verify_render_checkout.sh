@@ -39,6 +39,17 @@ required_files=(
     src/map/bgfx/map_bgfx_globe_terrain_gpu.cpp
     src/map/bgfx/map_bgfx_globe_overlay_gpu.h
     src/map/bgfx/map_bgfx_globe_overlay_gpu.cpp
+    src/geo/geo_metric_projection.h
+    src/geo/geo_metric_projection.cpp
+    src/geo/geo_web_mercator.h
+    src/geo/geo_web_mercator.cpp
+    src/geo/geo_wgs84_ellipsoid.h
+    src/geo/geo_wgs84_ellipsoid.cpp
+    src/map/data/map_terrain_tile.h
+    src/map/data/map_terrain_tile.cpp
+    src/map/data/map_terrain_dataset.h
+    src/map/data/map_terrain_dataset.cpp
+    cmake/aowis_render_dependencies.cmake
 )
 
 for relative in "${required_files[@]}"; do
@@ -67,4 +78,4 @@ for relative in "${required_files[@]}"; do
     fi
 done
 
-printf 'PASS: Render checkout contains required globe scene and layout sources.\n'
+printf 'PASS: Render checkout contains required geo, terrain data, globe scene and layout sources.\n'

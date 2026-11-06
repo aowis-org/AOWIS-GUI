@@ -125,7 +125,12 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/render/map_globe_underground_geometry.h
         src/map/render/map_globe_underground_geometry.cpp
         src/map/render/map_globe_scene_sync.h
-        src/map/render/map_globe_scene_sync.cpp)
+        src/map/render/map_globe_scene_sync.cpp
+        src/geo/geo_wgs84_ellipsoid.h
+        src/geo/geo_wgs84_ellipsoid.cpp
+        src/map/data/map_terrain_tile.h
+        src/map/data/map_terrain_tile.cpp
+        cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
             "AOWIS-GUI-Render checkout is incomplete: ${_aowis_render_required_file} is missing at ${AOWIS_RENDER_SOURCE_DIR}.\n"
@@ -135,6 +140,11 @@ endforeach()
 set(AOWIS_RENDER_VENDOR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external" CACHE PATH
     "Pinned bx/bimg/bgfx sources for the shared renderer")
 set(AOWIS_RENDER_BUILD_MAP_CORE ON CACHE BOOL "" FORCE)
+# Geodesy and terrain decoding live in Render. GeographicLib_STATIC and
+# AOWIS::Model already exist at this point, so Render links the GUI's copies
+# and never builds its own submodules inside the GUI.
+set(AOWIS_RENDER_BUILD_GEO ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_TERRAIN_DATA ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
 include_directories("${AOWIS_RENDER_SOURCE_DIR}/src")
@@ -334,14 +344,6 @@ qt_add_executable(aowis-server-gui
     src/services/rest_client.cpp
     src/services/rest_client.h
 
-    # Geospatial
-    src/geo/geo_metric_projection.cpp
-    src/geo/geo_metric_projection.h
-    src/geo/geo_web_mercator.cpp
-    src/geo/geo_web_mercator.h
-    src/geo/geo_wgs84_ellipsoid.cpp
-    src/geo/geo_wgs84_ellipsoid.h
-
     # Map core
     src/map/core/map_provider_catalog.cpp
     src/map/core/map_model.cpp
@@ -356,12 +358,8 @@ qt_add_executable(aowis-server-gui
     src/map/core/map_widget.h
 
     # Map data
-    src/map/data/map_terrain_dataset.cpp
-    src/map/data/map_terrain_dataset.h
     src/map/data/map_terrain_repository.cpp
     src/map/data/map_terrain_repository.h
-    src/map/data/map_terrain_tile.cpp
-    src/map/data/map_terrain_tile.h
     src/map/data/map_tile_repository.cpp
     src/map/data/map_tile_repository.h
 
@@ -529,6 +527,8 @@ target_link_libraries(aowis-server-gui
         aowis-epanet-js-import
         AOWIS::ServerModel
         AOWIS::ServerEpanet
+        AOWIS::RenderGeo
+        AOWIS::RenderTerrainData
         GeographicLib_STATIC
 )
 
@@ -1138,13 +1138,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Map editor on bgfx (Phase 2) without a GPU: what the overlay builder
     # draws for each editor state, positioned with the continuous camera.
     add_executable(aowis-bgfx-editor-overlay-tests tests/bgfx_editor_overlay_test.cpp
-        src/map/bgfx/map_bgfx_editor_overlay.cpp
-        src/geo/geo_wgs84_ellipsoid.cpp)
+        src/map/bgfx/map_bgfx_editor_overlay.cpp)
     target_include_directories(aowis-bgfx-editor-overlay-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-bgfx-editor-overlay-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore)
     add_test(NAME aowis-bgfx-editor-overlay COMMAND aowis-bgfx-editor-overlay-tests)
     set_tests_properties(aowis-bgfx-editor-overlay PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1153,13 +1152,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # projection, retaining the 2D hit-box fast path but never applying it
     # to a globe or to a missing projection result.
     add_executable(aowis-map-canvas-projection-tests
-        tests/map_canvas_projection_test.cpp
-        src/geo/geo_web_mercator.cpp)
+        tests/map_canvas_projection_test.cpp)
     target_include_directories(aowis-map-canvas-projection-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/tests)
     target_link_libraries(aowis-map-canvas-projection-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo)
     add_test(NAME aowis-map-canvas-projection COMMAND aowis-map-canvas-projection-tests)
     set_tests_properties(aowis-map-canvas-projection PROPERTIES LABELS "aowis")
 
@@ -1434,13 +1432,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-map-globe-retained-origin-tests
         tests/map_globe_retained_origin_test.cpp
         src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp
-            src/geo/geo_wgs84_ellipsoid.cpp)
+        src/map/render/map_icon_atlas.cpp)
     target_include_directories(aowis-map-globe-retained-origin-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-retained-origin-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-retained-origin
         COMMAND aowis-map-globe-retained-origin-tests)
     set_tests_properties(aowis-map-globe-retained-origin PROPERTIES
@@ -1463,13 +1460,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-map-globe-demand-drape-tests
         tests/map_globe_demand_drape_test.cpp
         src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp
-            src/geo/geo_wgs84_ellipsoid.cpp)
+        src/map/render/map_icon_atlas.cpp)
     target_include_directories(aowis-map-globe-demand-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-demand-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-demand-drape
         COMMAND aowis-map-globe-demand-drape-tests)
     set_tests_properties(aowis-map-globe-demand-drape PROPERTIES
@@ -1480,13 +1476,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-map-globe-pipe-bend-drape-tests
         tests/map_globe_pipe_bend_drape_test.cpp
         src/map/render/map_globe_network_scene.cpp
-        src/map/render/map_icon_atlas.cpp
-            src/geo/geo_wgs84_ellipsoid.cpp)
+        src/map/render/map_icon_atlas.cpp)
     target_include_directories(aowis-map-globe-pipe-bend-drape-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
     target_link_libraries(aowis-map-globe-pipe-bend-drape-tests PRIVATE
-        Qt6::Core Qt6::Gui AOWIS::ServerModel GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
+        Qt6::Core Qt6::Gui AOWIS::ServerModel AOWIS::RenderGeo GeographicLib_STATIC AOWIS::RenderCore AOWIS::RenderGlobe)
     add_test(NAME aowis-map-globe-pipe-bend-drape
         COMMAND aowis-map-globe-pipe-bend-drape-tests)
     set_tests_properties(aowis-map-globe-pipe-bend-drape PROPERTIES
@@ -1523,14 +1518,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-map-render-neutral-tests
         tests/map_render_neutral_tests.cpp
         tests/test_harness.h
-        src/geo/geo_web_mercator.cpp
-        src/geo/geo_web_mercator.h
-        src/geo/geo_wgs84_ellipsoid.cpp
-        src/geo/geo_wgs84_ellipsoid.h
-        src/map/data/map_terrain_dataset.cpp
-        src/map/data/map_terrain_dataset.h
-        src/map/data/map_terrain_tile.cpp
-        src/map/data/map_terrain_tile.h
         src/map/render/map_globe_terrain_levels.h
         src/map/render/map_globe_heatmap_scene.cpp
         src/map/render/map_globe_heatmap_scene.h
@@ -1551,8 +1538,11 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             Qt6::Core
             Qt6::Gui
             AOWIS::ServerModel
+            AOWIS::RenderGeo
+            AOWIS::RenderTerrainData
             GeographicLib_STATIC
-     AOWIS::RenderCore AOWIS::RenderGlobe)
+            AOWIS::RenderCore
+            AOWIS::RenderGlobe)
     add_test(
         NAME aowis-map-render-neutral
         COMMAND aowis-map-render-neutral-tests
@@ -1565,8 +1555,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_library(aowis-hydraulic-test-support STATIC
         src/network/hydraulic_edit_transaction_capture.cpp
         src/network/hydraulic_edit_transaction_capture.h
-        src/geo/geo_metric_projection.cpp
-        src/geo/geo_metric_projection.h
         src/network/hydraulic_network_editor.cpp
         src/network/hydraulic_network_editor.h
         src/network/network_render_snapshot_builder.cpp
@@ -1581,6 +1569,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         PUBLIC
             Qt6::Core
             AOWIS::ServerModel
+            AOWIS::RenderGeo
             GeographicLib_STATIC
     )
 

@@ -78,7 +78,17 @@ for relative in \
     src/map/render/map_globe_tank_model.h \
     src/map/render/map_globe_tank_model.cpp \
     src/map/render/map_globe_reservoir_model.h \
-    src/map/render/map_globe_reservoir_model.cpp; do
+    src/map/render/map_globe_reservoir_model.cpp \
+    src/geo/geo_metric_projection.h \
+    src/geo/geo_metric_projection.cpp \
+    src/geo/geo_web_mercator.h \
+    src/geo/geo_web_mercator.cpp \
+    src/geo/geo_wgs84_ellipsoid.h \
+    src/geo/geo_wgs84_ellipsoid.cpp \
+    src/map/data/map_terrain_tile.h \
+    src/map/data/map_terrain_tile.cpp \
+    src/map/data/map_terrain_dataset.h \
+    src/map/data/map_terrain_dataset.cpp; do
     if [[ -e "$relative" ]]; then
         echo "Duplicate extracted Render source remains in GUI: $relative" >&2
         exit 1

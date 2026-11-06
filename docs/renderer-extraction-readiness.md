@@ -14,6 +14,8 @@ remaining forward work.
 | Render library | Implemented responsibility | GUI-side dependency/adapter |
 | --- | --- | --- |
 | `AOWIS::RenderGeometry` | Header-only C++20 Mercator/camera/icon/height-cache and imagery fallback helpers | MapModel/camera and scene state remain with host |
+| `AOWIS::RenderGeo` | `src/geo/`: WGS84/ECEF and orbit camera basis, Web Mercator tile math, UTM / project-local metric projection | Links the GUI's `GeographicLib_STATIC` and `AOWIS::Model` (added before Render) |
+| `AOWIS::RenderTerrainData` | `src/map/data/map_terrain_tile.*`, `map_terrain_dataset.*`: DEM tile decoder, tile keys/endpoints, dataset catalog | `map_terrain_repository.*` requests, caches and transports the bytes |
 | `AOWIS::RenderNetwork` | CPU 2D network scene, variants, mesh staging | `map_bgfx_2d_snapshot_adapter.h` and host style binding |
 | `AOWIS::RenderGlobe` | Tank/reservoir, link, flow and underground geometry, terrain tile topology and retained scene invalidation policy | Hydraulic scene snapshots, GeographicLib sampling, terrain queries and scene updates |
 | `AOWIS::RenderDevice` | Single bgfx device, frame/view coordination, native target registry | Qt native/window adapter and toolkit event routing |
@@ -51,8 +53,8 @@ inputs, plus camera/tile selections, rather than duplicating ownership.
   pool, DEM requests and mesh updates, terrain-height queries and ray hits.
 - `src/map/render/map_terrain_mesh_scheduler.*`: asynchronous DEM mesh
   generation, neighbor normals, ancestor stand-in geometry.
-- `src/map/data/map_terrain_tile.*` / `map_terrain_repository.*`:
-  normalized DEM decode, dataset metadata, network requests, caching.
+- `src/map/data/map_terrain_repository.*`: dataset catalog request, DEM
+  tile requests, caching (decoding is Render's `AOWIS::RenderTerrainData`).
 - `src/map/data/map_tile_repository.*` and
   `src/map/render/map_tile_streaming_policy.h`: imagery request scheduling,
   priorities, decoded tile cache and cancellation.
