@@ -133,6 +133,7 @@ update_render() {
     git submodule update --init --remote --checkout -- "$render_path"
     # If Render acquires nested dependencies, use its pinned gitlinks.
     git -C "$render_path" submodule update --init --recursive --checkout
+    "${PWD}/tools/verify_render_checkout.sh" "$render_path"
 }
 
 update_epanet_deps() {

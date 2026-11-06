@@ -113,6 +113,17 @@ if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/CMakeLists.txt")
     message(FATAL_ERROR "AOWIS-GUI-Render missing at ${AOWIS_RENDER_SOURCE_DIR}. "
         "Run ./git_submodule_init.sh --render or initialize the pinned Git submodule.")
 endif()
+# Detect incomplete Render Git checkouts at configure time, before the
+# compiler encounters a missing header or the linker sees an absent object.
+foreach(_aowis_render_required_file IN ITEMS
+        src/map/bgfx/map_bgfx_globe_vertex_layouts.h
+        src/map/bgfx/map_bgfx_globe_vertex_layouts.cpp)
+    if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
+        message(FATAL_ERROR
+            "AOWIS-GUI-Render checkout is incomplete: ${_aowis_render_required_file} is missing at ${AOWIS_RENDER_SOURCE_DIR}.\n"
+            "Run ./git_submodule_update.sh --render to restore tracked Render sources before building or testing.")
+    endif()
+endforeach()
 set(AOWIS_RENDER_VENDOR_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external" CACHE PATH
     "Pinned bx/bimg/bgfx sources for the shared renderer")
 set(AOWIS_RENDER_BUILD_MAP_CORE ON CACHE BOOL "" FORCE)
@@ -1778,7 +1789,11 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     if(NOT _aowis_test_executables)
         message(FATAL_ERROR "No AOWIS test executable targets were registered")
     endif()
+    # A green CTest report is meaningful only after the complete GUI also
+    # compiles and links. The application and tests share the extracted Render
+    # libraries; a test-only build previously passed with a broken GUI link.
     add_custom_target(aowis-tests DEPENDS ${_aowis_test_executables})
+    add_dependencies(aowis-tests aowis-server-gui)
     if(TARGET aowis-model-unit-conversion-test)
         add_dependencies(aowis-tests aowis-model-unit-conversion-test)
     endif()

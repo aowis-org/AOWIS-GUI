@@ -15,8 +15,9 @@ Usage: ./compile_linux_tests.sh [--debug | --release | --both]
   --release    Build/test the explicit Release configuration in build-linux-tests-release.
   --both       Run the independent Debug and Release builds; fail if either fails.
 
-Only the aowis-tests target is built; all tests with the 'aowis' label are run.
-The existing no-argument workflow is unchanged.
+The aowis-tests target builds the entire GUI executable AND all test binaries.
+CTest runs only after configuration, compilation, linking, and preflight succeed.
+The no-argument workflow uses the existing build-linux-tests directory.
 
 Environment:
   AOWIS_LINUX_LINKER  lld (default), or system for the compiler default.
@@ -39,14 +40,24 @@ run_suite()
     fi
 
     echo "=== AOWIS Linux unit tests: ${build_type:-existing configuration} ==="
-    cmake "${cmake_args[@]}"
-    cmake --build "${build_dir}" --target aowis-tests --parallel
-    # JSON inspection avoids CTest -N's dozens of repeated "looked in" paths
-    # for every unbuilt executable. The preflight prints only missing test names.
-    python3 "${PROJECT_DIR}/tools/ctest_preflight.py" "${build_dir}"
-    # Normal CTest output includes per-test results and a final summary.
-    # Verbose mode produces far too much noise; output from successful tests
-    # stays hidden while failed tests include their diagnostics.
+    if ! cmake "${cmake_args[@]}"; then
+        echo 'ERROR: CMake configuration failed. No tests were executed.' >&2
+        return 1
+    fi
+    # aowis-tests also depends on aowis-server-gui: a passing test-only
+    # compile cannot conceal a broken GUI executable link. Never invoke CTest
+    # when Ninja fails; CTest can otherwise run STALE test executables.
+    if ! cmake --build "${build_dir}" --target aowis-tests --parallel; then
+        echo 'ERROR: GUI or test compilation/linking failed. No tests were executed.' >&2
+        return 1
+    fi
+    # JSON inspection avoids CTest -N's repeated missing-executable paths.
+    if ! python3 "${PROJECT_DIR}/tools/ctest_preflight.py" "${build_dir}"; then
+        echo 'ERROR: Test executable preflight failed. No tests were executed.' >&2
+        return 1
+    fi
+    echo 'PASS: GUI and test executables built successfully; starting CTest.'
+    # Only run tests after the entire application and all test targets link.
     ctest \
         --test-dir "${build_dir}" \
         --output-on-failure \

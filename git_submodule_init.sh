@@ -43,6 +43,7 @@ fi
 if "$render_only"; then
     git submodule sync --recursive
     git submodule update --init --recursive --checkout -- "$render_path"
+    "${PWD}/tools/verify_render_checkout.sh" "$render_path"
     exit 0
 fi
 
@@ -70,4 +71,5 @@ git submodule update --init --recursive -- \
 # Never recursive: AOWIS needs none of bgfx's own submodules. --depth 1 only
 # affects new clones; existing full clones are left as they are.
 git submodule update --init --depth 1 -- "${bgfx_paths[@]}"
+"${PWD}/tools/verify_render_checkout.sh" "$render_path"
 tools/bgfx_sparse_checkout.sh ${sparse_option}

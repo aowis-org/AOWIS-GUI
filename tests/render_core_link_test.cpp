@@ -1,5 +1,6 @@
 #include "map/bgfx/bgfx_device_manager.h"
 #include "map/bgfx/map_bgfx_backend.h"
+#include "map/bgfx/map_bgfx_globe_vertex_layouts.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -22,6 +23,16 @@ int main(int argc, char **argv)
     {
         std::cerr << "Renderer static-library shader resource unavailable: "
                   << resource.toStdString() << '\n';
+        return EXIT_FAILURE;
+    }
+
+    // Link the production globe layout implementation, not just its header.
+    // Invalid zero strides are rejected before bgfx initialization, so this
+    // catches a missing RenderCore object without creating a GPU device.
+    MapBgfxGlobeVertexLayouts globe_layouts;
+    if (globe_layouts.initialize(MapBgfxGlobeVertexLayouts::Strides{}))
+    {
+        std::cerr << "Invalid globe vertex layout unexpectedly accepted\n";
         return EXIT_FAILURE;
     }
 
