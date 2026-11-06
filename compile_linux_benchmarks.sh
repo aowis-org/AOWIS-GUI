@@ -2,6 +2,8 @@
 set -euo pipefail
 
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${PROJECT_DIR}/tools/linux_linker.sh"
+LINKER_FLAGS="$(aowis_linux_executable_linker_flags)"
 
 usage()
 {
@@ -17,6 +19,9 @@ Usage: ./compile_linux_benchmarks.sh [--release | --debug | --both]
 Builds only the aowis-benchmarks target. Runs CTest cases labeled "performance"
 with verbose output so benchmark JSON and timing measurements are visible even
 when the tests pass. No machine-dependent timing thresholds are enforced.
+
+Environment:
+  AOWIS_LINUX_LINKER  lld (default), or system for the compiler default.
 USAGE
 }
 
@@ -27,7 +32,8 @@ run_benchmarks()
 
     echo "=== AOWIS Linux benchmarks: ${build_type} ==="
     cmake -S "${PROJECT_DIR}" -B "${build_dir}" -G Ninja \
-        -DBUILD_TESTING=ON "-DCMAKE_BUILD_TYPE=${build_type}"
+        -DBUILD_TESTING=ON "-DCMAKE_BUILD_TYPE=${build_type}" \
+        "-DCMAKE_EXE_LINKER_FLAGS=${LINKER_FLAGS}"
     cmake --build "${build_dir}" --target aowis-benchmarks --parallel
 
     # CTest may succeed with zero matching tests: explicitly reject this case.

@@ -15,8 +15,9 @@ Usage: ./compile_linux.sh [--shader-tools]
                   The dx11 (Windows) family needs Wine on PATH.
 
 Environment:
-  AOWIS_BUILD_TYPE  CMake build type (default RelWithDebInfo: optimized with
-                    debug info). Use Debug for an unoptimized build.
+  AOWIS_BUILD_TYPE    CMake build type (default RelWithDebInfo: optimized with
+                      debug info). Use Debug for an unoptimized build.
+  AOWIS_LINUX_LINKER  lld (default), or system for the compiler default.
 HELP
 }
 
@@ -27,6 +28,9 @@ case "${1:-}" in
     --help|-h) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
+
+source "${PROJECT_DIR}/tools/linux_linker.sh"
+LINKER_FLAGS="$(aowis_linux_executable_linker_flags)"
 
 cd "${PROJECT_DIR}"
 
@@ -46,6 +50,7 @@ fi
 BUILD_TYPE="${AOWIS_BUILD_TYPE:-RelWithDebInfo}"
 cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" -G Ninja \
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+    -DCMAKE_EXE_LINKER_FLAGS="${LINKER_FLAGS}" \
     -DAOWIS_BGFX_SHADER_TOOLS="${SHADER_TOOLS}" \
     -DBUILD_TESTING=OFF
 cmake --build "${BUILD_DIR}" --target aowis-server-gui --parallel

@@ -2,6 +2,8 @@
 set -euo pipefail
 
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "${PROJECT_DIR}/tools/linux_linker.sh"
+LINKER_FLAGS="$(aowis_linux_executable_linker_flags)"
 
 usage()
 {
@@ -15,6 +17,9 @@ Usage: ./compile_linux_tests.sh [--debug | --release | --both]
 
 Only the aowis-tests target is built; all tests with the 'aowis' label are run.
 The existing no-argument workflow is unchanged.
+
+Environment:
+  AOWIS_LINUX_LINKER  lld (default), or system for the compiler default.
 USAGE
 }
 
@@ -27,6 +32,7 @@ run_suite()
         -B "${build_dir}"
         -G Ninja
         -DBUILD_TESTING=ON
+        "-DCMAKE_EXE_LINKER_FLAGS=${LINKER_FLAGS}"
     )
     if [[ -n "${build_type}" ]]; then
         cmake_args+=("-DCMAKE_BUILD_TYPE=${build_type}")
