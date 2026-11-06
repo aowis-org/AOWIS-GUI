@@ -24,23 +24,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <functional>
 #include <limits>
 
 namespace
 {
-// Premultiplied "over", as every QRhi globe network pipeline.
-constexpr uint64_t kBlendState = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_MSAA
-    | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA);
-// Depth-tested and written (pipes, markers, junctions): LessEqual.
-constexpr uint64_t kDepthState = kBlendState | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LEQUAL;
-// Depth-tested, not written (flow chevrons).
-constexpr uint64_t kDepthTestState = kBlendState | BGFX_STATE_DEPTH_TEST_LEQUAL;
-// No depth test (Solid mode, selection outlines, X-Ray runs, icons).
-constexpr uint64_t kOverlayState = kBlendState;
-// Tank and reservoir models: back faces culled (QRhi: Back with CCW front
-// faces).
-constexpr uint64_t kModelState = kDepthState | BGFX_STATE_CULL_CW;
 constexpr uint64_t kAlbedoSamplerFlags = BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP;
 // The six corners of an impostor quad (MapGlobeJunctionImpostorVertex).
 const float kImpostorCorners[6][2] = {
@@ -596,32 +583,6 @@ void MapBgfxGlobeNetwork::updateIconDrawOrder(const QVector3D &eye, FrameResult 
     }
 }
 
-void MapBgfxGlobeNetwork::submitStream(bgfx::ViewId view, const Buffer &buffer, bgfx::ProgramHandle program,
-                                       uint64_t state, const FrameUniforms &uniforms,
-                                       const MapBgfxEntityStyle &entity_style, MapBgfxEntityStyle::Mode mode,
-                                       bgfx::TextureHandle texture, bgfx::UniformHandle sampler,
-                                       FrameResult *result, bool ordered_icons) const
-{
-    if (buffer.count == 0 || !bgfx::isValid(buffer.handle))
-        return;
-    bgfx::setVertexBuffer(0, buffer.handle, 0, buffer.count);
-    if (ordered_icons && this->icon_order_count != 0 && bgfx::isValid(this->icon_order_buffer))
-        bgfx::setIndexBuffer(this->icon_order_buffer, 0, this->icon_order_count);
-    // Selected icons take the selection colour on the globe.
-    entity_style.bind(mode, MapBgfxEntityStyle::Table::Nodes, true);
-    bgfx::setUniform(this->view_projection_uniform, uniforms.view_projection);
-    bgfx::setUniform(this->viewport_uniform, uniforms.viewport);
-    bgfx::setUniform(this->params_uniform, uniforms.params);
-    bgfx::setUniform(this->camera_right_uniform, uniforms.camera_right);
-    bgfx::setUniform(this->camera_up_uniform, uniforms.camera_up);
-    bgfx::setUniform(this->camera_eye_uniform, uniforms.camera_eye);
-    if (bgfx::isValid(texture))
-        bgfx::setTexture(0, sampler, texture);
-    bgfx::setState(state);
-    bgfx::submit(view, program);
-    ++result->draw_calls;
-}
-
 MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, const MapGlobeCamera &camera,
                                                              const QSize &logical_viewport,
                                                              bgfx::TextureHandle icon_atlas,
@@ -674,7 +635,7 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
                                           0.0f, 0.0f, 0.0f, 1.0f);
         view_projection = depth_correction * view_projection;
     }
-    FrameUniforms uniforms;
+    MapBgfxGlobeGpu::FrameUniforms uniforms;
     std::copy_n(view_projection.constData(), 16, uniforms.view_projection);
     const MapGlobeRenderResources &resources = frame.resources;
     uniforms.viewport[0] = float(logical_viewport.width());
@@ -699,55 +660,68 @@ MapBgfxGlobeNetwork::FrameResult MapBgfxGlobeNetwork::render(bgfx::ViewId view, 
         targets[index][3] = 0.0f;
     }
 
-    const bgfx::TextureHandle no_texture = BGFX_INVALID_HANDLE;
-    const bgfx::UniformHandle no_sampler = BGFX_INVALID_HANDLE;
-    const bool show_junctions = resources.show_junctions;
-    // The base streams reference entities (colour from MapBgfxEntityStyle);
-    // the selection and diagnostic outlines carry their own colours.
-    const MapBgfxEntityStyle::Mode entity = MapBgfxEntityStyle::Mode::Symbology;
-    const MapBgfxEntityStyle::Mode outline = MapBgfxEntityStyle::Mode::VertexColor;
-    const std::function<void(const Buffer &, bgfx::ProgramHandle, uint64_t, MapBgfxEntityStyle::Mode)> submit =
-        [this, view, &uniforms, &entity_style, no_texture, no_sampler, &result](
-            const Buffer &buffer, bgfx::ProgramHandle program, uint64_t state, MapBgfxEntityStyle::Mode mode)
-    {
-        submitStream(view, buffer, program, state, uniforms, entity_style, mode, no_texture, no_sampler, &result);
+    // The GUI owns model adaptation and GPU resource lifetimes; the shared
+    // Render library owns the entire globe-network draw order and bgfx
+    // submission. Only lightweight handles and uniform values cross the ABI.
+    MapBgfxGlobeGpu::Input draw_input;
+    draw_input.view = view;
+    // Use named stream/program slots rather than positional copies: adding a
+    // new GPU pass cannot silently shift an existing handle to the wrong
+    // shader or vertex layout.
+    draw_input.setStream(MapBgfxGlobeStream::Link, this->link_buffer.handle, this->link_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Node, this->node_buffer.handle, this->node_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::SelectedLink, this->selected_link_buffer.handle,
+                         this->selected_link_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::SelectedNode, this->selected_node_buffer.handle,
+                         this->selected_node_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::DiagnosticLink, this->diagnostic_link_buffer.handle,
+                         this->diagnostic_link_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::DiagnosticNode, this->diagnostic_node_buffer.handle,
+                         this->diagnostic_node_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Flow, this->flow_buffer.handle, this->flow_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Icon, this->icon_buffer.handle, this->icon_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::UndergroundLink, this->underground_link_buffer.handle,
+                         this->underground_link_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Junction, this->junction_buffer.handle,
+                         this->junction_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::UndergroundJunction, this->underground_junction_buffer.handle,
+                         this->underground_junction_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Tank, this->tank_buffer.handle, this->tank_buffer.count);
+    draw_input.setStream(MapBgfxGlobeStream::Reservoir, this->reservoir_buffer.handle,
+                         this->reservoir_buffer.count);
+    draw_input.setProgram(MapBgfxGlobeProgram::Link, this->link_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::LinkXRay, this->link_xray_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::Flow, this->flow_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::Node, this->node_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::Junction, this->junction_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::JunctionXRay, this->junction_xray_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::Icon, this->icon_program);
+    draw_input.setProgram(MapBgfxGlobeProgram::Model, this->model_program);
+    draw_input.uniforms = {
+        this->view_projection_uniform, this->viewport_uniform, this->params_uniform,
+        this->camera_right_uniform, this->camera_up_uniform, this->camera_eye_uniform
     };
-    // Draw order of the former QRhi globe network, kept as it was.
-    // Solid: the whole network once through the terrain first.
-    if (this->underground_mode == MapUndergroundMode::Solid)
+    draw_input.icon_atlas = icon_atlas;
+    draw_input.tank_texture = this->tank_texture;
+    draw_input.reservoir_texture = this->reservoir_texture;
+    draw_input.icon_sampler = this->icon_sampler;
+    draw_input.albedo_sampler = this->albedo_sampler;
+    draw_input.icon_indices = this->icon_order_buffer;
+    draw_input.icon_index_count = this->icon_order_count;
+    draw_input.show_junctions = resources.show_junctions;
+    switch (this->underground_mode)
     {
-        submit(this->link_buffer, this->link_program, kOverlayState, entity);
-        submit(this->node_buffer, this->node_program, kOverlayState, entity);
-        if (show_junctions)
-            submit(this->junction_buffer, this->junction_program, kOverlayState, entity);
-        submit(this->selected_node_buffer, this->node_program, kOverlayState, outline);
-        submit(this->diagnostic_link_buffer, this->link_program, kOverlayState, outline);
-        submit(this->diagnostic_node_buffer, this->node_program, kOverlayState, outline);
+    case MapUndergroundMode::Solid:
+        draw_input.underground = MapBgfxGlobeUndergroundMode::Solid;
+        break;
+    case MapUndergroundMode::XRay:
+        draw_input.underground = MapBgfxGlobeUndergroundMode::XRay;
+        break;
+    case MapUndergroundMode::Hide:
+        draw_input.underground = MapBgfxGlobeUndergroundMode::Hide;
+        break;
     }
-    submit(this->link_buffer, this->link_program, kDepthState, entity);
-    submit(this->flow_buffer, this->flow_program, kDepthTestState, entity);
-    submit(this->node_buffer, this->node_program, kDepthState, entity);
-    if (show_junctions)
-        submit(this->junction_buffer, this->junction_program, kDepthState, entity);
-    submitStream(view, this->tank_buffer, this->model_program, kModelState, uniforms, entity_style, outline,
-                 this->tank_texture, this->albedo_sampler, &result);
-    submitStream(view, this->reservoir_buffer, this->model_program, kModelState, uniforms, entity_style, outline,
-                 this->reservoir_texture, this->albedo_sampler, &result);
-    // Selection is a UI overlay: never depth-tested against its own pipe.
-    submit(this->selected_link_buffer, this->link_program, kOverlayState, outline);
-    submit(this->selected_node_buffer, this->node_program, kDepthState, outline);
-    submit(this->diagnostic_link_buffer, this->link_program, kDepthState, outline);
-    submit(this->diagnostic_node_buffer, this->node_program, kDepthState, outline);
-    // X-Ray: the buried runs through the terrain.
-    if (this->underground_mode == MapUndergroundMode::XRay)
-    {
-        submit(this->underground_link_buffer, this->link_xray_program, kOverlayState, entity);
-        if (show_junctions)
-            submit(this->underground_junction_buffer, this->junction_xray_program, kOverlayState, entity);
-    }
-    if (bgfx::isValid(icon_atlas))
-        submitStream(view, this->icon_buffer, this->icon_program, kOverlayState, uniforms, entity_style, entity,
-                     icon_atlas, this->icon_sampler, &result, true);
+    result.draw_calls += int(MapBgfxGlobeGpu::draw(draw_input, uniforms, entity_style));
     return result;
 }
 

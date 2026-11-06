@@ -44,6 +44,9 @@ for relative in \
     src/map/bgfx/map_bgfx_2d_mesh.h \
     src/map/bgfx/map_bgfx_2d_gpu.cpp \
     src/map/bgfx/map_bgfx_2d_gpu.h \
+    src/map/bgfx/map_bgfx_globe_gpu.h \
+    src/map/bgfx/map_bgfx_globe_gpu.cpp \
+    src/map/bgfx/map_bgfx_globe_draw_plan.h \
     src/map/render/map_node_declutter.h \
     src/map/render/map_node_declutter.cpp \
     src/map/render/map_globe_render_instances.h \

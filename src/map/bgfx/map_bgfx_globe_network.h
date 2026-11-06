@@ -2,6 +2,7 @@
 #define MAP_BGFX_GLOBE_NETWORK_H
 
 #include "map/bgfx/map_bgfx_entity_style.h"
+#include "map/bgfx/map_bgfx_globe_gpu.h"
 #include "map/render/map_globe_network_scene.h"
 #include "map/render/map_globe_reservoir_model.h"
 #include "map/render/map_globe_tank_model.h"
@@ -150,17 +151,6 @@ private:
         float radius = 0.0f;
     };
 
-    // Uniform values of one frame (camera, viewport, sizes, depth range).
-    struct FrameUniforms
-    {
-        float view_projection[16];
-        float viewport[4];
-        float params[4];
-        float camera_right[4];
-        float camera_up[4];
-        float camera_eye[4];
-    };
-
     static quint64 entityKey(InfrastructureEntity entity_type, quint32 render_id);
     // Marks GPU streams out of date (the icon stream also the CPU models).
     void markDirty(quint32 streams);
@@ -169,12 +159,6 @@ private:
     MapRenderHit entityHit(InfrastructureEntity entity_type, quint32 render_id) const;
     void uploadStreams(FrameResult *result);
     void updateIconDrawOrder(const QVector3D &eye, FrameResult *result);
-    // One draw of a stream (nothing when it is empty).
-    void submitStream(bgfx::ViewId view, const Buffer &buffer, bgfx::ProgramHandle program, uint64_t state,
-                      const FrameUniforms &uniforms, const MapBgfxEntityStyle &entity_style,
-                      MapBgfxEntityStyle::Mode mode, bgfx::TextureHandle texture,
-                      bgfx::UniformHandle sampler, FrameResult *result,
-                      bool ordered_icons = false) const;
     QVector<JunctionVertex> junctionVertices(const QVector<MapGlobeJunctionInstance> &instances) const;
     // Whether a junction is drawn (junctions shown, not hidden): picking.
     bool junctionDrawn(quint32 render_id) const;

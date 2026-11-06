@@ -1061,3 +1061,8 @@ avoided repeated failures and memory eviction can be distinguished; run `tools/r
 The cached values refer to the terrain **as drawn**, not a permanent DEM
 snapshot or the model's terrain-data revision. Neither this cache nor the
 spatial index is tied to zoom buckets or network geometry re-preparation.
+
+The production globe network draw-order and bgfx stream-submission path now
+lives in `AOWIS::RenderCore` (`MapBgfxGlobeGpu`). `MapBgfxGlobeNetwork` still
+owns the GUI snapshot adapter, picking, resource lifetime, and per-frame
+camera uniforms; it passes only handles and values to the shared draw layer.
