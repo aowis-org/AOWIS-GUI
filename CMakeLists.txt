@@ -146,6 +146,7 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_globe_network.cpp
         src/map/bgfx/map_bgfx_globe_surface.cpp
         src/map/bgfx/map_bgfx_hud.cpp
+        src/map/bgfx/map_bgfx_map_view.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -618,17 +619,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-map-workspace-contract
         COMMAND aowis-map-workspace-contract-tests)
     set_tests_properties(aowis-map-workspace-contract PROPERTIES LABELS "aowis")
-
-    # Focus loss must release native-window and application-level held input.
-    # Headless QtCore policy test: no map server or GPU required.
-    add_executable(aowis-map-input-focus-policy-tests
-        tests/map_input_focus_policy_test.cpp)
-    target_include_directories(aowis-map-input-focus-policy-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-map-input-focus-policy-tests PRIVATE Qt6::Core)
-    add_test(NAME aowis-map-input-focus-policy
-        COMMAND aowis-map-input-focus-policy-tests)
-    set_tests_properties(aowis-map-input-focus-policy PROPERTIES LABELS "aowis")
 
     # GPU-free ownership arbitration regression; isolated from the production
     # renderer target to retain injectable bgfx test functions.

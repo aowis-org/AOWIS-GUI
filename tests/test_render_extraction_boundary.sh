@@ -149,6 +149,9 @@ for relative in \
     src/map/bgfx/map_bgfx_hud.cpp \
     src/map/bgfx/map_bgfx_labels.h \
     src/map/bgfx/map_bgfx_labels.cpp \
+    src/map/core/map_frame_pacer.h \
+    src/map/core/map_input_focus_policy.h \
+    tests/map_input_focus_policy_test.cpp \
     tests/bgfx_entity_style_test.cpp \
     tests/bgfx_hud_test.cpp \
     tests/bgfx_labels_test.cpp \
@@ -325,6 +328,19 @@ if [[ -f "$render/src/map/bgfx/map_bgfx_globe_surface.cpp" ]]; then
             exit 1
         fi
     done
+fi
+
+# The GUI map surface only hosts Render's MapBgfxMapView (Qt Widgets
+# embedding, events, GUI settings and assets): no bgfx frame, device or GPU
+# code of its own.
+if grep -Eq 'bgfx::|BgfxDeviceManager|BgfxFrameCoordinator|EM_JS|emscripten_' \
+    src/map/bgfx/map_bgfx_surface.h src/map/bgfx/map_bgfx_surface.cpp; then
+    echo 'GUI map surface renders with bgfx itself instead of hosting MapBgfxMapView' >&2
+    exit 1
+fi
+if ! grep -Fq 'std::make_unique<MapBgfxMapView>(' src/map/bgfx/map_bgfx_surface.cpp; then
+    echo 'GUI map surface does not host the shared MapBgfxMapView' >&2
+    exit 1
 fi
 
 printf 'PASS: shared renderer submodule and source ownership boundary\n'

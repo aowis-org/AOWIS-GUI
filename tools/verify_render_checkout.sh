@@ -116,6 +116,10 @@ required_files=(
     src/map/bgfx/map_bgfx_hud.cpp
     src/map/bgfx/map_bgfx_labels.h
     src/map/bgfx/map_bgfx_labels.cpp
+    src/map/bgfx/map_bgfx_map_view.h
+    src/map/bgfx/map_bgfx_map_view.cpp
+    src/map/core/map_frame_pacer.h
+    src/map/core/map_input_focus_policy.h
 )
 
 for relative in "${required_files[@]}"; do

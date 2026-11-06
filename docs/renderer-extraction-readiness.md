@@ -1,6 +1,6 @@
 # Shared renderer integration in the GUI
 
-**Current source boundary — 6 November 2026.** `AOWIS-GUI-Render` is a real,
+**Current source boundary — 7 November 2026.** `AOWIS-GUI-Render` is a real,
 standalone, independently built repository. The GUI consumes it at
 `external/AOWIS-GUI-Render` as a pinned Git submodule. It is not merely an
 internal GUI static library and it is **not yet** a complete map engine:
@@ -19,12 +19,12 @@ remaining forward work.
 | `AOWIS::RenderGlobeTerrain` | Globe terrain CPU pipeline: quadtree selection/LOD, surface preparation (tile window, sparse DEM patches, terrain queries), mesh scheduler, terrain navigation, globe camera, heatmap scene | `MapTerrainRepository` implements `MapTerrainTileSource`; `MapBgfxGlobeSurface` / `MapBgfxSurface` inject the terrain detail setting and forward tile signals |
 | `AOWIS::RenderMapData` | `MapTileRepository`, `MapTerrainRepository` (request scheduling, caches, decode workers, WASM browser decoder, dataset catalog, cache deletion), the `InterfaceServerMap` transport contract, `MapServerTransport` | `guiMapServerTransport()` (`services/map_server_transport_factory.*`) creates REST or Standalone transports and the Windows Standalone limits; `MainWindow` forwards `catalogChanged()` to `invalidateProviderCatalog()` |
 | `AOWIS::RenderGlobeNetwork` | Network render contract (`network_render_snapshot.h`, `network_symbology*.h`, `infrastructure_entity_traits.h`, `map/core/map_network_types.h`), globe network scene, render frame, icon atlas, render types, label settings, resolved symbology data | The GUI fills the snapshot (`network_render_snapshot_builder`) and the symbology (`map_network_symbology_resolver.*` from `HydraulicData`) |
-| `AOWIS::RenderMap` | bgfx map renderers: `MapBgfxEntityStyle`, `MapBgfxGlobeNetwork`, `MapBgfxGlobeSurface`, 2D symbology / picking / snapshot adapter, layer visibility, `MapBgfxLabels`, `MapBgfxHud` (+ their tests) | `MapBgfxSurface` injects the tank/reservoir albedo images (`map_bgfx_globe_model_images.*`, GUI resources) and the terrain detail setting |
+| `AOWIS::RenderMap` | bgfx map renderers: `MapBgfxEntityStyle`, `MapBgfxGlobeNetwork`, `MapBgfxGlobeSurface`, 2D symbology / picking / snapshot adapter, layer visibility, `MapBgfxLabels`, `MapBgfxHud`; `MapBgfxMapView` (frame loop, device lifecycle, native window and its event routing, picking, terrain queries), `map_frame_pacer.h`, `map_input_focus_policy.h` (+ their tests) | `MapBgfxSurface` (Qt Widgets) implements `MapBgfxMapViewHost`, embeds the view's native window, forwards widget events and focus, and injects `BgfxQtNativeSurface`, the terrain detail setting, the tank/reservoir albedo images (`map_bgfx_globe_model_images.*`), HUD images, navigation shortcuts, the unit-aware scale bar and `MapBgfxGlobeHudController::fillHudState()` |
 | `AOWIS::RenderTerrainData` | `src/map/data/map_terrain_tile.*`, `map_terrain_dataset.*`: DEM tile decoder, tile keys/endpoints, dataset catalog | `map_terrain_repository.*` requests, caches and transports the bytes |
 | `AOWIS::RenderNetwork` | CPU 2D network scene, variants, mesh staging | `map_bgfx_2d_snapshot_adapter.h` and host style binding |
 | `AOWIS::RenderGlobe` | Tank/reservoir, link, flow and underground geometry, terrain tile topology and retained scene invalidation policy | Hydraulic scene snapshots, GeographicLib sampling, terrain queries and scene updates |
 | `AOWIS::RenderDevice` | Single bgfx device, frame/view coordination, native target registry | Qt native/window adapter and toolkit event routing |
-| `AOWIS::RenderCore` | 2D GPU/imagery atlas and HUD caches; globe network resources/draw; terrain buffer/index pools, terrain draw, sky and heatmap GPU owners, shader assets | `MapBgfxSurface`, `MapBgfxGlobeSurface`, QImage model resources, frame and tile preparation |
+| `AOWIS::RenderCore` | 2D GPU/imagery atlas and HUD caches; globe network resources/draw; terrain buffer/index pools, terrain draw, sky and heatmap GPU owners, shader assets | `MapBgfxMapView`, `MapBgfxGlobeSurface`, QImage model resources, frame and tile preparation |
 
 CMake includes Render via `add_subdirectory(...)`, using a caller-owned
 `bgfx` target and pinned vendor checkouts. `AOWIS_RENDER_SOURCE_DIR` supports

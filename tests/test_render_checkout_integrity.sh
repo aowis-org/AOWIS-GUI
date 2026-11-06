@@ -44,7 +44,7 @@ create_render_repo()
     printf 'dependencies original\n' > "$path/cmake/aowis_render_dependencies.cmake"
     # bgfx map renderers moved to Render.
     mkdir -p "$path/src/map/bgfx"
-    for moved in src/map/bgfx/map_bgfx_entity_style.h src/map/bgfx/map_bgfx_entity_style.cpp src/map/bgfx/map_bgfx_globe_network.h src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_surface.h src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_2d_symbology.h src/map/bgfx/map_bgfx_2d_snapshot_adapter.h src/map/bgfx/map_bgfx_2d_picking.h src/map/bgfx/map_bgfx_layer_visibility.h src/map/bgfx/map_bgfx_hud.h src/map/bgfx/map_bgfx_hud.cpp src/map/bgfx/map_bgfx_labels.h src/map/bgfx/map_bgfx_labels.cpp; do
+    for moved in src/map/bgfx/map_bgfx_entity_style.h src/map/bgfx/map_bgfx_entity_style.cpp src/map/bgfx/map_bgfx_globe_network.h src/map/bgfx/map_bgfx_globe_network.cpp src/map/bgfx/map_bgfx_globe_surface.h src/map/bgfx/map_bgfx_globe_surface.cpp src/map/bgfx/map_bgfx_2d_symbology.h src/map/bgfx/map_bgfx_2d_snapshot_adapter.h src/map/bgfx/map_bgfx_2d_picking.h src/map/bgfx/map_bgfx_layer_visibility.h src/map/bgfx/map_bgfx_hud.h src/map/bgfx/map_bgfx_hud.cpp src/map/bgfx/map_bgfx_labels.h src/map/bgfx/map_bgfx_labels.cpp src/map/bgfx/map_bgfx_map_view.h src/map/bgfx/map_bgfx_map_view.cpp src/map/core/map_frame_pacer.h src/map/core/map_input_focus_policy.h; do
         printf 'moved bgfx source original\n' > "$path/$moved"
     done
     # Network render contract and globe network scene moved to Render.

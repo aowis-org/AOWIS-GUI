@@ -70,7 +70,8 @@ view. The relevant components are:
 | `BgfxNativeTargetRegistry` | Bind the initial/default swapchain and own additional native swapchain framebuffers; resize and release each secondary independently | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_target_registry.{h,cpp}` |
 | `BgfxNativeSurface` | Toolkit-independent native window/display/type/physical-size descriptor, converted to bgfx swapchain and primary-init data | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_surface.h` |
 | `BgfxQtNativeSurface` | GUI-side QWindow adapter: obtains XCB/Wayland native handles and device-pixel dimensions, or native desktop window IDs | `src/map/bgfx/bgfx_qt_native_surface.{h,cpp}` |
-| `MapBgfxSurface` | Production map GPU content, imagery atlases, terrain, HUD, event routing and diagnostic map windows | `src/map/bgfx/map_bgfx_surface.{h,cpp}` |
+| `MapBgfxMapView` | Production map GPU content, imagery atlases, terrain, HUD, event routing and diagnostic map windows | Render `src/map/bgfx/map_bgfx_map_view.{h,cpp}` |
+| `MapBgfxSurface` | Qt Widgets host of `MapBgfxMapView`: window container, widget events, focus, GUI settings and assets | `src/map/bgfx/map_bgfx_surface.{h,cpp}` |
 | `ProjectGraphBgfxViewport` | Projects' embedded native window, GPU HUD draws, text atlas, spatial index and view/target lifetime | `src/tabs/project_graph_bgfx_viewport.{h,cpp}` |
 
 **A bgfx view ID is process-global, not a renderer-local slot.** The Maps
@@ -101,7 +102,7 @@ whereas a freshly constructed `bgfx::SwapChain` has *no depth attachment*.
 `BgfxNativeSurface::configurePrimary()` therefore modifies the existing Init
 swapchain **in place**, preserving its depth format and other defaults;
 `BgfxNativeSurface::swapChain()` and `resizeSwapChain()` explicitly use D24S8.
-`MapBgfxSurface::synchronizeGeometry()` uses `resizeSwapChain()` for
+`MapBgfxMapView::synchronizeGeometry()` uses `resizeSwapChain()` for
 `bgfx::reset()`; it must not use a bare default descriptor. This is a
 **rendering correctness contract**, not an optional terrain tweak: disabling
 depth makes imagery-coloured tile skirts show through nearer ground despite

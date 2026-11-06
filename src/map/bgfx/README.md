@@ -14,12 +14,15 @@ runtime/device/targets, network and globe geometry algorithms, production
 2D/3D GPU draws, imagery/HUD GPU helpers, shader assets, terrain index/vertex
 pools, sky and heatmap GPU resources. No second bgfx runtime is created.
 
-This GUI host retains `MapBgfxSurface` and `MapBgfxGlobeSurface` scene/frame
-orchestration, the Qt native adapter, `MapModel`, decoded terrain and imagery
-repositories, DEM mesh scheduling, globe quadtree/LOD, provider/server
-settings, authoritative hydraulic snapshots, picking/editing, HUD text
-content and Projects UI. The shared engine pipeline for these reusable
-CPU-side tile/terrain algorithms is planned but not implemented yet.
+The map itself (scene/frame orchestration, `MapModel`, terrain and imagery
+repositories, globe terrain pipeline, HUD, labels, picking) lives in Render;
+its entry point is `MapBgfxMapView` (`AOWIS::RenderMap`). This GUI host
+retains `MapBgfxSurface` (the Qt Widgets host of that view: window container,
+widget events, focus, GUI settings and assets), the Qt native adapter
+(`BgfxQtNativeSurface`), provider/server settings, authoritative hydraulic
+snapshots, editing, legend and HUD text content and Projects UI. Where this
+document names `MapBgfxSurface` internals (frame loop, `renderLabels()`,
+`synchronizeGeometry()`, `hitTest()`), they are now `MapBgfxMapView`'s.
 See [shared renderer integration](../../../docs/renderer-extraction-readiness.md)
 and the Render repository's `docs/map-engine-boundary.md` for current
 ownership and the forward scope.

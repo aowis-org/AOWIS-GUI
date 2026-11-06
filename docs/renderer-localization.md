@@ -30,7 +30,7 @@ are installed/removed centrally by the GUI.
 1. The future GUI language manager installs the matching `QTranslator`s in
    `QCoreApplication` and changes application locale/RTL policy separately.
    Qt sends `QEvent::LanguageChange` to widgets.
-2. `MapBgfxSurface::changeEvent(LanguageChange)` notifies the `MapBgfxHud`
+2. `MapBgfxSurface::changeEvent(LanguageChange)` forwards to `MapBgfxMapView::handleHostChange()`, which notifies the `MapBgfxHud`
    (`languageChanged()`), requests a redraw and emits
    `localizedPresentationRefreshRequested()`. It never reinitializes bgfx,
    reloads map data, resets the camera, or closes a popup. A font change also
