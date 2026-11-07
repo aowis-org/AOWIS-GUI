@@ -1,29 +1,29 @@
-# Renderer HUD localization boundary
+# Map HUD localization
 
-**Current behavior.** The production bgfx map HUD is ready for Qt translation
-catalogues without owning language selection. AOWIS-GUI has **not** implemented
-the language selector, shipped translated catalogues, Arabic RTL layouts, or a
-`LanguageManager`. Those belong to the later multilingual GUI implementation.
-This contract applies across the existing `AOWIS-GUI-Render` submodule and GUI host boundary.
+The map HUD (drawn by Render's `MapBgfxHud`) is ready for Qt translation
+catalogues without owning language selection. The GUI has **no** language
+selector, translated catalogues, Arabic RTL layouts or `LanguageManager` yet;
+they belong to the multilingual GUI work. This page is the contract between
+Render's HUD and the GUI host.
 
 ## Responsibility and catalogue contexts
 
 | Source / API | Owns presentation strings | Translation context |
 | --- | --- | --- |
-| `MapBgfxHud` (`map_bgfx_hud.*`) | Renderer HUD chrome: downloads, activity/plurals, cancel, view toggles, tooltips, compass, joystick, underground controls and legend palette menu | `MapBgfxHud` |
-| `MapBgfxHudTextCache` | **No strings**: renders caller-supplied Unicode, caches by text + font and updates only changed atlas regions | None |
+| `MapBgfxHud` (Render, `map_bgfx_hud.*`) | Renderer HUD chrome: downloads, activity/plurals, cancel, view toggles, tooltips, compass, joystick, underground controls and legend palette menu | `MapBgfxHud` |
+| `MapBgfxHudTextCache` (Render) | **No strings**: renders caller-supplied Unicode, caches by text + font and updates only changed atlas regions | None |
 | `MapBgfxGlobeHudController::fillHudState()` | GUI: camera/tooltips and unit-dependent slider text | `MapBgfxGlobeHudController` |
 | `mapBgfxLegendContent()` | GUI: legend categories and model-driven metric, palette, unit labels | `MapBgfxLegendContent` (category prefixes) |
 | GUI metric descriptors, units, palette descriptors, scale provider | GUI: presentation data passed into renderer | Their GUI-local contexts, to be audited during multilingual rollout |
 
 Renderer source strings use `Q_DECLARE_TR_FUNCTIONS(MapBgfxHud)` (no `QObject`
-required), plus `QT_TRANSLATE_NOOP` for compass abbreviations. **Do not change
-`MapBgfxHud` as a translation context when moving files.** GUI-originated
+required), plus `QT_TRANSLATE_NOOP` for compass abbreviations. **The
+translation context stays `MapBgfxHud`**, wherever the file lives. GUI-originated
 strings are translated before passing them to the renderer; do not import any
 GUI `LanguageManager`, `MapModel`, hydraulic model, or unit-profile dependency
 into the renderer. Planned catalogue split: `aowis-render_*.qm` for
-renderer-owned messages and `aowis-gui_*.qm` for application-owned ones. Both
-are installed/removed centrally by the GUI.
+renderer-owned messages and `aowis-gui_*.qm` for application-owned ones, both
+installed and removed centrally by the GUI.
 
 ## Runtime language-change contract
 
@@ -57,7 +57,7 @@ semantics when enabling RTL widget layout.
 
 ## Regression coverage
 
-`aowis-bgfx-hud` is CPU-only and constructs a subclassed synthetic
+Render's `aowis-render-bgfx-hud` test (`tests/bgfx_hud_test.cpp`) is CPU-only and constructs a subclassed synthetic
 `QTranslator` without `.qm` resources. Its language test checks:
 
 - Stable renderer and GUI translation contexts, including `%n` plural counts.
@@ -67,15 +67,15 @@ semantics when enabling RTL widget layout.
 - Open legend popup survives a language-change notification.
 - Qt text-cache accepts an Arabic Unicode text run without a GPU.
 
-Run (in a configured GUI tests build):
+Run it in a Render checkout:
 
 ```bash
-cmake --build build-linux-tests --target aowis-bgfx-hud-tests -j 8
-ctest --test-dir build-linux-tests --output-on-failure -R '^aowis-bgfx-hud$'
+./compile_linux_tests.sh
+ctest --test-dir build-linux-tests --output-on-failure -R '^aowis-render-bgfx-hud$'
 ```
 
 This does **not** replace manual native/WebAssembly testing of
 `LanguageChange` propagation to actual map surfaces, tooltip positioning,
 Arabic shaping/fallback fonts and complete RTL interactions. Full-language
 translations, unit-independent locale formatting and UI-wide lazy refresh
-still belong to the GUI multilingual phase after renderer extraction.
+belong to the GUI multilingual phase.

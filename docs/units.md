@@ -54,7 +54,7 @@ and [numeric formatting](numeric-formatting.md).
 
 Some less-common conditional fields and cross-platform display paths still
 require targeted runtime verification. The detailed
-[unit coverage matrix](unit-gui-coverage-matrix.md) and
-[unit-system acceptance evidence](unit-system-final-acceptance.md) document
+[unit coverage matrix](records/units/unit-gui-coverage-matrix.md) and
+[unit-system acceptance evidence](records/units/unit-system-final-acceptance.md) document
 technical reviews performed on earlier snapshots; they must not be
 mistaken for current GUI/EPANET/DVMDB release acceptance.

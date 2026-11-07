@@ -16,7 +16,9 @@ From the root of an `AOWIS-SERVER-GUI` checkout:
 
 The script takes **one** ZIP filename argument. Its basename must match
 `aowis-server-gui-*.zip`; a MODEL or EPANET ZIP with a different filename
-prefix is intentionally rejected. The ZIP's member paths must begin with
+prefix is intentionally rejected. The ZIP's member paths must begin with the
+**checkout folder's name**: `AOWIS-SERVER-GUI/` for a default clone,
+`AOWIS-GUI/` for a checkout in a folder of that name. The examples below use
 `AOWIS-SERVER-GUI/`. Files are extracted relative to the checkout's **parent**
 directory, independent of the caller's current working directory. Existing
 files with matching paths are overwritten.
@@ -43,8 +45,13 @@ for hostile archives.
 
 ## What happens when applying
 
-1. Check the patch filename, test the archive, and validate its entries.
-2. Extract all files, overwriting files at the same relative paths.
+1. Check the patch filename, test the archive, and validate its entries,
+   including the optional deletion list `<folder>/.aowis-patch-delete.txt`
+   (one repository-relative file path per line; no absolute paths, `..`,
+   `.git`, directories, symlinks, or paths the patch also adds).
+2. Extract all files, overwriting files at the same relative paths, then
+   delete the listed files. The deletion list itself never stays in the
+   checkout.
 3. Set modification times of the extracted files and directories to the
    **current application time**, instead of keeping the old ZIP timestamps.
    This is important for CMake/Ninja incremental builds.
@@ -105,8 +112,8 @@ Do not include unrelated files, builds, cache directories, or old snapshots.
 New and modified files have fresh application-time modification timestamps
 when the recipient applies the patch, even if their archived timestamps differ.
 
-**Important limits:** These ZIPs replace or create files; they cannot express
-file deletions, Git renames, or three-way merges. The script does not compare
+**Important limits:** These ZIPs replace, create and (with the deletion
+list) remove files; they cannot express Git renames or three-way merges. The script does not compare
 with Git, check for uncommitted changes, or create a backup. Review local
 changes or commit/stash work before applying a patch that may overwrite it.
 Patches touching nested Git submodules may also require separate Git bookkeeping

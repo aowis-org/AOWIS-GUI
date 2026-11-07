@@ -1,8 +1,7 @@
 # GUI implementation and verification status
 
-**Source basis:** general GUI/DVMDB product audit from 5 November 2026;
-renderer ownership cross-checked against the 6 November 2026 GUI and Render
-snapshots. The verification evidence below states which later builds were
+**Source basis:** GUI/DVMDB product audit of 5 November 2026; renderer
+section updated to the 7 November 2026 GUI and Render sources. The verification evidence below states which later builds were
 actually reported, rather than treating the existence of test source as a
 successful test run. This is **not** a release sign-off.
 
@@ -33,8 +32,8 @@ successful test run. This is **not** a release sign-off.
 |---|---|---|
 | GUI and DVMDB sparse/reconciliation patches | User reported their tests green before the restart-intent patch | Does not verify the newer crash/restart-intent change |
 | DVMDB HTTP History deletion endpoints | User reported proceeding without problems after the fix | Not equivalent to an independently recorded full destructive-path test report |
-| GUI `testHistoryRestartAfterLostReply` in `personal_working_copy_client_test.cpp` | Test code is present for server-completed, never-published, modified-destination, invalid-intent and mismatched-cursor scenarios | Test execution for the uploaded snapshot has **not been supplied in this conversation** |
-| Native C++/Qt compilation of this documentation snapshot | Not run in this sandbox (Qt6 development dependencies unavailable) | Source check is not build/run verification |
+| GUI `testHistoryRestartAfterLostReply` in `personal_working_copy_client_test.cpp` | Test code is present for server-completed, never-published, modified-destination, invalid-intent and mismatched-cursor scenarios | Part of the GUI suite (77/77 reported on 7 November 2026); no run against a real crashed GUI and server is recorded |
+| Native C++/Qt build of the current source | User reported a complete build and 77/77 tests on 7 November 2026 | A build on Linux only |
 | Real GUI crash + separate DVMDB server, powercut/ENOSPC, Standalone, WASM persistent intent root | Outstanding acceptance | Must be exercised separately before release guarantees |
 
 The restart-safe implementation milestone can be closed at **source-feature
@@ -69,32 +68,26 @@ ctest --test-dir build-linux-tests --output-on-failure \
 See the [remaining History acceptance](history-roadmap.md) and
 [upcoming GUI–DVMDB capabilities](dvmdb-integration-roadmap.md).
 
-## Renderer implementation and reported verification (6 November 2026)
+## Renderer implementation and reported verification
 
 See [Rendering architecture](rendering-architecture.md),
-[Shared renderer integration](renderer-extraction-readiness.md), and the
-Render repository's `docs/map-engine-boundary.md` / `docs/roadmap.md`.
+[Render integration](render-integration.md) and Render's
+`docs/roadmap.md`.
 
 | Area | Current source state | Evidence reported | Acceptance still required |
 | --- | --- | --- | --- |
-| Standalone Render | Five CMake targets; production 2D network and globe GPU code, terrain buffers/topology and sky/heatmap GPU ownership | User reported **19/19** standalone Render tests passing after globe link extraction; subsequent extraction slices have focused or local/mock validations only | Full standalone production+test build after the latest GPU changes |
-| GUI integration | Pinned Render gitlink, explicit checkout verifier, production link test, strict build-before-CTest gate | User reported complete GUI compile/link followed by **83/83** passing tests after globe link extraction; subsequent terrain GPU patches lack an equivalent user build log | Complete GUI build-gated suite on newest source/gateway revisions |
-| Globe scene data | Render owns CPU link/flow/X-Ray algorithms and invalidation policy; GUI owns retained scene and terrain queries | Earlier GUI suite covers globe origin, draping and drawing boundaries; isolated Render tests added | Full runtime visual parity, editor picking and terrain-backed networks |
-| Terrain, sky, heatmap | Render owns shared GPU handles/submission; GUI owns DEM/imagery data pipeline and tile residency decisions | Recording-bgfx mock tests and source-boundary checks for newer slices; not an independent native GPU sign-off | OpenGL/Vulkan terrain LOD, skirting, partial DEM updates, wireframe, caps, sky and heatmap |
-| Device and native window | Shared device/client retirement and swapchain registry; Qt adapter stays in GUI | Focused lifecycle tests and earlier native smoke checks reported | Native X11/Wayland swapchain resize/reparent, shutdown/recreation, WebAssembly and Mobile |
-
-The latest proposed common-engine extraction (DEM decode, quadtree/LOD,
-terrain mesh scheduling, tile streaming, imagery residency and terrain
-queries) is **future implementation work**, not a capability of the current
-Render library. Provider configuration and server transport stay in the host.
+| Render library | Complete map engine: 2D and globe drawing, imagery and terrain streaming, terrain pipeline, HUD, labels, picking, REST client (`AOWIS::RenderMapRest`), host-context mode for Qt Quick | Standalone build-gated suite run by the user during the extraction; no count recorded here for the latest Render revision | Fresh `./compile_linux_tests.sh` in Render on the pinned revision |
+| GUI integration | `MapBgfxSurface` hosts `MapBgfxMapView`; GUI keeps transports, settings, network snapshot and symbology, editor overlay | User reported **77/77** GUI tests after the REST client and provider catalog moved to Render (7 November 2026) | Re-run after every Render gitlink update |
+| Globe and terrain | Quadtree, DEM meshes, sparse updates, sky, heatmap, network on the globe, all in Render | Recording-bgfx mock tests and boundary checks; earlier native smoke checks | OpenGL/Vulkan terrain LOD and skirts, partial DEM updates, wireframe, caps, sky and heatmap |
+| Device and native windows | One device, client retirement, swapchain registry, Qt native-surface adapter in Render | Focused lifecycle tests; three-map and Projects handoff observed natively on Vulkan and OpenGL 4.3 | X11/Wayland resize and reparent, shutdown and recreation, Windows, WebAssembly |
+| AOWIS-GUI-Mobile | Same engine in Qt Quick's EGL context (`HostContext`) | Linux and Android builds in progress | Android device acceptance |
 
 ### Focused renderer regression
 
-For complete production acceptance use `./compile_linux_tests.sh`, which
-builds the complete GUI and every test executable before invoking CTest.
-The following is a **focused** renderer subset only; its build and CTest
-commands must be chained with `&&` so old test binaries cannot run after
-compilation failure.
+For complete acceptance use `./compile_linux_tests.sh`, which builds the
+whole GUI and every test before CTest. The following is a focused subset; its
+build and CTest commands are chained with `&&` so old test binaries never run
+after a failed build.
 
 ```bash
 cmake --build build-linux-tests --target \
@@ -104,12 +97,11 @@ cmake --build build-linux-tests --target \
   aowis-bgfx-frame-coordinator-tests \
   aowis-bgfx-native-target-registry-tests \
   aowis-bgfx-three-view-camera-tests \
-  aowis-map-input-focus-policy-tests \
   aowis-project-graph-render-policy-tests \
   aowis-project-graph-bgfx-scene-tests \
   aowis-project-revision-graph-tests -j 8 && \
 ctest --test-dir build-linux-tests --output-on-failure \
-  -R '^(aowis-render-core-link|aowis-bgfx-device-manager|aowis-bgfx-frame-coordinator|aowis-bgfx-native-target-registry|aowis-bgfx-three-view-camera|aowis-map-input-focus-policy|aowis-project-graph-render-policy|aowis-project-graph-bgfx-scene|aowis-project-revision-graph)$'
+  -R '^(aowis-render-core-link|aowis-bgfx-device-manager|aowis-bgfx-frame-coordinator|aowis-bgfx-native-target-registry|aowis-bgfx-three-view-camera|aowis-project-graph-render-policy|aowis-project-graph-bgfx-scene|aowis-project-revision-graph)$'
 ```
 
 ### Native GPU acceptance
@@ -134,4 +126,4 @@ not in those two windows.
 
 A real GPU screenshot/interactive check is required for terrain depth; the
 headless mocks verify descriptor configuration, not actual z-buffer contents.
-No Windows, WebAssembly, QtQuick or mobile GPU acceptance is implied.
+No Windows, WebAssembly or Mobile GPU acceptance is implied.

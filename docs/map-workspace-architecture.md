@@ -23,13 +23,10 @@ For the current 2D/3D hydraulic editing controls, network workflows and
 height behavior, see the [Distribution Editor guide](distribution-editor.md).
 This page focuses on the shared map workspace and renderer ownership.
 
-## Renderer boundaries
-
-The normal Maps workspace keeps one persistent native bgfx viewport. The
-process-wide device also supports the Projects graph and independent native
-map targets used by opt-in diagnostics. The complete ownership and frame
-coordination contract, platform qualification, and backend selection are
-specified in [Rendering architecture](rendering-architecture.md).
+The workspace keeps one persistent native bgfx viewport: Render's
+`MapBgfxMapView`, hosted by `MapBgfxSurface` ([map host guide](../src/map/bgfx/README.md)).
+Device, view-ID and frame rules shared with the Projects graph are in
+[Rendering architecture](rendering-architecture.md).
 
 ## Ownership and boundaries
 
@@ -134,40 +131,6 @@ and shared repositories are supplied from MainWindow. This hierarchy must
 stay attached to its native window / browser canvas while modes change. Mode
 switches will not call `bgfx::shutdown()` or `bgfx::init()`.
 
-**Shared bgfx lifecycle and frame views:** `BgfxDeviceManager` alone owns
-`bgfx::init()`/`bgfx::shutdown()`. Its `BgfxFrameCoordinator` reserves
-non-overlapping view-ID ranges and performs exactly one `bgfx::frame()` for a
-batch of registered clients. Maps reserves five views (one main pass plus four
-globe heatmap-bake passes), independent of whether Maps or Projects opened
-first. A second visible graph or diagnostic map uses a separately allocated
-view rather than assuming the map is view 0.
-
-`BgfxNativeTargetRegistry` binds the primary default backbuffer and owns
-secondary native swapchain framebuffers. Secondary resizing and teardown do
-not reset the device. Its GPU handles and view reservations are valid only
-within the active device generation; the manager retires secondary clients
-before owner shutdown. Native swapchains require `BGFX_CAPS_SWAP_CHAIN`.
-`BgfxQtNativeSurface` captures the Qt-created display/window into the
-Qt-independent `BgfxNativeSurface` descriptor. `BgfxNativeSurface` preserves
-the primary `bgfx::Init` depth format and explicitly requests D24S8 on new
-secondary targets and primary resets. **Terrain tile skirts need working
-depth testing**; they must not be removed to conceal a missing depth buffer.
-The user confirmed the resulting vertical-stripe regression was corrected.
-
-`MapBgfxSurface` still owns the production map's scene/frame orchestration,
-network adaptation, tile/terrain preparation, HUD content and animation/tile
-clock. Shared `AOWIS-GUI-Render` targets now own many of the GPU buffers,
-textures, shader programs and draw submissions behind this surface. Controller
-and Maps-mode switches do not create new map surfaces or start another bgfx
-device. The unextracted tile repositories and terrain quadtree/mesh scheduling
-are engine candidates, not permanently UI-specific responsibilities. Projects may own
-the initial default swapchain when its graph opens first; when it is hidden,
-that ownership can be retired and Maps may initialize a new primary surface.
-Additional independent maps are currently **opt-in read-only diagnostics**;
-normal mode switches and map tab navigation are not multi-map workflows.
-See [Rendering architecture](rendering-architecture.md) for the precise
-thread, target, frame and teardown rules.
-
 The following contracts preserve the shared Maps workspace and prevent
 reintroducing duplicate renderers:
 
@@ -187,8 +150,8 @@ reintroducing duplicate renderers:
   Presentation changes may require derived display preparation (currently
   node decluttering) but must not force a network snapshot rebuild. Simulation
   values are visual data, not new geometry.
-- **Lifecycle:** destruction/recreation of the native surface can still
-  require an explicit bgfx device restart. Merely switching modes must not.
+- **Lifecycle:** losing or recreating the native surface can require a bgfx
+  device restart. Switching modes never does.
 
 The single persistent map viewport serves five modes. Only the tool panel,
 input routing and rendering policy switch. Native-window changes, rather than
@@ -323,91 +286,26 @@ editing operations. Distribution Editor shows its editing controls directly
 without a QToolBox. The 3D Editor icon scale ranges to 600% while 2D retains
 its former 250% limit.
 
-## 3D Distribution Editor icon projection and terrain sampling
+## 3D Distribution Editor icons
 
-The 3D Distribution Editor retains a geographic icon-anchor spatial index
-across pan, zoom, rotation and mode changes. For large regional networks it
-prunes offscreen anchors before the terrain-aware projection step; when most
-anchors are potentially visible, an unsorted/full-range candidate path avoids
-kd-tree traversal overhead. The projected icon list still depth-sorts every
-frame. Neither operation rebuilds model or GPU network geometry.
+The 3D Editor's icon index, terrain-height cache, draw order and how to
+measure them are described in the
+[map host guide](../src/map/bgfx/README.md#3d-editor-icon-visibility).
 
-The globe overlay caches finite drawn-terrain heights by geographic coordinate
-and by drawn-surface revision/vertical exaggeration. A missing terrain height
-is **never** returned as a known value. Instead, repeated failed sampling is
-throttled for at most eight overlay frames, then retried; a new drawn surface,
-vertical exaggeration or renderer lifecycle invalidates positive and negative
-entries immediately. The cache has a 262,144-entry FIFO bound so transient
-map/terrain tile-selection lattices cannot grow memory without limit. A cache
-miss uses the existing ellipsoid fallback until a height becomes available.
+## Known issue: rare `std::bad_alloc` on close
 
-For performance comparisons, collect separate diagnostics traces with the same
-network, camera path, viewport size, imagery/terrain availability and platform.
-Use `tools/report_globe_editor_performance.py` to inspect per-icon-frame time
-and, when present, `globe_terrain_height_cache_hit`,
-`globe_terrain_height_sample`, `globe_terrain_height_unavailable_reuse`, and
-`globe_terrain_height_eviction`. The last two counters distinguish deferred
-unavailable-terrain retries from actual sampler invocations, and bounded-cache
-evictions from terrain revisions. These are **CPU**, not GPU timings. A report
-from a different camera path is not a controlled speed comparison.
-
-The rarely occurring `std::bad_alloc` on application close has not been
-reproduced with a debugger backtrace. Workspace-before-repository teardown
+A rare `std::bad_alloc` on application close has not been reproduced with a debugger backtrace. Workspace-before-repository teardown
 ordering is explicit, but the exception's root cause is **not confirmed fixed**.
 Keep shutdown testing (including after 2D/3D and mode transitions) in native
 Linux, Windows and WASM release acceptance, and capture a backtrace if it recurs.
 
-## Three independent map views (Linux opt-in diagnostic)
+## Three independent map views
 
-`AOWIS_BGFX_THREE_VIEW_PROBE=1` opens two additional 2D geographic map
-windows when the normal Maps workspace first renders, giving **three
-simultaneously visible maps**: the original Maps viewport plus two windows.
-The existing five Maps modes, their sidebar controls and the original camera
-are unchanged when the diagnostic is disabled (the default).
-
-Each additional native window has its own Mercator camera, viewport dimensions,
-allocated bgfx view ID and secondary swapchain; left-drag pans and the wheel
-zooms around the pointer. Camera changes in one map do not mutate either of
-the other two cameras. The additional views reuse the *existing* 2D bgfx
-imagery renderer and uploaded hydraulic network geometry, with per-view tile
-selection. A Mercator reference grid and centre crosshair remain visible even
-when no basemap imagery has loaded. They are **read-only map diagnostics**, not two new distribution
-editor controllers, graph panels, or 3D globes. Their imagery requests share
-the current MapTileRepository queue, so production multi-source scheduling
-will need its own design when true multi-map editing is introduced.
-
-The main map coordinates one `bgfx::frame()` across all visible attached
-views. The renderer's network draw path now explicitly receives the allocated
-view ID instead of assuming the primary map is always bgfx view 0 (Projects
-may initialize the device first). Secondary resize recreates only that
-swapchain, and closing either diagnostic window releases its own target and
-view reservation without resetting the device. Leaving the Maps main tab
-closes both additional windows; returning to Maps recreates them only if the
-diagnostic environment variable remains set.
-
-Manual test on native Linux after opening Maps:
-
-```bash
-AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
-# Ensure that Maps is the first backend owner for an actual OpenGL test:
-AOWIS_PROJECTS_BGFX_GRAPH=0 AOWIS_BGFX_RENDERER=opengl \
-AOWIS_BGFX_THREE_VIEW_PROBE=1 ./build-linux-tests/aowis-server-gui
-```
-
-Verify that both new windows show map imagery (when a map source is available)
-and distribution network geometry (when a network is loaded). Pan and zoom
-one independently of the other two. Resize and close them in either order;
-the original map must continue rendering. Switch to Projects and back,
-then exit normally. The headless `aowis-bgfx-three-view-camera` test covers
-independent camera updates, anchored wheel zoom, three view-ID reservations,
-three frame clients, and individual secondary-target retirement. Native manual testing has confirmed three simultaneously visible and
-independently pannable/zoomable views on Linux with Vulkan and OpenGL 4.3,
-including clean secondary attachment/detachment. The diagnostic is not a
-production acceptance test for every rendering feature or platform. The
-headless test cannot verify real GPU presentation.
-
-**Scope boundary:** These probes establish the shared-device and per-camera
-rendering prerequisites for a future three-way project merge view. Production
-multi-map editor models, independent tile request scheduling, map overlays,
-3D globe instances, and WASM multi-canvas integration remain separate work.
-The standalone renderer-library extraction remains deferred.
+`AOWIS_BGFX_THREE_VIEW_PROBE=1` adds two read-only 2D map windows with their
+own cameras next to the Maps viewport, on native Linux. They are a diagnostic
+for the shared device and per-camera rendering that a future three-way merge
+view needs, not editors. See
+[Rendering architecture](rendering-architecture.md#diagnostic-three-map-mode)
+for their behaviour and test steps. Production multi-map editing, independent
+tile scheduling per map, globe instances and WASM multi-canvas are separate
+future work.

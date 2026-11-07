@@ -36,5 +36,5 @@ notations are supported by NumericLineEdit and read-only text surfaces.
 External serialization must retain its format-specific number conventions and
 units; do not use localized GUI text for databases, APIs, or solver input.
 For current per-surface unit coverage and remaining runtime verification,
-see the [unit-system inventory](unit-gui-coverage-matrix.md) and
+see the [unit-system inventory](records/units/unit-gui-coverage-matrix.md) and
 [verification status](verification-status.md).

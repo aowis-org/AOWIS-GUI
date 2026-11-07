@@ -82,31 +82,6 @@ Start with [documentation index](docs/README.md),
 [remaining integration work](docs/dvmdb-integration-roadmap.md), and
 [History acceptance](docs/history-roadmap.md).
 
-The native Linux Projects revision graph uses **bgfx by default** on Qt X11
-and Wayland, sharing the process-global bgfx device with Maps. QWidget still
-owns graph layout, navigation, picking and Inspector interactions; QPainter
-is its fallback on headless/unsupported platforms or with
-`AOWIS_PROJECTS_BGFX_GRAPH=0`. The renderer includes a retained spatial index
-for efficient large-history navigation. The normal Maps workspace retains one
-shared viewport; two additional independent 2D map windows can be enabled
-for diagnostics with `AOWIS_BGFX_THREE_VIEW_PROBE=1`.
-
-The GUI links the pinned **`AOWIS-GUI-Render` Git submodule** using
-`AOWIS::RenderCore` and `AOWIS::RenderGeometry`. The library owns the shared
-bgfx device/frame/target infrastructure, imagery/HUD GPU helpers, shader
-assets and backend-neutral projection/globe geometry utilities. Native Qt
-window hosting, map/editor scene preparation, and Projects interactions stay
-in the GUI. All native map swapchains require a depth attachment; otherwise
-3D terrain skirts can incorrectly occlude nearer ground. Native input focus
-loss cancels active navigation/drag state rather than leaving keys or pointer
-capture stuck.
-
-See the [rendering architecture](docs/rendering-architecture.md),
-[renderer extraction-readiness guide](docs/renderer-extraction-readiness.md),
-[Projects graph semantics](docs/project-graph-layout.md),
-[graph performance benchmark](docs/project-graph-performance.md), and
-[verification status](docs/verification-status.md).
-
 ## Hydraulic Distribution Editor
 
 The **Distribution Editor** works with one hydraulic network in both the 2D map
@@ -119,6 +94,39 @@ Selected** control is currently disabled.
 See the [Distribution Editor guide](docs/distribution-editor.md) for controls,
 terrain and elevation behavior, editing limitations and relevant tests.
 
+## Map and rendering
+
+The map (2D and the 3D terrain globe, imagery, terrain, network, labels, HUD)
+is drawn by **AOWIS-GUI-Render**, the AOWIS map engine, pinned as a Git
+submodule at `external/AOWIS-GUI-Render` and shared with AOWIS-GUI-Mobile.
+The GUI hosts it in one persistent Qt Widgets surface (`MapBgfxSurface`)
+for all Maps modes and supplies the hydraulic network, its symbology, the
+editor overlay, settings and the map server connection (REST, or the
+in-process server of the Standalone build). The map uses bgfx on every
+platform (WebGL 2 in the browser) and has no CPU fallback.
+
+The native Linux Projects revision graph also uses bgfx by default on X11 and
+Wayland, sharing the one process-wide bgfx device with the map; QPainter is
+its fallback (`AOWIS_PROJECTS_BGFX_GRAPH=0`). Two extra read-only 2D map
+windows can be opened for diagnostics with `AOWIS_BGFX_THREE_VIEW_PROBE=1`.
+
+See [Render integration](docs/render-integration.md),
+[Rendering architecture](docs/rendering-architecture.md), the
+[Maps workspace](docs/map-workspace-architecture.md), the
+[map host guide](src/map/bgfx/README.md) and Render's own `README.md` and
+`docs/`.
+
+After updating the Render gitlink, build and test with the strict gate:
+
+```bash
+./git_submodule_update.sh --render && \
+./tools/verify_render_checkout.sh && \
+./compile_linux_tests.sh
+```
+
+`./compile_linux_tests.sh` builds and links the **complete application and
+all test executables before CTest**; tests never start after a failed build.
+
 ## Git submodules
 
 Clone the repository with its dependencies, or initialize them after cloning:
@@ -129,40 +137,40 @@ cd AOWIS-SERVER-GUI
 ./git_submodule_init.sh
 ```
 
-`git_submodule_init.sh` initializes all submodules: AOWIS-SERVER-EPANET,
-AOWIS-SERVER-MODEL and GeographicLib (recursively), and the bgfx rendering
-libraries `bgfx`, `bx` and `bimg`. It checks out the exact revisions recorded
-by the AOWIS-SERVER-GUI repository; it does not update them to their latest
-upstream commits.
+`git_submodule_init.sh` initializes all submodules at the revisions this
+repository records: AOWIS-GUI-Render, AOWIS-SERVER-EPANET, AOWIS-SERVER-MODEL
+and GeographicLib (recursively), and the bgfx libraries `bgfx`, `bx` and
+`bimg`. It does not update them to newer upstream commits.
+`./git_submodule_init.sh --render` initializes only Render.
 
 The bgfx libraries are fetched **shallow** (only the pinned commit) and checked
-out **sparse** (`tools/bgfx_sparse_checkout.sh`): only the headers and sources
-AOWIS builds, ~19 MB instead of ~270 MB. AOWIS-GUI-Render builds them with its own small
-CMake file (`AOWIS-GUI-Render/cmake/aowis_bgfx.cmake`), not with `bgfx.cmake`.
-`./git_submodule_init.sh --shader-tools` additionally checks out the bgfx shader
-compiler sources, which are only needed to regenerate the committed shaders
-(see `AOWIS-GUI-Render/README.md`).
+out **sparse** (`tools/bgfx_sparse_checkout.sh`): only what AOWIS builds,
+~19 MB instead of ~270 MB. Render builds them from these checkouts with its
+own small CMake file (`cmake/aowis_bgfx.cmake`), not with `bgfx.cmake`, so
+the process contains exactly one bgfx. Keep their revisions equal to the ones
+Render pins: Render's committed shaders are compiled for them.
+`./git_submodule_init.sh --shader-tools` also checks out the shader compiler
+sources, needed only to regenerate those shaders.
 
-To **update** submodules to their remote-tracking branches, use:
+To **update** submodules to their remote-tracking branches:
 
 ```bash
-./git_submodule_update.sh          # AOWIS submodules and GeographicLib only
-./git_submodule_update.sh --bgfx   # bgfx, bx and bimg only
-./git_submodule_update.sh --all    # Both groups
-./git_submodule_update.sh --help   # Usage
+./git_submodule_update.sh                 # MODEL, EPANET and Render
+./git_submodule_update.sh --render        # Render only (plus its pinned nested submodules)
+./git_submodule_update.sh --model         # likewise --epanet, --epanet-deps, --geographiclib
+./git_submodule_update.sh --bgfx          # bgfx, bx and bimg only
+./git_submodule_update.sh --all           # everything
+./git_submodule_update.sh --help          # usage
 ```
 
-The shared Render repository’s shader binaries (`src/map/bgfx/shaders/bin`) must match the
-bgfx revision. After `--bgfx`, run `./compile_linux.sh --shader-tools` and commit
-the regenerated shaders in AOWIS-GUI-Render together with the new `external/bgfx`, `external/bx`
-and `external/bimg` gitlinks.
+After `--bgfx`, run `./compile_linux.sh --shader-tools` and commit the
+regenerated shaders in AOWIS-GUI-Render together with Render's new bgfx
+gitlinks, then update the GUI's Render gitlink.
 
-**bgfx submodule setup:** ZIP files cannot contain Git submodule
-gitlinks. If the bgfx-group entries exist in `.gitmodules` but have not yet
-been registered in Git, either `git_submodule_init.sh` or
-`git_submodule_update.sh --bgfx` will register them automatically. Review and
-commit the new gitlinks alongside `.gitmodules`, so subsequent clones can
-initialize all dependencies normally.
+**bgfx submodule setup:** ZIP files cannot contain Git submodule gitlinks.
+If the bgfx entries exist in `.gitmodules` but are not yet registered in Git,
+`git_submodule_init.sh` or `git_submodule_update.sh --bgfx` registers them.
+Review and commit the new gitlinks with `.gitmodules`.
 
 ## Build
 
@@ -171,7 +179,7 @@ initialize all dependencies normally.
 ### Linux
 Run the script `compile_linux.sh`
 
-Qt's private Gui headers are required (Debian/Ubuntu: `qt6-base-private-dev`): the bgfx map and the Wayland orbit pointer lock read the native window and display handles through them.
+Qt's private Gui headers are required (Debian/Ubuntu: `qt6-base-private-dev`): the map's native window capture (Render's `BgfxQtNativeSurface`) and the Wayland orbit pointer lock read the native window and display handles through them.
 
 Find the result in the folder `build-linux`
 
@@ -335,7 +343,10 @@ README. The provider-editing API currently has no authentication.
 ## Applying patch ZIPs and refreshing project snapshots
 
 GUI patches use the `aowis-server-gui-*.zip` filename convention and contain
-new or changed files under `AOWIS-SERVER-GUI/`. Apply a patch from this
+new or changed files under a top-level folder named like this checkout
+(`AOWIS-SERVER-GUI/` for a default clone, `AOWIS-GUI/` for a checkout in a
+folder of that name). Files listed in `<folder>/.aowis-patch-delete.txt` are
+removed. Apply a patch from this
 repository with:
 
 ```bash
@@ -352,33 +363,3 @@ already-extracted files.
 **See [Patch ZIP workflow and snapshot regeneration](docs/apply-patches.md)**
 for detailed path rules, making ZIP patches, submodule caveats, excluded
 assets, failure recovery, and the standalone test command.
-
-### Shared rendering repository
-
-**AOWIS-GUI-Render** is an independently buildable Git submodule pinned at
-`external/AOWIS-GUI-Render`. The GUI links its `AOWIS::RenderGeometry`,
-`AOWIS::RenderNetwork`, `AOWIS::RenderGlobe`, `AOWIS::RenderDevice` and
-`AOWIS::RenderCore` targets. Those own the shared device and shader resources,
-production 2D network drawing, globe-network buffers/drawing, terrain topology
-and GPU buffers, sky and heatmap GPU submissions. GUI still provides its Qt
-native adapter, frame/scene orchestration, DEM/tile repositories, visible-LOD
-selection, terrain mesh preparation, provider settings, network MODEL adapter
-and editor interaction.
-
-The intended shared library also covers the reusable **CPU-side map engine**:
-DEM decode, tile streaming/caches, globe selection/LOD, terrain meshes,
-imagery residency and terrain queries. These are **not yet extracted**.
-Read `docs/renderer-extraction-readiness.md` for the current boundary and the
-Render repository's `docs/map-engine-boundary.md` and `docs/roadmap.md` for
-the remaining work. Mobile production integration remains deferred.
-
-After updating the Render gitlink, build and test with the strict gate:
-
-```bash
-./git_submodule_update.sh --render && \
-./tools/verify_render_checkout.sh && \
-./compile_linux_tests.sh
-```
-
-`./compile_linux_tests.sh` builds and links the **complete application and
-all test executables before CTest**. Tests never start after a failed build.
