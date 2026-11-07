@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="/i18n">
+    <file>aowis_gui_fr.qm</file>
+    <file>aowis_render_fr.qm</file>
+    <file>aowis_gui_ar.qm</file>
+    <file>aowis_render_ar.qm</file>
+    <file>aowis_gui_de.qm</file>
+    <file>aowis_render_de.qm</file>
+    <file>aowis_gui_es.qm</file>
+    <file>aowis_render_es.qm</file>
+  </qresource>
+</RCC>

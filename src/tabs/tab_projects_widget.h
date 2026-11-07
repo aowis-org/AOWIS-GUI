@@ -119,6 +119,7 @@ public:
                                       const QString &branch_id = QString()) const;
 
 signals:
+    void languageChanged();
     void networkOpenRequested(const QString &project_id, const QString &branch_id,
                               const QString &project_name, const QString &branch_name,
                               const QString &working_name, bool remote_checkout);
@@ -138,6 +139,7 @@ signals:
     void selectedHeadImportFileRequested();
 
 protected:
+    void changeEvent(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:

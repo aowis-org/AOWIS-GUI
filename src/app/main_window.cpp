@@ -520,10 +520,10 @@ MainWindow::MainWindow(QWidget *parent)
     
     this->main_navigation->addPage(this->projects_workspace,
                                   QIcon(":/icon/projects.png"),
-                                  "Servers and projects");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Servers and projects"));
     this->main_navigation->addPage(new QWidget(this->main_navigation),
                                   QIcon(":/icon/dashboard_global.png"),
-                                  "Dashboard");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Dashboard"));
 
     //this->main_navigation->addPage(new QWidget(this->main_navigation),
     //                              QIcon(":/icon/site_switcher.png"),
@@ -535,53 +535,53 @@ MainWindow::MainWindow(QWidget *parent)
 
     this->map_workspace_page_index = this->main_navigation->addPage(this->map_workspace,
                                   QIcon(":/icon/map.png"),
-                                  "Maps");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Maps"));
     this->main_navigation->addPage(this->energy,
                                   QIcon(":/icon/energy.png"),
-                                  "Energy");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Energy"));
     this->main_navigation->addPage(this->hydraulic_libraries,
                                   QIcon(":/icon/hydraulic_library.png"),
-                                  "Hydraulic Libraries");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Hydraulic Libraries"));
     this->main_navigation->addPage(this->hydraulic_controls,
                                   QIcon(":/icon/inspector_quality.png"),
-                                  "Controls & Map Labels");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Controls & Map Labels"));
     this->main_navigation->addPage(this->reservoirs,
                                   QIcon(":/icon/reservoir.png"),
-                                  "Reservoirs");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Reservoirs"));
     this->main_navigation->addPage(this->tanks,
                                   QIcon(":/icon/tower.png"),
-                                  "Tanks");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Tanks"));
     this->main_navigation->addPage(this->pumps,
                                   QIcon(":/icon/pump.png"),
-                                  "Pumps");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Pumps"));
     this->main_navigation->addPage(this->valves,
                                   QIcon(":/icon/valve.png"),
-                                  "Valves");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Valves"));
     this->main_navigation->addPage(this->junctions,
                                   QIcon(":/icon/junction.png"),
-                                  "Junctions");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Junctions"));
     this->main_navigation->addPage(this->pipes,
                                   QIcon(":/icon/pipe.png"),
-                                  "Pipes");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Pipes"));
     this->main_navigation->addPage(this->demand_points,
                                   QIcon(":/icon/demand_point.png"),
-                                  "Demand Points");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Demand Points"));
     this->main_navigation->addPage(this->customers,
                                   QIcon(":/icon/users.png"),
-                                  "Customers");
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Customers"));
 
     this->main_navigation->addPage(this->alarms,
                                   QIcon(":/icon/alarm.png"),
-                                  "Alarms",
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Alarms"),
                                   MainNavigationWidget::Placement::Bottom);
     this->main_navigation->addPage(this->logs,
                                   QIcon(":/icon/log.png"),
-                                  "Logs",
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Logs"),
                                   MainNavigationWidget::Placement::Bottom);
     this->settings_page_index = this->main_navigation->addPage(
                                   this->settings,
                                   QIcon(":/icon/settings.png"),
-                                  "Settings",
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Settings"),
                                   MainNavigationWidget::Placement::Bottom);
 
     connect(&guiShortcutRegistry(), &GuiShortcutRegistry::editShortcutRequested,

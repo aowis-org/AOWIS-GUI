@@ -61,7 +61,11 @@ public slots:
     void setMapFullscreen(bool fullscreen);
 
 signals:
+    void languageChanged();
     void currentModeChanged(int index);
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
     QWidget *createModeSelector(Mode mode);

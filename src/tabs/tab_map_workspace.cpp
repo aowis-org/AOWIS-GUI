@@ -9,6 +9,7 @@
 #include "tabs/tab_map_monitor_container.h"
 
 #include <QDebug>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -210,7 +211,7 @@ QWidget *MapWorkspaceWidget::createModeSelector(Mode mode)
     tabs->setIconSize(QSize(26, 26));
     for (const MapWorkspace::ModeInfo &description : MapWorkspace::Modes)
     {
-        const QString title = QString::fromUtf8(description.title);
+        const QString title = tr(description.title);
         const int index = tabs->addTab(QIcon(QString::fromUtf8(description.icon_resource)), QString());
         tabs->setTabToolTip(index, title);
         tabs->setTabWhatsThis(index, title);
@@ -225,6 +226,16 @@ QWidget *MapWorkspaceWidget::createModeSelector(Mode mode)
     title->setFont(title_font);
     layout->addWidget(title);
 
+    connect(this, &MapWorkspaceWidget::languageChanged, selector, [tabs, title, mode] {
+        tabs->setAccessibleName(tr("Map modes"));
+        title->setText(tr(MapWorkspace::Modes[mode].title));
+        for (int index = 0; index < tabs->count(); ++index)
+        {
+            const QString text = tr(MapWorkspace::Modes[index].title);
+            tabs->setTabToolTip(index, text);
+            tabs->setTabWhatsThis(index, text);
+        }
+    });
     this->mode_tabs.append(tabs);
     connect(tabs, &QTabBar::currentChanged, this, &MapWorkspaceWidget::setCurrentMode);
     return selector;
@@ -241,4 +252,11 @@ QWidget *MapWorkspaceWidget::createEmptyModeTools(Mode mode)
     layout->addWidget(createModeSelector(mode));
     layout->addStretch(1);
     return sidebar;
+}
+
+void MapWorkspaceWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+        emit languageChanged();
 }

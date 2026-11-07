@@ -229,6 +229,7 @@ target_link_libraries(aowis-epanet-js-import
 
 qt_add_executable(aowis-server-gui
     resources.qrc
+    translations/translations.qrc
 
     # Application
     src/app/builtin_examples.cpp
@@ -237,6 +238,7 @@ qt_add_executable(aowis-server-gui
     src/app/footer_statusbar.h
     src/app/history_dock.cpp
     src/app/history_dock.h
+    src/config/gui_language.cpp
     src/app/main.cpp
     src/app/main_window.cpp
     src/app/main_window.h
@@ -806,6 +808,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-project-source-writer-live-dvmdb-tests)
     set_tests_properties(aowis-project-source-writer-live-dvmdb PROPERTIES
         LABELS "aowis;integration;http;destructive" SKIP_RETURN_CODE 77 TIMEOUT 90)
+
+    add_executable(aowis-gui-language-tests
+        tests/gui_language_test.cpp
+        src/config/gui_configuration.cpp
+        src/config/gui_language.cpp
+        translations/translations.qrc)
+    target_include_directories(aowis-gui-language-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-gui-language-tests PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-gui-language COMMAND aowis-gui-language-tests)
+    set_tests_properties(aowis-gui-language PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # VC-03: personal repository is selected in the Projects Server Inspector.
     # UUIDs are discovered and pinned automatically; no separate settings page.

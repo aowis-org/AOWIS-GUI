@@ -3,7 +3,7 @@
 #include "app/main_window.h"
 #include "config/gui_configuration.h"
 
-#include <QDebug>
+#include "config/gui_language.h"
 
 int main(int argc, char *argv[])
 {
@@ -14,6 +14,7 @@ int main(int argc, char *argv[])
     (void)guiConfiguration();
 #endif
 
+    GuiLanguage::instance().restore();
     app.setWindowIcon(QIcon(":/icon/aowis_light_128.png"));
     
     MainWindow w;

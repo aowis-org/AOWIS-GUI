@@ -2,6 +2,8 @@
 
 #include "common/_sizes.h"
 #include "config/gui_configuration.h"
+#include "config/gui_language.h"
+#include <QMessageBox>
 #include "config/unit_profile_notifications.h"
 #include "config/unit_profile_manager.h"
 #include "config/unit_profile_menu.h"
@@ -16,6 +18,7 @@
 #include <functional>
 #include <QAbstractButton>
 #include <QAction>
+#include <QActionGroup>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDialog>
@@ -116,7 +119,20 @@ protected:
     void resizeEvent(QResizeEvent *event) override
     {
         QWidget::resizeEvent(event);
+        placeGroups();
+    }
 
+    bool event(QEvent *event) override
+    {
+        const bool handled = QWidget::event(event);
+        if (event->type() == QEvent::LayoutRequest)
+            placeGroups();
+        return handled;
+    }
+
+private:
+    void placeGroups()
+    {
         constexpr int side_margin = 10;
         constexpr int group_spacing = 14;
 
@@ -144,7 +160,6 @@ protected:
         this->right_group->setGeometry(right_x, right_y, right_size.width(), right_size.height());
     }
 
-private:
     QWidget *left_group = nullptr;
     QWidget *center_group = nullptr;
     QWidget *right_group = nullptr;
@@ -172,13 +187,13 @@ QLabel *createCaption(const QString &text, QWidget *parent)
     return label;
 }
 
-QWidget *createLabeledControl(const QString &caption, QWidget *control, QWidget *parent)
+QWidget *createLabeledControl(QLabel *caption, QWidget *control, QWidget *parent)
 {
     QWidget *container = new QWidget(parent);
     QVBoxLayout *layout = new QVBoxLayout(container);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(1);
-    layout->addWidget(createCaption(caption, container));
+    layout->addWidget(caption);
     layout->addWidget(control);
     return container;
 }
@@ -352,8 +367,7 @@ void TopControlBar::setFullScreenState(bool fullscreen)
     const QString fullscreen_shortcut = shortcutTooltipToken(
         guiShortcutPresentation(GuiShortcutId::Fullscreen));
     this->button_fullscreen->setToolTip(
-        (fullscreen ? QStringLiteral("Leave fullscreen ") : QStringLiteral("Enter fullscreen "))
-        + fullscreen_shortcut);
+        (fullscreen ? tr("Leave fullscreen %1") : tr("Enter fullscreen %1")).arg(fullscreen_shortcut));
 }
 
 void TopControlBar::setSimulationResultsAvailable(bool available)
@@ -825,6 +839,16 @@ void TopControlBar::addProjectControls()
     });
     connect(this->button_project_save, &QToolButton::clicked,
             this, &TopControlBar::signalProjectSaveRequested);
+    connect(this, &TopControlBar::languageChanged, workspace_context, [this, button_show_on_map, history_button] {
+        this->combo_project->setAccessibleName(tr("Project"));
+        this->combo_branch->setAccessibleName(tr("Branch"));
+        this->combo_project->setToolTip(tr("Choose a project to open its hydraulic network"));
+        this->combo_branch->setToolTip(tr("Select a branch to open; [none] leaves the current network unchanged"));
+        const QSignalBlocker blocker(this->combo_branch);
+        this->combo_branch->setItemText(0, tr("[none]"));
+        button_show_on_map->setToolTip(tr("Show network on map"));
+        history_button->setToolTip(tr("Open History dock"));
+    });
     bar_content->leftLayout()->addWidget(workspace_context);
     setProjectContext({}, QString(), {}, QString());
 }
@@ -923,8 +947,9 @@ void TopControlBar::addFlowUnitCombo()
         QTimer::singleShot(0, this, refresh);
     });
     refresh();
-    bar_content->centerLayout()->addWidget(
-        createLabeledControl(QStringLiteral("Units"), button, this->content));
+    QLabel *caption = createCaption(tr("Units"), this->content);
+    connect(this, &TopControlBar::languageChanged, caption, [caption] { caption->setText(tr("Units")); });
+    bar_content->centerLayout()->addWidget(createLabeledControl(caption, button, this->content));
 }
 
 void TopControlBar::addQualityHeadlossControls()
@@ -996,14 +1021,19 @@ void TopControlBar::addQualityHeadlossControls()
     quality_headloss_layout->setSpacing(2);
 
     QLabel *quality_caption =
-        createCaption(QStringLiteral("Water quality"), quality_headloss_container);
+        createCaption(QString(), quality_headloss_container);
     QLabel *headloss_caption =
-        createCaption(QStringLiteral("Headloss"), quality_headloss_container);
-    const int caption_width = qMax(
-        quality_caption->sizeHint().width(),
-        headloss_caption->sizeHint().width());
-    quality_caption->setFixedWidth(caption_width);
-    headloss_caption->setFixedWidth(caption_width);
+        createCaption(QString(), quality_headloss_container);
+    const std::function<void()> refresh_captions = [quality_caption, headloss_caption] {
+        quality_caption->setText(tr("Water quality"));
+        headloss_caption->setText(tr("Headloss"));
+        const int width = qMax(quality_caption->fontMetrics().horizontalAdvance(quality_caption->text()),
+                               headloss_caption->fontMetrics().horizontalAdvance(headloss_caption->text()));
+        quality_caption->setFixedWidth(width + 2);
+        headloss_caption->setFixedWidth(width + 2);
+    };
+    connect(this, &TopControlBar::languageChanged, quality_caption, refresh_captions);
+    refresh_captions();
 
     QHBoxLayout *quality_layout = new QHBoxLayout();
     quality_layout->setContentsMargins(0, 0, 0, 0);
@@ -1312,19 +1342,84 @@ void TopControlBar::addViewControls()
             setFullScreenState(window() != nullptr && window()->isFullScreen());
     });
 
-    QToolButton *button_export_epanet = new QToolButton(button_stack);
-    button_export_epanet->setAutoRaise(true);
-    button_export_epanet->setIcon(QIcon(QStringLiteral(":/icon/save.png")));
-    button_export_epanet->setToolTip(QStringLiteral("Export EPANET network"));
-    configureStackedToolbarIconButton(button_export_epanet);
+    this->export_button = new QToolButton(button_stack);
+    this->export_button->setAutoRaise(true);
+    this->export_button->setIcon(QIcon(QStringLiteral(":/icon/save.png")));
+    configureStackedToolbarIconButton(this->export_button);
 
-    connect(button_export_epanet, &QToolButton::clicked, this, [this]
+    connect(this->export_button, &QToolButton::clicked, this, [this]
     {
         emit signalExportEpanetNetwork();
     });
 
     setFullScreenState(false);
     button_stack_layout->addWidget(this->button_fullscreen);
-    button_stack_layout->addWidget(button_export_epanet);
+    button_stack_layout->addWidget(this->export_button);
     bar_content->rightLayout()->addWidget(button_stack);
+
+    this->language_button = new QToolButton(this->content);
+    this->language_button->setObjectName(QStringLiteral("interfaceLanguage"));
+    this->language_button->setIcon(QIcon(QStringLiteral(":/icon/dashboard_global.png")));
+    this->language_button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+#ifdef Q_OS_WASM
+    WasmPopupMenu *menu = new WasmPopupMenu(this->language_button);
+    connect(this->language_button, &QToolButton::clicked, this, [this, menu] {
+        if (menu->isPopupVisible())
+            menu->closeAll();
+        else
+            menu->popupBelow(this->language_button);
+    });
+#else
+    QMenu *menu = new QMenu(this->language_button);
+    this->language_button->setPopupMode(QToolButton::InstantPopup);
+    this->language_button->setMenu(menu);
+    QActionGroup *languages = new QActionGroup(menu);
+    languages->setExclusive(true);
+#endif
+    for (const GuiLanguageChoice &choice : GuiLanguages)
+    {
+        const QString code = QString::fromLatin1(choice.code);
+        const QString label = code.toUpper() + QStringLiteral("  ") + QString::fromUtf8(choice.name);
+        const std::function<void()> select = [this, code] {
+            if (!GuiLanguage::instance().select(code))
+                QMessageBox::warning(this, tr("Language"), tr("Could not load the selected language."));
+        };
+#ifdef Q_OS_WASM
+        menu->addAction(label, select);
+#else
+        QAction *action = menu->addAction(label);
+        action->setCheckable(true);
+        languages->addAction(action);
+        action->setData(code);
+        connect(action, &QAction::triggered, this, select);
+#endif
+    }
+    bar_content->rightLayout()->addWidget(this->language_button);
+    refreshViewText();
+}
+
+void TopControlBar::refreshViewText()
+{
+    if (!this->language_button)
+        return;
+    const QString code = GuiLanguage::instance().code();
+    this->language_button->setText(code.toUpper());
+    this->language_button->setAccessibleName(tr("Language"));
+    this->language_button->setToolTip(tr("Language"));
+#ifndef Q_OS_WASM
+    for (QAction *action : this->language_button->menu()->actions())
+        action->setChecked(action->data().toString() == code);
+#endif
+    this->export_button->setToolTip(tr("Export EPANET network"));
+    setFullScreenState(window()->isFullScreen());
+}
+
+void TopControlBar::changeEvent(QEvent *event)
+{
+    QToolBar::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+    {
+        refreshViewText();
+        emit languageChanged();
+    }
 }

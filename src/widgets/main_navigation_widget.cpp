@@ -1,5 +1,6 @@
 #include "widgets/main_navigation_widget.h"
 
+#include <QCoreApplication>
 #include <QColor>
 #include <QEvent>
 #include <QFocusEvent>
@@ -281,7 +282,7 @@ protected:
                 if (!entry.tool_tip.isEmpty())
                 {
                     QToolTip::showText(help_event->globalPos(),
-                                       entry.tool_tip,
+                                       QCoreApplication::translate("MainNavigationWidget", entry.tool_tip.toUtf8().constData()),
                                        this,
                                        entryRect(entry_index));
                     return true;

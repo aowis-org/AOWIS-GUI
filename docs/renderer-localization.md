@@ -1,10 +1,17 @@
 # Map HUD localization
 
-The map HUD (drawn by Render's `MapBgfxHud`) is ready for Qt translation
-catalogues without owning language selection. The GUI has **no** language
-selector, translated catalogues, Arabic RTL layouts or `LanguageManager` yet;
-they belong to the multilingual GUI work. This page is the contract between
-Render's HUD and the GUI host.
+The language button at the right of the main toolbar shows the current
+language code. Choose English, Français, العربية, Deutsch or Español.
+The GUI restores the selection at startup from the native GUI INI or
+browser local storage. English is the default and supplies the fallback
+text for untranslated messages. Arabic selects right-to-left widget layout.
+The language preference is independent of the unit profile and numeric locale.
+
+The shipped catalogues cover the main navigation, selected toolbar and
+Projects controls, Settings categories, map modes and map HUD strings.
+Navigation tooltips resolve on hover. Map labels and controls update in
+place when Qt delivers a language change. Additional inspector forms,
+editor tools and dialogs still contain English text.
 
 ## Responsibility and catalogue contexts
 
@@ -21,14 +28,16 @@ required), plus `QT_TRANSLATE_NOOP` for compass abbreviations. **The
 translation context stays `MapBgfxHud`**, wherever the file lives. GUI-originated
 strings are translated before passing them to the renderer; do not import any
 GUI `LanguageManager`, `MapModel`, hydraulic model, or unit-profile dependency
-into the renderer. Planned catalogue split: `aowis-render_*.qm` for
-renderer-owned messages and `aowis-gui_*.qm` for application-owned ones, both
-installed and removed centrally by the GUI.
+into the renderer. The `translations/` directory contains separate `aowis_render_*.ts` and
+`aowis_gui_*.ts` Qt Linguist sources. Both corresponding QM resources are
+embedded for native and WebAssembly builds. After editing a TS file in Qt
+Linguist, rebuild its adjacent QM using `lrelease file.ts -qm file.qm` and
+commit both files.
 
 ## Runtime language-change contract
 
-1. The future GUI language manager installs the matching `QTranslator`s in
-   `QCoreApplication` and changes application locale/RTL policy separately.
+1. The GUI installs both matching catalogues through `QTranslator` and sets
+   the application layout direction from the selected language.
    Qt sends `QEvent::LanguageChange` to widgets.
 2. `MapBgfxSurface::changeEvent(LanguageChange)` forwards to `MapBgfxMapView::handleHostChange()`, which notifies the `MapBgfxHud`
    (`languageChanged()`), requests a redraw and emits

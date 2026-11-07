@@ -467,6 +467,31 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     empty_layout->addWidget(empty_title, 0, Qt::AlignHCenter);
     empty_layout->addWidget(empty_description, 0, Qt::AlignHCenter);
     empty_layout->addWidget(empty_add, 0, Qt::AlignHCenter);
+    connect(this, &ProjectsWidget::languageChanged, left,
+            [this, servers_group, projects_group, revisions_group, no_sources, browse_examples_button,
+             heads_button, graph_title, graph_heads_button, graph_full_button, direction_button,
+             fit_button, empty_title, empty_description, empty_add, add_server] {
+        servers_group->setTitle(tr("Databases"));
+        projects_group->setTitle(tr("Projects && Branches"));
+        revisions_group->setTitle(tr("Revisions"));
+        add_server->setToolTip(tr("Add a database (local or REST)"));
+        add_server->setAccessibleName(tr("Add database"));
+        no_sources->setText(tr("No databases configured"));
+        if (browse_examples_button)
+            browse_examples_button->setText(tr("Browse examples…"));
+        heads_button->setText(tr("Editable heads"));
+        this->full_tree_button->setText(tr("Full tree"));
+        graph_title->setText(tr("Branch & revision graph"));
+        graph_heads_button->setText(tr("Editable heads"));
+        graph_full_button->setText(tr("Full tree"));
+        direction_button->setText(direction_button->isChecked() ? tr("Bottom up ↑") : tr("Top down ↓"));
+        fit_button->setText(tr("Fit graph"));
+        empty_title->setText(tr("No database configured"));
+        empty_description->setText(tr("Add a database to explore its projects, branches and revisions."));
+        empty_add->setText(tr("Add database"));
+        if (this->inspector_dock)
+            this->inspector_dock->setWindowTitle(tr("Project Inspector"));
+    });
     this->graph_stack->addWidget(empty_page);
     QWidget *no_projects_page = new QWidget(this->graph_stack);
     no_projects_page->setObjectName(QStringLiteral("projectsNoProjectsPage"));
@@ -5192,4 +5217,11 @@ void ProjectsWidget::applyInspectorEdits()
         if (this->selection_kind != SelectionKind::Server) rebuildGraph();
         select(this->selection_kind, this->selected_id);
     }
+}
+
+void ProjectsWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+        emit languageChanged();
 }

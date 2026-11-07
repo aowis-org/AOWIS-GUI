@@ -24,6 +24,9 @@ public:
     void focusShortcut(GuiShortcutId id);
     void focusUnits();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
     QListWidget *table_of_contents = nullptr;
     QStackedWidget *pages = nullptr;

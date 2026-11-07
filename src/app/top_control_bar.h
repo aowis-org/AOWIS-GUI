@@ -53,6 +53,7 @@ public:
     void setOpenedContext(const QString &project, const QString &branch);
 
 signals:
+    void languageChanged();
     void signalHeadlossFormulaChanged(HeadlossFormulas formulas);
     void signalSimulationStart();
     void signalShowSimulationStatistics();
@@ -67,7 +68,13 @@ signals:
     void signalFullScreenToggle();
     void signalManageUnitsRequested();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
+    QToolButton *language_button = nullptr;
+    QToolButton *export_button = nullptr;
+    void refreshViewText();
     QWidget *content = nullptr;
     ComboCheckboxes *combo_quality_analysis = nullptr;
     QComboBox *combo_project = nullptr;
