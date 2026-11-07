@@ -148,6 +148,8 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_hud.cpp
         src/map/bgfx/map_bgfx_map_view.cpp
         src/map/bgfx/bgfx_qt_native_surface.cpp
+        src/services/interface_server_map_rest.cpp
+        src/map/core/map_provider_catalog.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -170,6 +172,7 @@ set(AOWIS_RENDER_BUILD_GLOBE_NETWORK ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_NETWORK_SCENE ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_MODELS ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_QT_SURFACE ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_MAP_REST ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_MAP ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
@@ -361,15 +364,12 @@ qt_add_executable(aowis-server-gui
     src/tabs/tab_valves_widget.h
 
     # Services
-    src/services/interface_server_map_rest.cpp
-    src/services/interface_server_map_rest.h
     src/services/map_server_transport_factory.cpp
     src/services/map_server_transport_factory.h
-    src/services/rest_client.cpp
-    src/services/rest_client.h
 
     # Map core
-    src/map/core/map_provider_catalog.cpp
+    src/map/core/gui_map_provider_catalog.cpp
+    src/map/core/gui_map_provider_catalog.h
     src/map/core/map_models.h
     src/map/core/map_navigation_widget.cpp
     src/map/core/map_navigation_widget.h
@@ -534,7 +534,7 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
 target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry AOWIS::RenderGlobe
-    AOWIS::RenderMap AOWIS::RenderQtSurface)
+    AOWIS::RenderMap AOWIS::RenderQtSurface AOWIS::RenderMapRest)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -988,13 +988,6 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             LABELS "aowis")
     endif()
 
-    add_executable(aowis-map-provider-fallback-tests
-        tests/map_provider_fallback_resolution_test.cpp)
-    target_include_directories(aowis-map-provider-fallback-tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-map-provider-fallback-tests PRIVATE Qt6::Core Qt6::Network)
-    add_test(NAME aowis-map-provider-fallback COMMAND aowis-map-provider-fallback-tests)
-    set_tests_properties(aowis-map-provider-fallback PROPERTIES LABELS "aowis")
     # Continuous Web Mercator transforms are independent of Qt, bgfx and the
     # legacy integer zoom/cache path. Always test them, even with bgfx off.
     add_executable(aowis-bgfx-2d-projection-tests tests/bgfx_2d_projection_test.cpp)

@@ -1,7 +1,7 @@
 #include "map/core/map_navigation_widget.h"
 
 #include "config/gui_configuration.h"
-#include "map/core/map_provider_catalog.h"
+#include "map/core/gui_map_provider_catalog.h"
 #include "config/shortcut_registry.h"
 #include "map/core/map_symbology_slider.h"
 #include "map/core/map_symbology_length_units.h"

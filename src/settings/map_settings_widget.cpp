@@ -1,7 +1,7 @@
 #include "settings/map_settings_widget.h"
 
 #include "config/gui_configuration.h"
-#include "map/core/map_provider_catalog.h"
+#include "map/core/gui_map_provider_catalog.h"
 #include "config/map_server_client_configuration.h"
 #include "map/render/map_globe_terrain_levels.h"
 #include "widgets/slider_number_control.h"

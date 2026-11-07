@@ -122,6 +122,14 @@ required_files=(
     src/map/core/map_input_focus_policy.h
     src/map/bgfx/bgfx_qt_native_surface.h
     src/map/bgfx/bgfx_qt_native_surface.cpp
+    src/services/map_server_rest_configuration.h
+    src/services/rest_client.h
+    src/services/rest_client.cpp
+    src/services/interface_server_map_rest.h
+    src/services/interface_server_map_rest.cpp
+    src/map/core/map_provider_catalog.h
+    src/map/core/map_provider_catalog.cpp
+    src/map/core/map_provider_fallback_resolution.h
 )
 
 for relative in "${required_files[@]}"; do

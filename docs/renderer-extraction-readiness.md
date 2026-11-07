@@ -24,6 +24,7 @@ remaining forward work.
 | `AOWIS::RenderNetwork` | CPU 2D network scene, variants, mesh staging | `map_bgfx_2d_snapshot_adapter.h` and host style binding |
 | `AOWIS::RenderGlobe` | Tank/reservoir, link, flow and underground geometry, terrain tile topology and retained scene invalidation policy | Hydraulic scene snapshots, GeographicLib sampling, terrain queries and scene updates |
 | `AOWIS::RenderDevice` | Single bgfx device, frame/view coordination, native target registry (Qt-free) | Toolkit event routing |
+| `AOWIS::RenderMapRest` | aowis-server-map REST client: `RESTClient`, `InterfaceServerMapREST`, `MapProviderCatalog` (+ fallback resolution), configured by `MapServerRestConfiguration` | `guiMapServerRestConfiguration()` (from `mapServerClientConfiguration()`); `mapProviderCatalog()` (`map/core/gui_map_provider_catalog.*`) stores fallbacks in the GUI configuration file |
 | `AOWIS::RenderQtSurface` | `BgfxQtNativeSurface`: QWindow -> native handles (Wayland/XCB display via Qt6::GuiPrivate) | `project_graph_bgfx_viewport` captures its window through it; `MapBgfxMapView` uses it by default |
 | `AOWIS::RenderCore` | 2D GPU/imagery atlas and HUD caches; globe network resources/draw; terrain buffer/index pools, terrain draw, sky and heatmap GPU owners, shader assets | `MapBgfxMapView`, `MapBgfxGlobeSurface`, QImage model resources, frame and tile preparation |
 

@@ -9,6 +9,7 @@
 #include "entity_inspector/emitter_numeric_spin_box.h"
 
 #include "services/interface_server_map_rest.h"
+#include "services/map_server_transport_factory.h"
 #ifdef AOWIS_STANDALONE
 #include "services/interface_server_map_standalone.h"
 #endif
@@ -2135,7 +2136,8 @@ void EntityInspectorWidget::addGroupElevation()
 #ifdef AOWIS_STANDALONE
         this->terrain_elevation_client = new InterfaceServerMapStandalone(this);
 #else
-        this->terrain_elevation_client = new InterfaceServerMapREST(this);
+        this->terrain_elevation_client = new InterfaceServerMapREST(
+            guiMapServerRestConfiguration(), this);
 #endif
         connect(this->terrain_elevation_client,
                 &InterfaceServerMap::signalTerrainElevationDataReceived, this,

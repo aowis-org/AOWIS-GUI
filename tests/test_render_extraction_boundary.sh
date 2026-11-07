@@ -151,6 +151,14 @@ for relative in \
     src/map/bgfx/map_bgfx_labels.cpp \
     src/map/core/map_frame_pacer.h \
     src/map/bgfx/bgfx_qt_native_surface.h \
+    src/services/rest_client.h \
+    src/services/rest_client.cpp \
+    src/services/interface_server_map_rest.h \
+    src/services/interface_server_map_rest.cpp \
+    src/map/core/map_provider_catalog.h \
+    src/map/core/map_provider_catalog.cpp \
+    src/map/core/map_provider_fallback_resolution.h \
+    tests/map_provider_fallback_resolution_test.cpp \
     src/map/bgfx/bgfx_qt_native_surface.cpp \
     src/map/core/map_input_focus_policy.h \
     tests/map_input_focus_policy_test.cpp \

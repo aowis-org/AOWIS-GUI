@@ -3,7 +3,7 @@
 #include "tabs/tab_map_workspace.h"
 #include "tabs/tab_projects_widget.h"
 #include "config/gui_configuration.h"
-#include "map/core/map_provider_catalog.h"
+#include "map/core/gui_map_provider_catalog.h"
 #include "services/map_server_transport_factory.h"
 #include "config/unit_profile_manager.h"
 #include "config/shortcut_registry.h"
