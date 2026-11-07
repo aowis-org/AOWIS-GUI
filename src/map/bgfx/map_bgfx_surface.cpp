@@ -4,7 +4,6 @@
 #include "config/shortcut_registry.h"
 #include "config/unit_aware_view.h"
 #include "config/unit_profile_manager.h"
-#include "map/bgfx/bgfx_qt_native_surface.h"
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 #include "map/bgfx/map_bgfx_globe_model_images.h"
 #include "map/core/map_scale_distance.h"
@@ -36,10 +35,6 @@ MapBgfxSurface::MapBgfxSurface(MapModel *model, QWidget *parent)
     connect(this->view.get(), &MapBgfxMapView::localizedPresentationRefreshRequested,
             this, &MapBgfxSurface::localizedPresentationRefreshRequested);
 
-    this->view->setNativeSurfaceCapture([](QWindow *window)
-    {
-        return BgfxQtNativeSurface::capture(window);
-    });
     // The user's terrain detail setting, read live.
     this->view->setTerrainDetailReductionSource([]()
     {

@@ -18,8 +18,7 @@ The map itself (scene/frame orchestration, `MapModel`, terrain and imagery
 repositories, globe terrain pipeline, HUD, labels, picking) lives in Render;
 its entry point is `MapBgfxMapView` (`AOWIS::RenderMap`). This GUI host
 retains `MapBgfxSurface` (the Qt Widgets host of that view: window container,
-widget events, focus, GUI settings and assets), the Qt native adapter
-(`BgfxQtNativeSurface`), provider/server settings, authoritative hydraulic
+widget events, focus, GUI settings and assets), provider/server settings, authoritative hydraulic
 snapshots, editing, legend and HUD text content and Projects UI. Where this
 document names `MapBgfxSurface` internals (frame loop, `renderLabels()`,
 `synchronizeGeometry()`, `hitTest()`), they are now `MapBgfxMapView`'s.
@@ -27,7 +26,8 @@ See [shared renderer integration](../../../docs/renderer-extraction-readiness.md
 and the Render repository's `docs/map-engine-boundary.md` for current
 ownership and the forward scope.
 
-Desktop native Qt windows are captured through `BgfxQtNativeSurface` into the
+Desktop native Qt windows are captured through Render's `BgfxQtNativeSurface`
+(`AOWIS::RenderQtSurface`) into the
 Qt-free `BgfxNativeSurface` descriptor (window, display, handle type,
 physical pixels). `BgfxNativeTargetRegistry` consumes that descriptor for
 secondary swapchains and rejects a resized target whose native identity has

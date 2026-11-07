@@ -69,7 +69,7 @@ view. The relevant components are:
 | `BgfxFrameCoordinator` | Device-generation-scoped, non-overlapping bgfx view-ID reservations; batch all active clients before **one** `bgfx::frame()` | `AOWIS-GUI-Render/src/map/bgfx/bgfx_frame_coordinator.{h,cpp}` |
 | `BgfxNativeTargetRegistry` | Bind the initial/default swapchain and own additional native swapchain framebuffers; resize and release each secondary independently | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_target_registry.{h,cpp}` |
 | `BgfxNativeSurface` | Toolkit-independent native window/display/type/physical-size descriptor, converted to bgfx swapchain and primary-init data | `AOWIS-GUI-Render/src/map/bgfx/bgfx_native_surface.h` |
-| `BgfxQtNativeSurface` | GUI-side QWindow adapter: obtains XCB/Wayland native handles and device-pixel dimensions, or native desktop window IDs | `src/map/bgfx/bgfx_qt_native_surface.{h,cpp}` |
+| `BgfxQtNativeSurface` | Qt QWindow adapter: obtains XCB/Wayland native handles and device-pixel dimensions, or native desktop window IDs | Render `AOWIS::RenderQtSurface`, `src/map/bgfx/bgfx_qt_native_surface.{h,cpp}` |
 | `MapBgfxMapView` | Production map GPU content, imagery atlases, terrain, HUD, event routing and diagnostic map windows | Render `src/map/bgfx/map_bgfx_map_view.{h,cpp}` |
 | `MapBgfxSurface` | Qt Widgets host of `MapBgfxMapView`: window container, widget events, focus, GUI settings and assets | `src/map/bgfx/map_bgfx_surface.{h,cpp}` |
 | `ProjectGraphBgfxViewport` | Projects' embedded native window, GPU HUD draws, text atlas, spatial index and view/target lifetime | `src/tabs/project_graph_bgfx_viewport.{h,cpp}` |
@@ -92,7 +92,8 @@ widgets.
 
 **Native surface boundary:** `BgfxQtNativeSurface::capture(QWindow *)` is the
 only desktop native handle discovery path for Maps, Projects and diagnostic
-windows. It runs in the GUI/Qt host, not the reusable device/target layer.
+windows. It is Render's Qt adapter (`AOWIS::RenderQtSurface`), not part of
+the Qt-free device/target layer (`AOWIS::RenderDevice`).
 `BgfxNativeSurface` carries native **window**, **display**, window-handle
 **type**, and **physical pixel** dimensions; it carries no QWindow or QWidget.
 The same descriptor supplies `bgfx::Init` for a primary surface and a complete

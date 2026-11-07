@@ -150,6 +150,8 @@ for relative in \
     src/map/bgfx/map_bgfx_labels.h \
     src/map/bgfx/map_bgfx_labels.cpp \
     src/map/core/map_frame_pacer.h \
+    src/map/bgfx/bgfx_qt_native_surface.h \
+    src/map/bgfx/bgfx_qt_native_surface.cpp \
     src/map/core/map_input_focus_policy.h \
     tests/map_input_focus_policy_test.cpp \
     tests/bgfx_entity_style_test.cpp \

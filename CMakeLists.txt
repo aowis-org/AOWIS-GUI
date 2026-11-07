@@ -147,6 +147,7 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_globe_surface.cpp
         src/map/bgfx/map_bgfx_hud.cpp
         src/map/bgfx/map_bgfx_map_view.cpp
+        src/map/bgfx/bgfx_qt_native_surface.cpp
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -168,6 +169,7 @@ set(AOWIS_RENDER_BUILD_MAP_DATA ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_NETWORK ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_NETWORK_SCENE ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_GLOBE_MODELS ON CACHE BOOL "" FORCE)
+set(AOWIS_RENDER_BUILD_QT_SURFACE ON CACHE BOOL "" FORCE)
 set(AOWIS_RENDER_BUILD_MAP ON CACHE BOOL "" FORCE)
 add_subdirectory("${AOWIS_RENDER_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/aowis-render" EXCLUDE_FROM_ALL)
 # Some GUI-only CPU regression executables compile renderer headers directly.
@@ -525,8 +527,6 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_editor_overlay.cpp
     src/map/bgfx/map_bgfx_editor_icons.h
     src/map/bgfx/map_bgfx_editor_icons.cpp
-    src/map/bgfx/bgfx_qt_native_surface.h
-    src/map/bgfx/bgfx_qt_native_surface.cpp
     src/map/bgfx/map_bgfx_globe_model_images.h
     src/map/bgfx/map_bgfx_globe_model_images.cpp
     src/map/bgfx/map_bgfx_globe_hud_controller.h
@@ -534,7 +534,7 @@ target_sources(aowis-server-gui PRIVATE
     src/map/bgfx/map_bgfx_surface.h
     src/map/bgfx/map_bgfx_surface.cpp)
 target_link_libraries(aowis-server-gui PRIVATE AOWIS::RenderCore AOWIS::RenderGeometry AOWIS::RenderGlobe
-    AOWIS::RenderMap)
+    AOWIS::RenderMap AOWIS::RenderQtSurface)
 if(EMSCRIPTEN)
     # Keep wasm function names in the binary (name section only, no
     # DWARF): browser stack traces show "bgfx::gl::...::init" instead of
@@ -546,11 +546,6 @@ if(EMSCRIPTEN)
     if(AOWIS_WASM_FUNCTION_NAMES)
         target_link_options(aowis-server-gui PRIVATE "--profiling-funcs")
     endif()
-endif()
-if(UNIX AND NOT APPLE AND NOT EMSCRIPTEN AND TARGET Qt6::GuiPrivate)
-    target_link_libraries(aowis-server-gui PRIVATE Qt6::GuiPrivate)
-    target_compile_definitions(aowis-server-gui PRIVATE
-        AOWIS_BGFX_NATIVE_WAYLAND_PRIVATE=1)
 endif()
 # The Emscripten version shim reaches this target through bgfx -> bx.
 
