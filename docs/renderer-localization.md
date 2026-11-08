@@ -137,3 +137,25 @@ error details), and not all feature modules have complete translated catalogues.
 The acceptance target remains full in-place switching without restart or
 lost model/editor state; any untranslated application-owned text is a coverage
 gap, not an acceptable restart workaround.
+
+## Hydraulic Libraries: live presentation contract
+
+The Hydraulic Libraries page has eight translated collection names, displayed
+through a `QComboBox` whose **index is the collection identity**. On language
+changes, its existing item texts are replaced with signals blocked: the active
+collection, current UUID selection, list contents, and logical edit capture
+remain untouched. Library entry IDs, UUIDs, and numerical source values are
+never translated; the editor deliberately retains dot-decimal input.
+
+The modal Add/Edit library dialog updates its window title, labels, numerical
+format hint, Save/Cancel controls and subsequent validation messages using
+`HydraulicLibrariesWidget` translation keys. Because a language change is
+received by the **already open dialog** inside `exec()`, it must not recreate
+any input widget, accept/reject the dialog, or mutate the transaction. User
+entered text and numerical drafts survive English ↔ any supported language.
+
+`aowis-hydraulic-libraries-widget` exercises a synthetic translator against
+both the existing collection selector and an open dialog, asserting no logical
+edit, lost draft, or selection signal. `aowis-gui-language` separately checks
+real catalogue entries for all five supported languages. Both tests must run
+with Qt 6; a passing catalogue test alone does not demonstrate UI refresh.

@@ -170,6 +170,23 @@ int main(int argc, char **argv)
             || !matches(code, "numeric locale preserved", numeric_locale == QLocale(), true)
             || !matches(code, "layout direction", QApplication::layoutDirection(), QLocale(code).textDirection()))
             return 3;
+        // Real .qm catalogue coverage complements the synthetic translator
+        // test in aowis-hydraulic-libraries-widget. A fresh or already open
+        // library page must have localized collection names in all languages.
+        const char *const collection_names[] = {"Pipe materials", "Matériaux des conduites",
+            "مواد الأنابيب", "Rohrmaterialien", "Materiales de tuberías"};
+        const char *const library_dialog_titles[] = {"Add hydraulic library item",
+            "Ajouter un élément de bibliothèque hydraulique",
+            "إضافة عنصر إلى المكتبة الهيدروليكية",
+            "Hydraulisches Bibliothekselement hinzufügen",
+            "Añadir elemento a la biblioteca hidráulica"};
+        if (!matches(code, "library collection catalogue",
+                     QCoreApplication::translate("HydraulicLibrariesWidget", "Pipe materials"),
+                     QString::fromUtf8(collection_names[index]))
+            || !matches(code, "library modal title catalogue",
+                        QCoreApplication::translate("HydraulicLibrariesWidget", "Add hydraulic library item"),
+                        QString::fromUtf8(library_dialog_titles[index])))
+            return 12;
         if (!matches(code, "description label", description_label->text(), QString::fromUtf8(descriptions[index]))
             || !matches(code, "import action", overview.import_network->text(), QString::fromUtf8(imports[index]))
             || !matches(code, "project name selection", overview.name->selectedText(), QStringLiteral("supply"))

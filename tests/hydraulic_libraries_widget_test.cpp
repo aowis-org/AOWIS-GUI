@@ -4,6 +4,9 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QFormLayout>
+#include <QLabel>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLineEdit>
@@ -11,12 +14,33 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTextCursor>
 #include <QTimer>
+#include <QTranslator>
 
 #include <cstdio>
 
 namespace
 {
+// Deliberately independent of installed .qm files: this test validates that
+// existing widgets respond to a translator change, rather than construction.
+class LibraryTestTranslator : public QTranslator
+{
+public:
+    // No .qm file is loaded. QTranslator::isEmpty() would otherwise return
+    // true, so Qt would install our synthetic translator without emitting
+    // LanguageChange. That tests lookups, but not actual live UI refresh.
+    bool isEmpty() const override { return false; }
+
+    QString translate(const char *context, const char *source_text,
+                      const char *, int) const override
+    {
+        if (qstrcmp(context, "HydraulicLibrariesWidget") != 0)
+            return QString();
+        return QStringLiteral("TEST: ") + QString::fromUtf8(source_text);
+    }
+};
+
 bool require(bool condition, const char *message)
 {
     if (!condition)
@@ -181,6 +205,90 @@ int main(int argc, char **argv)
             if (!require(false, "delete did not emit transaction or refresh list")) return 1;
         }
     }
-    std::puts("Hydraulic libraries GUI: all eight collections passed create/update/delete capture");
+    // Switch the language on an already-constructed, active collection widget.
+    // Renaming category captions must not select another collection, reload
+    // hydraulic data or emit a logical edit / autosave transaction.
+    category->setCurrentIndex(5);
+    const int edits_before_language = events;
+    int category_changes = 0;
+    QObject::connect(category, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                     &widget, [&category_changes](int) { ++category_changes; });
+    LibraryTestTranslator translator;
+    if (!require(QCoreApplication::installTranslator(&translator),
+                 "could not install synthetic library translator")) return 1;
+    app.processEvents();
+    if (!require(category->currentIndex() == 5 && category_changes == 0,
+                 "language change replaced the selected library collection")
+        || !require(category->itemText(5) == QStringLiteral("TEST: Valve headloss curves"),
+                    "live collection title was not retranslated")
+        || !require(events == edits_before_language,
+                    "language change generated a hydraulic edit")) return 1;
+    QCoreApplication::removeTranslator(&translator);
+    app.processEvents();
+    if (!require(category->currentIndex() == 5 && category_changes == 0
+                 && category->itemText(5) == QStringLiteral("Valve headloss curves"),
+                 "collection did not revert to English in place")) return 1;
+
+    // The dialog runs a nested event loop. Language changes must update its
+    // title, form labels, buttons and hint without touching the user's draft.
+    const int before_dialog = events;
+    bool checked_modal_switch = false;
+    QPushButton *add_button = buttonWithText(&widget, QStringLiteral("+ Add"));
+    if (!require(add_button != nullptr, "missing library Add button")) return 1;
+    QTimer::singleShot(0, &widget, [&]()
+    {
+        QDialog *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (dialog == nullptr) return;
+        QLineEdit *id_field = dialog->findChild<QLineEdit *>();
+        const QList<QPlainTextEdit *> editors = dialog->findChildren<QPlainTextEdit *>();
+        QDialogButtonBox *buttons = dialog->findChild<QDialogButtonBox *>();
+        QFormLayout *form = dialog->findChild<QFormLayout *>();
+        if (id_field == nullptr || editors.size() != 2 || buttons == nullptr || form == nullptr)
+        {
+            dialog->reject();
+            return;
+        }
+        QPlainTextEdit *values = editors.at(1);
+        const QString draft = QStringLiteral("12.25, 38.75\n14.25, 39.75");
+        id_field->setText(QStringLiteral("DRAFT_NOT_SAVED"));
+        values->setPlainText(draft);
+        QTextCursor selection = values->textCursor();
+        selection.setPosition(1);
+        selection.setPosition(6, QTextCursor::KeepAnchor);
+        values->setTextCursor(selection);
+        if (!QCoreApplication::installTranslator(&translator))
+        {
+            dialog->reject();
+            return;
+        }
+        app.processEvents();
+        const QLabel *id_caption = qobject_cast<QLabel *>(form->labelForField(id_field));
+        const bool in_translation = dialog->windowTitle()
+                == QStringLiteral("TEST: Add hydraulic library item")
+            && id_caption != nullptr && id_caption->text() == QStringLiteral("TEST: ID:")
+            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("TEST: Save")
+            && category->currentIndex() == 5
+            && id_field->text() == QStringLiteral("DRAFT_NOT_SAVED")
+            && values->toPlainText() == draft
+            && values->textCursor().anchor() == 1
+            && values->textCursor().position() == 6;
+        QCoreApplication::removeTranslator(&translator);
+        app.processEvents();
+        const bool back_to_english = dialog->windowTitle() == QStringLiteral("Add hydraulic library item")
+            && id_caption != nullptr && id_caption->text() == QStringLiteral("ID:")
+            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("Save")
+            && id_field->text() == QStringLiteral("DRAFT_NOT_SAVED")
+            && values->toPlainText() == draft
+            && values->textCursor().anchor() == 1
+            && values->textCursor().position() == 6;
+        checked_modal_switch = in_translation && back_to_english;
+        dialog->reject();
+    });
+    add_button->click();
+    if (!require(checked_modal_switch, "open library dialog did not retranslate while preserving draft")
+        || !require(events == before_dialog, "modal language switch created an autosave edit")
+        || !require(category_changes == 0, "modal language switch changed collection")) return 1;
+
+    std::puts("Hydraulic libraries GUI: eight collections and live language switching passed");
     return 0;
 }

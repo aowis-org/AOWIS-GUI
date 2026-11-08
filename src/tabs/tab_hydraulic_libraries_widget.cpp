@@ -14,6 +14,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QShowEvent>
 #include <QVBoxLayout>
 #include <QVariant>
@@ -23,6 +24,20 @@
 
 namespace
 {
+// Stable Qt translation context; hydraulic IDs, UUIDs and numeric payloads
+// deliberately remain untranslated. Use QCoreApplication::translate directly
+// so lupdate discovers all renderer-independent presentation strings.
+const char *const collection_titles[] = {
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Pipe materials"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Time patterns"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Tank volume curves"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Pump head curves"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Pump efficiency curves"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Valve headloss curves"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Valve characteristic curves"),
+    QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Generic curves")
+};
+
 QString displayNumber(double value)
 {
     return QString::number(value, 'g', 17);
@@ -79,7 +94,7 @@ bool readPoints(const QString &content, QList<Point> *points,
         if (values.size() != 2 || !parseFinite(values.at(0), &(point.*first))
             || !parseFinite(values.at(1), &(point.*second)))
         {
-            *error = QStringLiteral("Point row %1 needs two finite numbers.").arg(line_number);
+            *error = QCoreApplication::translate("HydraulicLibrariesWidget", "Point row %1 needs two finite numbers.").arg(line_number);
             return false;
         }
         parsed.append(point);
@@ -117,13 +132,13 @@ bool readMaterial(const QString &content, HydraulicPipeMaterial *material, QStri
         bool age_ok = false;
         if (values.size() != 4)
         {
-            *error = QStringLiteral("Material row %1 needs age, HW, DW, CM (use - for unset).").arg(line_number);
+            *error = QCoreApplication::translate("HydraulicLibrariesWidget", "Material row %1 needs age, HW, DW, CM (use - for unset).").arg(line_number);
             return false;
         }
         row.age_years = values.at(0).toInt(&age_ok);
         if (!age_ok || row.age_years < 0)
         {
-            *error = QStringLiteral("Invalid non-negative age in row %1.").arg(line_number);
+            *error = QCoreApplication::translate("HydraulicLibrariesWidget", "Invalid non-negative age in row %1.").arg(line_number);
             return false;
         }
         std::optional<double> *columns[3] = {
@@ -137,7 +152,7 @@ bool readMaterial(const QString &content, HydraulicPipeMaterial *material, QStri
             double number = 0.0;
             if (!parseFinite(values.at(col + 1), &number) || number < 0.0)
             {
-                *error = QStringLiteral("Invalid roughness in row %1, column %2.")
+                *error = QCoreApplication::translate("HydraulicLibrariesWidget", "Invalid roughness in row %1, column %2.")
                     .arg(line_number).arg(col + 2);
                 return false;
             }
@@ -170,14 +185,17 @@ HydraulicLibrariesWidget::HydraulicLibrariesWidget(HydraulicData *hydraulic_data
 
     QHBoxLayout *selector = new QHBoxLayout();
     this->category = new QComboBox(this);
-    this->category->addItem(QStringLiteral("Pipe materials"));
-    this->category->addItem(QStringLiteral("Time patterns"));
-    this->category->addItem(QStringLiteral("Tank volume curves"));
-    this->category->addItem(QStringLiteral("Pump head curves"));
-    this->category->addItem(QStringLiteral("Pump efficiency curves"));
-    this->category->addItem(QStringLiteral("Valve headloss curves"));
-    this->category->addItem(QStringLiteral("Valve characteristic curves"));
-    this->category->addItem(QStringLiteral("Generic curves"));
+    this->category->setObjectName(QStringLiteral("hydraulicLibraryCollection"));
+    for (const char *title : collection_titles)
+        this->category->addItem(QCoreApplication::translate("HydraulicLibrariesWidget", title));
+    // Item texts are presentation only. Never repopulate this selector on a
+    // language change: that would emit selection signals and refresh model data.
+    LiveUiText::bind(this->category, [this] {
+        const QSignalBlocker blocker(this->category);
+        for (int index = 0; index < this->category->count(); ++index)
+            this->category->setItemText(
+                index, QCoreApplication::translate("HydraulicLibrariesWidget", collection_titles[index]));
+    });
     selector->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Collection:"), this));
     selector->addWidget(this->category, 1);
     QPushButton *add_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Add"), this);
@@ -409,8 +427,7 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
         return;
     }
     QDialog dialog(this);
-    dialog.setWindowTitle(creating ? QStringLiteral("Add hydraulic library item")
-                                   : QStringLiteral("Edit hydraulic library item"));
+    dialog.setObjectName(QStringLiteral("hydraulicLibraryItemDialog"));
     QVBoxLayout *dialog_layout = new QVBoxLayout(&dialog);
     QFormLayout *fields = new QFormLayout();
     QLineEdit *id_edit = new QLineEdit(id, &dialog);
@@ -418,21 +435,40 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
     QPlainTextEdit *data_edit = new QPlainTextEdit(data, &dialog);
     comment_edit->setMaximumHeight(80);
     data_edit->setMinimumHeight(180);
-    fields->addRow(QStringLiteral("ID:"), id_edit);
-    fields->addRow(collection == 0 ? QStringLiteral("Description:") : QStringLiteral("Comment:"), comment_edit);
-    const QString values_label = collection == 0
-        ? QStringLiteral("Age, HW, DW mm, CM (use - for missing):")
-        : collection == 1 ? QStringLiteral("Multipliers (one value per line):")
-                          : QStringLiteral("Curve points (x, y per line):");
+    QLabel *id_label = new QLabel(&dialog);
+    QLabel *comment_label = new QLabel(&dialog);
+    QLabel *values_label = new QLabel(&dialog);
+    id_label->setBuddy(id_edit);
+    comment_label->setBuddy(comment_edit);
+    values_label->setBuddy(data_edit);
+    fields->addRow(id_label, id_edit);
+    fields->addRow(comment_label, comment_edit);
     fields->addRow(values_label, data_edit);
     dialog_layout->addLayout(fields);
-    QLabel *hint = new QLabel(QStringLiteral("Numerical values use a dot decimal separator. "
-                                               "New items receive UUIDv7 identifiers."), &dialog);
+    QLabel *hint = new QLabel(&dialog);
     hint->setWordWrap(true);
     dialog_layout->addWidget(hint);
     QDialogButtonBox *buttons = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
     dialog_layout->addWidget(buttons);
+    // QDialog is a live top-level window even during exec(). Replacing its
+    // labels in place must not touch any QLineEdit/QPlainTextEdit or validators.
+    LiveUiText::bind(&dialog, [&dialog, creating, collection, id_label,
+                              comment_label, values_label, hint, buttons] {
+        dialog.setWindowTitle(creating ? QCoreApplication::translate("HydraulicLibrariesWidget", "Add hydraulic library item")
+                                       : QCoreApplication::translate("HydraulicLibrariesWidget", "Edit hydraulic library item"));
+        id_label->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "ID:"));
+        comment_label->setText(collection == 0 ? QCoreApplication::translate("HydraulicLibrariesWidget", "Description:")
+                                                : QCoreApplication::translate("HydraulicLibrariesWidget", "Comment:"));
+        values_label->setText(collection == 0
+            ? QCoreApplication::translate("HydraulicLibrariesWidget", "Age, HW, DW mm, CM (use - for missing):")
+            : collection == 1 ? QCoreApplication::translate("HydraulicLibrariesWidget", "Multipliers (one value per line):")
+                              : QCoreApplication::translate("HydraulicLibrariesWidget", "Curve points (x, y per line):"));
+        hint->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Numerical values use a dot decimal separator. "
+                                  "New items receive UUIDv7 identifiers."));
+        buttons->button(QDialogButtonBox::Save)->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Save"));
+        buttons->button(QDialogButtonBox::Cancel)->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Cancel"));
+    });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [this, &dialog, id_edit,
                                                              comment_edit, data_edit,
@@ -441,8 +477,8 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
         const QString name = id_edit->text().trimmed();
         if (name.isEmpty())
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid ID"),
-                QStringLiteral("The library item ID cannot be empty."));
+            QMessageBox::warning(&dialog, QCoreApplication::translate("HydraulicLibrariesWidget", "Invalid ID"),
+                QCoreApplication::translate("HydraulicLibrariesWidget", "The library item ID cannot be empty."));
             return;
         }
         const NetworkHydraulic &current = this->hydraulic_data->networkHydraulic();
@@ -488,7 +524,7 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
                 double number = 0.0;
                 if (!parseFinite(line, &number))
                 {
-                    error = QStringLiteral("Invalid multiplier on row %1.").arg(row);
+                    error = QCoreApplication::translate("HydraulicLibrariesWidget", "Invalid multiplier on row %1.").arg(row);
                     break;
                 }
                 entity.multipliers.append(number);
@@ -605,8 +641,8 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
         }
         if (!successful)
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Cannot save library item"),
-                error.isEmpty() ? QStringLiteral("The network rejected this edit.") : error);
+            QMessageBox::warning(&dialog, QCoreApplication::translate("HydraulicLibrariesWidget", "Cannot save library item"),
+                error.isEmpty() ? QCoreApplication::translate("HydraulicLibrariesWidget", "The network rejected this edit.") : error);
             return;
         }
         dialog.setProperty("saved_uuid", result);
@@ -621,8 +657,8 @@ void HydraulicLibrariesWidget::deleteEntry()
     const QUuid uuid = selectedUuid();
     if (uuid.isNull())
         return;
-    if (QMessageBox::question(this, QStringLiteral("Delete library item"),
-            QStringLiteral("Delete the selected library entry? Referenced entries cannot be deleted."))
+    if (QMessageBox::question(this, QCoreApplication::translate("HydraulicLibrariesWidget", "Delete library item"),
+            QCoreApplication::translate("HydraulicLibrariesWidget", "Delete the selected library entry? Referenced entries cannot be deleted."))
         != QMessageBox::Yes)
         return;
     bool removed = false;
@@ -640,8 +676,8 @@ void HydraulicLibrariesWidget::deleteEntry()
     }
     if (!removed)
     {
-        QMessageBox::warning(this, QStringLiteral("Cannot delete library item"),
-            QStringLiteral("The entry is still referenced or its UUID is invalid."));
+        QMessageBox::warning(this, QCoreApplication::translate("HydraulicLibrariesWidget", "Cannot delete library item"),
+            QCoreApplication::translate("HydraulicLibrariesWidget", "The entry is still referenced or its UUID is invalid."));
         return;
     }
     refresh();

@@ -3778,4 +3778,135 @@ verlust [%]</translation></message><message><source>Simulation</source><translat
 error [%1]</source><translation>Max. Druckhöhen-
 fehler [%1]</translation></message><message><source>Max flow
 change [%1]</source><translation>Max. Durchfluss-
-änderung [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>Info</translation></message><message><source>Warning</source><translation>Warnung</translation></message><message><source>Error</source><translation>Fehler</translation></message><message><source>Fatal</source><translation>Schwerwiegend</translation></message><message><source>Unknown</source><translation>Unbekannt</translation></message><message><source>Valid</source><translation>Gültig</translation></message><message><source>Partial</source><translation>Teilweise</translation></message><message><source>Invalid</source><translation>Ungültig</translation></message><message><source>No issues · Simulation completed successfully</source><translation>Keine Probleme · Simulation erfolgreich abgeschlossen</translation></message><message><source>Severity</source><translation>Schweregrad</translation></message><message><source>Stage</source><translation>Phase</translation></message><message><source>Operation</source><translation>Vorgang</translation></message><message><source>Property</source><translation>Eigenschaft</translation></message><message><source>Object type</source><translation>Objekttyp</translation></message><message><source>Object ID</source><translation>Objekt-ID</translation></message><message><source>Object UUID</source><translation>Objekt-UUID</translation></message><message><source>Backend</source><translation>Backend</translation></message><message><source>Backend operation</source><translation>Backend-Vorgang</translation></message><message><source>Backend code</source><translation>Backend-Code</translation></message><message><source>Backend message</source><translation>Backend-Meldung</translation></message><message><source>Details</source><translation>Details</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>Aus</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>Legt den tatsächlichen Knotendurchmesser im Raum fest.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>Legt den Durchmesser der Knotenmarkierung in Bildschirmpixeln fest.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>Legt die tatsächliche Rohrdicke im Raum fest.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>Legt die dargestellte Rohrdicke und die passende Treffererkennung fest.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>Steuert die Deckkraft der gesamten Heatmap-Ebene.</translation></message></context></TS>
+änderung [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>Info</translation></message><message><source>Warning</source><translation>Warnung</translation></message><message><source>Error</source><translation>Fehler</translation></message><message><source>Fatal</source><translation>Schwerwiegend</translation></message><message><source>Unknown</source><translation>Unbekannt</translation></message><message><source>Valid</source><translation>Gültig</translation></message><message><source>Partial</source><translation>Teilweise</translation></message><message><source>Invalid</source><translation>Ungültig</translation></message><message><source>No issues · Simulation completed successfully</source><translation>Keine Probleme · Simulation erfolgreich abgeschlossen</translation></message><message><source>Severity</source><translation>Schweregrad</translation></message><message><source>Stage</source><translation>Phase</translation></message><message><source>Operation</source><translation>Vorgang</translation></message><message><source>Property</source><translation>Eigenschaft</translation></message><message><source>Object type</source><translation>Objekttyp</translation></message><message><source>Object ID</source><translation>Objekt-ID</translation></message><message><source>Object UUID</source><translation>Objekt-UUID</translation></message><message><source>Backend</source><translation>Backend</translation></message><message><source>Backend operation</source><translation>Backend-Vorgang</translation></message><message><source>Backend code</source><translation>Backend-Code</translation></message><message><source>Backend message</source><translation>Backend-Meldung</translation></message><message><source>Details</source><translation>Details</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>Aus</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>Legt den tatsächlichen Knotendurchmesser im Raum fest.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>Legt den Durchmesser der Knotenmarkierung in Bildschirmpixeln fest.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>Legt die tatsächliche Rohrdicke im Raum fest.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>Legt die dargestellte Rohrdicke und die passende Treffererkennung fest.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>Steuert die Deckkraft der gesamten Heatmap-Ebene.</translation></message></context>  <context>
+    <name>HydraulicLibrariesWidget</name>
+    <message>
+      <source>Pipe materials</source>
+      <translation>Rohrmaterialien</translation>
+    </message>
+    <message>
+      <source>Time patterns</source>
+      <translation>Zeitmuster</translation>
+    </message>
+    <message>
+      <source>Tank volume curves</source>
+      <translation>Behältervolumenkurven</translation>
+    </message>
+    <message>
+      <source>Pump head curves</source>
+      <translation>Pumpenförderhöhenkurven</translation>
+    </message>
+    <message>
+      <source>Pump efficiency curves</source>
+      <translation>Pumpenwirkungsgradkurven</translation>
+    </message>
+    <message>
+      <source>Valve headloss curves</source>
+      <translation>Ventildruckverlustkurven</translation>
+    </message>
+    <message>
+      <source>Valve characteristic curves</source>
+      <translation>Ventilkennlinien</translation>
+    </message>
+    <message>
+      <source>Generic curves</source>
+      <translation>Allgemeine Kurven</translation>
+    </message>
+    <message>
+      <source>Add hydraulic library item</source>
+      <translation>Hydraulisches Bibliothekselement hinzufügen</translation>
+    </message>
+    <message>
+      <source>Edit hydraulic library item</source>
+      <translation>Hydraulisches Bibliothekselement bearbeiten</translation>
+    </message>
+    <message>
+      <source>ID:</source>
+      <translation>ID:</translation>
+    </message>
+    <message>
+      <source>Description:</source>
+      <translation>Beschreibung:</translation>
+    </message>
+    <message>
+      <source>Comment:</source>
+      <translation>Kommentar:</translation>
+    </message>
+    <message>
+      <source>Age, HW, DW mm, CM (use - for missing):</source>
+      <translation>Alter, HW, DW mm, CM (für fehlende Werte - verwenden):</translation>
+    </message>
+    <message>
+      <source>Multipliers (one value per line):</source>
+      <translation>Multiplikatoren (ein Wert pro Zeile):</translation>
+    </message>
+    <message>
+      <source>Curve points (x, y per line):</source>
+      <translation>Kurvenpunkte (x, y pro Zeile):</translation>
+    </message>
+    <message>
+      <source>Numerical values use a dot decimal separator. New items receive UUIDv7 identifiers.</source>
+      <translation>Zahlen verwenden den Punkt als Dezimaltrennzeichen. Neue Elemente erhalten UUIDv7-Kennungen.</translation>
+    </message>
+    <message>
+      <source>Save</source>
+      <translation>Speichern</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>Abbrechen</translation>
+    </message>
+    <message>
+      <source>Point row %1 needs two finite numbers.</source>
+      <translation>Punktzeile %1 benötigt zwei endliche Zahlen.</translation>
+    </message>
+    <message>
+      <source>Material row %1 needs age, HW, DW, CM (use - for unset).</source>
+      <translation>Materialzeile %1 benötigt Alter, HW, DW, CM (für nicht gesetzt - verwenden).</translation>
+    </message>
+    <message>
+      <source>Invalid non-negative age in row %1.</source>
+      <translation>Ungültiges nichtnegatives Alter in Zeile %1.</translation>
+    </message>
+    <message>
+      <source>Invalid roughness in row %1, column %2.</source>
+      <translation>Ungültige Rauheit in Zeile %1, Spalte %2.</translation>
+    </message>
+    <message>
+      <source>Invalid multiplier on row %1.</source>
+      <translation>Ungültiger Multiplikator in Zeile %1.</translation>
+    </message>
+    <message>
+      <source>Invalid ID</source>
+      <translation>Ungültige ID</translation>
+    </message>
+    <message>
+      <source>The library item ID cannot be empty.</source>
+      <translation>Die ID des Bibliothekselements darf nicht leer sein.</translation>
+    </message>
+    <message>
+      <source>Cannot save library item</source>
+      <translation>Bibliothekselement kann nicht gespeichert werden</translation>
+    </message>
+    <message>
+      <source>The network rejected this edit.</source>
+      <translation>Das Netzwerk hat diese Änderung abgelehnt.</translation>
+    </message>
+    <message>
+      <source>Delete library item</source>
+      <translation>Bibliothekselement löschen</translation>
+    </message>
+    <message>
+      <source>Delete the selected library entry? Referenced entries cannot be deleted.</source>
+      <translation>Ausgewählten Bibliothekseintrag löschen? Referenzierte Einträge können nicht gelöscht werden.</translation>
+    </message>
+    <message>
+      <source>Cannot delete library item</source>
+      <translation>Bibliothekselement kann nicht gelöscht werden</translation>
+    </message>
+    <message>
+      <source>The entry is still referenced or its UUID is invalid.</source>
+      <translation>Der Eintrag wird noch referenziert oder seine UUID ist ungültig.</translation>
+    </message>
+  </context>
+</TS>

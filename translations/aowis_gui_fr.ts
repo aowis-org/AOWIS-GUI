@@ -3778,4 +3778,135 @@ fuite [%]</translation></message><message><source>Simulation</source><translatio
 error [%1]</source><translation>Erreur max. de
 charge [%1]</translation></message><message><source>Max flow
 change [%1]</source><translation>Variation max. du
-débit [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>Info</translation></message><message><source>Warning</source><translation>Avertissement</translation></message><message><source>Error</source><translation>Erreur</translation></message><message><source>Fatal</source><translation>Critique</translation></message><message><source>Unknown</source><translation>Inconnu</translation></message><message><source>Valid</source><translation>Valide</translation></message><message><source>Partial</source><translation>Partiel</translation></message><message><source>Invalid</source><translation>Invalide</translation></message><message><source>No issues · Simulation completed successfully</source><translation>Aucun problème · Simulation terminée avec succès</translation></message><message><source>Severity</source><translation>Gravité</translation></message><message><source>Stage</source><translation>Étape</translation></message><message><source>Operation</source><translation>Opération</translation></message><message><source>Property</source><translation>Propriété</translation></message><message><source>Object type</source><translation>Type d’objet</translation></message><message><source>Object ID</source><translation>ID d’objet</translation></message><message><source>Object UUID</source><translation>UUID d’objet</translation></message><message><source>Backend</source><translation>Moteur</translation></message><message><source>Backend operation</source><translation>Opération du moteur</translation></message><message><source>Backend code</source><translation>Code du moteur</translation></message><message><source>Backend message</source><translation>Message du moteur</translation></message><message><source>Details</source><translation>Détails</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>Désactivé</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>Définit le diamètre réel des jonctions dans l’espace.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>Définit le diamètre du marqueur de jonction en pixels.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>Définit l’épaisseur réelle des conduites dans l’espace.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>Définit l’épaisseur des conduites affichées et ajuste leur sélection.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>Contrôle l’opacité de toute la couche de carte thermique.</translation></message></context></TS>
+débit [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>Info</translation></message><message><source>Warning</source><translation>Avertissement</translation></message><message><source>Error</source><translation>Erreur</translation></message><message><source>Fatal</source><translation>Critique</translation></message><message><source>Unknown</source><translation>Inconnu</translation></message><message><source>Valid</source><translation>Valide</translation></message><message><source>Partial</source><translation>Partiel</translation></message><message><source>Invalid</source><translation>Invalide</translation></message><message><source>No issues · Simulation completed successfully</source><translation>Aucun problème · Simulation terminée avec succès</translation></message><message><source>Severity</source><translation>Gravité</translation></message><message><source>Stage</source><translation>Étape</translation></message><message><source>Operation</source><translation>Opération</translation></message><message><source>Property</source><translation>Propriété</translation></message><message><source>Object type</source><translation>Type d’objet</translation></message><message><source>Object ID</source><translation>ID d’objet</translation></message><message><source>Object UUID</source><translation>UUID d’objet</translation></message><message><source>Backend</source><translation>Moteur</translation></message><message><source>Backend operation</source><translation>Opération du moteur</translation></message><message><source>Backend code</source><translation>Code du moteur</translation></message><message><source>Backend message</source><translation>Message du moteur</translation></message><message><source>Details</source><translation>Détails</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>Désactivé</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>Définit le diamètre réel des jonctions dans l’espace.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>Définit le diamètre du marqueur de jonction en pixels.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>Définit l’épaisseur réelle des conduites dans l’espace.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>Définit l’épaisseur des conduites affichées et ajuste leur sélection.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>Contrôle l’opacité de toute la couche de carte thermique.</translation></message></context>  <context>
+    <name>HydraulicLibrariesWidget</name>
+    <message>
+      <source>Pipe materials</source>
+      <translation>Matériaux des conduites</translation>
+    </message>
+    <message>
+      <source>Time patterns</source>
+      <translation>Profils temporels</translation>
+    </message>
+    <message>
+      <source>Tank volume curves</source>
+      <translation>Courbes de volume des réservoirs</translation>
+    </message>
+    <message>
+      <source>Pump head curves</source>
+      <translation>Courbes de hauteur des pompes</translation>
+    </message>
+    <message>
+      <source>Pump efficiency curves</source>
+      <translation>Courbes de rendement des pompes</translation>
+    </message>
+    <message>
+      <source>Valve headloss curves</source>
+      <translation>Courbes de perte de charge des vannes</translation>
+    </message>
+    <message>
+      <source>Valve characteristic curves</source>
+      <translation>Courbes caractéristiques des vannes</translation>
+    </message>
+    <message>
+      <source>Generic curves</source>
+      <translation>Courbes génériques</translation>
+    </message>
+    <message>
+      <source>Add hydraulic library item</source>
+      <translation>Ajouter un élément de bibliothèque hydraulique</translation>
+    </message>
+    <message>
+      <source>Edit hydraulic library item</source>
+      <translation>Modifier un élément de bibliothèque hydraulique</translation>
+    </message>
+    <message>
+      <source>ID:</source>
+      <translation>ID :</translation>
+    </message>
+    <message>
+      <source>Description:</source>
+      <translation>Description :</translation>
+    </message>
+    <message>
+      <source>Comment:</source>
+      <translation>Commentaire :</translation>
+    </message>
+    <message>
+      <source>Age, HW, DW mm, CM (use - for missing):</source>
+      <translation>Âge, HW, DW mm, CM (utiliser - si absent) :</translation>
+    </message>
+    <message>
+      <source>Multipliers (one value per line):</source>
+      <translation>Multiplicateurs (une valeur par ligne) :</translation>
+    </message>
+    <message>
+      <source>Curve points (x, y per line):</source>
+      <translation>Points de courbe (x, y par ligne) :</translation>
+    </message>
+    <message>
+      <source>Numerical values use a dot decimal separator. New items receive UUIDv7 identifiers.</source>
+      <translation>Les valeurs numériques utilisent le point décimal. Les nouveaux éléments reçoivent des identifiants UUIDv7.</translation>
+    </message>
+    <message>
+      <source>Save</source>
+      <translation>Enregistrer</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>Annuler</translation>
+    </message>
+    <message>
+      <source>Point row %1 needs two finite numbers.</source>
+      <translation>La ligne de points %1 nécessite deux nombres finis.</translation>
+    </message>
+    <message>
+      <source>Material row %1 needs age, HW, DW, CM (use - for unset).</source>
+      <translation>La ligne de matériau %1 nécessite âge, HW, DW, CM (utiliser - si non défini).</translation>
+    </message>
+    <message>
+      <source>Invalid non-negative age in row %1.</source>
+      <translation>Âge non négatif invalide à la ligne %1.</translation>
+    </message>
+    <message>
+      <source>Invalid roughness in row %1, column %2.</source>
+      <translation>Rugosité invalide à la ligne %1, colonne %2.</translation>
+    </message>
+    <message>
+      <source>Invalid multiplier on row %1.</source>
+      <translation>Multiplicateur invalide à la ligne %1.</translation>
+    </message>
+    <message>
+      <source>Invalid ID</source>
+      <translation>ID invalide</translation>
+    </message>
+    <message>
+      <source>The library item ID cannot be empty.</source>
+      <translation>L’ID de l’élément de bibliothèque ne peut pas être vide.</translation>
+    </message>
+    <message>
+      <source>Cannot save library item</source>
+      <translation>Impossible d’enregistrer l’élément de bibliothèque</translation>
+    </message>
+    <message>
+      <source>The network rejected this edit.</source>
+      <translation>Le réseau a refusé cette modification.</translation>
+    </message>
+    <message>
+      <source>Delete library item</source>
+      <translation>Supprimer l’élément de bibliothèque</translation>
+    </message>
+    <message>
+      <source>Delete the selected library entry? Referenced entries cannot be deleted.</source>
+      <translation>Supprimer l’entrée de bibliothèque sélectionnée ? Les entrées référencées ne peuvent pas être supprimées.</translation>
+    </message>
+    <message>
+      <source>Cannot delete library item</source>
+      <translation>Impossible de supprimer l’élément de bibliothèque</translation>
+    </message>
+    <message>
+      <source>The entry is still referenced or its UUID is invalid.</source>
+      <translation>L’entrée est toujours référencée ou son UUID est invalide.</translation>
+    </message>
+  </context>
+</TS>

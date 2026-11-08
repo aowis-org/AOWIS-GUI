@@ -3778,4 +3778,135 @@ loss [%]</source><translation>خسائر
 error [%1]</source><translation>أقصى خطأ
 في الارتفاع [%1]</translation></message><message><source>Max flow
 change [%1]</source><translation>أقصى تغير
-في التدفق [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>معلومات</translation></message><message><source>Warning</source><translation>تحذير</translation></message><message><source>Error</source><translation>خطأ</translation></message><message><source>Fatal</source><translation>خطأ فادح</translation></message><message><source>Unknown</source><translation>غير معروف</translation></message><message><source>Valid</source><translation>صالح</translation></message><message><source>Partial</source><translation>جزئي</translation></message><message><source>Invalid</source><translation>غير صالح</translation></message><message><source>No issues · Simulation completed successfully</source><translation>لا توجد مشكلات · اكتملت المحاكاة بنجاح</translation></message><message><source>Severity</source><translation>الشدة</translation></message><message><source>Stage</source><translation>المرحلة</translation></message><message><source>Operation</source><translation>العملية</translation></message><message><source>Property</source><translation>الخاصية</translation></message><message><source>Object type</source><translation>نوع الكائن</translation></message><message><source>Object ID</source><translation>معرّف الكائن</translation></message><message><source>Object UUID</source><translation>UUID الكائن</translation></message><message><source>Backend</source><translation>الخلفية</translation></message><message><source>Backend operation</source><translation>عملية الخلفية</translation></message><message><source>Backend code</source><translation>رمز الخلفية</translation></message><message><source>Backend message</source><translation>رسالة الخلفية</translation></message><message><source>Details</source><translation>التفاصيل</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>إيقاف</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>يضبط القطر الحقيقي للوحدات في العالم.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>يضبط قطر علامة العقدة بوحدات بكسل الشاشة.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>يضبط السماكة الحقيقية للأنابيب في العالم.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>يضبط سماكة الأنابيب المعروضة ويحافظ على توافق تحديدها.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>يتحكم في عتامة طبقة الخريطة الحرارية كاملة.</translation></message></context></TS>
+في التدفق [%1]</translation></message></context><context><name>SimulationDiagnosticsWidget</name><message><source>Info</source><translation>معلومات</translation></message><message><source>Warning</source><translation>تحذير</translation></message><message><source>Error</source><translation>خطأ</translation></message><message><source>Fatal</source><translation>خطأ فادح</translation></message><message><source>Unknown</source><translation>غير معروف</translation></message><message><source>Valid</source><translation>صالح</translation></message><message><source>Partial</source><translation>جزئي</translation></message><message><source>Invalid</source><translation>غير صالح</translation></message><message><source>No issues · Simulation completed successfully</source><translation>لا توجد مشكلات · اكتملت المحاكاة بنجاح</translation></message><message><source>Severity</source><translation>الشدة</translation></message><message><source>Stage</source><translation>المرحلة</translation></message><message><source>Operation</source><translation>العملية</translation></message><message><source>Property</source><translation>الخاصية</translation></message><message><source>Object type</source><translation>نوع الكائن</translation></message><message><source>Object ID</source><translation>معرّف الكائن</translation></message><message><source>Object UUID</source><translation>UUID الكائن</translation></message><message><source>Backend</source><translation>الخلفية</translation></message><message><source>Backend operation</source><translation>عملية الخلفية</translation></message><message><source>Backend code</source><translation>رمز الخلفية</translation></message><message><source>Backend message</source><translation>رسالة الخلفية</translation></message><message><source>Details</source><translation>التفاصيل</translation></message></context><context><name>MapMonitorMenuWidget</name><message><source>Off</source><translation>إيقاف</translation></message><message><source>Sets the true world-space junction diameter.</source><translation>يضبط القطر الحقيقي للوحدات في العالم.</translation></message><message><source>Sets the junction marker/orb diameter in screen pixels.</source><translation>يضبط قطر علامة العقدة بوحدات بكسل الشاشة.</translation></message><message><source>Sets the true world-space pipe thickness.</source><translation>يضبط السماكة الحقيقية للأنابيب في العالم.</translation></message><message><source>Sets rendered pipe thickness and keeps pipe hit detection aligned with it.</source><translation>يضبط سماكة الأنابيب المعروضة ويحافظ على توافق تحديدها.</translation></message><message><source>Controls the opacity of the complete heatmap layer.</source><translation>يتحكم في عتامة طبقة الخريطة الحرارية كاملة.</translation></message></context>  <context>
+    <name>HydraulicLibrariesWidget</name>
+    <message>
+      <source>Pipe materials</source>
+      <translation>مواد الأنابيب</translation>
+    </message>
+    <message>
+      <source>Time patterns</source>
+      <translation>الأنماط الزمنية</translation>
+    </message>
+    <message>
+      <source>Tank volume curves</source>
+      <translation>منحنيات حجم الخزانات</translation>
+    </message>
+    <message>
+      <source>Pump head curves</source>
+      <translation>منحنيات الرفع للمضخات</translation>
+    </message>
+    <message>
+      <source>Pump efficiency curves</source>
+      <translation>منحنيات كفاءة المضخات</translation>
+    </message>
+    <message>
+      <source>Valve headloss curves</source>
+      <translation>منحنيات فقد الضغط للصمامات</translation>
+    </message>
+    <message>
+      <source>Valve characteristic curves</source>
+      <translation>منحنيات خصائص الصمامات</translation>
+    </message>
+    <message>
+      <source>Generic curves</source>
+      <translation>منحنيات عامة</translation>
+    </message>
+    <message>
+      <source>Add hydraulic library item</source>
+      <translation>إضافة عنصر إلى المكتبة الهيدروليكية</translation>
+    </message>
+    <message>
+      <source>Edit hydraulic library item</source>
+      <translation>تعديل عنصر في المكتبة الهيدروليكية</translation>
+    </message>
+    <message>
+      <source>ID:</source>
+      <translation>المعرّف:</translation>
+    </message>
+    <message>
+      <source>Description:</source>
+      <translation>الوصف:</translation>
+    </message>
+    <message>
+      <source>Comment:</source>
+      <translation>تعليق:</translation>
+    </message>
+    <message>
+      <source>Age, HW, DW mm, CM (use - for missing):</source>
+      <translation>العمر، HW، DW مم، CM (استخدم - للقيم غير المحددة):</translation>
+    </message>
+    <message>
+      <source>Multipliers (one value per line):</source>
+      <translation>المضاعِفات (قيمة واحدة لكل سطر):</translation>
+    </message>
+    <message>
+      <source>Curve points (x, y per line):</source>
+      <translation>نقاط المنحنى (س، ص لكل سطر):</translation>
+    </message>
+    <message>
+      <source>Numerical values use a dot decimal separator. New items receive UUIDv7 identifiers.</source>
+      <translation>تستخدم القيم الرقمية النقطة للفصل العشري. تحصل العناصر الجديدة على معرّفات UUIDv7.</translation>
+    </message>
+    <message>
+      <source>Save</source>
+      <translation>حفظ</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>إلغاء</translation>
+    </message>
+    <message>
+      <source>Point row %1 needs two finite numbers.</source>
+      <translation>يجب أن يحتوي سطر النقاط %1 على عددين منتهيين.</translation>
+    </message>
+    <message>
+      <source>Material row %1 needs age, HW, DW, CM (use - for unset).</source>
+      <translation>يجب أن يحتوي سطر المادة %1 على العمر وHW وDW وCM (استخدم - لغير المحدد).</translation>
+    </message>
+    <message>
+      <source>Invalid non-negative age in row %1.</source>
+      <translation>العمر غير السالب غير صالح في السطر %1.</translation>
+    </message>
+    <message>
+      <source>Invalid roughness in row %1, column %2.</source>
+      <translation>الخشونة غير صالحة في السطر %1، العمود %2.</translation>
+    </message>
+    <message>
+      <source>Invalid multiplier on row %1.</source>
+      <translation>مضاعِف غير صالح في السطر %1.</translation>
+    </message>
+    <message>
+      <source>Invalid ID</source>
+      <translation>معرّف غير صالح</translation>
+    </message>
+    <message>
+      <source>The library item ID cannot be empty.</source>
+      <translation>لا يجوز ترك معرّف عنصر المكتبة فارغًا.</translation>
+    </message>
+    <message>
+      <source>Cannot save library item</source>
+      <translation>تعذّر حفظ عنصر المكتبة</translation>
+    </message>
+    <message>
+      <source>The network rejected this edit.</source>
+      <translation>رفضت الشبكة هذا التعديل.</translation>
+    </message>
+    <message>
+      <source>Delete library item</source>
+      <translation>حذف عنصر المكتبة</translation>
+    </message>
+    <message>
+      <source>Delete the selected library entry? Referenced entries cannot be deleted.</source>
+      <translation>هل تريد حذف عنصر المكتبة المحدد؟ لا يمكن حذف العناصر المشار إليها.</translation>
+    </message>
+    <message>
+      <source>Cannot delete library item</source>
+      <translation>تعذّر حذف عنصر المكتبة</translation>
+    </message>
+    <message>
+      <source>The entry is still referenced or its UUID is invalid.</source>
+      <translation>لا يزال العنصر مستخدمًا أو أن معرّف UUID الخاص به غير صالح.</translation>
+    </message>
+  </context>
+</TS>
