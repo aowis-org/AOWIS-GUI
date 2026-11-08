@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "tabs/tab_hydraulic_controls_widget.h"
 #include "network/hydraulic_data.h"
 
@@ -332,9 +333,9 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
     list->setObjectName(label);
     layout->addWidget(list);
     QHBoxLayout *buttons = new QHBoxLayout();
-    QPushButton *add = new QPushButton(QStringLiteral("+ Premise"), dialog);
-    QPushButton *edit = new QPushButton(QStringLiteral("Edit Premise"), dialog);
-    QPushButton *remove = new QPushButton(QStringLiteral("Remove Premise"), dialog);
+    QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Premise"), dialog);
+    QPushButton *edit = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Edit Premise"), dialog);
+    QPushButton *remove = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove Premise"), dialog);
     buttons->addWidget(add); buttons->addWidget(edit); buttons->addWidget(remove);
     layout->addLayout(buttons);
     const std::function<void(int)> redraw = [list, premises](int selected)
@@ -378,9 +379,9 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
     list->setObjectName(label);
     layout->addWidget(list);
     QHBoxLayout *buttons = new QHBoxLayout();
-    QPushButton *add = new QPushButton(QStringLiteral("+ Action"), dialog);
-    QPushButton *edit = new QPushButton(QStringLiteral("Edit Action"), dialog);
-    QPushButton *remove = new QPushButton(QStringLiteral("Remove Action"), dialog);
+    QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Action"), dialog);
+    QPushButton *edit = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Edit Action"), dialog);
+    QPushButton *remove = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove Action"), dialog);
     buttons->addWidget(add); buttons->addWidget(edit); buttons->addWidget(remove);
     layout->addLayout(buttons);
     const std::function<void(int)> redraw = [list, actions](int selected)
@@ -525,19 +526,18 @@ HydraulicControlsWidget::HydraulicControlsWidget(HydraulicData *hydraulic_data, 
     : QWidget(parent), hydraulic_data(hydraulic_data)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *description = new QLabel(QStringLiteral(
-        "Rule controls and map labels belong to the currently loaded hydraulic network. "
+    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Rule controls and map labels belong to the currently loaded hydraulic network. "
         "Changes use its durable working-copy autosave transactions."), this);
     description->setWordWrap(true);
     layout->addWidget(description);
     QHBoxLayout *toolbar = new QHBoxLayout();
     this->category = new QComboBox(this);
     this->category->addItems({QStringLiteral("Rule controls"), QStringLiteral("Map labels")});
-    toolbar->addWidget(new QLabel(QStringLiteral("Collection:"), this));
+    toolbar->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Collection:"), this));
     toolbar->addWidget(this->category, 1);
-    QPushButton *add = new QPushButton(QStringLiteral("+ Add"), this);
-    this->edit_button = new QPushButton(QStringLiteral("Edit"), this);
-    this->delete_button = new QPushButton(QStringLiteral("Delete"), this);
+    QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Add"), this);
+    this->edit_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Edit"), this);
+    this->delete_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Delete"), this);
     toolbar->addWidget(add);
     toolbar->addWidget(this->edit_button);
     toolbar->addWidget(this->delete_button);

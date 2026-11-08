@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "app/top_control_bar.h"
 
 #include "common/_sizes.h"
@@ -744,6 +745,13 @@ void TopControlBar::showSimulationSettings()
     form_layout->addRow(tr("Water quality analyses"), quality_analysis);
     form_layout->addRow(tr("Headloss formula"), headloss_formula);
 
+    QDialog *dialog = this->dialog_simulation_settings;
+    LiveUiText::bind(dialog, [dialog, hint, form_layout, quality_analysis, headloss_formula] {
+        dialog->setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Simulation Settings")));
+        hint->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "These settings are used for the next simulation run.")));
+        static_cast<QLabel *>(form_layout->labelForField(quality_analysis))->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water quality analyses")));
+        static_cast<QLabel *>(form_layout->labelForField(headloss_formula))->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Headloss formula")));
+    });
     QDialogButtonBox *button_box = new QDialogButtonBox(
         QDialogButtonBox::Close,
         this->dialog_simulation_settings);
@@ -848,7 +856,9 @@ void TopControlBar::addProjectControls()
         this->combo_branch->setItemText(0, tr("[none]"));
         button_show_on_map->setToolTip(tr("Show network on map"));
         history_button->setToolTip(tr("Open History dock"));
+        refreshNetworkStatus();
     });
+    refreshNetworkStatus();
     bar_content->leftLayout()->addWidget(workspace_context);
     setProjectContext({}, QString(), {}, QString());
 }
@@ -877,11 +887,21 @@ void TopControlBar::setProjectContext(const QStringList &projects,
 
 void TopControlBar::setWorkingCopyModified(bool modified)
 {
-    if (modified) setNetworkStatus(tr("Modified"));
+    if (modified) setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Modified"));
 }
 
-void TopControlBar::setNetworkStatus(const QString &status)
+void TopControlBar::setNetworkStatus(const char *source, const QString &argument)
 {
+    this->network_status_source = source;
+    this->network_status_argument = argument;
+    refreshNetworkStatus();
+}
+
+void TopControlBar::refreshNetworkStatus()
+{
+    QString status = LiveUiText::translate(this->network_status_source);
+    if (!this->network_status_argument.isNull() && status.contains(QStringLiteral("%1")))
+        status = status.arg(this->network_status_argument);
     if (this->label_modified != nullptr)
     {
         this->label_modified->setText(status);

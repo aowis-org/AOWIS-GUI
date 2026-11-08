@@ -3,6 +3,8 @@
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
 
+#include "config/live_ui_text.h"
+#include <QSignalBlocker>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QLabel>
@@ -18,6 +20,7 @@
 // choices, validation and explanatory text are never reused between domains.
 class ProjectsInspectorCreationForm : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectsInspectorCreationForm(const QString &object_name, QWidget *parent = nullptr)
         : QWidget(parent)
@@ -31,7 +34,9 @@ public:
         this->fields->setRowWrapPolicy(QFormLayout::WrapAllRows);
         this->fields->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         this->name = new QLineEdit(this);
-        this->fields->addRow(tr("Name"), this->name);
+        QLabel *name_label = new QLabel(this);
+        LiveUiText::bind(name_label, [name_label] { name_label->setText(tr("Name")); });
+        this->fields->addRow(name_label, this->name);
         layout->addLayout(this->fields);
         this->summary = new QLabel(this);
         this->summary->setWordWrap(true);
@@ -120,6 +125,28 @@ public:
         this->description->setMinimumHeight(85);
         this->description->setMaximumHeight(160);
         this->fields->addRow(tr("Description"), this->description);
+        LiveUiText::bind(this, [this] {
+            static_cast<QLabel *>(this->fields->labelForField(this->source))->setText(tr("Start from"));
+            static_cast<QLabel *>(this->fields->labelForField(this->tags))->setText(tr("Tags"));
+            static_cast<QLabel *>(this->fields->labelForField(this->description))->setText(tr("Description"));
+            this->tags->setPlaceholderText(tr("hydraulics, testing"));
+            const QSignalBlocker blocker(this->source);
+            for (int i = 0; i < this->source->count(); ++i)
+            {
+                const QString id = this->source->itemData(i).toString();
+                if (id.startsWith(QStringLiteral("branch:")))
+                {
+                    const QString name = this->source->itemData(i, Qt::UserRole + 1).toString();
+                    const QString head = this->source->itemData(i, Qt::UserRole + 2).toString();
+                    this->source->setItemText(i, head.isEmpty() ? tr("%1 · No commits yet").arg(name)
+                        : tr("%1 · HEAD %2").arg(name, DvmdbIdentity::shortLabel(head)));
+                }
+                else if (id.startsWith(QStringLiteral("revision:")))
+                    this->source->setItemText(i, tr("Revision %1").arg(DvmdbIdentity::shortLabel(id.mid(9))));
+                else if (id == QStringLiteral("empty"))
+                    this->source->setItemText(i, tr("Initial empty revision"));
+            }
+        });
     }
 
     void begin(const ProjectPreviewData &project, const QString &chosen_origin)
@@ -138,6 +165,8 @@ public:
                     ? tr("%1 · No commits yet").arg(entry.name)
                     : tr("%1 · HEAD %2").arg(entry.name, DvmdbIdentity::shortLabel(entry.head)),
                 QStringLiteral("branch:") + entry.id);
+            this->source->setItemData(this->source->count() - 1, entry.name, Qt::UserRole + 1);
+            this->source->setItemData(this->source->count() - 1, entry.head, Qt::UserRole + 2);
             if (project.database_backed && entry.head.isEmpty())
             {
                 const int index = this->source->count() - 1;

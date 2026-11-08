@@ -1,8 +1,12 @@
+#include "app/history_dock.h"
+#include "settings/keyboard_shortcuts_settings_widget.h"
 #include "config/gui_configuration.h"
 #include "config/gui_language.h"
 #include "tabs/projects_inspector_panels.h"
 
 #include <QApplication>
+#include <QListWidget>
+#include <QTreeWidget>
 #include <QDebug>
 #include <QEvent>
 #include <QLabel>
@@ -69,6 +73,32 @@ int main(int argc, char **argv)
     tabs.addTab(&branch_page, QStringLiteral("branch"));
     tabs.addTab(&details, QStringLiteral("details"));
     tabs.setCurrentWidget(&details);
+    KeyboardShortcutsSettingsWidget shortcuts;
+    tabs.addTab(&shortcuts, QStringLiteral("shortcuts"));
+    DatabaseInspectorOverview database;
+    tabs.addTab(&database, QStringLiteral("database"));
+    database.name->setText(QStringLiteral("Personal DVMDB"));
+    QLineEdit *search = shortcuts.findChild<QLineEdit *>();
+    QTreeWidget *commands = shortcuts.findChild<QTreeWidget *>();
+    if (search == nullptr || commands == nullptr)
+        return 10;
+    search->setText(QStringLiteral("zoom"));
+    HistoryDock history;
+    layout.addWidget(&history);
+    HistoryDockContext context;
+    context.project = QStringLiteral("Water");
+    context.branch = QStringLiteral("main");
+    HistoryDockEntry commit;
+    commit.title = QStringLiteral("Store tank elevation");
+    commit.identity = QStringLiteral("test-commit");
+    context.commits.append(commit);
+    history.setContext(context);
+    int requests = 0;
+    QObject::connect(&history, &HistoryDock::branchHistoryPageRequested, [&requests] { ++requests; });
+    QObject::connect(&history, &HistoryDock::archivedActionPageRequested, [&requests] { ++requests; });
+    QListWidget *history_rows = history.findChild<QListWidget *>(QStringLiteral("historyDockTimeline"));
+    if (history_rows == nullptr)
+        return 10;
     layout.addWidget(&tabs);
     window.show();
     overview.name->setFocus();
@@ -139,6 +169,24 @@ int main(int argc, char **argv)
             || !matches(code, "pipe count", network.counts.at(1)->text(), numeric_locale.toString(3))
             || !matches(code, "network total", network.other_counts->text(), total))
             return 9;
+        KeyboardShortcutsSettingsWidget fresh_shortcuts;
+        QTreeWidget *fresh_commands = fresh_shortcuts.findChild<QTreeWidget *>();
+        DatabaseInspectorOverview fresh_database;
+        HistoryDock fresh_history;
+        fresh_history.setContext(context);
+        QListWidget *fresh_rows = fresh_history.findChild<QListWidget *>(QStringLiteral("historyDockTimeline"));
+        const char *const history_titles[] = {"History", "Historique", "السجل", "Verlauf", "Historial"};
+        if (!matches(code, "live History title", history.windowTitle(), QString::fromUtf8(history_titles[index]))
+            || !matches(code, "History requests on language switch", requests, 0)
+            || !matches(code, "History row count", history_rows->count(), fresh_rows->count())
+            || !matches(code, "hidden shortcut header", commands->headerItem()->text(1), fresh_commands->headerItem()->text(1))
+            || !matches(code, "typed shortcut filter", search->text(), QStringLiteral("zoom"))
+            || !matches(code, "hidden database action", database.create_project->text(), fresh_database.create_project->text())
+            || !matches(code, "database name", database.name->text(), QStringLiteral("Personal DVMDB")))
+            return 10;
+        for (int row = 0; row < history_rows->count(); ++row)
+            if (!matches(code, "live History row", history_rows->item(row)->text(), fresh_rows->item(row)->text()))
+                return 10;
         QSettings persisted(guiConfigurationFilePath(), QSettings::IniFormat);
         if (!matches(code, "persisted language", persisted.value(QStringLiteral("interface/language")).toString(), code))
             return 4;

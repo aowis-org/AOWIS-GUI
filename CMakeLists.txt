@@ -811,6 +811,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     add_executable(aowis-gui-language-tests
         tests/gui_language_test.cpp
+        src/app/history_dock.cpp
+        src/settings/keyboard_shortcuts_settings_widget.cpp
+        src/config/shortcut_registry.cpp
+        src/widgets/wasm_popup_menu.cpp
         src/config/gui_configuration.cpp
         src/config/gui_language.cpp
         translations/translations.qrc)

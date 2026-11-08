@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include <aowis/model/units/quantity.h>
 #include "tabs/tab_map_monitor_container.h"
 #include "tabs/map_workspace_mode.h"
@@ -1750,27 +1751,27 @@ MapMonitorMenuWidget::MapMonitorMenuWidget(MapWidget *map, QWidget *parent)
 
     // The legend already uses the active unit profile; keep the symbology
     // choices consistent without touching canonical symbology values.
-    new UnitAwareView(this, UnitProfileManager::instance().presentation(), [this] {
+    const std::function<void()> refresh_unit_labels = [this] {
         const UnitPresentationContext &context = UnitProfileManager::instance().presentation();
-        const std::function<QString(const QString &, std::string_view)> label =
-            [&context](const QString &name, std::string_view quantity) {
+        const std::function<QString(const char *, std::string_view)> label =
+            [&context](const char *name, std::string_view quantity) {
             const QString unit = UnitTablePresentation::unitSymbol(
                 UnitTablePresentation::selectedUnit(context, quantity));
-            return QStringLiteral("%1 [%2]").arg(name, unit);
+            return QStringLiteral("%1 [%2]").arg(LiveUiText::translate(name), unit);
         };
         const std::function<void(QButtonGroup *, int, int, int, int)> update_group =
             [&label](QButtonGroup *group, int water_age, int chlorine,
                      int river_water, int lake_water) {
             if (group == nullptr) return;
-            const std::function<void(int, const QString &, std::string_view)> set_label =
-                [group, &label](int id, const QString &name, std::string_view quantity) {
+            const std::function<void(int, const char *, std::string_view)> set_label =
+                [group, &label](int id, const char *name, std::string_view quantity) {
                 QAbstractButton *button = group->button(id);
                 if (button != nullptr) button->setText(label(name, quantity));
             };
-            set_label(water_age, QStringLiteral("Water Age"), AOWIS_QUANTITY("water_age"));
-            set_label(chlorine, QStringLiteral("Cl₂"), AOWIS_QUANTITY("chemical_mass_concentration"));
-            set_label(river_water, QStringLiteral("River Water"), AOWIS_QUANTITY("source_trace_percentage"));
-            set_label(lake_water, QStringLiteral("Lake Water"), AOWIS_QUANTITY("source_trace_percentage"));
+            set_label(water_age, QT_TRANSLATE_NOOP("LiveUiText", "Water Age"), AOWIS_QUANTITY("water_age"));
+            set_label(chlorine, "Cl₂", AOWIS_QUANTITY("chemical_mass_concentration"));
+            set_label(river_water, QT_TRANSLATE_NOOP("LiveUiText", "River Water"), AOWIS_QUANTITY("source_trace_percentage"));
+            set_label(lake_water, QT_TRANSLATE_NOOP("LiveUiText", "Lake Water"), AOWIS_QUANTITY("source_trace_percentage"));
         };
         update_group(this->node_visual_group,
                      static_cast<int>(VisualNode::WaterAge), static_cast<int>(VisualNode::Chlorine),
@@ -1781,8 +1782,10 @@ MapMonitorMenuWidget::MapMonitorMenuWidget(MapWidget *map, QWidget *parent)
         update_group(this->heatmap_visual_group,
                      static_cast<int>(VisualHeatmap::WaterAge), static_cast<int>(VisualHeatmap::Chlorine),
                      static_cast<int>(VisualHeatmap::RiverWater), static_cast<int>(VisualHeatmap::LakeWater));
-    });
+    };
 
+    LiveUiText::bind(this, refresh_unit_labels);
+    new UnitAwareView(this, UnitProfileManager::instance().presentation(), refresh_unit_labels);
     this->layout->addStretch();
 }
 
@@ -1823,14 +1826,15 @@ void MapMonitorMenuWidget::setHeatmapVisualSelection(VisualHeatmap visual_heatma
 
 void MapMonitorMenuWidget::addGroupVisualSettings()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Visual Settings", this);
+    GroupBoxCollapsible *group = new GroupBoxCollapsible(this);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Visual Settings"))); });
     this->layout->addWidget(group);
 
     QVBoxLayout *vbox = new QVBoxLayout();
     group->setLayout(vbox);
 
-    QLabel *label_node_section = new QLabel("<b>Node</b>");
-    QLabel *label_node_size = new QLabel("Junction Size");
+    QLabel *label_node_section = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Node</b>"), nullptr);
+    QLabel *label_node_size = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Junction Size"), nullptr);
     QComboBox *combo_node_size_unit = new QComboBox(this);
     combo_node_size_unit->addItem(QStringLiteral("m"),
         static_cast<int>(NetworkSymbologySizeUnit::Meters));
@@ -1843,8 +1847,7 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         NetworkSymbologyDefaultNodeSizePx,
         QStringLiteral("Sets the junction marker/orb diameter in screen pixels."),
         QStringLiteral(" px"), this);
-    QCheckBox *check_node_decluttering = new QCheckBox(
-        QStringLiteral("Declutter Overlapping Nodes"), this);
+    QCheckBox *check_node_decluttering = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Declutter Overlapping Nodes"), this);
     check_node_decluttering->setChecked(true);
     check_node_decluttering->setToolTip(QStringLiteral(
         "Separates exact or near-exact node coordinates by at least 1 m for rendering and picking. "
@@ -1903,8 +1906,8 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         emit signalNodeSizeUnitChanged(unit);
     });
 
-    QLabel *label_link_section = new QLabel("<b>Link</b>");
-    QLabel *label_link_thickness = new QLabel("Pipe Thickness");
+    QLabel *label_link_section = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Link</b>"), nullptr);
+    QLabel *label_link_thickness = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Pipe Thickness"), nullptr);
     QComboBox *combo_link_thickness_unit = new QComboBox(this);
     combo_link_thickness_unit->addItem(QStringLiteral("m"),
         static_cast<int>(NetworkSymbologySizeUnit::Meters));
@@ -1960,7 +1963,7 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         emit signalLinkThicknessUnitChanged(unit);
     });
 
-    QLabel *label_flow_direction_size = new QLabel("Flow Arrows [px]");
+    QLabel *label_flow_direction_size = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Flow Arrows [px]"), nullptr);
     FlowDirectionSizeSlider *slider_flow_direction_size = new FlowDirectionSizeSlider(this);
     connect(slider_flow_direction_size, &QSlider::valueChanged, this,
         [this, slider_flow_direction_size](int)
@@ -1968,8 +1971,8 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         emit signalFlowDirectionSizeChanged(slider_flow_direction_size->arrowSizePx());
     });
 
-    QLabel *label_heatmap_section = new QLabel("<b>Heatmap</b>");
-    QLabel *label_heatmap_radius = new QLabel("Radius");
+    QLabel *label_heatmap_section = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Heatmap</b>"), nullptr);
+    QLabel *label_heatmap_radius = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Radius"), nullptr);
     QComboBox *combo_heatmap_radius_unit = new QComboBox(this);
     combo_heatmap_radius_unit->addItem(QStringLiteral("m"),
         static_cast<int>(HeatmapRadiusUnit::Meters));
@@ -2015,12 +2018,12 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         emit signalHeatmapRadiusUnitChanged(unit);
     });
 
-    QLabel *label_heatmap_solid_center = new QLabel("Solid Center [%]");
+    QLabel *label_heatmap_solid_center = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Solid Center [%]"), nullptr);
     QSlider *slider_heatmap_solid_center = new SymbologySlider(0, 100, 70,
         QStringLiteral("Sets how much of the heatmap radius keeps full local opacity before fading to transparency."), QStringLiteral(" %"), this);
     connect(slider_heatmap_solid_center, &QSlider::valueChanged, this, &MapMonitorMenuWidget::signalHeatmapSolidCenterChanged);
 
-    QLabel *label_heatmap_opacity = new QLabel("Opacity [%]");
+    QLabel *label_heatmap_opacity = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Opacity [%]"), nullptr);
     QSlider *slider_heatmap_opacity = new SymbologySlider(0, 100, 75,
         QStringLiteral("Controls the opacity of the complete heatmap layer."), QStringLiteral(" %"), this);
     connect(slider_heatmap_opacity, &QSlider::valueChanged, this, &MapMonitorMenuWidget::signalHeatmapOpacityChanged);
@@ -2059,33 +2062,32 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
 
 void MapMonitorMenuWidget::addGroupNodeVisuals()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Node Symbology", this);
+    GroupBoxCollapsible *group = new GroupBoxCollapsible(this);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Node Symbology"))); });
     this->layout->addWidget(group);
     QVBoxLayout *vbox = new QVBoxLayout();
     group->setLayout(vbox);
     
-    QRadioButton *radio_node_none = new QRadioButton("None");
+    QRadioButton *radio_node_none = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "None"), nullptr);
     radio_node_none->setChecked(true);
-    QRadioButton *radio_node_elevation = new QRadioButton("Elevation");
-    QRadioButton *radio_node_basedemand = new QRadioButton("Base Demand");
-    QRadioButton *radio_node_totaldemand = new QRadioButton("Total Demand");
-    QRadioButton *radio_node_demanddeficit = new QRadioButton("Demand Deficit");
-    QRadioButton *radio_node_emitterflow = new QRadioButton("Emitter Flow");
-    QRadioButton *radio_node_leakage = new QRadioButton("Leakage");
-    QRadioButton *radio_node_head = new QRadioButton("Head");
-    QRadioButton *radio_node_pressure = new QRadioButton("Pressure");
-    QRadioButton *radio_node_water_age = new QRadioButton("Water Age");
+    QRadioButton *radio_node_elevation = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Elevation"), nullptr);
+    QRadioButton *radio_node_basedemand = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Base Demand"), nullptr);
+    QRadioButton *radio_node_totaldemand = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Total Demand"), nullptr);
+    QRadioButton *radio_node_demanddeficit = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Demand Deficit"), nullptr);
+    QRadioButton *radio_node_emitterflow = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Emitter Flow"), nullptr);
+    QRadioButton *radio_node_leakage = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Leakage"), nullptr);
+    QRadioButton *radio_node_head = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Head"), nullptr);
+    QRadioButton *radio_node_pressure = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Pressure"), nullptr);
+    QRadioButton *radio_node_water_age = new QRadioButton();
     
-    QLabel *label_multispecies = new QLabel(
-        "EPANET Network 3 has<br>"
+    QLabel *label_multispecies = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "EPANET Network 3 has<br>"
         "Multi-Species Water<br>"
         "Quality Analysis (MSX).<br>"
-        "Modeled variables are:"
-    );
+        "Modeled variables are:"), nullptr);
     
     QRadioButton *radio_node_chlorine = new QRadioButton("Cl₂");
-    QRadioButton *radio_node_river = new QRadioButton("River Water");
-    QRadioButton *radio_node_lake = new QRadioButton("Lake Water");
+    QRadioButton *radio_node_river = new QRadioButton();
+    QRadioButton *radio_node_lake = new QRadioButton();
 
     this->node_visual_group = new QButtonGroup(this);
     this->node_visual_group->addButton(radio_node_none, static_cast<int>(VisualNode::None));
@@ -2102,11 +2104,9 @@ void MapMonitorMenuWidget::addGroupNodeVisuals()
     this->node_visual_group->addButton(radio_node_river, static_cast<int>(VisualNode::RiverWater));
     this->node_visual_group->addButton(radio_node_lake, static_cast<int>(VisualNode::LakeWater));
     
-    QLabel *label_chlorine = new QLabel(
-        "Chlorine decay constant<br>"
+    QLabel *label_chlorine = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Chlorine decay constant<br>"
         "depends on the mix of<br>"
-        "Lake and River water."
-    );
+        "Lake and River water."), nullptr);
     
     const std::function<void(QRadioButton *, VisualNode)> connect_node_visual =
         [this](QRadioButton *button, VisualNode visual)
@@ -2152,24 +2152,25 @@ void MapMonitorMenuWidget::addGroupNodeVisuals()
 }
 void MapMonitorMenuWidget::addGroupLinkVisuals()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Link Symbology", this);
+    GroupBoxCollapsible *group = new GroupBoxCollapsible(this);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Link Symbology"))); });
     this->layout->addWidget(group);
     QVBoxLayout *vbox = new QVBoxLayout();
     group->setLayout(vbox);
     
-    QRadioButton *radio_link_none = new QRadioButton("None");
+    QRadioButton *radio_link_none = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "None"), nullptr);
     radio_link_none->setChecked(true);
-    QRadioButton *radio_link_diameter = new QRadioButton("Diameter");
-    QRadioButton *radio_link_length = new QRadioButton("Length");
-    QRadioButton *radio_link_roughness = new QRadioButton("Roughness");
-    QRadioButton *radio_link_flowrate = new QRadioButton("Flow Rate");
-    QRadioButton *radio_link_velocity = new QRadioButton("Velocity");
-    QRadioButton *radio_link_headloss = new QRadioButton("Head Loss");
-    QRadioButton *radio_link_leakage = new QRadioButton("Leakage");
-    QRadioButton *radio_link_water_age = new QRadioButton("Water Age");
+    QRadioButton *radio_link_diameter = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Diameter"), nullptr);
+    QRadioButton *radio_link_length = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Length"), nullptr);
+    QRadioButton *radio_link_roughness = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness"), nullptr);
+    QRadioButton *radio_link_flowrate = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Flow Rate"), nullptr);
+    QRadioButton *radio_link_velocity = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Velocity"), nullptr);
+    QRadioButton *radio_link_headloss = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Head Loss"), nullptr);
+    QRadioButton *radio_link_leakage = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Leakage"), nullptr);
+    QRadioButton *radio_link_water_age = new QRadioButton();
     QRadioButton *radio_link_chlorine = new QRadioButton("Cl₂");
-    QRadioButton *radio_link_river = new QRadioButton("River Water");
-    QRadioButton *radio_link_lake = new QRadioButton("Lake Water");
+    QRadioButton *radio_link_river = new QRadioButton();
+    QRadioButton *radio_link_lake = new QRadioButton();
 
     this->link_visual_group = new QButtonGroup(this);
     this->link_visual_group->addButton(radio_link_none, static_cast<int>(VisualLink::None));
@@ -2223,27 +2224,28 @@ void MapMonitorMenuWidget::addGroupLinkVisuals()
 
 void MapMonitorMenuWidget::addGroupHeatmapVisuals()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Heatmap", this);
+    GroupBoxCollapsible *group = new GroupBoxCollapsible(this);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Heatmap"))); });
     this->layout->addWidget(group);
     
     QVBoxLayout *vbox = new QVBoxLayout();
     group->setLayout(vbox);
     
-    QRadioButton *radio_none = new QRadioButton("None");
+    QRadioButton *radio_none = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "None"), nullptr);
     radio_none->setChecked(true);
     
-    QRadioButton *radio_elevation = new QRadioButton("Elevation");
-    QRadioButton *radio_base_demand = new QRadioButton("Base Demand");
-    QRadioButton *radio_total_demand = new QRadioButton("Total Demand");
-    QRadioButton *radio_demand_deficit = new QRadioButton("Demand Deficit");
-    QRadioButton *radio_emitter_flow = new QRadioButton("Emitter Flow");
-    QRadioButton *radio_leakage = new QRadioButton("Leakage");
-    QRadioButton *radio_head = new QRadioButton("Head");
-    QRadioButton *radio_pressure = new QRadioButton("Pressure");
-    QRadioButton *radio_water_age = new QRadioButton("Water Age");
+    QRadioButton *radio_elevation = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Elevation"), nullptr);
+    QRadioButton *radio_base_demand = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Base Demand"), nullptr);
+    QRadioButton *radio_total_demand = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Total Demand"), nullptr);
+    QRadioButton *radio_demand_deficit = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Demand Deficit"), nullptr);
+    QRadioButton *radio_emitter_flow = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Emitter Flow"), nullptr);
+    QRadioButton *radio_leakage = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Leakage"), nullptr);
+    QRadioButton *radio_head = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Head"), nullptr);
+    QRadioButton *radio_pressure = LiveUiText::caption<QRadioButton>(QT_TRANSLATE_NOOP("LiveUiText", "Pressure"), nullptr);
+    QRadioButton *radio_water_age = new QRadioButton();
     QRadioButton *radio_chlorine = new QRadioButton("Cl₂");
-    QRadioButton *radio_river = new QRadioButton("River Water");
-    QRadioButton *radio_lake = new QRadioButton("Lake Water");
+    QRadioButton *radio_river = new QRadioButton();
+    QRadioButton *radio_lake = new QRadioButton();
 
     this->heatmap_visual_group = new QButtonGroup(this);
     this->heatmap_visual_group->addButton(radio_none, static_cast<int>(VisualHeatmap::None));

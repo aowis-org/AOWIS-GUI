@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "settings/units_settings_widget.h"
 #include "config/unit_presented_quantities.h"
 #include "config/unit_profile_manager.h"
@@ -69,11 +70,11 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
 {
     QVBoxLayout *outer = new QVBoxLayout(this);
     outer->setContentsMargins(24, 20, 24, 20);
-    QLabel *title = new QLabel(QStringLiteral("Unit Profiles"), this);
+    QLabel *title = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Unit Profiles"), this);
     QFont font = title->font(); font.setPointSize(font.pointSize() + 2); font.setBold(true);
     title->setFont(font);
     outer->addWidget(title);
-    QLabel *info = new QLabel(QStringLiteral("Display-unit preferences only. Changes update unit-aware views and editors; canonical Model values remain unchanged."), this);
+    QLabel *info = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Display-unit preferences only. Changes update unit-aware views and editors; canonical Model values remain unchanged."), this);
     info->setWordWrap(true);
     outer->addWidget(info);
     QHBoxLayout *controls = new QHBoxLayout;
@@ -94,22 +95,25 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
     this->profile_menu = new QMenu(this->profile_button);
     this->profile_button->setMenu(this->profile_menu);
 #endif
-    QPushButton *create_button = new QPushButton(QStringLiteral("New custom profile..."), this);
+    QPushButton *create_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "New custom profile..."), this);
     controls->addWidget(create_button);
-    this->rename_button = new QPushButton(QStringLiteral("Rename..."), this);
+    this->rename_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Rename..."), this);
     controls->addWidget(this->rename_button);
-    this->delete_button = new QPushButton(QStringLiteral("Delete"), this);
+    this->delete_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Delete"), this);
     controls->addWidget(this->delete_button);
     outer->addLayout(controls);
     this->field_search = new QLineEdit(this);
     this->field_search->setClearButtonEnabled(true);
-    this->field_search->setPlaceholderText(QStringLiteral("Search quantities or units…"));
+    LiveUiText::bind(this->field_search, [this] {
+        this->field_search->setPlaceholderText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Search quantities or units…")));
+    });
     outer->addWidget(this->field_search);
 
     this->fields_tree = new QTreeWidget(this);
     this->fields_tree->setColumnCount(3);
-    this->fields_tree->setHeaderLabels({QStringLiteral("Quantity"), QStringLiteral("Display unit"),
-                                        QStringLiteral("Canonical unit")});
+    LiveUiText::bind(this->fields_tree, [this] {
+        this->fields_tree->setHeaderLabels({LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Quantity")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display unit")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Canonical unit"))});
+    });
     this->fields_tree->setRootIsDecorated(true);
     this->fields_tree->setAlternatingRowColors(true);
     this->fields_tree->setUniformRowHeights(false);
@@ -228,7 +232,9 @@ void UnitsSettingsWidget::refreshFields()
             const QString unit_id = UnitProfileManager::instance().profiles().at(index).units.value(key).toString();
             selector->setCurrentIndex(qMax(0, selector->findData(unit_id)));
             selector->setEnabled(!builtin && selector->count() > 1);
-            selector->setToolTip(QStringLiteral("Canonical: %1").arg(UnitDisplayText::symbol(canonical_id)));
+            LiveUiText::bind(selector, [selector, canonical_id] {
+                selector->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Canonical: %1")).arg(UnitDisplayText::symbol(canonical_id)));
+            });
             this->fields_tree->setItemWidget(item, 1, selector);
             connect(selector, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
                     [this, index, key, selector](int) {
@@ -291,10 +297,10 @@ void UnitsSettingsWidget::createProfile()
 {
     QDialog *dialog = new QDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle(QStringLiteral("New unit profile"));
+    LiveUiText::bind(dialog, [dialog] { dialog->setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "New unit profile"))); });
     dialog->setMinimumWidth(440);
     QVBoxLayout *layout = new QVBoxLayout(dialog);
-    layout->addWidget(new QLabel(QStringLiteral("Start from profile:"), dialog));
+    layout->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Start from profile:"), dialog));
     QToolButton *base_button = new QToolButton(dialog);
     base_button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     layout->addWidget(base_button);
@@ -327,7 +333,7 @@ void UnitsSettingsWidget::createProfile()
 #endif
     UnitProfileMenu::populate(base_menu, dialog,
                               UnitProfileManager::instance().profiles(), -1, selectBase);
-    layout->addWidget(new QLabel(QStringLiteral("Profile name:"), dialog));
+    layout->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Profile name:"), dialog));
     layout->addWidget(name_edit);
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
     layout->addWidget(buttons);
@@ -359,8 +365,8 @@ void UnitsSettingsWidget::renameProfile()
     if (index < 0 || index >= UnitProfileManager::instance().profiles().size() || UnitProfileManager::instance().profiles().at(index).builtin) return;
     QInputDialog *dialog = new QInputDialog(this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setWindowTitle(QStringLiteral("Rename unit profile"));
-    dialog->setLabelText(QStringLiteral("Profile name:"));
+    LiveUiText::bind(dialog, [dialog] { dialog->setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Rename unit profile"))); });
+    LiveUiText::bind(dialog, [dialog] { dialog->setLabelText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Profile name:"))); });
     dialog->setInputMode(QInputDialog::TextInput);
     dialog->setTextValue(UnitProfileManager::instance().profiles().at(index).name);
     const QString profile_id = UnitProfileManager::instance().profiles().at(index).id;

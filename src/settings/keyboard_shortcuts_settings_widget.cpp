@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "settings/keyboard_shortcuts_settings_widget.h"
 
 #include "config/gui_configuration.h"
@@ -69,7 +70,7 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
     layout->setContentsMargins(24, 20, 24, 20);
     layout->setSpacing(12);
 
-    QLabel *title = new QLabel(QStringLiteral("Keyboard Shortcuts"), this);
+    QLabel *title = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Keyboard Shortcuts"), this);
     QFont title_font = title->font();
     title_font.setPointSize(title_font.pointSize() + 4);
     title_font.setBold(true);
@@ -77,13 +78,12 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
     layout->addWidget(title);
 
 #ifdef __EMSCRIPTEN__
-    QLabel *description = new QLabel(
-        QStringLiteral("Change application shortcuts here. Changes apply immediately for this browser session."),
-        this);
+    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Change application shortcuts here. Changes apply immediately for this browser session."), this);
 #else
-    QLabel *description = new QLabel(
-        QStringLiteral("Change application shortcuts here. Changes apply immediately and are saved to %1.")
-            .arg(guiConfigurationFilePath()), this);
+    QLabel *description = new QLabel(this);
+    LiveUiText::bind(description, [description] {
+        description->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Change application shortcuts here. Changes apply immediately and are saved to %1.")).arg(guiConfigurationFilePath()));
+    });
 #endif
     description->setWordWrap(true);
     description->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -92,10 +92,12 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
     QHBoxLayout *search_row = new QHBoxLayout();
     this->shortcut_search = new QLineEdit(this);
     this->shortcut_search->setClearButtonEnabled(true);
-    this->shortcut_search->setPlaceholderText(QStringLiteral("Search commands or shortcuts…"));
+    LiveUiText::bind(this->shortcut_search, [this] {
+        this->shortcut_search->setPlaceholderText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Search commands or shortcuts…")));
+    });
     search_row->addWidget(this->shortcut_search, 1);
 
-    this->reset_all_shortcuts = new QPushButton(QStringLiteral("Reset All to Defaults"), this);
+    this->reset_all_shortcuts = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Reset All to Defaults"), this);
     search_row->addWidget(this->reset_all_shortcuts);
     layout->addLayout(search_row);
 
@@ -106,9 +108,9 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
 
     this->shortcut_tree = new QTreeWidget(this);
     this->shortcut_tree->setColumnCount(5);
-    this->shortcut_tree->setHeaderLabels({QStringLiteral("Action"), QStringLiteral("Shortcut"),
-                                          QStringLiteral("Scope"), QStringLiteral("Default"),
-                                          QStringLiteral("")});
+    LiveUiText::bind(this->shortcut_tree, [this] {
+        this->shortcut_tree->setHeaderLabels({LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Action")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Shortcut")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Scope")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Default")), QString()});
+    });
     this->shortcut_tree->setRootIsDecorated(true);
     this->shortcut_tree->setAlternatingRowColors(true);
     this->shortcut_tree->setUniformRowHeights(false);
@@ -150,13 +152,17 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
         editor->setMaximumSequenceLength(1);
 #endif
         editor->setClearButtonEnabled(true);
-        editor->setToolTip(QStringLiteral("Press a key combination. Clear the field to disable this shortcut."));
+        LiveUiText::bind(editor, [editor] {
+        editor->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Press a key combination. Clear the field to disable this shortcut.")));
+    });
         editor->installEventFilter(this);
         this->shortcut_tree->setItemWidget(item, 1, editor);
         this->shortcut_editors.insert(static_cast<int>(definition.id), editor);
 
-        QPushButton *reset_button = new QPushButton(QStringLiteral("Reset"), this->shortcut_tree);
-        reset_button->setToolTip(QStringLiteral("Reset to %1").arg(definition.default_shortcut));
+        QPushButton *reset_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Reset"), this->shortcut_tree);
+        LiveUiText::bind(reset_button, [reset_button, key = definition.default_shortcut] {
+            reset_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset to %1")).arg(key));
+        });
         this->shortcut_tree->setItemWidget(item, 4, reset_button);
 
         connect(editor, &QKeySequenceEdit::keySequenceChanged, this,
@@ -191,6 +197,16 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
         });
     }
 
+    LiveUiText::bind(this->shortcut_tree, [this] {
+        for (const GuiShortcutDefinition &definition : guiShortcutRegistry().definitions())
+        {
+            QTreeWidgetItem *item = this->shortcut_items.value(static_cast<int>(definition.id));
+            item->setText(0, QCoreApplication::translate("GuiShortcuts", definition.display_name.toUtf8().constData()));
+            item->setText(2, QCoreApplication::translate("GuiShortcuts", definition.scope.toUtf8().constData()));
+            item->parent()->setText(0, QCoreApplication::translate("GuiShortcuts", definition.category.toUtf8().constData()));
+        }
+        refreshShortcutFilter();
+    });
     this->shortcut_tree->expandAll();
 
     connect(this->shortcut_search, &QLineEdit::textChanged,
@@ -261,7 +277,9 @@ void KeyboardShortcutsSettingsWidget::refreshShortcutFilter()
             if (definition == nullptr)
                 continue;
 
-            const QString searchable = (definition->display_name + QLatin1Char(' ')
+            const QString searchable = (item->text(0) + QLatin1Char(' ') + item->text(2)
+                                        + QLatin1Char(' ') + category_item->text(0) + QLatin1Char(' ')
+                                        + definition->display_name + QLatin1Char(' ')
                                         + definition->category + QLatin1Char(' ')
                                         + definition->scope + QLatin1Char(' ')
                                         + guiShortcutRegistry().shortcut(id) + QLatin1Char(' ')

@@ -1,4 +1,5 @@
 #include "app/history_dock.h"
+#include "config/live_ui_text.h"
 
 #include <algorithm>
 
@@ -86,7 +87,13 @@ HistoryDock::HistoryDock(QWidget *parent) : QDockWidget(tr("History"), parent)
     this->notice_label_->setWordWrap(true);
     layout->addWidget(this->notice_label_);
     setWidget(content);
-    rebuild();
+    LiveUiText::bind(this, [this] {
+        setWindowTitle(tr("History"));
+        this->undo_button_->setText(tr("Undo"));
+        this->redo_button_->setText(tr("Redo"));
+        this->timeline_->setToolTip(tr("Click a saved action to jump to it, or a Commit to select its checkpoint. Use the disclosure row to expand archived actions."));
+        rebuild();
+    });
 }
 
 void HistoryDock::setContext(const HistoryDockContext &context)
@@ -454,12 +461,12 @@ void HistoryDock::rebuild()
             {
                 const HistoryDockEntry &entry = page.actions.at(index);
                 QListWidgetItem *item = new QListWidgetItem(
-                    QStringLiteral("    ● ") + entry.title, this->timeline_);
+                    QStringLiteral("    ● ") + entry.displayTitle(), this->timeline_);
                 item->setData(Qt::UserRole, commit.identity);
                 item->setData(Qt::UserRole + 1, QStringLiteral("archived-action"));
                 item->setData(Qt::UserRole + 2, index + 1);
                 item->setData(Qt::UserRole + 3, entry.identity);
-                item->setToolTip(entry.details + tr("\nClick to select this verified action state."));
+                item->setToolTip(entry.displayDetails() + tr("\nClick to select this verified action state."));
             }
             if (page.complete && page.actions.isEmpty())
                 new QListWidgetItem(tr("    Snapshot-only checkpoint (no archived actions)"),
@@ -486,10 +493,10 @@ void HistoryDock::rebuild()
             expand->setToolTip(tr("Expand or collapse the original archived MODEL actions."));
         }
         QListWidgetItem *item = new QListWidgetItem(
-            QStringLiteral("◆ ") + commit.title, this->timeline_);
+            QStringLiteral("◆ ") + commit.displayTitle(), this->timeline_);
         item->setData(Qt::UserRole, commit.identity);
         item->setData(Qt::UserRole + 1, QStringLiteral("commit"));
-        item->setToolTip(commit.details + (this->archive_scope_.isEmpty() ? QString() :
+        item->setToolTip(commit.displayDetails() + (this->archive_scope_.isEmpty() ? QString() :
             page.total_count == 0 ? tr("\nSnapshot-only checkpoint: no executable action archive.") :
             tr("\nClick to navigate to this checkpoint (verified by DVMDB).")));
         QFont font = item->font();
@@ -502,7 +509,7 @@ void HistoryDock::rebuild()
     {
         const QString prefix = entry.kind == HistoryDockEntry::Kind::PendingAction ?
             QStringLiteral("◌ ") : QStringLiteral("● ");
-        QListWidgetItem *item = new QListWidgetItem(prefix + entry.title, this->timeline_);
+        QListWidgetItem *item = new QListWidgetItem(prefix + entry.displayTitle(), this->timeline_);
         item->setData(Qt::UserRole, entry.identity);
         if (entry.kind == HistoryDockEntry::Kind::SavedAction)
         {
@@ -510,7 +517,7 @@ void HistoryDock::rebuild()
             item->setData(Qt::UserRole + 1, QStringLiteral("draft-action"));
             item->setData(Qt::UserRole + 2, draft_action_position);
         }
-        item->setToolTip((entry.details.isEmpty() ? entry.identity : entry.details) +
+        item->setToolTip((entry.displayDetails().isEmpty() ? entry.identity : entry.displayDetails()) +
             (entry.kind == HistoryDockEntry::Kind::SavedAction
                 ? tr("\nClick to select this saved action state.") : QString()));
     }

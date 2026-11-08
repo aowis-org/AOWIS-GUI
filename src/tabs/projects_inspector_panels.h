@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config/live_ui_text.h"
+
 #include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -137,6 +139,16 @@ public:
         column->insertWidget(column->indexOf(this->metadata),
                              this->create_project, 0, Qt::AlignLeft);
         column->insertStretch(column->indexOf(this->metadata), 1);
+        LiveUiText::bind(this, [this] {
+            QFormLayout *form = static_cast<QFormLayout *>(this->fields->layout());
+            static_cast<QLabel *>(form->labelForField(this->name))->setText(tr("Name / title"));
+            static_cast<QLabel *>(form->labelForField(this->tags))->setText(tr("Tags"));
+            static_cast<QLabel *>(form->labelForField(this->description))->setText(tr("Description"));
+            this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+            this->personal_banner->setText(tr("♛ Personal working database"));
+            this->create_project->setText(tr("Create project"));
+            this->create_project->setToolTip(tr("Create a project in this database"));
+        });
     }
 
     QLabel *personal_banner = nullptr;
@@ -631,6 +643,12 @@ public:
             tr("Discard the creation form"));
         this->creation_confirm = addButton(tr("Create"), QStringLiteral("projectsCreationConfirm"),
             tr("Create the selected object"));
+        LiveUiText::bind(this, [this] {
+            this->creation_cancel->setText(tr("Cancel"));
+            this->creation_confirm->setText(tr("Create"));
+            this->creation_cancel->setToolTip(tr("Discard the creation form"));
+            this->creation_confirm->setToolTip(tr("Create the selected object"));
+        });
         this->creation_cancel->hide();
         this->creation_confirm->hide();
     }
@@ -679,6 +697,12 @@ public:
             QStringLiteral("projectSourceCancelButton"), tr("Discard this unsaved database"));
         this->save_source = addButton(tr("Create"),
             QStringLiteral("projectSourceCreateButton"), tr("Save the new database profile"));
+        LiveUiText::bind(this, [this] {
+            this->save_source->setText(tr("Create"));
+            this->save_source->setToolTip(tr("Save the new database profile"));
+            this->cancel_source->setText(tr("Cancel"));
+            this->cancel_source->setToolTip(tr("Discard this unsaved database"));
+        });
     }
     QPushButton *save_source = nullptr;
     QPushButton *cancel_source = nullptr;

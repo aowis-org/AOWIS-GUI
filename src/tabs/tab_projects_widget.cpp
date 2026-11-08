@@ -495,6 +495,59 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this->project_inspector->refreshLanguage();
         if (this->project_relations != nullptr)
             this->project_relations->refreshLanguage();
+        if (this->database_connection != nullptr)
+        {
+            updateConnectionStatus();
+            const QSignalBlocker tree_blocker(this->server_tree);
+            for (int row = 0; row < this->server_tree->topLevelItemCount() && row < this->servers.size(); ++row)
+            {
+                const ProjectServerProfile &server = this->servers.at(row);
+                QString status;
+                QString details;
+                QColor color;
+                databaseAvailability(server, color, status, details);
+                this->server_tree->topLevelItem(row)->setToolTip(0, serverToolTip(server, status, details));
+            }
+            if (this->selection_kind == SelectionKind::Server || this->selection_kind == SelectionKind::NewSource)
+            {
+                const int overview = this->inspector_tabs->indexOf(this->inspector_overview_page);
+                const int connection = this->inspector_tabs->indexOf(this->database_connection);
+                const int projects = this->inspector_tabs->indexOf(this->database_relations);
+                if (overview >= 0)
+                {
+                    this->inspector_tabs->setTabText(overview, tr("Overview"));
+                    this->inspector_tabs->setTabToolTip(overview, this->selection_kind == SelectionKind::NewSource
+                        ? tr("Create the database connection in the Connection tab first.") : QString());
+                }
+                if (connection >= 0)
+                    this->inspector_tabs->setTabText(connection, tr("Connection"));
+                if (projects >= 0)
+                    this->inspector_tabs->setTabText(projects, tr("Projects"));
+                const ProjectServerProfile *server = currentServer();
+                const SourceSession *session = server ? this->source_sessions.value(server->id, nullptr) : nullptr;
+                const ProjectsInspectorPresentation view = this->selection_kind == SelectionKind::NewSource
+                    ? ProjectsInspectorPresentations::newDatabase()
+                    : ProjectsInspectorPresentations::database(server, session ? session->repository_id : QString());
+                if (this->creation_kind == CreationKind::None)
+                {
+                    this->inspector_heading->setText(view.heading);
+                    this->inspector_subtitle->setText(view.subtitle);
+                }
+                this->database_overview->metadata->setText(view.metadata);
+            }
+        }
+        if (this->creation_kind == CreationKind::Project)
+        {
+            this->inspector_heading->setText(tr("Create project"));
+            this->inspector_subtitle->setText(tr("Database: %1").arg(currentServer() ? currentServer()->name : QString()));
+            this->project_creation->validate(this->projects, this->creation_server_id);
+        }
+        else if (this->creation_kind == CreationKind::Branch)
+        {
+            this->inspector_heading->setText(tr("Create branch"));
+            this->inspector_subtitle->setText(tr("Project: %1").arg(currentProject() ? currentProject()->name : QString()));
+            this->branch_creation->validate(currentProject(), this->creation_project_id, sourceBranchForRevision);
+        }
         refreshRevisionInspectorLanguage();
         if (this->selection_kind == SelectionKind::Project && this->inspector_tabs != nullptr)
         {
@@ -1236,6 +1289,13 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         details = session->error;
 }
 
+QString ProjectsWidget::serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const
+{
+    return tr("%1%2\n%3\n%4: %5\nCheckbox: show in explorer and graph")
+            .arg(server.name, server.personal ? tr(" (personal working database)") : QString(),
+                 server.connection_type == QStringLiteral("local") ? server.local_path : server.endpoint, status, status_details);
+}
+
 void ProjectsWidget::populateServerTree()
 {
     const QSignalBlocker blocked(this->server_tree);
@@ -1268,9 +1328,7 @@ void ProjectsWidget::populateServerTree()
             painter.drawEllipse(QRectF(3, 3, 10, 10));
             item->setIcon(0, QIcon(indicator));
         }
-        item->setToolTip(0, tr("%1%2\n%3\n%4: %5\nCheckbox: show in explorer and graph")
-            .arg(server.name, server.personal ? tr(" (personal working database)") : QString(),
-                 local ? server.local_path : server.endpoint, status, status_details));
+        item->setToolTip(0, serverToolTip(server, status, status_details));
         if (session != nullptr && session->state == SourceState::Error)
             item->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
     }
@@ -2850,13 +2908,16 @@ HistoryDockContext ProjectsWidget::historyContext(const QString &project_id,
         if (revision == nullptr) { context.incomplete_ancestry = true; break; }
         HistoryDockEntry entry;
         entry.kind = HistoryDockEntry::Kind::Commit;
-        entry.title = revision->message.trimmed().isEmpty()
-            ? tr("Commit %1").arg(DvmdbIdentity::shortLabel(revision->id))
-            : revision->message.simplified();
+        entry.title = revision->message.simplified();
+        if (entry.title.isEmpty())
+            entry.localized_title = [id = DvmdbIdentity::shortLabel(revision->id)] { return QCoreApplication::translate("HistoryDock", "Commit %1").arg(id); };
         entry.identity = revision->id;
-        entry.details = tr("Immutable revision: %1").arg(revision->id);
-        if (revision->parents.size() > 1)
-            entry.details += tr("\nMerge commit: additional parent history is visible in Projects.");
+        entry.localized_details = [id = revision->id, merge = revision->parents.size() > 1] {
+            QString text = QCoreApplication::translate("HistoryDock", "Immutable revision: %1").arg(id);
+            if (merge)
+                text += QCoreApplication::translate("HistoryDock", "\nMerge commit: additional parent history is visible in Projects.");
+            return text;
+        };
         context.commits.prepend(entry);
         revision_id = revision->parents.isEmpty() ? QString() : revision->parents.first();
     }

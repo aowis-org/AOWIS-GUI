@@ -777,6 +777,414 @@ Committed base only; no private draft was found.</source>
       <source>Export only the selected immutable revision's hydraulic network</source>
       <translation>تصدير الشبكة الهيدروليكية للمراجعة الثابتة المحددة فقط</translation>
     </message>
+    <message>
+      <source>Database name</source>
+      <translation>اسم قاعدة البيانات</translation>
+    </message>
+    <message>
+      <source>Reload this database now; automatic loading and health checks continue in the background</source>
+      <translation>إعادة تحميل قاعدة البيانات الآن. يستمر التحميل والفحص التلقائي في الخلفية.</translation>
+    </message>
+    <message>
+      <source>Remote database (REST)</source>
+      <translation>قاعدة بيانات بعيدة (REST)</translation>
+    </message>
+    <message>
+      <source>Local database (embedded)</source>
+      <translation>قاعدة بيانات محلية (مضمّنة)</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>بلا مصادقة</translation>
+    </message>
+    <message>
+      <source>API token</source>
+      <translation>رمز API</translation>
+    </message>
+    <message>
+      <source>User login</source>
+      <translation>تسجيل دخول المستخدم</translation>
+    </message>
+    <message>
+      <source>Choose a local DVMDB data directory</source>
+      <translation>اختر دليل بيانات DVMDB المحلي</translation>
+    </message>
+    <message>
+      <source>Remove this connection from AOWIS without deleting the DVMDB repository</source>
+      <translation>إزالة الاتصال من AOWIS مع الاحتفاظ بمستودع DVMDB</translation>
+    </message>
+    <message>
+      <source>Selecting an embedded personal database requires AOWIS Standalone.</source>
+      <translation>تتطلب قاعدة البيانات الشخصية المضمّنة AOWIS Standalone.</translation>
+    </message>
+    <message>
+      <source>Only one database can be personal. Its identity is discovered automatically; no UUID input is needed.</source>
+      <translation>يمكن تعيين قاعدة شخصية واحدة. تُكتشف هويتها تلقائيًا.</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration</source>
+      <translation>عرض توضيحي في الذاكرة</translation>
+    </message>
+    <message>
+      <source>Starting automatically…</source>
+      <translation>بدء تلقائي…</translation>
+    </message>
+    <message>
+      <source>Connection unstable · checking again…</source>
+      <translation>الاتصال غير مستقر · جارٍ إعادة الفحص…</translation>
+    </message>
+    <message>
+      <source>Unavailable · server identity probe failed: %1</source>
+      <translation>غير متاح · فشل التحقق من الخادم: %1</translation>
+    </message>
+    <message>
+      <source>No valid DVMDB response</source>
+      <translation>لا توجد استجابة صالحة من DVMDB</translation>
+    </message>
+    <message>
+      <source>Saving to DVMDB…</source>
+      <translation>جارٍ الحفظ في DVMDB…</translation>
+    </message>
+    <message>
+      <source>Available · catalogue error: %1</source>
+      <translation>متاح · خطأ في الفهرس: %1</translation>
+    </message>
+    <message>
+      <source>Checking server identity…</source>
+      <translation>جارٍ التحقق من هوية الخادم…</translation>
+    </message>
+    <message>
+      <source>Available · catalogue loaded</source>
+      <translation>متاح · تم تحميل الفهرس</translation>
+    </message>
+    <message>
+      <source>Loading catalogue…</source>
+      <translation>جارٍ تحميل الفهرس…</translation>
+    </message>
+    <message>
+      <source>Unavailable: %1</source>
+      <translation>غير متاح: %1</translation>
+    </message>
+    <message>
+      <source>Checking connection…</source>
+      <translation>جارٍ فحص الاتصال…</translation>
+    </message>
+    <message>
+      <source>Unverified repository · %1</source>
+      <translation>مستودع غير متحقق منه · %1</translation>
+    </message>
+    <message>
+      <source>No databases selected</source>
+      <translation>لم تُحدَّد قاعدة بيانات</translation>
+    </message>
+    <message>
+      <source>Check a database in the sidebar to show it on the canvas.</source>
+      <translation>حدّد قاعدة بيانات في الشريط الجانبي لعرضها.</translation>
+    </message>
+    <message>
+      <source>Checking</source>
+      <translation>جارٍ التحقق</translation>
+    </message>
+    <message>
+      <source>Waiting for a database response</source>
+      <translation>بانتظار استجابة قاعدة البيانات</translation>
+    </message>
+    <message>
+      <source>Unverified</source>
+      <translation>غير متحقق منه</translation>
+    </message>
+    <message>
+      <source>Repository identity not yet verified: %1</source>
+      <translation>لم تُتحقَّق هوية المستودع بعد: %1</translation>
+    </message>
+    <message>
+      <source>Repository UUIDv7 not yet verified</source>
+      <translation>لم يُتحقَّق بعد من UUIDv7 للمستودع</translation>
+    </message>
+    <message>
+      <source>Preview</source>
+      <translation>معاينة</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration; no database connection</source>
+      <translation>عرض في الذاكرة دون اتصال بقاعدة بيانات</translation>
+    </message>
+    <message>
+      <source>Unstable</source>
+      <translation>غير مستقر</translation>
+    </message>
+    <message>
+      <source>A recent health check failed; retrying</source>
+      <translation>فشل فحص حديث. جارٍ إعادة المحاولة</translation>
+    </message>
+    <message>
+      <source>Available · catalogue error</source>
+      <translation>متاح · خطأ في الفهرس</translation>
+    </message>
+    <message>
+      <source>DVMDB is responding, but its project catalogue could not be loaded</source>
+      <translation>تستجيب DVMDB ولكن تعذّر تحميل فهرس مشاريعها</translation>
+    </message>
+    <message>
+      <source>DVMDB is responding, but its project catalogue could not be loaded: %1</source>
+      <translation>تستجيب DVMDB ولكن تعذّر تحميل فهرس مشاريعها: %1</translation>
+    </message>
+    <message>
+      <source>Checking DVMDB server identity</source>
+      <translation>جارٍ التحقق من هوية خادم DVMDB</translation>
+    </message>
+    <message>
+      <source>Checking DVMDB server identity; catalogue error: %1</source>
+      <translation>جارٍ فحص خادم DVMDB · خطأ في الفهرس: %1</translation>
+    </message>
+    <message>
+      <source>Unavailable</source>
+      <translation>غير متاح</translation>
+    </message>
+    <message>
+      <source>Incompatible MODEL</source>
+      <translation>MODEL غير متوافق</translation>
+    </message>
+    <message>
+      <source>Database connection unavailable</source>
+      <translation>الاتصال بقاعدة البيانات غير متاح</translation>
+    </message>
+    <message>
+      <source>Available</source>
+      <translation>متاح</translation>
+    </message>
+    <message>
+      <source>Embedded database is open and its catalogue is loaded</source>
+      <translation>قاعدة البيانات المضمّنة مفتوحة والفهرس محمّل</translation>
+    </message>
+    <message>
+      <source>Database is responding and its catalogue is loaded</source>
+      <translation>قاعدة البيانات تستجيب وفهرسها محمّل</translation>
+    </message>
+    <message>
+      <source>Loading</source>
+      <translation>جارٍ التحميل</translation>
+    </message>
+    <message>
+      <source>Loading the database catalogue</source>
+      <translation>جارٍ تحميل فهرس قاعدة البيانات</translation>
+    </message>
+    <message>
+      <source>♛ %1</source>
+      <translation>♛ %1</translation>
+    </message>
+    <message>
+      <source>◷ %1</source>
+      <translation>◷ %1</translation>
+    </message>
+    <message>
+      <source>%1%2
+%3
+%4: %5
+Checkbox: show in explorer and graph</source>
+      <translation>%1%2
+%3
+%4: %5
+حدّد المربع للعرض في المستكشف والرسم</translation>
+    </message>
+    <message>
+      <source> (personal working database)</source>
+      <translation> (قاعدة العمل الشخصية)</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>الاتصال</translation>
+    </message>
+    <message>
+      <source>Create the database connection in the Connection tab first.</source>
+      <translation>أنشئ اتصال قاعدة البيانات أولًا في تبويب الاتصال.</translation>
+    </message>
+    <message>
+      <source>♛ Personal working database</source>
+      <translation>♛ قاعدة العمل الشخصية</translation>
+    </message>
+    <message>
+      <source>Create a project in this database</source>
+      <translation>إنشاء مشروع في قاعدة البيانات هذه</translation>
+    </message>
+    <message>
+      <source>Select a server, project, branch, or revision.</source>
+      <translation>اختر خادمًا أو مشروعًا أو فرعًا أو مراجعة.</translation>
+    </message>
+    <message>
+      <source>New database</source>
+      <translation>قاعدة بيانات جديدة</translation>
+    </message>
+    <message>
+      <source>Configure a data source. Nothing is saved until you select Create.</source>
+      <translation>اضبط مصدر البيانات ثم اضغط إنشاء للحفظ.</translation>
+    </message>
+    <message>
+      <source>Local Database: %1</source>
+      <translation>قاعدة بيانات محلية: %1</translation>
+    </message>
+    <message>
+      <source>Remote Database: %1</source>
+      <translation>قاعدة بيانات بعيدة: %1</translation>
+    </message>
+    <message>
+      <source>Identity: pending verification (temporary ID: %1)</source>
+      <translation>الهوية بانتظار التحقق (معرّف مؤقت: %1)</translation>
+    </message>
+    <message>
+      <source>DVMDB repository UUIDv7: %1</source>
+      <translation>معرّف UUIDv7 لمستودع DVMDB: %1</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration source (no DVMDB repository)</source>
+      <translation>مصدر تجريبي في الذاكرة (دون مستودع DVMDB)</translation>
+    </message>
+    <message>
+      <source>
+Identity mismatch: %1</source>
+      <translation>
+الهوية غير متطابقة: %1</translation>
+    </message>
+    <message>
+      <source>Start from</source>
+      <translation>نقطة البداية</translation>
+    </message>
+    <message>
+      <source>hydraulics, testing</source>
+      <translation>هيدروليكا، اختبار</translation>
+    </message>
+    <message>
+      <source>%1 · No commits yet</source>
+      <translation>%1 · لا توجد مراجعات بعد</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD %2</source>
+      <translation>%1 · HEAD %2</translation>
+    </message>
+    <message>
+      <source>Revision %1</source>
+      <translation>المراجعة %1</translation>
+    </message>
+    <message>
+      <source>Initial empty revision</source>
+      <translation>مراجعة أولية فارغة</translation>
+    </message>
+    <message>
+      <source>Enter a name.</source>
+      <translation>أدخل اسمًا.</translation>
+    </message>
+    <message>
+      <source>A project with this name already exists.</source>
+      <translation>يوجد مشروع بهذا الاسم.</translation>
+    </message>
+    <message>
+      <source>Creates an empty project with an initial main branch. </source>
+      <translation>ينشئ مشروعًا فارغًا بفرع main أولي. </translation>
+    </message>
+    <message>
+      <source>No network data or additional revision will be created.</source>
+      <translation>لن تُنشأ بيانات شبكة أو مراجعات إضافية.</translation>
+    </message>
+    <message>
+      <source>Branch name must be valid UTF-8, at most 96 bytes, without surrounding spaces.</source>
+      <translation>يجب أن يكون اسم الفرع بترميز UTF-8 صالح، بحد أقصى 96 بايت ومن دون مسافات في طرفيه.</translation>
+    </message>
+    <message>
+      <source>Branch name contains an unsupported control or path character.</source>
+      <translation>يحتوي الاسم على محرف تحكم أو مسار غير مدعوم.</translation>
+    </message>
+    <message>
+      <source>The source project is no longer selected.</source>
+      <translation>لم يعد المشروع المصدر محددًا.</translation>
+    </message>
+    <message>
+      <source>A branch with this name already exists.</source>
+      <translation>يوجد فرع بهذا الاسم.</translation>
+    </message>
+    <message>
+      <source>Description must not exceed 512 UTF-8 bytes.</source>
+      <translation>يجب ألا يتجاوز الوصف 512 بايت بترميز UTF-8.</translation>
+    </message>
+    <message>
+      <source>Tags must be unique and at most 32 UTF-8 bytes each.</source>
+      <translation>يجب أن تكون الوسوم فريدة وبحد أقصى 32 بايت بترميز UTF-8 لكل وسم.</translation>
+    </message>
+    <message>
+      <source>A branch may have at most 12 tags.</source>
+      <translation>يسمح بما يصل إلى 12 وسمًا لكل فرع.</translation>
+    </message>
+    <message>
+      <source>Creates a new unborn HEAD in this project. No revision is created.</source>
+      <translation>ينشئ رأسًا جديدًا في هذا المشروع دون تسجيل مراجعة.</translation>
+    </message>
+    <message>
+      <source>Commit the source branch before creating another database branch.</source>
+      <translation>سجّل مراجعة للفرع المصدر قبل إنشاء فرع آخر في القاعدة.</translation>
+    </message>
+    <message>
+      <source>The selected revision cannot be reached from a branch HEAD.</source>
+      <translation>لا يمكن الوصول إلى المراجعة المحددة من رأس أي فرع.</translation>
+    </message>
+    <message>
+      <source>Choose a starting revision.</source>
+      <translation>اختر مراجعة بداية.</translation>
+    </message>
+    <message>
+      <source>Fork revision UUID: %1
+</source>
+      <translation>معرّف مراجعة التفرّع: %1
+</translation>
+    </message>
+    <message>
+      <source>Source branch: %1
+Source branch UUID: %2
+</source>
+      <translation>الفرع المصدر: %1
+معرّف الفرع المصدر: %2
+</translation>
+    </message>
+    <message>
+      <source>Revision SHA-256: %1
+</source>
+      <translation>بصمة SHA-256 للمراجعة: %1
+</translation>
+    </message>
+    <message>
+      <source>Creating a branch adds a reference only; it does not create a revision.</source>
+      <translation>يضيف إنشاء الفرع مرجعًا دون تسجيل مراجعة.</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>إلغاء</translation>
+    </message>
+    <message>
+      <source>Create</source>
+      <translation>إنشاء</translation>
+    </message>
+    <message>
+      <source>Discard the creation form</source>
+      <translation>تجاهل نموذج الإنشاء</translation>
+    </message>
+    <message>
+      <source>Create the selected object</source>
+      <translation>إنشاء العنصر المحدد</translation>
+    </message>
+    <message>
+      <source>Discard this unsaved database</source>
+      <translation>تجاهل قاعدة البيانات غير المحفوظة</translation>
+    </message>
+    <message>
+      <source>Save the new database profile</source>
+      <translation>حفظ ملف تعريف قاعدة البيانات الجديد</translation>
+    </message>
+    <message>
+      <source>Project: %1</source>
+      <translation>المشروع: %1</translation>
+    </message>
+    <message>
+      <source>Database: %1</source>
+      <translation>قاعدة البيانات: %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -836,6 +1244,1574 @@ Right-click: animate back to 1.0×</source>
 1.0× = المقياس الرأسي الحقيقي
 يؤثر منزلق ارتفاع الشبكة المنفصل على العرض فقط
 انقر بزر الفأرة الأيمن للعودة إلى 1.0×</translation>
+    </message>
+  </context>
+  <context>
+    <name>LiveUiText</name>
+    <message>
+      <source>Saving · %1 pending</source>
+      <translation>جارٍ الحفظ · %1 قيد الانتظار</translation>
+    </message>
+    <message>
+      <source>Autosaved</source>
+      <translation>تم الحفظ تلقائيًا</translation>
+    </message>
+    <message>
+      <source>Navigating History…</source>
+      <translation>جارٍ التنقل في السجل…</translation>
+    </message>
+    <message>
+      <source>Reconnecting History…</source>
+      <translation>جارٍ إعادة الاتصال بالسجل…</translation>
+    </message>
+    <message>
+      <source>History position saved</source>
+      <translation>حُفظ الموضع في السجل</translation>
+    </message>
+    <message>
+      <source>Open failed · Read-only</source>
+      <translation>تعذّر الفتح · للقراءة فقط</translation>
+    </message>
+    <message>
+      <source>Read-only · Not editing</source>
+      <translation>للقراءة فقط · لا يوجد تحرير</translation>
+    </message>
+    <message>
+      <source>Save failed</source>
+      <translation>فشل الحفظ</translation>
+    </message>
+    <message>
+      <source>Read-only</source>
+      <translation>للقراءة فقط</translation>
+    </message>
+    <message>
+      <source>Read-only · Revision %1</source>
+      <translation>للقراءة فقط · المراجعة %1</translation>
+    </message>
+    <message>
+      <source>Save failed · Previous editing session still active</source>
+      <translation>فشل الحفظ · الجلسة السابقة لا تزال نشطة</translation>
+    </message>
+    <message>
+      <source>Cannot open · Personal database or UUIDv7 missing</source>
+      <translation>تعذّر الفتح · قاعدة البيانات الشخصية أو UUIDv7 غير متاح</translation>
+    </message>
+    <message>
+      <source>Cannot open · Durable edit queue unavailable</source>
+      <translation>تعذّر الفتح · قائمة التعديلات المحفوظة غير متاحة</translation>
+    </message>
+    <message>
+      <source>Opening network…</source>
+      <translation>جارٍ فتح الشبكة…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>تعذّر الفتح</translation>
+    </message>
+    <message>
+      <source>Opening…</source>
+      <translation>جارٍ الفتح…</translation>
+    </message>
+    <message>
+      <source>Verifying writable History position…</source>
+      <translation>جارٍ التحقق من موضع التحرير في السجل…</translation>
+    </message>
+    <message>
+      <source>Simulation Settings</source>
+      <translation>إعدادات المحاكاة</translation>
+    </message>
+    <message>
+      <source>These settings are used for the next simulation run.</source>
+      <translation>تُستخدم هذه الإعدادات في المحاكاة التالية.</translation>
+    </message>
+    <message>
+      <source>Water quality analyses</source>
+      <translation>تحليلات جودة المياه</translation>
+    </message>
+    <message>
+      <source>Headloss formula</source>
+      <translation>معادلة فاقد الضغط</translation>
+    </message>
+    <message>
+      <source>Modified</source>
+      <translation>معدّل</translation>
+    </message>
+    <message>
+      <source>No network</source>
+      <translation>لا توجد شبكة</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>
+      <translation>&lt;b&gt;تلميح:&lt;/b&gt; استخدم محرر الخريطة لإنشاء عناصر من نوع %1.</translation>
+    </message>
+    <message>
+      <source>Simulation:</source>
+      <translation>المحاكاة:</translation>
+    </message>
+    <message>
+      <source>Reset filters</source>
+      <translation>إعادة ضبط المرشحات</translation>
+    </message>
+    <message>
+      <source>Reset all table filters</source>
+      <translation>إعادة ضبط جميع مرشحات الجدول</translation>
+    </message>
+    <message>
+      <source>Filter entities by simulation diagnostics</source>
+      <translation>تصفية العناصر حسب تشخيص المحاكاة</translation>
+    </message>
+    <message>
+      <source>All</source>
+      <translation>الكل</translation>
+    </message>
+    <message>
+      <source>Warnings &amp; errors</source>
+      <translation>التحذيرات والأخطاء</translation>
+    </message>
+    <message>
+      <source>Warnings only</source>
+      <translation>التحذيرات فقط</translation>
+    </message>
+    <message>
+      <source>Errors only</source>
+      <translation>الأخطاء فقط</translation>
+    </message>
+    <message>
+      <source>Keyboard Shortcuts</source>
+      <translation>اختصارات لوحة المفاتيح</translation>
+    </message>
+    <message>
+      <source>Change application shortcuts here. Changes apply immediately for this browser session.</source>
+      <translation>تسري تغييرات الاختصارات فورًا في جلسة المتصفح هذه.</translation>
+    </message>
+    <message>
+      <source>Change application shortcuts here. Changes apply immediately and are saved to %1.</source>
+      <translation>تسري تغييرات الاختصارات فورًا وتُحفظ في %1.</translation>
+    </message>
+    <message>
+      <source>Search commands or shortcuts…</source>
+      <translation>البحث عن الأوامر أو الاختصارات…</translation>
+    </message>
+    <message>
+      <source>Reset All to Defaults</source>
+      <translation>استعادة جميع القيم الافتراضية</translation>
+    </message>
+    <message>
+      <source>Action</source>
+      <translation>الإجراء</translation>
+    </message>
+    <message>
+      <source>Shortcut</source>
+      <translation>الاختصار</translation>
+    </message>
+    <message>
+      <source>Scope</source>
+      <translation>النطاق</translation>
+    </message>
+    <message>
+      <source>Default</source>
+      <translation>الافتراضي</translation>
+    </message>
+    <message>
+      <source>Press a key combination. Clear the field to disable this shortcut.</source>
+      <translation>اضغط مجموعة مفاتيح. امسح الحقل لتعطيل الاختصار.</translation>
+    </message>
+    <message>
+      <source>Reset</source>
+      <translation>إعادة ضبط</translation>
+    </message>
+    <message>
+      <source>Reset to %1</source>
+      <translation>استعادة %1</translation>
+    </message>
+    <message>
+      <source>Map Settings</source>
+      <translation>إعدادات الخريطة</translation>
+    </message>
+    <message>
+      <source>Map Controls</source>
+      <translation>عناصر التحكم بالخريطة</translation>
+    </message>
+    <message>
+      <source>Adjust map mouse controls. Mouse wheel zoom applies to both 2D and 3D (globe). Defaults: wheel zoom 0.50x, 3D pan 0.80x, 3D orbit 0.80x.</source>
+      <translation>تتحكم عجلة الفأرة بالتكبير في الخريطتين الثنائية والثلاثية الأبعاد. القيم الافتراضية: التكبير 0.50× والتحريك والدوران الثلاثي الأبعاد 0.80×.</translation>
+    </message>
+    <message>
+      <source>Mouse wheel zoom speed</source>
+      <translation>سرعة التكبير بعجلة الفأرة</translation>
+    </message>
+    <message>
+      <source>3D mouse pan speed</source>
+      <translation>سرعة التحريك ثلاثي الأبعاد</translation>
+    </message>
+    <message>
+      <source>3D orbit speed</source>
+      <translation>سرعة الدوران ثلاثي الأبعاد</translation>
+    </message>
+    <message>
+      <source>Restore Defaults</source>
+      <translation>استعادة القيم الافتراضية</translation>
+    </message>
+    <message>
+      <source>Map Performance</source>
+      <translation>أداء الخريطة</translation>
+    </message>
+    <message>
+      <source>These apply immediately to the 3D map renderer and are saved as you change them.</source>
+      <translation>تسري التغييرات فورًا على عرض الخريطة الثلاثية الأبعاد وتُحفظ تلقائيًا.</translation>
+    </message>
+    <message>
+      <source>Terrain detail reduction</source>
+      <translation>تقليل تفاصيل التضاريس</translation>
+    </message>
+    <message>
+      <source>0 draws every elevation sample the terrain source provides at the map's level of detail: one terrain cell per sample spacing, about 4 px on screen. Each step halves the terrain resolution (about 8, 16 and 32 px per cell) and needs a quarter of the triangles. Zoomed in past the source's own resolution, every setting shows the full source detail, never more.</source>
+      <translation>عند القيمة 0 تُرسم كل عينة ارتفاع، بنحو 4 بكسلات للخلية. تخفض كل خطوة الدقة إلى النصف (8 أو 16 أو 32 بكسل للخلية) وعدد المثلثات إلى الربع. عند تجاوز دقة المصدر تعرض جميع الإعدادات التفاصيل الأصلية كاملة.</translation>
+    </message>
+    <message>
+      <source>Map Server Settings</source>
+      <translation>إعدادات خادم الخرائط</translation>
+    </message>
+    <message>
+      <source>In this build, the map server connection is set by the hosting page and cannot be changed here.</source>
+      <translation>تحدّد الصفحة المضيفة اتصال خادم الخرائط في هذا الإصدار.</translation>
+    </message>
+    <message>
+      <source>Connection changes are saved when you finish editing a field. Restart AOWIS for them to take effect.</source>
+      <translation>تُحفظ إعدادات الاتصال عند إكمال تعديل الحقل. أعد تشغيل AOWIS لتطبيقها.</translation>
+    </message>
+    <message>
+      <source>Base URL</source>
+      <translation>عنوان URL الأساسي</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(لا يوجد)</translation>
+    </message>
+    <message>
+      <source>API key</source>
+      <translation>مفتاح API</translation>
+    </message>
+    <message>
+      <source>Delete API key</source>
+      <translation>مفتاح API للحذف</translation>
+    </message>
+    <message>
+      <source>2D Map Providers</source>
+      <translation>مزودو الخرائط الثنائية الأبعاد</translation>
+    </message>
+    <message>
+      <source>Provider changes are saved automatically. Each provider can fall back to another when you zoom beyond its maximum level. Fallbacks can form a chain: A → B → C, as long as each source offers more detail. Your fallback choices are personal; they don't change the server's providers. With no further fallback, the highest-resolution tiles are smoothly enlarged.</source>
+      <translation>تُحفظ التغييرات تلقائيًا. بعد تجاوز حد التكبير يمكن الانتقال إلى مزود أكثر تفصيلًا ضمن سلسلة (A → B → C). هذه الخيارات شخصية. عند انتهاء السلسلة تُكبَّر البلاطات الأعلى دقة بسلاسة.</translation>
+    </message>
+    <message>
+      <source>On</source>
+      <translation>مفعّل</translation>
+    </message>
+    <message>
+      <source>Display name</source>
+      <translation>اسم العرض</translation>
+    </message>
+    <message>
+      <source>Tile URL</source>
+      <translation>رابط البلاطات</translation>
+    </message>
+    <message>
+      <source>Min</source>
+      <translation>الأدنى</translation>
+    </message>
+    <message>
+      <source>Max</source>
+      <translation>الأقصى</translation>
+    </message>
+    <message>
+      <source>My fallback</source>
+      <translation>المزود البديل</translation>
+    </message>
+    <message>
+      <source>Add provider</source>
+      <translation>إضافة مزود</translation>
+    </message>
+    <message>
+      <source>Remove selected</source>
+      <translation>إزالة المحدد</translation>
+    </message>
+    <message>
+      <source>Reload from server</source>
+      <translation>إعادة التحميل من الخادم</translation>
+    </message>
+    <message>
+      <source>Unit Profiles</source>
+      <translation>ملفات تعريف الوحدات</translation>
+    </message>
+    <message>
+      <source>Display-unit preferences only. Changes update unit-aware views and editors; canonical Model values remain unchanged.</source>
+      <translation>تحدد هذه التفضيلات وحدات العرض في الواجهات والمحررات. يحتفظ النموذج بقيمه المرجعية.</translation>
+    </message>
+    <message>
+      <source>New custom profile...</source>
+      <translation>ملف تعريف مخصص جديد…</translation>
+    </message>
+    <message>
+      <source>Rename...</source>
+      <translation>إعادة تسمية…</translation>
+    </message>
+    <message>
+      <source>Delete</source>
+      <translation>حذف</translation>
+    </message>
+    <message>
+      <source>Search quantities or units…</source>
+      <translation>البحث عن الكميات أو الوحدات…</translation>
+    </message>
+    <message>
+      <source>Quantity</source>
+      <translation>الكمية</translation>
+    </message>
+    <message>
+      <source>Display unit</source>
+      <translation>وحدة العرض</translation>
+    </message>
+    <message>
+      <source>Canonical unit</source>
+      <translation>الوحدة المرجعية</translation>
+    </message>
+    <message>
+      <source>Canonical: %1</source>
+      <translation>المرجع: %1</translation>
+    </message>
+    <message>
+      <source>New unit profile</source>
+      <translation>ملف وحدات جديد</translation>
+    </message>
+    <message>
+      <source>Start from profile:</source>
+      <translation>ملف التعريف الأساسي:</translation>
+    </message>
+    <message>
+      <source>Profile name:</source>
+      <translation>اسم ملف التعريف:</translation>
+    </message>
+    <message>
+      <source>Rename unit profile</source>
+      <translation>إعادة تسمية ملف الوحدات</translation>
+    </message>
+    <message>
+      <source>Refresh catalogue</source>
+      <translation>تحديث الفهرس</translation>
+    </message>
+    <message>
+      <source>Use as my personal working database</source>
+      <translation>استخدامها قاعدة عمل شخصية</translation>
+    </message>
+    <message>
+      <source>Connection type</source>
+      <translation>نوع الاتصال</translation>
+    </message>
+    <message>
+      <source>REST endpoint</source>
+      <translation>نقطة اتصال REST</translation>
+    </message>
+    <message>
+      <source>Authentication (future)</source>
+      <translation>المصادقة (مستقبلًا)</translation>
+    </message>
+    <message>
+      <source>Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored.</source>
+      <translation>تجري المراقبة والتحميل تلقائيًا. مصادقة REST غير مدعومة بعد ولا تُحفظ بيانات الدخول أو الرموز.</translation>
+    </message>
+    <message>
+      <source>Browse…</source>
+      <translation>تصفح…</translation>
+    </message>
+    <message>
+      <source>Data directory</source>
+      <translation>دليل البيانات</translation>
+    </message>
+    <message>
+      <source>Local DVMDB uses the embedded C++ library. Choose a dedicated data directory, not a directory used by a running HTTP server.</source>
+      <translation>تستخدم DVMDB المحلية مكتبة C++ المضمّنة. اختر دليل بيانات مخصصًا لا يستخدمه خادم HTTP قيد التشغيل.</translation>
+    </message>
+    <message>
+      <source>Delete connection</source>
+      <translation>حذف الاتصال</translation>
+    </message>
+    <message>
+      <source>+ Action</source>
+      <translation>+ إجراء</translation>
+    </message>
+    <message>
+      <source>+ Add</source>
+      <translation>+ إضافة</translation>
+    </message>
+    <message>
+      <source>+ Premise</source>
+      <translation>+ شرط</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Heatmap&lt;/b&gt;</source>
+      <translation>&lt;b&gt;خريطة حرارية&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Link&lt;/b&gt;</source>
+      <translation>&lt;b&gt;وصلة&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Node&lt;/b&gt;</source>
+      <translation>&lt;b&gt;عقدة&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select a region first:&lt;/b&gt; right-click and drag on the map (2D or 3D).</source>
+      <translation>&lt;b&gt;حدّد منطقة أولًا:&lt;/b&gt; اسحب بزر الفأرة الأيمن على الخريطة الثنائية أو الثلاثية الأبعاد.</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select the terrain zoom level range&lt;/b&gt; (from - to) for the terrain tiles you want to delete:</source>
+      <translation>&lt;b&gt;حدّد نطاق تكبير التضاريس&lt;/b&gt; للبلاطات التي تريد حذفها:</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select the zoom level range&lt;/b&gt; (from - to) for the tiles you want to delete:</source>
+      <translation>&lt;b&gt;حدّد نطاق التكبير&lt;/b&gt; للبلاطات التي تريد حذفها:</translation>
+    </message>
+    <message>
+      <source>Add:</source>
+      <translation>إضافة:</translation>
+    </message>
+    <message>
+      <source>Also delete source elevation data</source>
+      <translation>حذف بيانات الارتفاع الأصلية أيضًا</translation>
+    </message>
+    <message>
+      <source>Base Demand</source>
+      <translation>الطلب الأساسي</translation>
+    </message>
+    <message>
+      <source>Cancel placement and return to selection mode</source>
+      <translation>إلغاء الوضع والعودة إلى التحديد</translation>
+    </message>
+    <message>
+      <source>Chlorine decay constant&lt;br&gt;depends on the mix of&lt;br&gt;Lake and River water.</source>
+      <translation>يعتمد ثابت اضمحلال الكلور على مزيج مياه البحيرة والنهر.</translation>
+    </message>
+    <message>
+      <source>Collection:</source>
+      <translation>المجموعة:</translation>
+    </message>
+    <message>
+      <source>Declutter Overlapping Nodes</source>
+      <translation>تباعد العقد المتداخلة</translation>
+    </message>
+    <message>
+      <source>Delete Selected</source>
+      <translation>حذف المحدد</translation>
+    </message>
+    <message>
+      <source>Delete Terrain</source>
+      <translation>حذف التضاريس</translation>
+    </message>
+    <message>
+      <source>Delete Tiles</source>
+      <translation>حذف البلاطات</translation>
+    </message>
+    <message>
+      <source>Demand Deficit</source>
+      <translation>عجز الطلب</translation>
+    </message>
+    <message>
+      <source>Demand Point</source>
+      <translation>نقطة طلب</translation>
+    </message>
+    <message>
+      <source>Diameter</source>
+      <translation>القطر</translation>
+    </message>
+    <message>
+      <source>EPANET Network 3 has&lt;br&gt;Multi-Species Water&lt;br&gt;Quality Analysis (MSX).&lt;br&gt;Modeled variables are:</source>
+      <translation>تستخدم شبكة EPANET 3 تحليل جودة المياه متعدد الأنواع (MSX). المتغيرات الممثلة:</translation>
+    </message>
+    <message>
+      <source>Edit</source>
+      <translation>تحرير</translation>
+    </message>
+    <message>
+      <source>Edit Action</source>
+      <translation>تحرير الإجراء</translation>
+    </message>
+    <message>
+      <source>Edit Premise</source>
+      <translation>تحرير الشرط</translation>
+    </message>
+    <message>
+      <source>Elevation</source>
+      <translation>المنسوب</translation>
+    </message>
+    <message>
+      <source>Emitter Flow</source>
+      <translation>تدفق الباعث</translation>
+    </message>
+    <message>
+      <source>Flow Arrows [px]</source>
+      <translation>أسهم التدفق [px]</translation>
+    </message>
+    <message>
+      <source>Flow Rate</source>
+      <translation>معدل التدفق</translation>
+    </message>
+    <message>
+      <source>Head</source>
+      <translation>الحمل الهيدروليكي</translation>
+    </message>
+    <message>
+      <source>Head Loss</source>
+      <translation>فاقد الحمل</translation>
+    </message>
+    <message>
+      <source>Heatmap</source>
+      <translation>خريطة حرارية</translation>
+    </message>
+    <message>
+      <source>Hydraulic library items are saved through the current network's editing transaction. Delete is blocked while an item is referenced.</source>
+      <translation>تُحفظ عناصر المكتبة مع تعديلات الشبكة الحالية. لا يمكن حذف عنصر قيد الاستخدام.</translation>
+    </message>
+    <message>
+      <source>Junction</source>
+      <translation>عقدة توصيل</translation>
+    </message>
+    <message>
+      <source>Junction Size</source>
+      <translation>حجم العقدة</translation>
+    </message>
+    <message>
+      <source>Lake Water</source>
+      <translation>مياه البحيرة</translation>
+    </message>
+    <message>
+      <source>Leakage</source>
+      <translation>التسرب</translation>
+    </message>
+    <message>
+      <source>Length</source>
+      <translation>الطول</translation>
+    </message>
+    <message>
+      <source>Link Symbology</source>
+      <translation>رموز الوصلات</translation>
+    </message>
+    <message>
+      <source>Map Editor Guide</source>
+      <translation>دليل محرر الخريطة</translation>
+    </message>
+    <message>
+      <source>Node Symbology</source>
+      <translation>رموز العقد</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>بلا مصادقة</translation>
+    </message>
+    <message>
+      <source>Note</source>
+      <translation>ملاحظة</translation>
+    </message>
+    <message>
+      <source>Opacity [%]</source>
+      <translation>التعتيم [%]</translation>
+    </message>
+    <message>
+      <source>Pipe / Cable</source>
+      <translation>أنبوب / كابل</translation>
+    </message>
+    <message>
+      <source>Pipe Thickness</source>
+      <translation>سماكة الأنابيب</translation>
+    </message>
+    <message>
+      <source>Power Source</source>
+      <translation>مصدر طاقة</translation>
+    </message>
+    <message>
+      <source>Pressure</source>
+      <translation>الضغط</translation>
+    </message>
+    <message>
+      <source>Pump</source>
+      <translation>مضخة</translation>
+    </message>
+    <message>
+      <source>Radius</source>
+      <translation>نصف القطر</translation>
+    </message>
+    <message>
+      <source>Remove Action</source>
+      <translation>إزالة الإجراء</translation>
+    </message>
+    <message>
+      <source>Remove Premise</source>
+      <translation>إزالة الشرط</translation>
+    </message>
+    <message>
+      <source>Reservoir</source>
+      <translation>خزان ثابت المنسوب</translation>
+    </message>
+    <message>
+      <source>River Water</source>
+      <translation>مياه النهر</translation>
+    </message>
+    <message>
+      <source>Roughness</source>
+      <translation>الخشونة</translation>
+    </message>
+    <message>
+      <source>Rule controls and map labels belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
+      <translation>تخص قواعد التحكم وتسميات الخريطة الشبكة المحمّلة، وتُحفظ التغييرات تلقائيًا في نسخة عملها.</translation>
+    </message>
+    <message>
+      <source>Select</source>
+      <translation>تحديد</translation>
+    </message>
+    <message>
+      <source>Show or hide the Map Editor Guide</source>
+      <translation>إظهار دليل محرر الخريطة أو إخفاؤه</translation>
+    </message>
+    <message>
+      <source>Solid Center [%]</source>
+      <translation>المركز المعتم [%]</translation>
+    </message>
+    <message>
+      <source>Tank</source>
+      <translation>خزان متغير المنسوب</translation>
+    </message>
+    <message>
+      <source>Terrain Cache</source>
+      <translation>ذاكرة التضاريس المؤقتة</translation>
+    </message>
+    <message>
+      <source>Then delete the cached terrain for the selected area and zoom levels:</source>
+      <translation>ثم احذف التضاريس المخزنة للمنطقة ومستويات التكبير المحددة:</translation>
+    </message>
+    <message>
+      <source>Then delete the cached tiles for the selected area and zoom levels:</source>
+      <translation>ثم احذف البلاطات المخزنة للمنطقة ومستويات التكبير المحددة:</translation>
+    </message>
+    <message>
+      <source>Tile Cache</source>
+      <translation>ذاكرة البلاطات المؤقتة</translation>
+    </message>
+    <message>
+      <source>Total Demand</source>
+      <translation>إجمالي الطلب</translation>
+    </message>
+    <message>
+      <source>Valve / Switch</source>
+      <translation>صمام / مفتاح</translation>
+    </message>
+    <message>
+      <source>Velocity</source>
+      <translation>سرعة التدفق</translation>
+    </message>
+    <message>
+      <source>Visual Settings</source>
+      <translation>إعدادات العرض</translation>
+    </message>
+    <message>
+      <source>Water Age</source>
+      <translation>عمر المياه</translation>
+    </message>
+  </context>
+  <context>
+    <name>HistoryDock</name>
+    <message>
+      <source>History</source>
+      <translation>السجل</translation>
+    </message>
+    <message>
+      <source>Undo</source>
+      <translation>تراجع</translation>
+    </message>
+    <message>
+      <source>Redo</source>
+      <translation>إعادة</translation>
+    </message>
+    <message>
+      <source>Undo one verified action in the private working copy.</source>
+      <translation>تراجع عن إجراء متحقق منه في نسخة العمل الخاصة.</translation>
+    </message>
+    <message>
+      <source>Redo one verified action in the private working copy.</source>
+      <translation>أعد إجراءً متحققًا منه في نسخة العمل الخاصة.</translation>
+    </message>
+    <message>
+      <source>Click a saved action to jump to it, or a Commit to select its checkpoint. Use the disclosure row to expand archived actions.</source>
+      <translation>انقر إجراءً محفوظًا أو مراجعة لاختيار حالتها. وسّع الصف لعرض الإجراءات المؤرشفة.</translation>
+    </message>
+    <message>
+      <source>Branch History page did not match its first-parent cursor.</source>
+      <translation>صفحة السجل لا تطابق مؤشر الأصل الأول.</translation>
+    </message>
+    <message>
+      <source>Committed History is unavailable.</source>
+      <translation>سجل المراجعات غير متاح.</translation>
+    </message>
+    <message>
+      <source>Archived History page did not match the requested cursor.</source>
+      <translation>صفحة الأرشيف لا تطابق المؤشر المطلوب.</translation>
+    </message>
+    <message>
+      <source>Archived History returned duplicate or invalid actions.</source>
+      <translation>أعاد الأرشيف إجراءات مكررة أو غير صالحة.</translation>
+    </message>
+    <message>
+      <source>Archived actions are unavailable.</source>
+      <translation>الإجراءات المؤرشفة غير متاحة.</translation>
+    </message>
+    <message>
+      <source>Select a project and branch</source>
+      <translation>اختر مشروعًا وفرعًا</translation>
+    </message>
+    <message>
+      <source> — select a branch</source>
+      <translation> — اختر فرعًا</translation>
+    </message>
+    <message>
+      <source>⟳ Refresh committed History</source>
+      <translation>⟳ تحديث سجل المراجعات</translation>
+    </message>
+    <message>
+      <source>Read the newest first-parent Commit page from private DVMDB.</source>
+      <translation>اقرأ أحدث صفحة لمراجعات الأصل الأول من DVMDB الخاصة.</translation>
+    </message>
+    <message>
+      <source>Loading committed History…</source>
+      <translation>جارٍ تحميل سجل المراجعات…</translation>
+    </message>
+    <message>
+      <source>Committed History unavailable — click to retry</source>
+      <translation>السجل غير متاح — انقر لإعادة المحاولة</translation>
+    </message>
+    <message>
+      <source>Load earlier Commits…</source>
+      <translation>تحميل المراجعات السابقة…</translation>
+    </message>
+    <message>
+      <source>
+Click to select this verified action state.</source>
+      <translation>
+انقر لاختيار حالة الإجراء المتحقق منها.</translation>
+    </message>
+    <message>
+      <source>    Snapshot-only checkpoint (no archived actions)</source>
+      <translation>    نقطة تحقق بلقطة فقط (بلا إجراءات مؤرشفة)</translation>
+    </message>
+    <message>
+      <source>    Loading archived actions…</source>
+      <translation>    جارٍ تحميل الإجراءات المؤرشفة…</translation>
+    </message>
+    <message>
+      <source>    Archived actions unavailable — click to retry</source>
+      <translation>    الإجراءات المؤرشفة غير متاحة — انقر لإعادة المحاولة</translation>
+    </message>
+    <message>
+      <source>    Load more archived actions…</source>
+      <translation>    تحميل المزيد من الإجراءات المؤرشفة…</translation>
+    </message>
+    <message>
+      <source>    ▾ Hide archived actions</source>
+      <translation>    ▾ إخفاء الإجراءات المؤرشفة</translation>
+    </message>
+    <message>
+      <source>    ▸ Show archived actions</source>
+      <translation>    ▸ عرض الإجراءات المؤرشفة</translation>
+    </message>
+    <message>
+      <source>Expand or collapse the original archived MODEL actions.</source>
+      <translation>عرض إجراءات MODEL المؤرشفة أو طيّها.</translation>
+    </message>
+    <message>
+      <source>
+Snapshot-only checkpoint: no executable action archive.</source>
+      <translation>
+لقطة فقط: لا يوجد أرشيف إجراءات قابل للتنفيذ.</translation>
+    </message>
+    <message>
+      <source>
+Click to navigate to this checkpoint (verified by DVMDB).</source>
+      <translation>
+انقر للانتقال إلى نقطة التحقق التي تحققت منها DVMDB.</translation>
+    </message>
+    <message>
+      <source>
+Click to select this saved action state.</source>
+      <translation>
+انقر لاختيار هذه الحالة المحفوظة.</translation>
+    </message>
+    <message>
+      <source>▶ Private working state — editing blocked</source>
+      <translation>▶ حالة العمل الخاصة — التحرير محظور</translation>
+    </message>
+    <message>
+      <source>▶ Current private working state</source>
+      <translation>▶ حالة العمل الخاصة الحالية</translation>
+    </message>
+    <message>
+      <source>▶ Current unborn HEAD</source>
+      <translation>▶ HEAD الحالي بلا مراجعة أولية</translation>
+    </message>
+    <message>
+      <source>▶ Current branch HEAD</source>
+      <translation>▶ رأس الفرع الحالي</translation>
+    </message>
+    <message>
+      <source>▶ Selected draft position %1</source>
+      <translation>▶ موضع المسودة المحدد %1</translation>
+    </message>
+    <message>
+      <source>▶ Archived action %1 in %2</source>
+      <translation>▶ الإجراء المؤرشف %1 في %2</translation>
+    </message>
+    <message>
+      <source> (expand/load more to locate)</source>
+      <translation> (وسّع أو حمّل المزيد لتحديد الموقع)</translation>
+    </message>
+    <message>
+      <source>Open a verified private working copy to navigate History.</source>
+      <translation>افتح نسخة عمل خاصة متحققًا منها للتنقل في السجل.</translation>
+    </message>
+    <message>
+      <source>Position reported by the private DVMDB server.</source>
+      <translation>الموضع الذي أبلغ عنه خادم DVMDB الخاص.</translation>
+    </message>
+    <message>
+      <source>No branch history selected</source>
+      <translation>لم يُحدَّد سجل فرع</translation>
+    </message>
+    <message>
+      <source>Open a ready private draft with a verified History cursor.</source>
+      <translation>افتح مسودة خاصة جاهزة بمؤشر سجل متحقق منه.</translation>
+    </message>
+    <message>
+      <source>Undo one DVMDB-verified action.</source>
+      <translation>تراجع عن إجراء تحققت منه DVMDB.</translation>
+    </message>
+    <message>
+      <source>Redo one DVMDB-verified action.</source>
+      <translation>أعد إجراءً تحققت منه DVMDB.</translation>
+    </message>
+    <message>
+      <source>◆ Commit · ● Saved edit · ◌ Pending Save. </source>
+      <translation>◆ مراجعة · ● تعديل محفوظ · ◌ بانتظار الحفظ. </translation>
+    </message>
+    <message>
+      <source>Undo/Redo uses verified server History. Actions are selected atomically.</source>
+      <translation>يستخدم التراجع والإعادة سجل الخادم المتحقق منه. يُختار كل إجراء في عملية ذرية.</translation>
+    </message>
+    <message>
+      <source>Undo/Redo unavailable: %1</source>
+      <translation>التراجع والإعادة غير متاحين: %1</translation>
+    </message>
+    <message>
+      <source> Private editing is blocked; check the network status before making changes.</source>
+      <translation> التحرير الخاص محظور. تحقّق من حالة الشبكة قبل إجراء تغييرات.</translation>
+    </message>
+    <message>
+      <source> Some committed ancestors are unavailable in the Projects preview; open the private draft to load full History.</source>
+      <translation> بعض المراجعات السابقة غير متاحة في المعاينة. افتح المسودة الخاصة لتحميل السجل الكامل.</translation>
+    </message>
+    <message>
+      <source> Loading committed first-parent History.</source>
+      <translation> جارٍ تحميل سجل مراجعات الأصل الأول.</translation>
+    </message>
+    <message>
+      <source> Committed History request failed: %1</source>
+      <translation> فشل طلب سجل المراجعات: %1</translation>
+    </message>
+    <message>
+      <source> No commits yet on this branch.</source>
+      <translation> لا توجد مراجعات مسجّلة على هذا الفرع بعد.</translation>
+    </message>
+    <message>
+      <source> Open a private draft to inspect archived MODEL actions.</source>
+      <translation> افتح مسودة خاصة لفحص إجراءات MODEL المؤرشفة.</translation>
+    </message>
+    <message>
+      <source> Click a Commit to jump to its verified checkpoint; use the disclosure row to expand actions in pages.</source>
+      <translation> انقر مراجعة للانتقال إلى نقطة التحقق. وسّع الصف لتحميل الإجراءات المؤرشفة على صفحات.</translation>
+    </message>
+    <message>
+      <source> Draft actions appear after commit checkpoints; pending actions are marked ◌.</source>
+      <translation> تظهر إجراءات المسودة بعد المراجعات. تشير ◌ إلى الإجراءات التي تنتظر الحفظ.</translation>
+    </message>
+    <message>
+      <source>Commit %1</source>
+      <translation>المراجعة %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision: %1</source>
+      <translation>مراجعة ثابتة: %1</translation>
+    </message>
+    <message>
+      <source>
+Snapshot-only checkpoint: no recorded MODEL actions.</source>
+      <translation>
+لقطة فقط: لا توجد إجراءات MODEL مسجلة.</translation>
+    </message>
+    <message>
+      <source>Original archived MODEL action: %1</source>
+      <translation>إجراء MODEL الأصلي المؤرشف: %1</translation>
+    </message>
+    <message>
+      <source>
+Operation: %1</source>
+      <translation>
+العملية: %1</translation>
+    </message>
+    <message>
+      <source>
+%1 entity edit(s)</source>
+      <translation>
+تعديلات العناصر: %1</translation>
+    </message>
+    <message>
+      <source>%1
+%2 entity edit(s)
+Event %3</source>
+      <translation>%1
+تعديلات العناصر: %2
+الحدث %3</translation>
+    </message>
+    <message>
+      <source>This event could not be decoded for display.</source>
+      <translation>تعذّر فك ترميز الحدث لعرضه.</translation>
+    </message>
+    <message>
+      <source>Hydraulic edit</source>
+      <translation>تعديل هيدروليكي</translation>
+    </message>
+    <message>
+      <source>Unrecognized stored edit</source>
+      <translation>تعديل محفوظ غير معروف</translation>
+    </message>
+    <message>
+      <source> (pending Save)</source>
+      <translation> (بانتظار الحفظ)</translation>
+    </message>
+    <message>
+      <source>
+Merge commit: additional parent history is visible in Projects.</source>
+      <translation>
+مراجعة دمج: تظهر المراجعات الأصلية الأخرى في المشاريع.</translation>
+    </message>
+  </context>
+  <context>
+    <name>HydraulicTableColumns</name>
+    <message>
+      <source>Area Cross-Section</source>
+      <translation>مساحة المقطع</translation>
+    </message>
+    <message>
+      <source>Attachment Target</source>
+      <translation>هدف الربط</translation>
+    </message>
+    <message>
+      <source>Attachment Type</source>
+      <translation>نوع الربط</translation>
+    </message>
+    <message>
+      <source>Bottom Offset</source>
+      <translation>إزاحة القاع</translation>
+    </message>
+    <message>
+      <source>Can Overflow</source>
+      <translation>يسمح بالفيضان</translation>
+    </message>
+    <message>
+      <source>Chemical Concentration</source>
+      <translation>التركيز الكيميائي</translation>
+    </message>
+    <message>
+      <source>Comment</source>
+      <translation>تعليق</translation>
+    </message>
+    <message>
+      <source>Controls</source>
+      <translation>عناصر التحكم</translation>
+    </message>
+    <message>
+      <source>Customer Demand Base</source>
+      <translation>الطلب الأساسي للمشترك</translation>
+    </message>
+    <message>
+      <source>Date Added</source>
+      <translation>تاريخ الإضافة</translation>
+    </message>
+    <message>
+      <source>Date Installed</source>
+      <translation>تاريخ التركيب</translation>
+    </message>
+    <message>
+      <source>Definition</source>
+      <translation>التعريف</translation>
+    </message>
+    <message>
+      <source>Demand Base</source>
+      <translation>الطلب الأساسي</translation>
+    </message>
+    <message>
+      <source>Demand Count</source>
+      <translation>عدد الطلبات</translation>
+    </message>
+    <message>
+      <source>Demand Deficit</source>
+      <translation>عجز الطلب</translation>
+    </message>
+    <message>
+      <source>Demand Delivered</source>
+      <translation>الطلب الملبّى</translation>
+    </message>
+    <message>
+      <source>Demand Details</source>
+      <translation>تفاصيل الطلب</translation>
+    </message>
+    <message>
+      <source>Demand Net</source>
+      <translation>صافي الطلب</translation>
+    </message>
+    <message>
+      <source>Demand Requested</source>
+      <translation>الطلب المطلوب</translation>
+    </message>
+    <message>
+      <source>Demand Total</source>
+      <translation>إجمالي الطلب</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>الوصف</translation>
+    </message>
+    <message>
+      <source>Diameter</source>
+      <translation>القطر</translation>
+    </message>
+    <message>
+      <source>Efficiency</source>
+      <translation>الكفاءة</translation>
+    </message>
+    <message>
+      <source>Efficiency Average</source>
+      <translation>متوسط الكفاءة</translation>
+    </message>
+    <message>
+      <source>Efficiency Constant</source>
+      <translation>الكفاءة الثابتة</translation>
+    </message>
+    <message>
+      <source>Efficiency Curve</source>
+      <translation>منحنى الكفاءة</translation>
+    </message>
+    <message>
+      <source>Efficiency Input</source>
+      <translation>مدخل الكفاءة</translation>
+    </message>
+    <message>
+      <source>Elevation Bottom</source>
+      <translation>منسوب القاع</translation>
+    </message>
+    <message>
+      <source>Elevation Bottom Resolved</source>
+      <translation>منسوب القاع المحسوب</translation>
+    </message>
+    <message>
+      <source>Elevation Direct</source>
+      <translation>المنسوب المباشر</translation>
+    </message>
+    <message>
+      <source>Elevation Input</source>
+      <translation>مدخل المنسوب</translation>
+    </message>
+    <message>
+      <source>Elevation Offset</source>
+      <translation>إزاحة المنسوب</translation>
+    </message>
+    <message>
+      <source>Elevation Resolved</source>
+      <translation>المنسوب المحسوب</translation>
+    </message>
+    <message>
+      <source>Elevation Terrain</source>
+      <translation>منسوب التضاريس</translation>
+    </message>
+    <message>
+      <source>Emitter Coefficient</source>
+      <translation>معامل الباعث</translation>
+    </message>
+    <message>
+      <source>Emitter Exponent</source>
+      <translation>أسّ الباعث</translation>
+    </message>
+    <message>
+      <source>Enabled</source>
+      <translation>مفعّل</translation>
+    </message>
+    <message>
+      <source>Energy Intensity Average</source>
+      <translation>متوسط كثافة الطاقة</translation>
+    </message>
+    <message>
+      <source>Energy Price Input</source>
+      <translation>مدخل سعر الطاقة</translation>
+    </message>
+    <message>
+      <source>Energy Price</source>
+      <translation>سعر الطاقة</translation>
+    </message>
+    <message>
+      <source>Flow</source>
+      <translation>التدفق</translation>
+    </message>
+    <message>
+      <source>Flow Emitter</source>
+      <translation>تدفق الباعث</translation>
+    </message>
+    <message>
+      <source>Flow Leakage</source>
+      <translation>تدفق التسرب</translation>
+    </message>
+    <message>
+      <source>Friction Factor</source>
+      <translation>معامل الاحتكاك</translation>
+    </message>
+    <message>
+      <source>Geometry Input</source>
+      <translation>مدخل الهندسة</translation>
+    </message>
+    <message>
+      <source>Head</source>
+      <translation>الحمل الهيدروليكي</translation>
+    </message>
+    <message>
+      <source>Head Curve</source>
+      <translation>منحنى الحمل</translation>
+    </message>
+    <message>
+      <source>Head Direct</source>
+      <translation>الحمل المباشر</translation>
+    </message>
+    <message>
+      <source>Head Gain</source>
+      <translation>زيادة الحمل</translation>
+    </message>
+    <message>
+      <source>Head Input</source>
+      <translation>مدخل الحمل</translation>
+    </message>
+    <message>
+      <source>Head Loss</source>
+      <translation>فاقد الحمل</translation>
+    </message>
+    <message>
+      <source>Head Loss Unit</source>
+      <translation>فاقد الحمل لوحدة الطول</translation>
+    </message>
+    <message>
+      <source>Head Offset</source>
+      <translation>إزاحة الحمل</translation>
+    </message>
+    <message>
+      <source>Head Pattern</source>
+      <translation>نمط الحمل</translation>
+    </message>
+    <message>
+      <source>Head Pattern Mode</source>
+      <translation>وضع نمط الحمل</translation>
+    </message>
+    <message>
+      <source>Head Resolved</source>
+      <translation>الحمل المحسوب</translation>
+    </message>
+    <message>
+      <source>ID</source>
+      <translation>المعرّف</translation>
+    </message>
+    <message>
+      <source>Initial Chemical</source>
+      <translation>التركيز الكيميائي الابتدائي</translation>
+    </message>
+    <message>
+      <source>Initial Water Age</source>
+      <translation>عمر المياه الابتدائي</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>خط العرض</translation>
+    </message>
+    <message>
+      <source>Leak Area</source>
+      <translation>مساحة التسرب</translation>
+    </message>
+    <message>
+      <source>Leak Expansion</source>
+      <translation>تمدد التسرب</translation>
+    </message>
+    <message>
+      <source>Length Calculated</source>
+      <translation>الطول المحسوب</translation>
+    </message>
+    <message>
+      <source>Length Effective</source>
+      <translation>الطول الفعلي</translation>
+    </message>
+    <message>
+      <source>Length Measured</source>
+      <translation>الطول المقاس</translation>
+    </message>
+    <message>
+      <source>Level Initial</source>
+      <translation>المنسوب الابتدائي</translation>
+    </message>
+    <message>
+      <source>Level Maximum</source>
+      <translation>المنسوب الأقصى</translation>
+    </message>
+    <message>
+      <source>Level Minimum</source>
+      <translation>المنسوب الأدنى</translation>
+    </message>
+    <message>
+      <source>Level Water</source>
+      <translation>منسوب المياه</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>خط الطول</translation>
+    </message>
+    <message>
+      <source>Material</source>
+      <translation>المادة</translation>
+    </message>
+    <message>
+      <source>Meter ID</source>
+      <translation>معرّف العداد</translation>
+    </message>
+    <message>
+      <source>Metered</source>
+      <translation>مقاس بعداد</translation>
+    </message>
+    <message>
+      <source>Minor Loss</source>
+      <translation>الفاقد الموضعي</translation>
+    </message>
+    <message>
+      <source>Model Role</source>
+      <translation>الدور في النموذج</translation>
+    </message>
+    <message>
+      <source>Node 1</source>
+      <translation>العقدة 1</translation>
+    </message>
+    <message>
+      <source>Node 2</source>
+      <translation>العقدة 2</translation>
+    </message>
+    <message>
+      <source>Pipe Position</source>
+      <translation>الموضع على الأنبوب</translation>
+    </message>
+    <message>
+      <source>Power</source>
+      <translation>القدرة</translation>
+    </message>
+    <message>
+      <source>Power Average</source>
+      <translation>متوسط القدرة</translation>
+    </message>
+    <message>
+      <source>Power Constant</source>
+      <translation>القدرة الثابتة</translation>
+    </message>
+    <message>
+      <source>Power Peak</source>
+      <translation>القدرة القصوى</translation>
+    </message>
+    <message>
+      <source>Pressure</source>
+      <translation>الضغط</translation>
+    </message>
+    <message>
+      <source>Price Pattern</source>
+      <translation>نمط الأسعار</translation>
+    </message>
+    <message>
+      <source>Quality Bulk Reaction Coefficient</source>
+      <translation>معامل التفاعل في الماء</translation>
+    </message>
+    <message>
+      <source>Quality Mixing Fraction</source>
+      <translation>نسبة الخلط</translation>
+    </message>
+    <message>
+      <source>Quality Mixing Model</source>
+      <translation>نموذج الخلط</translation>
+    </message>
+    <message>
+      <source>Quality Override Bulk Reaction</source>
+      <translation>تجاوز تفاعل الماء</translation>
+    </message>
+    <message>
+      <source>Quality Override Wall Reaction</source>
+      <translation>تجاوز تفاعل الجدار</translation>
+    </message>
+    <message>
+      <source>Quality Source Concentration</source>
+      <translation>تركيز المصدر</translation>
+    </message>
+    <message>
+      <source>Quality Source Mass Flow</source>
+      <translation>التدفق الكتلي للمصدر</translation>
+    </message>
+    <message>
+      <source>Quality Source Pattern</source>
+      <translation>نمط المصدر</translation>
+    </message>
+    <message>
+      <source>Quality Source Type</source>
+      <translation>نوع المصدر</translation>
+    </message>
+    <message>
+      <source>Quality Wall Reaction Coefficient</source>
+      <translation>معامل تفاعل الجدار</translation>
+    </message>
+    <message>
+      <source>Referenced by Control</source>
+      <translation>مشار إليه في عنصر تحكم</translation>
+    </message>
+    <message>
+      <source>Regulating</source>
+      <translation>قيد التنظيم</translation>
+    </message>
+    <message>
+      <source>Roughness CM</source>
+      <translation>خشونة CM</translation>
+    </message>
+    <message>
+      <source>Roughness CM Effective</source>
+      <translation>خشونة CM الفعلية</translation>
+    </message>
+    <message>
+      <source>Roughness DW</source>
+      <translation>خشونة DW</translation>
+    </message>
+    <message>
+      <source>Roughness DW Effective</source>
+      <translation>خشونة DW الفعلية</translation>
+    </message>
+    <message>
+      <source>Roughness HW</source>
+      <translation>خشونة HW</translation>
+    </message>
+    <message>
+      <source>Roughness HW Effective</source>
+      <translation>خشونة HW الفعلية</translation>
+    </message>
+    <message>
+      <source>Setting</source>
+      <translation>القيمة المضبوطة</translation>
+    </message>
+    <message>
+      <source>Setting Curve</source>
+      <translation>منحنى الضبط</translation>
+    </message>
+    <message>
+      <source>Source Trace</source>
+      <translation>تتبّع المصدر</translation>
+    </message>
+    <message>
+      <source>Speed</source>
+      <translation>السرعة</translation>
+    </message>
+    <message>
+      <source>Speed Initial</source>
+      <translation>السرعة الابتدائية</translation>
+    </message>
+    <message>
+      <source>Speed Pattern</source>
+      <translation>نمط السرعة</translation>
+    </message>
+    <message>
+      <source>State Operating</source>
+      <translation>حالة التشغيل</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>الحالة</translation>
+    </message>
+    <message>
+      <source>Status Initial</source>
+      <translation>الحالة الابتدائية</translation>
+    </message>
+    <message>
+      <source>Tags</source>
+      <translation>الوسوم</translation>
+    </message>
+    <message>
+      <source>Time Online</source>
+      <translation>مدة التشغيل</translation>
+    </message>
+    <message>
+      <source>Valve Type</source>
+      <translation>نوع الصمام</translation>
+    </message>
+    <message>
+      <source>Velocity</source>
+      <translation>سرعة التدفق</translation>
+    </message>
+    <message>
+      <source>Vertices</source>
+      <translation>الرؤوس</translation>
+    </message>
+    <message>
+      <source>Volume</source>
+      <translation>الحجم</translation>
+    </message>
+    <message>
+      <source>Volume Curve</source>
+      <translation>منحنى الحجم</translation>
+    </message>
+    <message>
+      <source>Volume Maximum</source>
+      <translation>الحجم الأقصى</translation>
+    </message>
+    <message>
+      <source>Volume Minimum</source>
+      <translation>الحجم الأدنى</translation>
+    </message>
+    <message>
+      <source>Volume Mixing-Zone</source>
+      <translation>حجم منطقة الخلط</translation>
+    </message>
+    <message>
+      <source>Water Age</source>
+      <translation>عمر المياه</translation>
+    </message>
+    <message>
+      <source>Water Quality Result</source>
+      <translation>نتيجة جودة المياه</translation>
+    </message>
+  </context>
+  <context>
+    <name>GuiShortcuts</name>
+    <message>
+      <source>Application</source>
+      <translation>التطبيق</translation>
+    </message>
+    <message>
+      <source>Simulation</source>
+      <translation>المحاكاة</translation>
+    </message>
+    <message>
+      <source>Map Navigation</source>
+      <translation>التنقل في الخريطة</translation>
+    </message>
+    <message>
+      <source>Map Monitor</source>
+      <translation>مراقب الخريطة</translation>
+    </message>
+    <message>
+      <source>Map</source>
+      <translation>الخريطة</translation>
+    </message>
+    <message>
+      <source>Map Providers</source>
+      <translation>مزودو الخرائط</translation>
+    </message>
+    <message>
+      <source>Map Editor</source>
+      <translation>محرر الخريطة</translation>
+    </message>
+    <message>
+      <source>Toggle right sidebar</source>
+      <translation>إظهار الشريط الجانبي الأيمن أو إخفاؤه</translation>
+    </message>
+    <message>
+      <source>Toggle fullscreen</source>
+      <translation>تبديل ملء الشاشة</translation>
+    </message>
+    <message>
+      <source>Toggle map fullscreen</source>
+      <translation>تبديل ملء الشاشة للخريطة</translation>
+    </message>
+    <message>
+      <source>Run simulation</source>
+      <translation>تشغيل المحاكاة</translation>
+    </message>
+    <message>
+      <source>Run simulation (alternate)</source>
+      <translation>تشغيل المحاكاة (اختصار بديل)</translation>
+    </message>
+    <message>
+      <source>Zoom in</source>
+      <translation>تكبير</translation>
+    </message>
+    <message>
+      <source>Zoom out</source>
+      <translation>تصغير</translation>
+    </message>
+    <message>
+      <source>Pan up</source>
+      <translation>التحريك للأعلى</translation>
+    </message>
+    <message>
+      <source>Pan down</source>
+      <translation>التحريك للأسفل</translation>
+    </message>
+    <message>
+      <source>Pan left</source>
+      <translation>التحريك لليسار</translation>
+    </message>
+    <message>
+      <source>Pan right</source>
+      <translation>التحريك لليمين</translation>
+    </message>
+    <message>
+      <source>Selection mode</source>
+      <translation>وضع التحديد</translation>
+    </message>
+    <message>
+      <source>Delete selected</source>
+      <translation>حذف المحدد</translation>
+    </message>
+    <message>
+      <source>Add pipe / cable</source>
+      <translation>إضافة أنبوب / كابل</translation>
+    </message>
+    <message>
+      <source>Add junction</source>
+      <translation>إضافة عقدة</translation>
+    </message>
+    <message>
+      <source>Add valve / switch</source>
+      <translation>إضافة صمام / مفتاح</translation>
+    </message>
+    <message>
+      <source>Add demand point</source>
+      <translation>إضافة نقطة طلب</translation>
+    </message>
+    <message>
+      <source>Add pump</source>
+      <translation>إضافة مضخة</translation>
+    </message>
+    <message>
+      <source>Add tank</source>
+      <translation>إضافة خزان متغير المنسوب</translation>
+    </message>
+    <message>
+      <source>Add power source</source>
+      <translation>إضافة مصدر طاقة</translation>
+    </message>
+    <message>
+      <source>Add reservoir</source>
+      <translation>إضافة خزان ثابت المنسوب</translation>
+    </message>
+    <message>
+      <source>Add note</source>
+      <translation>إضافة ملاحظة</translation>
     </message>
   </context>
 </TS>

@@ -146,6 +146,7 @@ private:
     enum class SelectionKind { None, Server, Project, Branch, Head, Revision, NewSource };
     enum class CreationKind { None, Project, Branch };
     void seedPreview();
+    QString serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const;
     void populateServerTree();
     void populateProjectTree();
     void populateRevisionTree();

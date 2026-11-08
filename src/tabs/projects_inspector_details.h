@@ -1,10 +1,13 @@
 #pragma once
 
+#include "config/live_ui_text.h"
+
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
 
 #include <QCoreApplication>
 #include <QCheckBox>
+#include <QSignalBlocker>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHash>
@@ -23,6 +26,7 @@
 // never reparented into project/branch/revision forms.
 class DatabaseInspectorConnection final : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit DatabaseInspectorConnection(const QString &default_path, QWidget *parent = nullptr)
         : QWidget(parent)
@@ -34,7 +38,7 @@ public:
         connection_layout->setContentsMargins(0, 12, 0, 4);
         this->source_name_edit = new QLineEdit(this);
         this->source_name_edit->setObjectName(QStringLiteral("projectsNewSourceName"));
-        this->source_name_edit->setPlaceholderText(tr("Database name"));
+        LiveUiText::bind(this->source_name_edit, [this] { this->source_name_edit->setPlaceholderText(tr("Database name")); });
         connection_layout->addWidget(this->source_name_edit);
 
         this->server_options = new QWidget(this);
@@ -45,14 +49,14 @@ public:
         this->source_status->setObjectName(QStringLiteral("serversPreviewStatus"));
         wrapLabel(this->source_status);
         source_layout->addWidget(this->source_status);
-        this->source_refresh_button = new QPushButton(tr("Refresh catalogue"), this->server_options);
-        this->source_refresh_button->setToolTip(tr("Reload this database now; automatic loading and health checks continue in the background"));
+        this->source_refresh_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Refresh catalogue"), this->server_options);
+        LiveUiText::bind(this->source_refresh_button, [this] { this->source_refresh_button->setToolTip(tr("Reload this database now; automatic loading and health checks continue in the background")); });
         this->source_refresh_button->setMinimumHeight(28);
         this->source_refresh_button->setObjectName(QStringLiteral("projectsSourceRefreshButton"));
         source_layout->addWidget(this->source_refresh_button);
-        this->personal_server_checkbox = new QCheckBox(tr("Use as my personal working database"), this->server_options);
+        this->personal_server_checkbox = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Use as my personal working database"), this->server_options);
         this->personal_server_checkbox->setObjectName(QStringLiteral("projectsPersonalServerCheckbox"));
-        this->personal_server_checkbox->setToolTip(tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
+        
         source_layout->addWidget(this->personal_server_checkbox);
 
         this->source_kind_combo = new QComboBox(this->server_options);
@@ -66,7 +70,7 @@ public:
         QFormLayout *kind_form = new QFormLayout();
         kind_form->setRowWrapPolicy(QFormLayout::WrapAllRows);
         kind_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-        kind_form->addRow(tr("Connection type"), this->source_kind_combo);
+        kind_form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Connection type"), this), this->source_kind_combo);
         source_layout->addLayout(kind_form);
 
         this->remote_options = new QWidget(this->server_options);
@@ -81,9 +85,9 @@ public:
         this->server_auth_combo->addItem(tr("None"), QStringLiteral("None"));
         this->server_auth_combo->addItem(tr("API token"), QStringLiteral("API token"));
         this->server_auth_combo->addItem(tr("User login"), QStringLiteral("User login"));
-        server_form->addRow(tr("REST endpoint"), this->server_endpoint_edit);
-        server_form->addRow(tr("Authentication (future)"), this->server_auth_combo);
-        QLabel *server_warning = new QLabel(tr("Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored."), this->remote_options);
+        server_form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "REST endpoint"), this), this->server_endpoint_edit);
+        server_form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Authentication (future)"), this), this->server_auth_combo);
+        QLabel *server_warning = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored."), this->remote_options);
         wrapLabel(server_warning);
         server_form->addRow(server_warning);
         source_layout->addWidget(this->remote_options);
@@ -96,23 +100,33 @@ public:
         this->local_path_edit->setObjectName(QStringLiteral("projectLocalDvmdbPath"));
         this->local_path_edit->setPlaceholderText(default_path);
         this->local_path_edit->setMinimumWidth(0);
-        this->browse_path = new QPushButton(tr("Browse…"), this->local_options);
-        this->browse_path->setToolTip(tr("Choose a local DVMDB data directory"));
+        this->browse_path = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Browse…"), this->local_options);
+        LiveUiText::bind(this->browse_path, [this] { this->browse_path->setToolTip(tr("Choose a local DVMDB data directory")); });
         this->browse_path->setMinimumHeight(28);
         this->browse_path->setObjectName(QStringLiteral("projectLocalBrowseButton"));
         QHBoxLayout *local_path_row = new QHBoxLayout();
         local_path_row->addWidget(this->local_path_edit, 1);
         local_path_row->addWidget(this->browse_path);
-        local_form->addRow(tr("Data directory"), local_path_row);
-        QLabel *local_warning = new QLabel(tr("Local DVMDB uses the embedded C++ library. Choose a dedicated data directory, not a directory used by a running HTTP server."), this->local_options);
+        local_form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Data directory"), this), local_path_row);
+        QLabel *local_warning = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Local DVMDB uses the embedded C++ library. Choose a dedicated data directory, not a directory used by a running HTTP server."), this->local_options);
         wrapLabel(local_warning);
         local_form->addRow(local_warning);
         source_layout->addWidget(this->local_options);
         connection_layout->addWidget(this->server_options);
         connection_layout->addStretch(1);
-        this->delete_connection = new QPushButton(tr("Delete connection"), this);
+        this->delete_connection = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Delete connection"), this);
         this->delete_connection->setObjectName(QStringLiteral("projectsDeleteConnectionButton"));
-        this->delete_connection->setToolTip(tr("Remove this connection from AOWIS without deleting the DVMDB repository"));
+        LiveUiText::bind(this->delete_connection, [this] { this->delete_connection->setToolTip(tr("Remove this connection from AOWIS without deleting the DVMDB repository")); });
+        LiveUiText::bind(this, [this] {
+            const QSignalBlocker kind_blocker(this->source_kind_combo);
+            const QSignalBlocker auth_blocker(this->server_auth_combo);
+            this->source_kind_combo->setItemText(0, tr("Remote database (REST)"));
+            this->source_kind_combo->setItemText(1, tr("Local database (embedded)"));
+            this->server_auth_combo->setItemText(0, tr("None"));
+            this->server_auth_combo->setItemText(1, tr("API token"));
+            this->server_auth_combo->setItemText(2, tr("User login"));
+            refreshPersonalToolTip();
+        });
         this->delete_connection->hide();
         connection_layout->addWidget(this->delete_connection, 0, Qt::AlignLeft);
     }
@@ -132,9 +146,7 @@ public:
         // The ordinary GUI can display local profiles, but only Standalone
         // embeds DVMDB. Do not offer a designation that only opens a warning.
         this->personal_server_checkbox->setEnabled(!busy && !local);
-        this->personal_server_checkbox->setToolTip(local
-            ? tr("Selecting an embedded personal database requires AOWIS Standalone.")
-            : tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
+        refreshPersonalToolTip();
 #endif
     }
 
@@ -153,6 +165,18 @@ public:
     QPushButton *delete_connection = nullptr;
 
 private:
+    void refreshPersonalToolTip()
+    {
+#ifndef AOWIS_STANDALONE_DVMDB_ENABLED
+        if (this->source_kind_combo->currentData().toString() == QStringLiteral("local"))
+        {
+            this->personal_server_checkbox->setToolTip(tr("Selecting an embedded personal database requires AOWIS Standalone."));
+            return;
+        }
+#endif
+        this->personal_server_checkbox->setToolTip(tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
+    }
+
     static void wrapLabel(QLabel *label)
     {
         label->setWordWrap(true);
@@ -197,9 +221,12 @@ public:
     explicit DatabaseInspectorRelations(QWidget *parent = nullptr)
         : ProjectsInspectorRelations(QStringLiteral("projectsDatabaseRelations"), parent)
     {
-        this->create_project = new QPushButton(tr("Create project"), this);
+        this->create_project = new QPushButton(this);
         this->create_project->setObjectName(QStringLiteral("projectsDatabaseProjectsCreateProject"));
-        this->create_project->setToolTip(tr("Create a project in this database"));
+        LiveUiText::bind(this->create_project, [this] {
+            this->create_project->setText(tr("Create project"));
+            this->create_project->setToolTip(tr("Create a project in this database"));
+        });
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
         column->addWidget(this->create_project, 0, Qt::AlignLeft);
     }

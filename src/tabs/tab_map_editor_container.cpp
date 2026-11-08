@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "tabs/tab_map_editor_container.h"
 #include "tabs/map_mode_tool_panel.h"
 #include "config/gui_configuration.h"
@@ -38,25 +39,21 @@
 namespace
 {
 void bindEditorShortcut(QAbstractButton *button, GuiShortcutId id,
-                        const QString &label, QObject *context)
+                        const char *label, QObject *context)
 {
     if (button == nullptr || context == nullptr)
         return;
 
-    button->setText(QStringLiteral("[%1] %2").arg(
-        guiShortcutPresentation(id), label));
-    button->setShortcut(guiShortcutRegistry().keySequence(id));
-    installShortcutEditContextMenu(button, id);
-
-    QObject::connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged,
-                     context, [button, id, label](GuiShortcutId changed_id)
-    {
-        if (changed_id != id)
-            return;
-
-        button->setText(QStringLiteral("[%1] %2").arg(
-            guiShortcutPresentation(id), label));
+    const std::function<void()> refresh = [button, id, label] {
+        button->setText(QStringLiteral("[%1] %2").arg(guiShortcutPresentation(id), LiveUiText::translate(label)));
         button->setShortcut(guiShortcutRegistry().keySequence(id));
+    };
+    LiveUiText::bind(button, refresh);
+    installShortcutEditContextMenu(button, id);
+    QObject::connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged, button,
+                     [refresh, id](GuiShortcutId changed_id) {
+        if (changed_id == id)
+            refresh();
     });
 }
 
@@ -1327,12 +1324,12 @@ void MapEditorMenuWidget::createToolboxCache(QToolBox *tbx)
     QWidget *wgt = new QWidget(tbx);
     QGridLayout *grid = new QGridLayout(wgt);
     
-    QLabel *label_explanation_rectangle = new QLabel("<b>Select a region first:</b> right-click and drag on the map (2D or 3D).", this);
+    QLabel *label_explanation_rectangle = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Select a region first:</b> right-click and drag on the map (2D or 3D)."), this);
     label_explanation_rectangle->setWordWrap(true);
     
-    QLabel *label_explanation_spinners = new QLabel("<b>Select the zoom level range</b> (from - to) for the tiles you want to delete:");
+    QLabel *label_explanation_spinners = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Select the zoom level range</b> (from - to) for the tiles you want to delete:"), nullptr);
     label_explanation_spinners->setWordWrap(true);
-    QLabel *label_explanation_actions = new QLabel("Then delete the cached tiles for the selected area and zoom levels:", this);
+    QLabel *label_explanation_actions = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Then delete the cached tiles for the selected area and zoom levels:"), this);
     label_explanation_actions->setWordWrap(true);
     
     this->spin_zoom_from = new QSpinBox();
@@ -1356,7 +1353,7 @@ void MapEditorMenuWidget::createToolboxCache(QToolBox *tbx)
     });
     
     this->button_tiles_delete = new QToolButton(wgt);
-    this->button_tiles_delete->setText("Delete Tiles");
+    LiveUiText::bind(this->button_tiles_delete, [this] { this->button_tiles_delete->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete Tiles"))); });
     this->button_tiles_delete->setCheckable(true);
     this->button_tiles_delete->setEnabled(false);
     
@@ -1425,7 +1422,8 @@ void MapEditorMenuWidget::createToolboxCache(QToolBox *tbx)
     grid->addWidget(label_explanation_actions, 3, 0, 1, 2);
     grid->addWidget(this->button_tiles_delete, 4, 0, 1, 2);
 
-    this->toolbox_cache_index = tbx->addItem(wgt, "Tile Cache");
+    this->toolbox_cache_index = tbx->addItem(wgt, QString());
+    LiveUiText::bind(wgt, [tbx, wgt] { tbx->setItemText(tbx->indexOf(wgt), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile Cache"))); });
 }
 
 void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
@@ -1438,15 +1436,13 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
     QWidget *wgt = new QWidget(tbx);
     QGridLayout *grid = new QGridLayout(wgt);
 
-    QLabel *label_explanation_rectangle = new QLabel(
-        "<b>Select a region first:</b> right-click and drag on the map (2D or 3D).", wgt);
+    QLabel *label_explanation_rectangle = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Select a region first:</b> right-click and drag on the map (2D or 3D)."), wgt);
     label_explanation_rectangle->setWordWrap(true);
 
     this->label_terrain_dataset = new QLabel(wgt);
     this->label_terrain_dataset->setWordWrap(true);
 
-    QLabel *label_explanation_spinners = new QLabel(
-        "<b>Select the terrain zoom level range</b> (from - to) for the terrain tiles you want to delete:", wgt);
+    QLabel *label_explanation_spinners = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Select the terrain zoom level range</b> (from - to) for the terrain tiles you want to delete:"), wgt);
     label_explanation_spinners->setWordWrap(true);
 
     this->spin_terrain_zoom_from = new QSpinBox(wgt);
@@ -1466,19 +1462,18 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
             MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxZoom));
     });
 
-    this->checkbox_terrain_source = new QCheckBox("Also delete source elevation data", wgt);
+    this->checkbox_terrain_source = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Also delete source elevation data"), wgt);
     this->checkbox_terrain_source->setToolTip(
         "Also delete the terrain provider's downloaded source data (for Copernicus GLO-30 the "
         "1\u00b0 \u00d7 1\u00b0 GeoTIFF cells) covering the selected area, so its terrain is "
         "rebuilt from freshly downloaded data. Source cells are large downloads and may also "
         "cover terrain outside the selection.");
 
-    QLabel *label_explanation_actions = new QLabel(
-        "Then delete the cached terrain for the selected area and zoom levels:", wgt);
+    QLabel *label_explanation_actions = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Then delete the cached terrain for the selected area and zoom levels:"), wgt);
     label_explanation_actions->setWordWrap(true);
 
     this->button_terrain_delete = new QToolButton(wgt);
-    this->button_terrain_delete->setText("Delete Terrain");
+    LiveUiText::bind(this->button_terrain_delete, [this] { this->button_terrain_delete->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete Terrain"))); });
     this->button_terrain_delete->setEnabled(false);
 
     this->label_terrain_result = new QLabel(wgt);
@@ -1620,7 +1615,8 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
     grid->addWidget(this->button_terrain_delete, 6, 0, 1, 2);
     grid->addWidget(this->label_terrain_result, 7, 0, 1, 2);
 
-    this->toolbox_terrain_index = tbx->addItem(wgt, "Terrain Cache");
+    this->toolbox_terrain_index = tbx->addItem(wgt, QString());
+    LiveUiText::bind(wgt, [tbx, wgt] { tbx->setItemText(tbx->indexOf(wgt), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Terrain Cache"))); });
 }
 void MapEditorMenuWidget::createEditControls()
 {
@@ -1633,9 +1629,9 @@ void MapEditorMenuWidget::createEditControls()
     
     this->button_group_tools = new QButtonGroup(this);
     this->button_radio_select = new QRadioButton(wgt);
-    this->button_radio_select->setToolTip("Cancel placement and return to selection mode");
+    LiveUiText::bind(this->button_radio_select, [this] { this->button_radio_select->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Cancel placement and return to selection mode"))); });
     bindEditorShortcut(this->button_radio_select, GuiShortcutId::MapEditorSelect,
-                       QStringLiteral("Select"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Select"), this);
     lay->addWidget(this->button_radio_select);
     this->button_group_tools->addButton(this->button_radio_select, 100);
     connect(this->button_radio_select, &QRadioButton::clicked, this, [this]
@@ -1649,7 +1645,7 @@ void MapEditorMenuWidget::createEditControls()
     
     this->button_edit_delete = new QToolButton(wgt);
     bindEditorShortcut(this->button_edit_delete, GuiShortcutId::MapEditorDelete,
-                       QStringLiteral("Delete Selected"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Delete Selected"), this);
     this->button_edit_delete->setEnabled(false);
     lay->addWidget(this->button_edit_delete);
     connect(this->editor_controller, &MapEditorController::signalEntitySelectionChanged, this,
@@ -1662,12 +1658,12 @@ void MapEditorMenuWidget::createEditControls()
     connect(this->button_edit_delete, &QPushButton::clicked, this->editor_controller,
             &MapEditorController::deleteSelectedEntities);
     
-    QLabel *label_add = new QLabel("Add:", this);
+    QLabel *label_add = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Add:"), this);
     lay->addWidget(label_add);
     
     QRadioButton *button_radio_pipe = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_pipe, GuiShortcutId::MapEditorAddPipe,
-                       QStringLiteral("Pipe / Cable"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Pipe / Cable"), this);
     lay->addWidget(button_radio_pipe);
     this->button_group_tools->addButton(button_radio_pipe, 1);
     connect(button_radio_pipe, &QRadioButton::clicked, this, [this]
@@ -1677,7 +1673,7 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_junction = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_junction, GuiShortcutId::MapEditorAddJunction,
-                       QStringLiteral("Junction"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Junction"), this);
     lay->addWidget(button_radio_junction);
     this->button_group_tools->addButton(button_radio_junction, 2);
     connect(button_radio_junction, &QRadioButton::clicked, this, [this]
@@ -1687,7 +1683,7 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_valve = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_valve, GuiShortcutId::MapEditorAddValve,
-                       QStringLiteral("Valve / Switch"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Valve / Switch"), this);
     lay->addWidget(button_radio_valve);
     this->button_group_tools->addButton(button_radio_valve, 3);
     connect(button_radio_valve, &QRadioButton::clicked, this, [this] {
@@ -1696,7 +1692,7 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_demand_point = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_demand_point, GuiShortcutId::MapEditorAddDemandPoint,
-                       QStringLiteral("Demand Point"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Demand Point"), this);
     lay->addWidget(button_radio_demand_point);
     this->button_group_tools->addButton(button_radio_demand_point, 4);
     connect(button_radio_demand_point, &QRadioButton::clicked, this, [this]
@@ -1706,7 +1702,7 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_pump = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_pump, GuiShortcutId::MapEditorAddPump,
-                       QStringLiteral("Pump"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Pump"), this);
     lay->addWidget(button_radio_pump);
     this->button_group_tools->addButton(button_radio_pump, 5);
     connect(button_radio_pump, &QRadioButton::clicked, this, [this] {
@@ -1715,7 +1711,7 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_tank = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_tank, GuiShortcutId::MapEditorAddTank,
-                       QStringLiteral("Tank"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Tank"), this);
     lay->addWidget(button_radio_tank);
     this->button_group_tools->addButton(button_radio_tank, 6);
     connect(button_radio_tank, &QRadioButton::clicked, this, [this]
@@ -1725,14 +1721,14 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_power = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_power, GuiShortcutId::MapEditorAddPowerSource,
-                       QStringLiteral("Power Source"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Power Source"), this);
     lay->addWidget(button_radio_power);
     this->button_group_tools->addButton(button_radio_power, 7);
     button_radio_power->setEnabled(false);
     
     QRadioButton *button_radio_reservoir = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_reservoir, GuiShortcutId::MapEditorAddReservoir,
-                       QStringLiteral("Reservoir"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Reservoir"), this);
     lay->addWidget(button_radio_reservoir);
     this->button_group_tools->addButton(button_radio_reservoir, 8);
     connect(button_radio_reservoir, &QRadioButton::clicked, this, [this]
@@ -1742,16 +1738,16 @@ void MapEditorMenuWidget::createEditControls()
     
     QRadioButton *button_radio_note = new QRadioButton(wgt);
     bindEditorShortcut(button_radio_note, GuiShortcutId::MapEditorAddNote,
-                       QStringLiteral("Note"), this);
+                       QT_TRANSLATE_NOOP("LiveUiText", "Note"), this);
     lay->addWidget(button_radio_note);
     this->button_group_tools->addButton(button_radio_note, 9);
     button_radio_note->setEnabled(false);
     
     
     
-    this->checkbox_map_editor_guide = new QCheckBox("Map Editor Guide", wgt);
+    this->checkbox_map_editor_guide = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Map Editor Guide"), wgt);
     this->checkbox_map_editor_guide->setChecked(true);
-    this->checkbox_map_editor_guide->setToolTip("Show or hide the Map Editor Guide");
+    LiveUiText::bind(this->checkbox_map_editor_guide, [this] { this->checkbox_map_editor_guide->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Show or hide the Map Editor Guide"))); });
     page_layout->addWidget(this->checkbox_map_editor_guide);
     connect(this->checkbox_map_editor_guide, &QCheckBox::toggled, this, &MapEditorMenuWidget::signalMapEditorGuideVisibilityChanged);
     

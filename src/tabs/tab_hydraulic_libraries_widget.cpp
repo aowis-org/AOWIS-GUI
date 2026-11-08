@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "tabs/tab_hydraulic_libraries_widget.h"
 #include "network/hydraulic_data.h"
 
@@ -162,8 +163,7 @@ HydraulicLibrariesWidget::HydraulicLibrariesWidget(HydraulicData *hydraulic_data
     : QWidget(parent), hydraulic_data(hydraulic_data)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *description = new QLabel(
-        QStringLiteral("Hydraulic library items are saved through the current network's "
+    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Hydraulic library items are saved through the current network's "
                        "editing transaction. Delete is blocked while an item is referenced."), this);
     description->setWordWrap(true);
     layout->addWidget(description);
@@ -178,11 +178,11 @@ HydraulicLibrariesWidget::HydraulicLibrariesWidget(HydraulicData *hydraulic_data
     this->category->addItem(QStringLiteral("Valve headloss curves"));
     this->category->addItem(QStringLiteral("Valve characteristic curves"));
     this->category->addItem(QStringLiteral("Generic curves"));
-    selector->addWidget(new QLabel(QStringLiteral("Collection:"), this));
+    selector->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Collection:"), this));
     selector->addWidget(this->category, 1);
-    QPushButton *add_button = new QPushButton(QStringLiteral("+ Add"), this);
-    this->edit_button = new QPushButton(QStringLiteral("Edit"), this);
-    this->delete_button = new QPushButton(QStringLiteral("Delete"), this);
+    QPushButton *add_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Add"), this);
+    this->edit_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Edit"), this);
+    this->delete_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Delete"), this);
     selector->addWidget(add_button);
     selector->addWidget(this->edit_button);
     selector->addWidget(this->delete_button);

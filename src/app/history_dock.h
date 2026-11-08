@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QSet>
 #include <QString>
+#include <functional>
 
 class QLabel;
 class QListWidget;
@@ -23,6 +24,11 @@ struct HistoryDockEntry
     QString details;
     // For server-paged first-parent checkpoints; empty for action rows.
     QString first_parent;
+    std::function<QString()> localized_title;
+    std::function<QString()> localized_details;
+
+    QString displayTitle() const { return this->localized_title ? this->localized_title() : this->title; }
+    QString displayDetails() const { return this->localized_details ? this->localized_details() : this->details; }
 };
 
 struct HistoryDockContext

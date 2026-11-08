@@ -157,10 +157,13 @@ MainWindow::MainWindow(QWidget *parent)
                 entry.first_parent = commit.value(QStringLiteral("firstParent")).toString();
                 entry.title = commit.value(QStringLiteral("message")).toString().simplified();
                 if (entry.title.isEmpty())
-                    entry.title = tr("Commit %1").arg(entry.identity.left(8));
-                entry.details = tr("Immutable revision: %1").arg(entry.identity);
-                if (commit.value(QStringLiteral("checkpointOnly")).toBool())
-                    entry.details += tr("\nSnapshot-only checkpoint: no recorded MODEL actions.");
+                    entry.localized_title = [id = entry.identity] { return HistoryDock::tr("Commit %1").arg(id.left(8)); };
+                entry.localized_details = [id = entry.identity, snapshot = commit.value(QStringLiteral("checkpointOnly")).toBool()] {
+                    QString text = HistoryDock::tr("Immutable revision: %1").arg(id);
+                    if (snapshot)
+                        text += HistoryDock::tr("\nSnapshot-only checkpoint: no recorded MODEL actions.");
+                    return text;
+                };
                 entries.append(entry);
             }
             this->history_dock->appendBranchHistoryPage(
@@ -203,12 +206,14 @@ MainWindow::MainWindow(QWidget *parent)
                 entry.kind = HistoryDockEntry::Kind::ArchivedAction;
                 entry.identity = action.value(QStringLiteral("id")).toString();
                 entry.title = action.value(QStringLiteral("label")).toString();
-                entry.details = tr("Original archived MODEL action: %1").arg(entry.identity);
                 const QString operation = action.value(QStringLiteral("operation")).toString();
-                if (!operation.isEmpty()) entry.details += tr("\nOperation: %1").arg(operation);
                 const QJsonValue edits = action.value(QStringLiteral("editCount"));
-                if (edits.isDouble())
-                    entry.details += tr("\n%1 entity edit(s)").arg(edits.toInt());
+                entry.localized_details = [id = entry.identity, operation, edits] {
+                    QString text = HistoryDock::tr("Original archived MODEL action: %1").arg(id);
+                    if (!operation.isEmpty()) text += HistoryDock::tr("\nOperation: %1").arg(operation);
+                    if (edits.isDouble()) text += HistoryDock::tr("\n%1 entity edit(s)").arg(edits.toInt());
+                    return text;
+                };
                 entries.append(entry);
             }
             this->history_dock->appendArchivedActionPage(
@@ -415,8 +420,7 @@ MainWindow::MainWindow(QWidget *parent)
         this->network_open_pending = false;
         refreshHistoryDock();
         this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
-            ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
-            : tr("Autosaved"));
+            ? QT_TRANSLATE_NOOP("LiveUiText", "Saving · %1 pending") : QT_TRANSLATE_NOOP("LiveUiText", "Autosaved"), QString::number(this->personal_edit_session->pendingCount()));
         statusBar()->showMessage(tr("Private draft editing active; changes are queued and saved to your DVMDB."), 10000);
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::pendingCountChanged,
@@ -427,7 +431,7 @@ MainWindow::MainWindow(QWidget *parent)
         {
             this->personal_edit_stop_button->setText(tr("Stop private editing (%1 pending)").arg(count));
             this->top_control_bar->setNetworkStatus(count > 0
-                ? tr("Saving · %1 pending").arg(count) : tr("Autosaved"));
+            ? QT_TRANSLATE_NOOP("LiveUiText", "Saving · %1 pending") : QT_TRANSLATE_NOOP("LiveUiText", "Autosaved"), QString::number(count));
         }
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::saveConfirmed,
@@ -437,8 +441,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (this->personal_edit_active && !this->personal_edit_blocked)
         {
             this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
-                ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
-                : tr("Autosaved"));
+            ? QT_TRANSLATE_NOOP("LiveUiText", "Saving · %1 pending") : QT_TRANSLATE_NOOP("LiveUiText", "Autosaved"), QString::number(this->personal_edit_session->pendingCount()));
             statusBar()->showMessage(tr("Private draft saved to DVMDB."), 5000);
         }
     });
@@ -453,13 +456,13 @@ MainWindow::MainWindow(QWidget *parent)
     {
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_guard->stop();
-        this->top_control_bar->setNetworkStatus(tr("Navigating History…"));
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Navigating History…"));
         refreshHistoryDock();
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationRecovering,
             this, [this]
     {
-        this->top_control_bar->setNetworkStatus(tr("Reconnecting History…"));
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Reconnecting History…"));
         statusBar()->showMessage(tr("The History reply is uncertain. Editing is paused while "
                                     "AOWIS retries the same navigation."));
         refreshHistoryDock();
@@ -477,7 +480,7 @@ MainWindow::MainWindow(QWidget *parent)
         checkPersonalDraftModel();
         if (!this->personal_edit_blocked)
         {
-            this->top_control_bar->setNetworkStatus(tr("History position saved"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "History position saved"));
             statusBar()->showMessage(tr("Editor updated from verified incremental DVMDB History state."), 5000);
         }
         refreshHistoryDock();
@@ -497,7 +500,7 @@ MainWindow::MainWindow(QWidget *parent)
             if (!error.isEmpty())
             {
                 this->network_open_pending = false;
-                this->top_control_bar->setNetworkStatus(tr("Open failed · Read-only"));
+                this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Open failed · Read-only"));
                 statusBar()->showMessage(tr("Cannot switch: %1").arg(error), 15000);
                 restoreOpenedNetworkSelection();
             }
@@ -508,7 +511,7 @@ MainWindow::MainWindow(QWidget *parent)
         else
         {
             this->top_control_bar->setNetworkStatus(error.isEmpty()
-                ? tr("Read-only · Not editing") : tr("Save failed"));
+                ? QT_TRANSLATE_NOOP("LiveUiText", "Read-only · Not editing") : QT_TRANSLATE_NOOP("LiveUiText", "Save failed"));
             if (!error.isEmpty())
                 QMessageBox::warning(this, tr("Private writer lease release"), error);
         }
@@ -634,7 +637,7 @@ MainWindow::MainWindow(QWidget *parent)
         if (decision != QMessageBox::Yes) return;
         this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
         this->immutable_network_read_only = true;
-        this->top_control_bar->setNetworkStatus(tr("Read-only"));
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Read-only"));
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
     });
@@ -659,7 +662,7 @@ MainWindow::MainWindow(QWidget *parent)
             if (result != QMessageBox::Yes || this->personal_edit_active) return;
             this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
             this->immutable_network_read_only = true;
-            this->top_control_bar->setNetworkStatus(tr("Read-only · Revision %1").arg(revision));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Read-only · Revision %1"), revision);
             this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
             this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
         });
@@ -676,7 +679,7 @@ MainWindow::MainWindow(QWidget *parent)
     {
         if (this->personal_edit_active)
         {
-            this->top_control_bar->setNetworkStatus(tr("Save failed · Previous editing session still active"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Save failed · Previous editing session still active"));
             this->network_open_pending = false;
             restoreOpenedNetworkSelection();
             return;
@@ -686,7 +689,7 @@ MainWindow::MainWindow(QWidget *parent)
              target.kind != PersonalRepositoryTarget::Kind::Embedded) ||
             !DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(network_id))
         {
-            this->top_control_bar->setNetworkStatus(tr("Cannot open · Personal database or UUIDv7 missing"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Personal database or UUIDv7 missing"));
             this->network_open_pending = false;
             restoreOpenedNetworkSelection();
             return;
@@ -694,12 +697,12 @@ MainWindow::MainWindow(QWidget *parent)
         const QString directory = PersonalEditQueue::defaultRoot();
         if (directory.isEmpty())
         {
-            this->top_control_bar->setNetworkStatus(tr("Cannot open · Durable edit queue unavailable"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Durable edit queue unavailable"));
             this->network_open_pending = false;
             restoreOpenedNetworkSelection();
             return;
         }
-        this->top_control_bar->setNetworkStatus(tr("Opening network…"));
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Opening network…"));
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_active = true;
         this->personal_edit_blocked = false;
@@ -711,7 +714,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->projects_workspace, &ProjectsWidget::networkOpenProgress,
             this, [this](const QString &message, bool failed)
     {
-        this->top_control_bar->setNetworkStatus(failed ? tr("Open failed") : tr("Opening…"));
+        this->top_control_bar->setNetworkStatus(failed ? QT_TRANSLATE_NOOP("LiveUiText", "Open failed") : QT_TRANSLATE_NOOP("LiveUiText", "Opening…"));
         statusBar()->showMessage(message, failed ? 15000 : 5000);
         if (failed)
         {
@@ -768,7 +771,7 @@ MainWindow::MainWindow(QWidget *parent)
             this->pending_open_project_name = project_name;
             this->pending_open_branch_name = branch_name;
             this->network_open_pending = true;
-            this->top_control_bar->setNetworkStatus(tr("Opening…"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Opening…"));
             if (this->personal_edit_active)
                 stopPersonalDraftEditing(); // Wait for stopped() before the next checkout.
             else
@@ -1243,20 +1246,21 @@ void MainWindow::refreshHistoryDock()
                         entry.title = transaction->operation;
                         entry.title.replace(QLatin1Char('.'), QLatin1Char(' '));
                     }
-                    if (entry.title.isEmpty()) entry.title = tr("Hydraulic edit");
                     entry.identity = transaction->transactionId.toString(QUuid::WithoutBraces);
-                    entry.details = tr("%1\n%2 entity edit(s)\nEvent %3")
-                        .arg(transaction->operation)
-                        .arg(transaction->edits.size())
-                        .arg(entry.identity);
+                    entry.localized_details = [operation = transaction->operation, count = transaction->edits.size(), id = entry.identity] {
+                        return HistoryDock::tr("%1\n%2 entity edit(s)\nEvent %3").arg(operation, QString::number(count), id);
+                    };
                 }
                 else
-                {
-                    entry.title = tr("Unrecognized stored edit");
-                    entry.details = tr("This event could not be decoded for display.");
-                }
-                if (kind == HistoryDockEntry::Kind::PendingAction)
-                    entry.title += tr(" (pending Save)");
+                    entry.localized_details = [] { return HistoryDock::tr("This event could not be decoded for display."); };
+                entry.localized_title = [title = entry.title, valid = transaction.has_value(), kind] {
+                    QString text = title;
+                    if (text.isEmpty())
+                        text = valid ? HistoryDock::tr("Hydraulic edit") : HistoryDock::tr("Unrecognized stored edit");
+                    if (kind == HistoryDockEntry::Kind::PendingAction)
+                        text += HistoryDock::tr(" (pending Save)");
+                    return text;
+                };
                 actions.append(entry);
             }
         };
@@ -1592,7 +1596,7 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
     if (this->map_workspace->isDistributionEditorActive())
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
     this->personal_edit_session->blockEditing(reason);
-    this->top_control_bar->setNetworkStatus(tr("Save failed"));
+    this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Save failed"));
     if (this->network_open_pending) restoreOpenedNetworkSelection();
     this->network_open_pending = false;
     statusBar()->showMessage(tr("Private draft editing blocked: %1").arg(reason));
@@ -1617,7 +1621,7 @@ void MainWindow::synchronizePersonalHistoryEditMode()
         if (this->personal_edit_session->isReady())
         {
             this->personal_edit_guard->start();
-            this->top_control_bar->setNetworkStatus(tr("Verifying writable History position…"));
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Verifying writable History position…"));
         }
         return;
     }
@@ -1630,8 +1634,7 @@ void MainWindow::synchronizePersonalHistoryEditMode()
     }
     if (!this->personal_edit_blocked)
         this->top_control_bar->setNetworkStatus(this->personal_edit_session->pendingCount() > 0
-            ? tr("Saving · %1 pending").arg(this->personal_edit_session->pendingCount())
-            : tr("Autosaved"));
+            ? QT_TRANSLATE_NOOP("LiveUiText", "Saving · %1 pending") : QT_TRANSLATE_NOOP("LiveUiText", "Autosaved"), QString::number(this->personal_edit_session->pendingCount()));
 }
 
 void MainWindow::checkPersonalDraftModel()

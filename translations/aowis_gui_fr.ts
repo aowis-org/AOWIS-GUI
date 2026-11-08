@@ -777,6 +777,414 @@ Révision de base uniquement. Aucun brouillon privé trouvé.</translation>
       <source>Export only the selected immutable revision's hydraulic network</source>
       <translation>Exporter uniquement le réseau hydraulique de la révision immuable sélectionnée</translation>
     </message>
+    <message>
+      <source>Database name</source>
+      <translation>Nom de la base</translation>
+    </message>
+    <message>
+      <source>Reload this database now; automatic loading and health checks continue in the background</source>
+      <translation>Recharger la base maintenant. Le chargement et les contrôles automatiques continuent en arrière-plan.</translation>
+    </message>
+    <message>
+      <source>Remote database (REST)</source>
+      <translation>Base distante (REST)</translation>
+    </message>
+    <message>
+      <source>Local database (embedded)</source>
+      <translation>Base locale (intégrée)</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Aucune</translation>
+    </message>
+    <message>
+      <source>API token</source>
+      <translation>Jeton API</translation>
+    </message>
+    <message>
+      <source>User login</source>
+      <translation>Connexion utilisateur</translation>
+    </message>
+    <message>
+      <source>Choose a local DVMDB data directory</source>
+      <translation>Choisir un répertoire de données DVMDB local</translation>
+    </message>
+    <message>
+      <source>Remove this connection from AOWIS without deleting the DVMDB repository</source>
+      <translation>Retirer cette connexion d’AOWIS en conservant le dépôt DVMDB</translation>
+    </message>
+    <message>
+      <source>Selecting an embedded personal database requires AOWIS Standalone.</source>
+      <translation>La base personnelle intégrée nécessite AOWIS Standalone.</translation>
+    </message>
+    <message>
+      <source>Only one database can be personal. Its identity is discovered automatically; no UUID input is needed.</source>
+      <translation>Une seule base peut être personnelle. Son identité est détectée automatiquement.</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration</source>
+      <translation>Démonstration en mémoire</translation>
+    </message>
+    <message>
+      <source>Starting automatically…</source>
+      <translation>Démarrage automatique…</translation>
+    </message>
+    <message>
+      <source>Connection unstable · checking again…</source>
+      <translation>Connexion instable · nouvelle vérification…</translation>
+    </message>
+    <message>
+      <source>Unavailable · server identity probe failed: %1</source>
+      <translation>Indisponible · échec de la vérification du serveur : %1</translation>
+    </message>
+    <message>
+      <source>No valid DVMDB response</source>
+      <translation>Aucune réponse DVMDB valide</translation>
+    </message>
+    <message>
+      <source>Saving to DVMDB…</source>
+      <translation>Enregistrement dans DVMDB…</translation>
+    </message>
+    <message>
+      <source>Available · catalogue error: %1</source>
+      <translation>Disponible · erreur de catalogue : %1</translation>
+    </message>
+    <message>
+      <source>Checking server identity…</source>
+      <translation>Vérification de l’identité du serveur…</translation>
+    </message>
+    <message>
+      <source>Available · catalogue loaded</source>
+      <translation>Disponible · catalogue chargé</translation>
+    </message>
+    <message>
+      <source>Loading catalogue…</source>
+      <translation>Chargement du catalogue…</translation>
+    </message>
+    <message>
+      <source>Unavailable: %1</source>
+      <translation>Indisponible : %1</translation>
+    </message>
+    <message>
+      <source>Checking connection…</source>
+      <translation>Vérification de la connexion…</translation>
+    </message>
+    <message>
+      <source>Unverified repository · %1</source>
+      <translation>Dépôt non vérifié · %1</translation>
+    </message>
+    <message>
+      <source>No databases selected</source>
+      <translation>Aucune base sélectionnée</translation>
+    </message>
+    <message>
+      <source>Check a database in the sidebar to show it on the canvas.</source>
+      <translation>Cochez une base dans la barre latérale pour l’afficher.</translation>
+    </message>
+    <message>
+      <source>Checking</source>
+      <translation>Vérification</translation>
+    </message>
+    <message>
+      <source>Waiting for a database response</source>
+      <translation>En attente de la base</translation>
+    </message>
+    <message>
+      <source>Unverified</source>
+      <translation>Non vérifié</translation>
+    </message>
+    <message>
+      <source>Repository identity not yet verified: %1</source>
+      <translation>Identité du dépôt non vérifiée : %1</translation>
+    </message>
+    <message>
+      <source>Repository UUIDv7 not yet verified</source>
+      <translation>UUIDv7 du dépôt non vérifié</translation>
+    </message>
+    <message>
+      <source>Preview</source>
+      <translation>Aperçu</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration; no database connection</source>
+      <translation>Démonstration en mémoire sans connexion à une base</translation>
+    </message>
+    <message>
+      <source>Unstable</source>
+      <translation>Instable</translation>
+    </message>
+    <message>
+      <source>A recent health check failed; retrying</source>
+      <translation>Échec du dernier contrôle. Nouvel essai en cours</translation>
+    </message>
+    <message>
+      <source>Available · catalogue error</source>
+      <translation>Disponible · erreur de catalogue</translation>
+    </message>
+    <message>
+      <source>DVMDB is responding, but its project catalogue could not be loaded</source>
+      <translation>DVMDB répond, mais son catalogue de projets n’a pas pu être chargé</translation>
+    </message>
+    <message>
+      <source>DVMDB is responding, but its project catalogue could not be loaded: %1</source>
+      <translation>DVMDB répond, mais son catalogue de projets n’a pas pu être chargé : %1</translation>
+    </message>
+    <message>
+      <source>Checking DVMDB server identity</source>
+      <translation>Vérification de l’identité du serveur DVMDB</translation>
+    </message>
+    <message>
+      <source>Checking DVMDB server identity; catalogue error: %1</source>
+      <translation>Vérification du serveur DVMDB · erreur de catalogue : %1</translation>
+    </message>
+    <message>
+      <source>Unavailable</source>
+      <translation>Indisponible</translation>
+    </message>
+    <message>
+      <source>Incompatible MODEL</source>
+      <translation>MODEL incompatible</translation>
+    </message>
+    <message>
+      <source>Database connection unavailable</source>
+      <translation>Connexion à la base indisponible</translation>
+    </message>
+    <message>
+      <source>Available</source>
+      <translation>Disponible</translation>
+    </message>
+    <message>
+      <source>Embedded database is open and its catalogue is loaded</source>
+      <translation>Base intégrée ouverte et catalogue chargé</translation>
+    </message>
+    <message>
+      <source>Database is responding and its catalogue is loaded</source>
+      <translation>La base répond et son catalogue est chargé</translation>
+    </message>
+    <message>
+      <source>Loading</source>
+      <translation>Chargement</translation>
+    </message>
+    <message>
+      <source>Loading the database catalogue</source>
+      <translation>Chargement du catalogue de la base</translation>
+    </message>
+    <message>
+      <source>♛ %1</source>
+      <translation>♛ %1</translation>
+    </message>
+    <message>
+      <source>◷ %1</source>
+      <translation>◷ %1</translation>
+    </message>
+    <message>
+      <source>%1%2
+%3
+%4: %5
+Checkbox: show in explorer and graph</source>
+      <translation>%1%2
+%3
+%4 : %5
+Cocher pour afficher dans l’explorateur et le graphe</translation>
+    </message>
+    <message>
+      <source> (personal working database)</source>
+      <translation> (base de travail personnelle)</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>Connexion</translation>
+    </message>
+    <message>
+      <source>Create the database connection in the Connection tab first.</source>
+      <translation>Créez d’abord la connexion dans l’onglet Connexion.</translation>
+    </message>
+    <message>
+      <source>♛ Personal working database</source>
+      <translation>♛ Base de travail personnelle</translation>
+    </message>
+    <message>
+      <source>Create a project in this database</source>
+      <translation>Créer un projet dans cette base</translation>
+    </message>
+    <message>
+      <source>Select a server, project, branch, or revision.</source>
+      <translation>Sélectionnez un serveur, un projet, une branche ou une révision.</translation>
+    </message>
+    <message>
+      <source>New database</source>
+      <translation>Nouvelle base de données</translation>
+    </message>
+    <message>
+      <source>Configure a data source. Nothing is saved until you select Create.</source>
+      <translation>Configurez la source, puis cliquez sur Créer pour enregistrer.</translation>
+    </message>
+    <message>
+      <source>Local Database: %1</source>
+      <translation>Base locale : %1</translation>
+    </message>
+    <message>
+      <source>Remote Database: %1</source>
+      <translation>Base distante : %1</translation>
+    </message>
+    <message>
+      <source>Identity: pending verification (temporary ID: %1)</source>
+      <translation>Identité à vérifier (identifiant temporaire : %1)</translation>
+    </message>
+    <message>
+      <source>DVMDB repository UUIDv7: %1</source>
+      <translation>UUIDv7 du dépôt DVMDB : %1</translation>
+    </message>
+    <message>
+      <source>In-memory demonstration source (no DVMDB repository)</source>
+      <translation>Source de démonstration en mémoire (sans dépôt DVMDB)</translation>
+    </message>
+    <message>
+      <source>
+Identity mismatch: %1</source>
+      <translation>
+Identité différente : %1</translation>
+    </message>
+    <message>
+      <source>Start from</source>
+      <translation>Point de départ</translation>
+    </message>
+    <message>
+      <source>hydraulics, testing</source>
+      <translation>hydraulique, essais</translation>
+    </message>
+    <message>
+      <source>%1 · No commits yet</source>
+      <translation>%1 · Aucune révision enregistrée</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD %2</source>
+      <translation>%1 · HEAD %2</translation>
+    </message>
+    <message>
+      <source>Revision %1</source>
+      <translation>Révision %1</translation>
+    </message>
+    <message>
+      <source>Initial empty revision</source>
+      <translation>Révision initiale vide</translation>
+    </message>
+    <message>
+      <source>Enter a name.</source>
+      <translation>Saisissez un nom.</translation>
+    </message>
+    <message>
+      <source>A project with this name already exists.</source>
+      <translation>Un projet porte déjà ce nom.</translation>
+    </message>
+    <message>
+      <source>Creates an empty project with an initial main branch. </source>
+      <translation>Crée un projet vide avec une branche main initiale. </translation>
+    </message>
+    <message>
+      <source>No network data or additional revision will be created.</source>
+      <translation>Aucun réseau ni révision supplémentaire ne sera créé.</translation>
+    </message>
+    <message>
+      <source>Branch name must be valid UTF-8, at most 96 bytes, without surrounding spaces.</source>
+      <translation>Le nom de branche doit être en UTF-8 valide, limité à 96 octets et sans espaces aux extrémités.</translation>
+    </message>
+    <message>
+      <source>Branch name contains an unsupported control or path character.</source>
+      <translation>Le nom contient un caractère de contrôle ou de chemin interdit.</translation>
+    </message>
+    <message>
+      <source>The source project is no longer selected.</source>
+      <translation>Le projet source n’est plus sélectionné.</translation>
+    </message>
+    <message>
+      <source>A branch with this name already exists.</source>
+      <translation>Une branche porte déjà ce nom.</translation>
+    </message>
+    <message>
+      <source>Description must not exceed 512 UTF-8 bytes.</source>
+      <translation>La description est limitée à 512 octets UTF-8.</translation>
+    </message>
+    <message>
+      <source>Tags must be unique and at most 32 UTF-8 bytes each.</source>
+      <translation>Chaque étiquette doit être unique et limitée à 32 octets UTF-8.</translation>
+    </message>
+    <message>
+      <source>A branch may have at most 12 tags.</source>
+      <translation>Une branche peut avoir 12 étiquettes au maximum.</translation>
+    </message>
+    <message>
+      <source>Creates a new unborn HEAD in this project. No revision is created.</source>
+      <translation>Crée un HEAD sans révision dans ce projet.</translation>
+    </message>
+    <message>
+      <source>Commit the source branch before creating another database branch.</source>
+      <translation>Enregistrez une révision de la branche source avant de créer une autre branche.</translation>
+    </message>
+    <message>
+      <source>The selected revision cannot be reached from a branch HEAD.</source>
+      <translation>La révision sélectionnée est inaccessible depuis un HEAD de branche.</translation>
+    </message>
+    <message>
+      <source>Choose a starting revision.</source>
+      <translation>Choisissez une révision de départ.</translation>
+    </message>
+    <message>
+      <source>Fork revision UUID: %1
+</source>
+      <translation>UUID de révision d’origine : %1
+</translation>
+    </message>
+    <message>
+      <source>Source branch: %1
+Source branch UUID: %2
+</source>
+      <translation>Branche source : %1
+UUID de branche source : %2
+</translation>
+    </message>
+    <message>
+      <source>Revision SHA-256: %1
+</source>
+      <translation>SHA-256 de la révision : %1
+</translation>
+    </message>
+    <message>
+      <source>Creating a branch adds a reference only; it does not create a revision.</source>
+      <translation>Créer une branche ajoute une référence sans créer de révision.</translation>
+    </message>
+    <message>
+      <source>Cancel</source>
+      <translation>Annuler</translation>
+    </message>
+    <message>
+      <source>Create</source>
+      <translation>Créer</translation>
+    </message>
+    <message>
+      <source>Discard the creation form</source>
+      <translation>Abandonner le formulaire</translation>
+    </message>
+    <message>
+      <source>Create the selected object</source>
+      <translation>Créer l’objet sélectionné</translation>
+    </message>
+    <message>
+      <source>Discard this unsaved database</source>
+      <translation>Abandonner cette base non enregistrée</translation>
+    </message>
+    <message>
+      <source>Save the new database profile</source>
+      <translation>Enregistrer le nouveau profil de base</translation>
+    </message>
+    <message>
+      <source>Project: %1</source>
+      <translation>Projet : %1</translation>
+    </message>
+    <message>
+      <source>Database: %1</source>
+      <translation>Base : %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -836,6 +1244,1574 @@ Amplifie ensemble le relief et les différences de cote du réseau
 1,0× = échelle verticale réelle
 La commande de hauteur du réseau agit uniquement sur l’affichage
 Clic droit : revenir à 1,0×</translation>
+    </message>
+  </context>
+  <context>
+    <name>LiveUiText</name>
+    <message>
+      <source>Saving · %1 pending</source>
+      <translation>Enregistrement · %1 en attente</translation>
+    </message>
+    <message>
+      <source>Autosaved</source>
+      <translation>Enregistré automatiquement</translation>
+    </message>
+    <message>
+      <source>Navigating History…</source>
+      <translation>Navigation dans l’historique…</translation>
+    </message>
+    <message>
+      <source>Reconnecting History…</source>
+      <translation>Reconnexion à l’historique…</translation>
+    </message>
+    <message>
+      <source>History position saved</source>
+      <translation>Position enregistrée dans l’historique</translation>
+    </message>
+    <message>
+      <source>Open failed · Read-only</source>
+      <translation>Échec de l’ouverture · lecture seule</translation>
+    </message>
+    <message>
+      <source>Read-only · Not editing</source>
+      <translation>Lecture seule · aucune édition</translation>
+    </message>
+    <message>
+      <source>Save failed</source>
+      <translation>Échec de l’enregistrement</translation>
+    </message>
+    <message>
+      <source>Read-only</source>
+      <translation>Lecture seule</translation>
+    </message>
+    <message>
+      <source>Read-only · Revision %1</source>
+      <translation>Lecture seule · révision %1</translation>
+    </message>
+    <message>
+      <source>Save failed · Previous editing session still active</source>
+      <translation>Échec de l’enregistrement · session précédente toujours active</translation>
+    </message>
+    <message>
+      <source>Cannot open · Personal database or UUIDv7 missing</source>
+      <translation>Ouverture impossible · base personnelle ou UUIDv7 manquant</translation>
+    </message>
+    <message>
+      <source>Cannot open · Durable edit queue unavailable</source>
+      <translation>Ouverture impossible · file de modifications indisponible</translation>
+    </message>
+    <message>
+      <source>Opening network…</source>
+      <translation>Ouverture du réseau…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>Échec de l’ouverture</translation>
+    </message>
+    <message>
+      <source>Opening…</source>
+      <translation>Ouverture…</translation>
+    </message>
+    <message>
+      <source>Verifying writable History position…</source>
+      <translation>Vérification du point de reprise dans l’historique…</translation>
+    </message>
+    <message>
+      <source>Simulation Settings</source>
+      <translation>Paramètres de simulation</translation>
+    </message>
+    <message>
+      <source>These settings are used for the next simulation run.</source>
+      <translation>Ces paramètres s’appliquent à la prochaine simulation.</translation>
+    </message>
+    <message>
+      <source>Water quality analyses</source>
+      <translation>Analyses de la qualité de l’eau</translation>
+    </message>
+    <message>
+      <source>Headloss formula</source>
+      <translation>Formule de perte de charge</translation>
+    </message>
+    <message>
+      <source>Modified</source>
+      <translation>Modifié</translation>
+    </message>
+    <message>
+      <source>No network</source>
+      <translation>Aucun réseau</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>
+      <translation>&lt;b&gt;Conseil :&lt;/b&gt; Utilisez l’éditeur de carte pour créer ces éléments (%1).</translation>
+    </message>
+    <message>
+      <source>Simulation:</source>
+      <translation>Simulation :</translation>
+    </message>
+    <message>
+      <source>Reset filters</source>
+      <translation>Réinitialiser les filtres</translation>
+    </message>
+    <message>
+      <source>Reset all table filters</source>
+      <translation>Réinitialiser tous les filtres du tableau</translation>
+    </message>
+    <message>
+      <source>Filter entities by simulation diagnostics</source>
+      <translation>Filtrer les éléments selon le diagnostic de simulation</translation>
+    </message>
+    <message>
+      <source>All</source>
+      <translation>Tous</translation>
+    </message>
+    <message>
+      <source>Warnings &amp; errors</source>
+      <translation>Avertissements et erreurs</translation>
+    </message>
+    <message>
+      <source>Warnings only</source>
+      <translation>Avertissements uniquement</translation>
+    </message>
+    <message>
+      <source>Errors only</source>
+      <translation>Erreurs uniquement</translation>
+    </message>
+    <message>
+      <source>Keyboard Shortcuts</source>
+      <translation>Raccourcis clavier</translation>
+    </message>
+    <message>
+      <source>Change application shortcuts here. Changes apply immediately for this browser session.</source>
+      <translation>Modifiez ici les raccourcis. Les changements s’appliquent immédiatement à cette session du navigateur.</translation>
+    </message>
+    <message>
+      <source>Change application shortcuts here. Changes apply immediately and are saved to %1.</source>
+      <translation>Les changements de raccourcis s’appliquent immédiatement et sont enregistrés dans %1.</translation>
+    </message>
+    <message>
+      <source>Search commands or shortcuts…</source>
+      <translation>Rechercher une commande ou un raccourci…</translation>
+    </message>
+    <message>
+      <source>Reset All to Defaults</source>
+      <translation>Tout réinitialiser</translation>
+    </message>
+    <message>
+      <source>Action</source>
+      <translation>Action</translation>
+    </message>
+    <message>
+      <source>Shortcut</source>
+      <translation>Raccourci</translation>
+    </message>
+    <message>
+      <source>Scope</source>
+      <translation>Portée</translation>
+    </message>
+    <message>
+      <source>Default</source>
+      <translation>Par défaut</translation>
+    </message>
+    <message>
+      <source>Press a key combination. Clear the field to disable this shortcut.</source>
+      <translation>Appuyez sur une combinaison de touches. Videz le champ pour désactiver le raccourci.</translation>
+    </message>
+    <message>
+      <source>Reset</source>
+      <translation>Réinitialiser</translation>
+    </message>
+    <message>
+      <source>Reset to %1</source>
+      <translation>Rétablir %1</translation>
+    </message>
+    <message>
+      <source>Map Settings</source>
+      <translation>Paramètres de la carte</translation>
+    </message>
+    <message>
+      <source>Map Controls</source>
+      <translation>Commandes de la carte</translation>
+    </message>
+    <message>
+      <source>Adjust map mouse controls. Mouse wheel zoom applies to both 2D and 3D (globe). Defaults: wheel zoom 0.50x, 3D pan 0.80x, 3D orbit 0.80x.</source>
+      <translation>La molette règle le zoom en 2D et en 3D. Valeurs par défaut : zoom 0,50×, déplacement 3D 0,80× et rotation 3D 0,80×.</translation>
+    </message>
+    <message>
+      <source>Mouse wheel zoom speed</source>
+      <translation>Vitesse de zoom à la molette</translation>
+    </message>
+    <message>
+      <source>3D mouse pan speed</source>
+      <translation>Vitesse de déplacement 3D à la souris</translation>
+    </message>
+    <message>
+      <source>3D orbit speed</source>
+      <translation>Vitesse de rotation 3D</translation>
+    </message>
+    <message>
+      <source>Restore Defaults</source>
+      <translation>Rétablir les valeurs par défaut</translation>
+    </message>
+    <message>
+      <source>Map Performance</source>
+      <translation>Performances de la carte</translation>
+    </message>
+    <message>
+      <source>These apply immediately to the 3D map renderer and are saved as you change them.</source>
+      <translation>Les changements s’appliquent immédiatement au rendu 3D et sont enregistrés automatiquement.</translation>
+    </message>
+    <message>
+      <source>Terrain detail reduction</source>
+      <translation>Réduction du détail du terrain</translation>
+    </message>
+    <message>
+      <source>0 draws every elevation sample the terrain source provides at the map's level of detail: one terrain cell per sample spacing, about 4 px on screen. Each step halves the terrain resolution (about 8, 16 and 32 px per cell) and needs a quarter of the triangles. Zoomed in past the source's own resolution, every setting shows the full source detail, never more.</source>
+      <translation>À 0, chaque échantillon d’altitude est dessiné, soit environ 4 px par cellule. Chaque cran divise la résolution par deux (8, 16 puis 32 px) et le nombre de triangles par quatre. Au-delà de la résolution source, tous les réglages affichent le même détail maximal.</translation>
+    </message>
+    <message>
+      <source>Map Server Settings</source>
+      <translation>Paramètres du serveur cartographique</translation>
+    </message>
+    <message>
+      <source>In this build, the map server connection is set by the hosting page and cannot be changed here.</source>
+      <translation>La page hôte définit la connexion au serveur cartographique pour cette version.</translation>
+    </message>
+    <message>
+      <source>Connection changes are saved when you finish editing a field. Restart AOWIS for them to take effect.</source>
+      <translation>La connexion est enregistrée lorsque vous quittez un champ. Redémarrez AOWIS pour appliquer les changements.</translation>
+    </message>
+    <message>
+      <source>Base URL</source>
+      <translation>URL de base</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(aucune)</translation>
+    </message>
+    <message>
+      <source>API key</source>
+      <translation>Clé API</translation>
+    </message>
+    <message>
+      <source>Delete API key</source>
+      <translation>Clé API de suppression</translation>
+    </message>
+    <message>
+      <source>2D Map Providers</source>
+      <translation>Fournisseurs de cartes 2D</translation>
+    </message>
+    <message>
+      <source>Provider changes are saved automatically. Each provider can fall back to another when you zoom beyond its maximum level. Fallbacks can form a chain: A → B → C, as long as each source offers more detail. Your fallback choices are personal; they don't change the server's providers. With no further fallback, the highest-resolution tiles are smoothly enlarged.</source>
+      <translation>Les changements sont enregistrés automatiquement. Au-delà du zoom maximal, chaque fournisseur peut utiliser un autre fournisseur plus détaillé, en chaîne (A → B → C). Ces choix sont personnels. Sans autre fournisseur, les tuiles les plus détaillées sont agrandies.</translation>
+    </message>
+    <message>
+      <source>On</source>
+      <translation>Activé</translation>
+    </message>
+    <message>
+      <source>Display name</source>
+      <translation>Nom affiché</translation>
+    </message>
+    <message>
+      <source>Tile URL</source>
+      <translation>URL des tuiles</translation>
+    </message>
+    <message>
+      <source>Min</source>
+      <translation>Min</translation>
+    </message>
+    <message>
+      <source>Max</source>
+      <translation>Max</translation>
+    </message>
+    <message>
+      <source>My fallback</source>
+      <translation>Mon fournisseur de repli</translation>
+    </message>
+    <message>
+      <source>Add provider</source>
+      <translation>Ajouter un fournisseur</translation>
+    </message>
+    <message>
+      <source>Remove selected</source>
+      <translation>Supprimer la sélection</translation>
+    </message>
+    <message>
+      <source>Reload from server</source>
+      <translation>Recharger depuis le serveur</translation>
+    </message>
+    <message>
+      <source>Unit Profiles</source>
+      <translation>Profils d’unités</translation>
+    </message>
+    <message>
+      <source>Display-unit preferences only. Changes update unit-aware views and editors; canonical Model values remain unchanged.</source>
+      <translation>Ces préférences règlent les unités affichées dans les vues et éditeurs. Le modèle conserve ses valeurs canoniques.</translation>
+    </message>
+    <message>
+      <source>New custom profile...</source>
+      <translation>Nouveau profil personnalisé…</translation>
+    </message>
+    <message>
+      <source>Rename...</source>
+      <translation>Renommer…</translation>
+    </message>
+    <message>
+      <source>Delete</source>
+      <translation>Supprimer</translation>
+    </message>
+    <message>
+      <source>Search quantities or units…</source>
+      <translation>Rechercher une grandeur ou une unité…</translation>
+    </message>
+    <message>
+      <source>Quantity</source>
+      <translation>Grandeur</translation>
+    </message>
+    <message>
+      <source>Display unit</source>
+      <translation>Unité affichée</translation>
+    </message>
+    <message>
+      <source>Canonical unit</source>
+      <translation>Unité canonique</translation>
+    </message>
+    <message>
+      <source>Canonical: %1</source>
+      <translation>Canonique : %1</translation>
+    </message>
+    <message>
+      <source>New unit profile</source>
+      <translation>Nouveau profil d’unités</translation>
+    </message>
+    <message>
+      <source>Start from profile:</source>
+      <translation>Profil de départ :</translation>
+    </message>
+    <message>
+      <source>Profile name:</source>
+      <translation>Nom du profil :</translation>
+    </message>
+    <message>
+      <source>Rename unit profile</source>
+      <translation>Renommer le profil d’unités</translation>
+    </message>
+    <message>
+      <source>Refresh catalogue</source>
+      <translation>Actualiser le catalogue</translation>
+    </message>
+    <message>
+      <source>Use as my personal working database</source>
+      <translation>Utiliser comme base de travail personnelle</translation>
+    </message>
+    <message>
+      <source>Connection type</source>
+      <translation>Type de connexion</translation>
+    </message>
+    <message>
+      <source>REST endpoint</source>
+      <translation>Point de terminaison REST</translation>
+    </message>
+    <message>
+      <source>Authentication (future)</source>
+      <translation>Authentification (à venir)</translation>
+    </message>
+    <message>
+      <source>Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored.</source>
+      <translation>Surveillance et chargement automatiques. L’authentification REST est indisponible. Aucun identifiant ni jeton n’est enregistré.</translation>
+    </message>
+    <message>
+      <source>Browse…</source>
+      <translation>Parcourir…</translation>
+    </message>
+    <message>
+      <source>Data directory</source>
+      <translation>Répertoire des données</translation>
+    </message>
+    <message>
+      <source>Local DVMDB uses the embedded C++ library. Choose a dedicated data directory, not a directory used by a running HTTP server.</source>
+      <translation>DVMDB local utilise la bibliothèque C++ intégrée. Choisissez un répertoire dédié qui n’est utilisé par aucun serveur HTTP actif.</translation>
+    </message>
+    <message>
+      <source>Delete connection</source>
+      <translation>Supprimer la connexion</translation>
+    </message>
+    <message>
+      <source>+ Action</source>
+      <translation>+ Action</translation>
+    </message>
+    <message>
+      <source>+ Add</source>
+      <translation>+ Ajouter</translation>
+    </message>
+    <message>
+      <source>+ Premise</source>
+      <translation>+ Condition</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Heatmap&lt;/b&gt;</source>
+      <translation>&lt;b&gt;Carte thermique&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Link&lt;/b&gt;</source>
+      <translation>&lt;b&gt;Liaison&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Node&lt;/b&gt;</source>
+      <translation>&lt;b&gt;Nœud&lt;/b&gt;</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select a region first:&lt;/b&gt; right-click and drag on the map (2D or 3D).</source>
+      <translation>&lt;b&gt;Sélectionnez une zone :&lt;/b&gt; faites glisser le bouton droit sur la carte 2D ou 3D.</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select the terrain zoom level range&lt;/b&gt; (from - to) for the terrain tiles you want to delete:</source>
+      <translation>&lt;b&gt;Sélectionnez les niveaux de zoom du terrain&lt;/b&gt; à supprimer (du niveau initial au niveau final) :</translation>
+    </message>
+    <message>
+      <source>&lt;b&gt;Select the zoom level range&lt;/b&gt; (from - to) for the tiles you want to delete:</source>
+      <translation>&lt;b&gt;Sélectionnez les niveaux de zoom&lt;/b&gt; des tuiles à supprimer :</translation>
+    </message>
+    <message>
+      <source>Add:</source>
+      <translation>Ajouter :</translation>
+    </message>
+    <message>
+      <source>Also delete source elevation data</source>
+      <translation>Supprimer aussi les données d’altitude source</translation>
+    </message>
+    <message>
+      <source>Base Demand</source>
+      <translation>Demande de base</translation>
+    </message>
+    <message>
+      <source>Cancel placement and return to selection mode</source>
+      <translation>Annuler le placement et revenir à la sélection</translation>
+    </message>
+    <message>
+      <source>Chlorine decay constant&lt;br&gt;depends on the mix of&lt;br&gt;Lake and River water.</source>
+      <translation>La constante de décroissance du chlore dépend du mélange d’eau du lac et de la rivière.</translation>
+    </message>
+    <message>
+      <source>Collection:</source>
+      <translation>Collection :</translation>
+    </message>
+    <message>
+      <source>Declutter Overlapping Nodes</source>
+      <translation>Espacer les nœuds superposés</translation>
+    </message>
+    <message>
+      <source>Delete Selected</source>
+      <translation>Supprimer la sélection</translation>
+    </message>
+    <message>
+      <source>Delete Terrain</source>
+      <translation>Supprimer le terrain</translation>
+    </message>
+    <message>
+      <source>Delete Tiles</source>
+      <translation>Supprimer les tuiles</translation>
+    </message>
+    <message>
+      <source>Demand Deficit</source>
+      <translation>Déficit de demande</translation>
+    </message>
+    <message>
+      <source>Demand Point</source>
+      <translation>Point de demande</translation>
+    </message>
+    <message>
+      <source>Diameter</source>
+      <translation>Diamètre</translation>
+    </message>
+    <message>
+      <source>EPANET Network 3 has&lt;br&gt;Multi-Species Water&lt;br&gt;Quality Analysis (MSX).&lt;br&gt;Modeled variables are:</source>
+      <translation>Le réseau EPANET 3 utilise une analyse multi-espèces (MSX). Variables modélisées :</translation>
+    </message>
+    <message>
+      <source>Edit</source>
+      <translation>Modifier</translation>
+    </message>
+    <message>
+      <source>Edit Action</source>
+      <translation>Modifier l’action</translation>
+    </message>
+    <message>
+      <source>Edit Premise</source>
+      <translation>Modifier la condition</translation>
+    </message>
+    <message>
+      <source>Elevation</source>
+      <translation>Altitude</translation>
+    </message>
+    <message>
+      <source>Emitter Flow</source>
+      <translation>Débit de l’émetteur</translation>
+    </message>
+    <message>
+      <source>Flow Arrows [px]</source>
+      <translation>Flèches de débit [px]</translation>
+    </message>
+    <message>
+      <source>Flow Rate</source>
+      <translation>Débit</translation>
+    </message>
+    <message>
+      <source>Head</source>
+      <translation>Charge hydraulique</translation>
+    </message>
+    <message>
+      <source>Head Loss</source>
+      <translation>Perte de charge</translation>
+    </message>
+    <message>
+      <source>Heatmap</source>
+      <translation>Carte de chaleur</translation>
+    </message>
+    <message>
+      <source>Hydraulic library items are saved through the current network's editing transaction. Delete is blocked while an item is referenced.</source>
+      <translation>Les éléments de bibliothèque sont enregistrés avec les modifications du réseau actif. Un élément référencé ne peut pas être supprimé.</translation>
+    </message>
+    <message>
+      <source>Junction</source>
+      <translation>Nœud de jonction</translation>
+    </message>
+    <message>
+      <source>Junction Size</source>
+      <translation>Taille des nœuds</translation>
+    </message>
+    <message>
+      <source>Lake Water</source>
+      <translation>Eau du lac</translation>
+    </message>
+    <message>
+      <source>Leakage</source>
+      <translation>Fuite</translation>
+    </message>
+    <message>
+      <source>Length</source>
+      <translation>Longueur</translation>
+    </message>
+    <message>
+      <source>Link Symbology</source>
+      <translation>Symbologie des liaisons</translation>
+    </message>
+    <message>
+      <source>Map Editor Guide</source>
+      <translation>Guide de l’éditeur de carte</translation>
+    </message>
+    <message>
+      <source>Node Symbology</source>
+      <translation>Symbologie des nœuds</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Aucune</translation>
+    </message>
+    <message>
+      <source>Note</source>
+      <translation>Note</translation>
+    </message>
+    <message>
+      <source>Opacity [%]</source>
+      <translation>Opacité [%]</translation>
+    </message>
+    <message>
+      <source>Pipe / Cable</source>
+      <translation>Conduite / câble</translation>
+    </message>
+    <message>
+      <source>Pipe Thickness</source>
+      <translation>Épaisseur des conduites</translation>
+    </message>
+    <message>
+      <source>Power Source</source>
+      <translation>Source d’énergie</translation>
+    </message>
+    <message>
+      <source>Pressure</source>
+      <translation>Pression</translation>
+    </message>
+    <message>
+      <source>Pump</source>
+      <translation>Pompe</translation>
+    </message>
+    <message>
+      <source>Radius</source>
+      <translation>Rayon</translation>
+    </message>
+    <message>
+      <source>Remove Action</source>
+      <translation>Supprimer l’action</translation>
+    </message>
+    <message>
+      <source>Remove Premise</source>
+      <translation>Supprimer la condition</translation>
+    </message>
+    <message>
+      <source>Reservoir</source>
+      <translation>Réservoir à charge fixe</translation>
+    </message>
+    <message>
+      <source>River Water</source>
+      <translation>Eau de rivière</translation>
+    </message>
+    <message>
+      <source>Roughness</source>
+      <translation>Rugosité</translation>
+    </message>
+    <message>
+      <source>Rule controls and map labels belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
+      <translation>Les règles de commande et les étiquettes de carte appartiennent au réseau chargé. Les modifications sont enregistrées dans sa copie de travail.</translation>
+    </message>
+    <message>
+      <source>Select</source>
+      <translation>Sélectionner</translation>
+    </message>
+    <message>
+      <source>Show or hide the Map Editor Guide</source>
+      <translation>Afficher ou masquer le guide de l’éditeur</translation>
+    </message>
+    <message>
+      <source>Solid Center [%]</source>
+      <translation>Centre opaque [%]</translation>
+    </message>
+    <message>
+      <source>Tank</source>
+      <translation>Réservoir à niveau variable</translation>
+    </message>
+    <message>
+      <source>Terrain Cache</source>
+      <translation>Cache du terrain</translation>
+    </message>
+    <message>
+      <source>Then delete the cached terrain for the selected area and zoom levels:</source>
+      <translation>Supprimez ensuite le terrain en cache pour la zone et les niveaux sélectionnés :</translation>
+    </message>
+    <message>
+      <source>Then delete the cached tiles for the selected area and zoom levels:</source>
+      <translation>Supprimez ensuite les tuiles en cache pour la zone et les niveaux sélectionnés :</translation>
+    </message>
+    <message>
+      <source>Tile Cache</source>
+      <translation>Cache des tuiles</translation>
+    </message>
+    <message>
+      <source>Total Demand</source>
+      <translation>Demande totale</translation>
+    </message>
+    <message>
+      <source>Valve / Switch</source>
+      <translation>Vanne / interrupteur</translation>
+    </message>
+    <message>
+      <source>Velocity</source>
+      <translation>Vitesse d’écoulement</translation>
+    </message>
+    <message>
+      <source>Visual Settings</source>
+      <translation>Paramètres visuels</translation>
+    </message>
+    <message>
+      <source>Water Age</source>
+      <translation>Âge de l’eau</translation>
+    </message>
+  </context>
+  <context>
+    <name>HistoryDock</name>
+    <message>
+      <source>History</source>
+      <translation>Historique</translation>
+    </message>
+    <message>
+      <source>Undo</source>
+      <translation>Annuler</translation>
+    </message>
+    <message>
+      <source>Redo</source>
+      <translation>Rétablir</translation>
+    </message>
+    <message>
+      <source>Undo one verified action in the private working copy.</source>
+      <translation>Annuler une action vérifiée dans la copie de travail privée.</translation>
+    </message>
+    <message>
+      <source>Redo one verified action in the private working copy.</source>
+      <translation>Rétablir une action vérifiée dans la copie de travail privée.</translation>
+    </message>
+    <message>
+      <source>Click a saved action to jump to it, or a Commit to select its checkpoint. Use the disclosure row to expand archived actions.</source>
+      <translation>Cliquez sur une action enregistrée ou une révision pour la sélectionner. Dépliez la ligne pour voir les actions archivées.</translation>
+    </message>
+    <message>
+      <source>Branch History page did not match its first-parent cursor.</source>
+      <translation>La page reçue ne correspond pas au curseur du premier parent.</translation>
+    </message>
+    <message>
+      <source>Committed History is unavailable.</source>
+      <translation>Historique des révisions indisponible.</translation>
+    </message>
+    <message>
+      <source>Archived History page did not match the requested cursor.</source>
+      <translation>La page d’archive ne correspond pas au curseur demandé.</translation>
+    </message>
+    <message>
+      <source>Archived History returned duplicate or invalid actions.</source>
+      <translation>L’archive a renvoyé des actions invalides ou en double.</translation>
+    </message>
+    <message>
+      <source>Archived actions are unavailable.</source>
+      <translation>Actions archivées indisponibles.</translation>
+    </message>
+    <message>
+      <source>Select a project and branch</source>
+      <translation>Sélectionnez un projet et une branche</translation>
+    </message>
+    <message>
+      <source> — select a branch</source>
+      <translation> — sélectionnez une branche</translation>
+    </message>
+    <message>
+      <source>⟳ Refresh committed History</source>
+      <translation>⟳ Actualiser l’historique des révisions</translation>
+    </message>
+    <message>
+      <source>Read the newest first-parent Commit page from private DVMDB.</source>
+      <translation>Lire la dernière page des révisions du premier parent dans la DVMDB privée.</translation>
+    </message>
+    <message>
+      <source>Loading committed History…</source>
+      <translation>Chargement de l’historique des révisions…</translation>
+    </message>
+    <message>
+      <source>Committed History unavailable — click to retry</source>
+      <translation>Historique indisponible — cliquez pour réessayer</translation>
+    </message>
+    <message>
+      <source>Load earlier Commits…</source>
+      <translation>Charger les révisions antérieures…</translation>
+    </message>
+    <message>
+      <source>
+Click to select this verified action state.</source>
+      <translation>
+Cliquer pour sélectionner cet état vérifié.</translation>
+    </message>
+    <message>
+      <source>    Snapshot-only checkpoint (no archived actions)</source>
+      <translation>    Point de reprise par instantané (aucune action archivée)</translation>
+    </message>
+    <message>
+      <source>    Loading archived actions…</source>
+      <translation>    Chargement des actions archivées…</translation>
+    </message>
+    <message>
+      <source>    Archived actions unavailable — click to retry</source>
+      <translation>    Actions archivées indisponibles — cliquez pour réessayer</translation>
+    </message>
+    <message>
+      <source>    Load more archived actions…</source>
+      <translation>    Charger plus d’actions archivées…</translation>
+    </message>
+    <message>
+      <source>    ▾ Hide archived actions</source>
+      <translation>    ▾ Masquer les actions archivées</translation>
+    </message>
+    <message>
+      <source>    ▸ Show archived actions</source>
+      <translation>    ▸ Afficher les actions archivées</translation>
+    </message>
+    <message>
+      <source>Expand or collapse the original archived MODEL actions.</source>
+      <translation>Déplier ou replier les actions MODEL archivées.</translation>
+    </message>
+    <message>
+      <source>
+Snapshot-only checkpoint: no executable action archive.</source>
+      <translation>
+Instantané uniquement : aucune archive d’actions exécutable.</translation>
+    </message>
+    <message>
+      <source>
+Click to navigate to this checkpoint (verified by DVMDB).</source>
+      <translation>
+Cliquer pour atteindre ce point vérifié par DVMDB.</translation>
+    </message>
+    <message>
+      <source>
+Click to select this saved action state.</source>
+      <translation>
+Cliquer pour sélectionner cet état enregistré.</translation>
+    </message>
+    <message>
+      <source>▶ Private working state — editing blocked</source>
+      <translation>▶ État de travail privé — édition bloquée</translation>
+    </message>
+    <message>
+      <source>▶ Current private working state</source>
+      <translation>▶ État de travail privé actuel</translation>
+    </message>
+    <message>
+      <source>▶ Current unborn HEAD</source>
+      <translation>▶ HEAD actuel sans révision</translation>
+    </message>
+    <message>
+      <source>▶ Current branch HEAD</source>
+      <translation>▶ HEAD actuel de la branche</translation>
+    </message>
+    <message>
+      <source>▶ Selected draft position %1</source>
+      <translation>▶ Position %1 du brouillon sélectionnée</translation>
+    </message>
+    <message>
+      <source>▶ Archived action %1 in %2</source>
+      <translation>▶ Action archivée %1 dans %2</translation>
+    </message>
+    <message>
+      <source> (expand/load more to locate)</source>
+      <translation> (déplier ou charger la suite pour localiser)</translation>
+    </message>
+    <message>
+      <source>Open a verified private working copy to navigate History.</source>
+      <translation>Ouvrez une copie privée vérifiée pour parcourir l’historique.</translation>
+    </message>
+    <message>
+      <source>Position reported by the private DVMDB server.</source>
+      <translation>Position indiquée par le serveur DVMDB privé.</translation>
+    </message>
+    <message>
+      <source>No branch history selected</source>
+      <translation>Aucun historique de branche sélectionné</translation>
+    </message>
+    <message>
+      <source>Open a ready private draft with a verified History cursor.</source>
+      <translation>Ouvrez un brouillon privé prêt avec une position vérifiée.</translation>
+    </message>
+    <message>
+      <source>Undo one DVMDB-verified action.</source>
+      <translation>Annuler une action vérifiée par DVMDB.</translation>
+    </message>
+    <message>
+      <source>Redo one DVMDB-verified action.</source>
+      <translation>Rétablir une action vérifiée par DVMDB.</translation>
+    </message>
+    <message>
+      <source>◆ Commit · ● Saved edit · ◌ Pending Save. </source>
+      <translation>◆ Révision · ● Modification enregistrée · ◌ En attente. </translation>
+    </message>
+    <message>
+      <source>Undo/Redo uses verified server History. Actions are selected atomically.</source>
+      <translation>Annuler et rétablir utilisent l’historique vérifié du serveur. Chaque sélection est atomique.</translation>
+    </message>
+    <message>
+      <source>Undo/Redo unavailable: %1</source>
+      <translation>Annuler/rétablir indisponible : %1</translation>
+    </message>
+    <message>
+      <source> Private editing is blocked; check the network status before making changes.</source>
+      <translation> L’édition privée est bloquée. Vérifiez l’état du réseau avant de modifier.</translation>
+    </message>
+    <message>
+      <source> Some committed ancestors are unavailable in the Projects preview; open the private draft to load full History.</source>
+      <translation> Certains ancêtres sont absents de l’aperçu Projets. Ouvrez le brouillon privé pour charger tout l’historique.</translation>
+    </message>
+    <message>
+      <source> Loading committed first-parent History.</source>
+      <translation> Chargement de l’historique du premier parent.</translation>
+    </message>
+    <message>
+      <source> Committed History request failed: %1</source>
+      <translation> Échec du chargement de l’historique : %1</translation>
+    </message>
+    <message>
+      <source> No commits yet on this branch.</source>
+      <translation> Aucune révision enregistrée sur cette branche.</translation>
+    </message>
+    <message>
+      <source> Open a private draft to inspect archived MODEL actions.</source>
+      <translation> Ouvrez un brouillon privé pour consulter les actions MODEL archivées.</translation>
+    </message>
+    <message>
+      <source> Click a Commit to jump to its verified checkpoint; use the disclosure row to expand actions in pages.</source>
+      <translation> Cliquez sur une révision pour atteindre son point de reprise. Dépliez la ligne pour charger les actions archivées par page.</translation>
+    </message>
+    <message>
+      <source> Draft actions appear after commit checkpoints; pending actions are marked ◌.</source>
+      <translation> Les actions du brouillon suivent les révisions. ◌ indique une action en attente.</translation>
+    </message>
+    <message>
+      <source>Commit %1</source>
+      <translation>Révision %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision: %1</source>
+      <translation>Révision immuable : %1</translation>
+    </message>
+    <message>
+      <source>
+Snapshot-only checkpoint: no recorded MODEL actions.</source>
+      <translation>
+Instantané uniquement : aucune action MODEL enregistrée.</translation>
+    </message>
+    <message>
+      <source>Original archived MODEL action: %1</source>
+      <translation>Action MODEL archivée d’origine : %1</translation>
+    </message>
+    <message>
+      <source>
+Operation: %1</source>
+      <translation>
+Opération : %1</translation>
+    </message>
+    <message>
+      <source>
+%1 entity edit(s)</source>
+      <translation>
+Nombre de modifications d’éléments : %1</translation>
+    </message>
+    <message>
+      <source>%1
+%2 entity edit(s)
+Event %3</source>
+      <translation>%1
+Modifications d’éléments : %2
+Événement %3</translation>
+    </message>
+    <message>
+      <source>This event could not be decoded for display.</source>
+      <translation>Impossible de décoder cet événement.</translation>
+    </message>
+    <message>
+      <source>Hydraulic edit</source>
+      <translation>Modification hydraulique</translation>
+    </message>
+    <message>
+      <source>Unrecognized stored edit</source>
+      <translation>Modification enregistrée inconnue</translation>
+    </message>
+    <message>
+      <source> (pending Save)</source>
+      <translation> (enregistrement en attente)</translation>
+    </message>
+    <message>
+      <source>
+Merge commit: additional parent history is visible in Projects.</source>
+      <translation>
+Révision de fusion : les autres parents sont visibles dans Projets.</translation>
+    </message>
+  </context>
+  <context>
+    <name>HydraulicTableColumns</name>
+    <message>
+      <source>Area Cross-Section</source>
+      <translation>Section transversale</translation>
+    </message>
+    <message>
+      <source>Attachment Target</source>
+      <translation>Cible de rattachement</translation>
+    </message>
+    <message>
+      <source>Attachment Type</source>
+      <translation>Type de rattachement</translation>
+    </message>
+    <message>
+      <source>Bottom Offset</source>
+      <translation>Décalage du fond</translation>
+    </message>
+    <message>
+      <source>Can Overflow</source>
+      <translation>Débordement possible</translation>
+    </message>
+    <message>
+      <source>Chemical Concentration</source>
+      <translation>Concentration chimique</translation>
+    </message>
+    <message>
+      <source>Comment</source>
+      <translation>Commentaire</translation>
+    </message>
+    <message>
+      <source>Controls</source>
+      <translation>Commandes</translation>
+    </message>
+    <message>
+      <source>Customer Demand Base</source>
+      <translation>Demande de base de l’abonné</translation>
+    </message>
+    <message>
+      <source>Date Added</source>
+      <translation>Date d’ajout</translation>
+    </message>
+    <message>
+      <source>Date Installed</source>
+      <translation>Date d’installation</translation>
+    </message>
+    <message>
+      <source>Definition</source>
+      <translation>Définition</translation>
+    </message>
+    <message>
+      <source>Demand Base</source>
+      <translation>Demande de base</translation>
+    </message>
+    <message>
+      <source>Demand Count</source>
+      <translation>Nombre de demandes</translation>
+    </message>
+    <message>
+      <source>Demand Deficit</source>
+      <translation>Déficit de demande</translation>
+    </message>
+    <message>
+      <source>Demand Delivered</source>
+      <translation>Demande satisfaite</translation>
+    </message>
+    <message>
+      <source>Demand Details</source>
+      <translation>Détail des demandes</translation>
+    </message>
+    <message>
+      <source>Demand Net</source>
+      <translation>Demande nette</translation>
+    </message>
+    <message>
+      <source>Demand Requested</source>
+      <translation>Demande requise</translation>
+    </message>
+    <message>
+      <source>Demand Total</source>
+      <translation>Demande totale</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>Description</translation>
+    </message>
+    <message>
+      <source>Diameter</source>
+      <translation>Diamètre</translation>
+    </message>
+    <message>
+      <source>Efficiency</source>
+      <translation>Rendement</translation>
+    </message>
+    <message>
+      <source>Efficiency Average</source>
+      <translation>Rendement moyen</translation>
+    </message>
+    <message>
+      <source>Efficiency Constant</source>
+      <translation>Rendement constant</translation>
+    </message>
+    <message>
+      <source>Efficiency Curve</source>
+      <translation>Courbe de rendement</translation>
+    </message>
+    <message>
+      <source>Efficiency Input</source>
+      <translation>Mode de saisie du rendement</translation>
+    </message>
+    <message>
+      <source>Elevation Bottom</source>
+      <translation>Altitude du fond</translation>
+    </message>
+    <message>
+      <source>Elevation Bottom Resolved</source>
+      <translation>Altitude calculée du fond</translation>
+    </message>
+    <message>
+      <source>Elevation Direct</source>
+      <translation>Altitude saisie</translation>
+    </message>
+    <message>
+      <source>Elevation Input</source>
+      <translation>Mode de saisie de l’altitude</translation>
+    </message>
+    <message>
+      <source>Elevation Offset</source>
+      <translation>Décalage d’altitude</translation>
+    </message>
+    <message>
+      <source>Elevation Resolved</source>
+      <translation>Altitude calculée</translation>
+    </message>
+    <message>
+      <source>Elevation Terrain</source>
+      <translation>Altitude du terrain</translation>
+    </message>
+    <message>
+      <source>Emitter Coefficient</source>
+      <translation>Coefficient d’émetteur</translation>
+    </message>
+    <message>
+      <source>Emitter Exponent</source>
+      <translation>Exposant d’émetteur</translation>
+    </message>
+    <message>
+      <source>Enabled</source>
+      <translation>Activé</translation>
+    </message>
+    <message>
+      <source>Energy Intensity Average</source>
+      <translation>Intensité énergétique moyenne</translation>
+    </message>
+    <message>
+      <source>Energy Price Input</source>
+      <translation>Mode de saisie du prix de l’énergie</translation>
+    </message>
+    <message>
+      <source>Energy Price</source>
+      <translation>Prix de l’énergie</translation>
+    </message>
+    <message>
+      <source>Flow</source>
+      <translation>Débit</translation>
+    </message>
+    <message>
+      <source>Flow Emitter</source>
+      <translation>Débit de l’émetteur</translation>
+    </message>
+    <message>
+      <source>Flow Leakage</source>
+      <translation>Débit de fuite</translation>
+    </message>
+    <message>
+      <source>Friction Factor</source>
+      <translation>Facteur de frottement</translation>
+    </message>
+    <message>
+      <source>Geometry Input</source>
+      <translation>Mode de saisie de la géométrie</translation>
+    </message>
+    <message>
+      <source>Head</source>
+      <translation>Charge hydraulique</translation>
+    </message>
+    <message>
+      <source>Head Curve</source>
+      <translation>Courbe de charge</translation>
+    </message>
+    <message>
+      <source>Head Direct</source>
+      <translation>Charge saisie</translation>
+    </message>
+    <message>
+      <source>Head Gain</source>
+      <translation>Gain de charge</translation>
+    </message>
+    <message>
+      <source>Head Input</source>
+      <translation>Mode de saisie de la charge</translation>
+    </message>
+    <message>
+      <source>Head Loss</source>
+      <translation>Perte de charge</translation>
+    </message>
+    <message>
+      <source>Head Loss Unit</source>
+      <translation>Perte de charge unitaire</translation>
+    </message>
+    <message>
+      <source>Head Offset</source>
+      <translation>Décalage de charge</translation>
+    </message>
+    <message>
+      <source>Head Pattern</source>
+      <translation>Profil de charge</translation>
+    </message>
+    <message>
+      <source>Head Pattern Mode</source>
+      <translation>Mode du profil de charge</translation>
+    </message>
+    <message>
+      <source>Head Resolved</source>
+      <translation>Charge calculée</translation>
+    </message>
+    <message>
+      <source>ID</source>
+      <translation>ID</translation>
+    </message>
+    <message>
+      <source>Initial Chemical</source>
+      <translation>Concentration chimique initiale</translation>
+    </message>
+    <message>
+      <source>Initial Water Age</source>
+      <translation>Âge initial de l’eau</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>Latitude</translation>
+    </message>
+    <message>
+      <source>Leak Area</source>
+      <translation>Surface de fuite</translation>
+    </message>
+    <message>
+      <source>Leak Expansion</source>
+      <translation>Expansion de la fuite</translation>
+    </message>
+    <message>
+      <source>Length Calculated</source>
+      <translation>Longueur calculée</translation>
+    </message>
+    <message>
+      <source>Length Effective</source>
+      <translation>Longueur effective</translation>
+    </message>
+    <message>
+      <source>Length Measured</source>
+      <translation>Longueur mesurée</translation>
+    </message>
+    <message>
+      <source>Level Initial</source>
+      <translation>Niveau initial</translation>
+    </message>
+    <message>
+      <source>Level Maximum</source>
+      <translation>Niveau maximal</translation>
+    </message>
+    <message>
+      <source>Level Minimum</source>
+      <translation>Niveau minimal</translation>
+    </message>
+    <message>
+      <source>Level Water</source>
+      <translation>Niveau d’eau</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>Longitude</translation>
+    </message>
+    <message>
+      <source>Material</source>
+      <translation>Matériau</translation>
+    </message>
+    <message>
+      <source>Meter ID</source>
+      <translation>Identifiant du compteur</translation>
+    </message>
+    <message>
+      <source>Metered</source>
+      <translation>Compté</translation>
+    </message>
+    <message>
+      <source>Minor Loss</source>
+      <translation>Perte de charge singulière</translation>
+    </message>
+    <message>
+      <source>Model Role</source>
+      <translation>Rôle dans le modèle</translation>
+    </message>
+    <message>
+      <source>Node 1</source>
+      <translation>Nœud 1</translation>
+    </message>
+    <message>
+      <source>Node 2</source>
+      <translation>Nœud 2</translation>
+    </message>
+    <message>
+      <source>Pipe Position</source>
+      <translation>Position sur la conduite</translation>
+    </message>
+    <message>
+      <source>Power</source>
+      <translation>Puissance</translation>
+    </message>
+    <message>
+      <source>Power Average</source>
+      <translation>Puissance moyenne</translation>
+    </message>
+    <message>
+      <source>Power Constant</source>
+      <translation>Puissance constante</translation>
+    </message>
+    <message>
+      <source>Power Peak</source>
+      <translation>Puissance de pointe</translation>
+    </message>
+    <message>
+      <source>Pressure</source>
+      <translation>Pression</translation>
+    </message>
+    <message>
+      <source>Price Pattern</source>
+      <translation>Profil tarifaire</translation>
+    </message>
+    <message>
+      <source>Quality Bulk Reaction Coefficient</source>
+      <translation>Coefficient de réaction dans l’eau</translation>
+    </message>
+    <message>
+      <source>Quality Mixing Fraction</source>
+      <translation>Fraction de mélange</translation>
+    </message>
+    <message>
+      <source>Quality Mixing Model</source>
+      <translation>Modèle de mélange</translation>
+    </message>
+    <message>
+      <source>Quality Override Bulk Reaction</source>
+      <translation>Remplacer la réaction dans l’eau</translation>
+    </message>
+    <message>
+      <source>Quality Override Wall Reaction</source>
+      <translation>Remplacer la réaction à la paroi</translation>
+    </message>
+    <message>
+      <source>Quality Source Concentration</source>
+      <translation>Concentration de la source</translation>
+    </message>
+    <message>
+      <source>Quality Source Mass Flow</source>
+      <translation>Débit massique de la source</translation>
+    </message>
+    <message>
+      <source>Quality Source Pattern</source>
+      <translation>Profil de la source</translation>
+    </message>
+    <message>
+      <source>Quality Source Type</source>
+      <translation>Type de source</translation>
+    </message>
+    <message>
+      <source>Quality Wall Reaction Coefficient</source>
+      <translation>Coefficient de réaction à la paroi</translation>
+    </message>
+    <message>
+      <source>Referenced by Control</source>
+      <translation>Utilisé par une commande</translation>
+    </message>
+    <message>
+      <source>Regulating</source>
+      <translation>En régulation</translation>
+    </message>
+    <message>
+      <source>Roughness CM</source>
+      <translation>Rugosité CM</translation>
+    </message>
+    <message>
+      <source>Roughness CM Effective</source>
+      <translation>Rugosité CM effective</translation>
+    </message>
+    <message>
+      <source>Roughness DW</source>
+      <translation>Rugosité DW</translation>
+    </message>
+    <message>
+      <source>Roughness DW Effective</source>
+      <translation>Rugosité DW effective</translation>
+    </message>
+    <message>
+      <source>Roughness HW</source>
+      <translation>Rugosité HW</translation>
+    </message>
+    <message>
+      <source>Roughness HW Effective</source>
+      <translation>Rugosité HW effective</translation>
+    </message>
+    <message>
+      <source>Setting</source>
+      <translation>Consigne</translation>
+    </message>
+    <message>
+      <source>Setting Curve</source>
+      <translation>Courbe de consigne</translation>
+    </message>
+    <message>
+      <source>Source Trace</source>
+      <translation>Traçage de la source</translation>
+    </message>
+    <message>
+      <source>Speed</source>
+      <translation>Vitesse</translation>
+    </message>
+    <message>
+      <source>Speed Initial</source>
+      <translation>Vitesse initiale</translation>
+    </message>
+    <message>
+      <source>Speed Pattern</source>
+      <translation>Profil de vitesse</translation>
+    </message>
+    <message>
+      <source>State Operating</source>
+      <translation>État de fonctionnement</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>État</translation>
+    </message>
+    <message>
+      <source>Status Initial</source>
+      <translation>État initial</translation>
+    </message>
+    <message>
+      <source>Tags</source>
+      <translation>Étiquettes</translation>
+    </message>
+    <message>
+      <source>Time Online</source>
+      <translation>Temps en service</translation>
+    </message>
+    <message>
+      <source>Valve Type</source>
+      <translation>Type de vanne</translation>
+    </message>
+    <message>
+      <source>Velocity</source>
+      <translation>Vitesse d’écoulement</translation>
+    </message>
+    <message>
+      <source>Vertices</source>
+      <translation>Sommets</translation>
+    </message>
+    <message>
+      <source>Volume</source>
+      <translation>Volume</translation>
+    </message>
+    <message>
+      <source>Volume Curve</source>
+      <translation>Courbe de volume</translation>
+    </message>
+    <message>
+      <source>Volume Maximum</source>
+      <translation>Volume maximal</translation>
+    </message>
+    <message>
+      <source>Volume Minimum</source>
+      <translation>Volume minimal</translation>
+    </message>
+    <message>
+      <source>Volume Mixing-Zone</source>
+      <translation>Volume de la zone de mélange</translation>
+    </message>
+    <message>
+      <source>Water Age</source>
+      <translation>Âge de l’eau</translation>
+    </message>
+    <message>
+      <source>Water Quality Result</source>
+      <translation>Résultat de qualité de l’eau</translation>
+    </message>
+  </context>
+  <context>
+    <name>GuiShortcuts</name>
+    <message>
+      <source>Application</source>
+      <translation>Application</translation>
+    </message>
+    <message>
+      <source>Simulation</source>
+      <translation>Simulation</translation>
+    </message>
+    <message>
+      <source>Map Navigation</source>
+      <translation>Navigation cartographique</translation>
+    </message>
+    <message>
+      <source>Map Monitor</source>
+      <translation>Moniteur de carte</translation>
+    </message>
+    <message>
+      <source>Map</source>
+      <translation>Carte</translation>
+    </message>
+    <message>
+      <source>Map Providers</source>
+      <translation>Fournisseurs de cartes</translation>
+    </message>
+    <message>
+      <source>Map Editor</source>
+      <translation>Éditeur de carte</translation>
+    </message>
+    <message>
+      <source>Toggle right sidebar</source>
+      <translation>Afficher ou masquer la barre latérale droite</translation>
+    </message>
+    <message>
+      <source>Toggle fullscreen</source>
+      <translation>Basculer en plein écran</translation>
+    </message>
+    <message>
+      <source>Toggle map fullscreen</source>
+      <translation>Basculer la carte en plein écran</translation>
+    </message>
+    <message>
+      <source>Run simulation</source>
+      <translation>Lancer la simulation</translation>
+    </message>
+    <message>
+      <source>Run simulation (alternate)</source>
+      <translation>Lancer la simulation (autre raccourci)</translation>
+    </message>
+    <message>
+      <source>Zoom in</source>
+      <translation>Zoom avant</translation>
+    </message>
+    <message>
+      <source>Zoom out</source>
+      <translation>Zoom arrière</translation>
+    </message>
+    <message>
+      <source>Pan up</source>
+      <translation>Déplacer vers le haut</translation>
+    </message>
+    <message>
+      <source>Pan down</source>
+      <translation>Déplacer vers le bas</translation>
+    </message>
+    <message>
+      <source>Pan left</source>
+      <translation>Déplacer vers la gauche</translation>
+    </message>
+    <message>
+      <source>Pan right</source>
+      <translation>Déplacer vers la droite</translation>
+    </message>
+    <message>
+      <source>Selection mode</source>
+      <translation>Mode de sélection</translation>
+    </message>
+    <message>
+      <source>Delete selected</source>
+      <translation>Supprimer la sélection</translation>
+    </message>
+    <message>
+      <source>Add pipe / cable</source>
+      <translation>Ajouter une conduite / un câble</translation>
+    </message>
+    <message>
+      <source>Add junction</source>
+      <translation>Ajouter un nœud</translation>
+    </message>
+    <message>
+      <source>Add valve / switch</source>
+      <translation>Ajouter une vanne / un interrupteur</translation>
+    </message>
+    <message>
+      <source>Add demand point</source>
+      <translation>Ajouter un point de demande</translation>
+    </message>
+    <message>
+      <source>Add pump</source>
+      <translation>Ajouter une pompe</translation>
+    </message>
+    <message>
+      <source>Add tank</source>
+      <translation>Ajouter un réservoir à niveau variable</translation>
+    </message>
+    <message>
+      <source>Add power source</source>
+      <translation>Ajouter une source d’énergie</translation>
+    </message>
+    <message>
+      <source>Add reservoir</source>
+      <translation>Ajouter un réservoir à charge fixe</translation>
+    </message>
+    <message>
+      <source>Add note</source>
+      <translation>Ajouter une note</translation>
     </message>
   </context>
 </TS>

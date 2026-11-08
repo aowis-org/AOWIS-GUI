@@ -48,7 +48,7 @@ public:
                            const QStringList &branches,
                            const QString &branch);
     void setWorkingCopyModified(bool modified);
-    void setNetworkStatus(const QString &status);
+    void setNetworkStatus(const char *source, const QString &argument = QString());
     void restoreOpenedContext();
     void setOpenedContext(const QString &project, const QString &branch);
 
@@ -75,6 +75,9 @@ private:
     QToolButton *language_button = nullptr;
     QToolButton *export_button = nullptr;
     void refreshViewText();
+    void refreshNetworkStatus();
+    const char *network_status_source = QT_TRANSLATE_NOOP("LiveUiText", "No network");
+    QString network_status_argument;
     QWidget *content = nullptr;
     ComboCheckboxes *combo_quality_analysis = nullptr;
     QComboBox *combo_project = nullptr;

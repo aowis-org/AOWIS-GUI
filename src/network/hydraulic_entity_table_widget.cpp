@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include <aowis/model/units/quantity.h>
 #include "network/hydraulic_entity_table_widget.h"
 
@@ -1201,11 +1202,11 @@ public:
         const TableColumn &column = this->columns.at(section);
         if (role == Qt::DisplayRole)
             return compactHeaderText(UnitTablePresentation::formattedTitle(
-                column.title, UnitProfileManager::instance().presentation(), column.units));
+                columnTitle(section), UnitProfileManager::instance().presentation(), column.units));
         if (role == Qt::ToolTipRole)
         {
             const QString title = UnitTablePresentation::formattedTitle(
-                column.title, UnitProfileManager::instance().presentation(), column.units);
+                columnTitle(section), UnitProfileManager::instance().presentation(), column.units);
             if (column.units.kind == UnitTablePresentation::ColumnKind::BulkReaction)
                 return UnitTablePresentation::reactionColumnTooltip(
                     UnitProfileManager::instance().presentation(),
@@ -1258,7 +1259,12 @@ public:
     {
         if (column < 0 || column >= this->columns.size())
             return QString();
-        return this->columns.at(column).title;
+        const QString &source = this->columns.at(column).title;
+        const qsizetype suffix = source.lastIndexOf(QStringLiteral(" ["));
+        const bool has_unit = suffix >= 0 && source.endsWith(QLatin1Char(']'));
+        const QString caption = has_unit ? source.left(suffix) : source;
+        return QCoreApplication::translate("HydraulicTableColumns", caption.toUtf8().constData())
+            + (has_unit ? source.mid(suffix) : QString());
     }
 
     UnitTablePresentation::ColumnUnits columnUnits(int column) const
@@ -2856,6 +2862,10 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
     this->proxy_model->setDynamicSortFilter(true);
 
     this->table->setModel(this->proxy_model);
+    LiveUiText::bind(this->table, [this] {
+        if (this->model->columnCount() > 0)
+            emit this->model->headerDataChanged(Qt::Horizontal, 0, this->model->columnCount() - 1);
+    });
     this->table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     this->table->setSelectionBehavior(QAbstractItemView::SelectRows);
     this->table->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -2882,8 +2892,10 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
     layout->addWidget(filter_bar);
     layout->addWidget(this->table, 1);
 
-    this->label_help->setText(QStringLiteral("<b>Hint:</b> ") + entity_plural
-                              + QStringLiteral(" are created in the Map Editor."));
+    LiveUiText::bind(this->label_help, [this, entity_plural] {
+        const QString entities = QCoreApplication::translate("MainNavigationWidget", entity_plural.toUtf8().constData());
+        this->label_help->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "<b>Hint:</b> Create %1 in the Map Editor.")).arg(entities));
+    });
     this->label_help->setTextFormat(Qt::RichText);
     this->label_help->setWordWrap(true);
     this->label_help->setMargin(8);
@@ -2915,6 +2927,17 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
                                static_cast<int>(SimulationStatusFilter::ErrorsOnly));
     simulation_filter->setToolTip(QStringLiteral("Filter entities by simulation diagnostics"));
     simulation_filter->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+    LiveUiText::bind(simulation_filter, [simulation_filter, simulation_filter_label, reset_filters_button] {
+        const QSignalBlocker blocker(simulation_filter);
+        simulation_filter_label->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Simulation:")));
+        reset_filters_button->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset filters")));
+        reset_filters_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset all table filters")));
+        simulation_filter->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Filter entities by simulation diagnostics")));
+        simulation_filter->setItemText(0, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "All")));
+        simulation_filter->setItemText(1, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Warnings & errors")));
+        simulation_filter->setItemText(2, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Warnings only")));
+        simulation_filter->setItemText(3, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Errors only")));
+    });
     bottom_layout->addWidget(simulation_filter, 0, Qt::AlignVCenter);
 
     bottom_layout->addWidget(this->label_help, 1);

@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "settings/map_settings_widget.h"
 
 #include "config/gui_configuration.h"
@@ -37,9 +38,9 @@ constexpr double NavigationSensitivityMaximum = 1.5;
 constexpr double NavigationSensitivityStep = 0.05;
 
 
-QLabel *sectionTitle(const QString &text, QWidget *parent)
+QLabel *sectionTitle(const char *text, QWidget *parent)
 {
-    QLabel *label = new QLabel(text, parent);
+    QLabel *label = LiveUiText::caption<QLabel>(text, parent);
     QFont font = label->font();
     font.setPointSize(font.pointSize() + 2);
     font.setBold(true);
@@ -47,9 +48,9 @@ QLabel *sectionTitle(const QString &text, QWidget *parent)
     return label;
 }
 
-QLabel *helpLabel(const QString &text, QWidget *parent)
+QLabel *helpLabel(const char *text, QWidget *parent)
 {
-    QLabel *label = new QLabel(text, parent);
+    QLabel *label = LiveUiText::caption<QLabel>(text, parent);
     label->setWordWrap(true);
     QFont font = label->font();
     font.setItalic(true);
@@ -70,7 +71,7 @@ MapSettingsWidget::MapSettingsWidget(QWidget *parent)
     content_layout->setContentsMargins(24, 20, 24, 20);
     content_layout->setSpacing(20);
 
-    QLabel *title = sectionTitle(QStringLiteral("Map Settings"), content);
+    QLabel *title = sectionTitle(QT_TRANSLATE_NOOP("LiveUiText", "Map Settings"), content);
     content_layout->addWidget(title);
 
     buildNavigationSection(content);
@@ -87,11 +88,11 @@ MapSettingsWidget::MapSettingsWidget(QWidget *parent)
 
 void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
 {
-    QGroupBox *group = new QGroupBox(QStringLiteral("Map Controls"), parent_widget);
+    QGroupBox *group = new QGroupBox(parent_widget);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Map Controls"))); });
     QVBoxLayout *group_layout = new QVBoxLayout(group);
 
-    group_layout->addWidget(helpLabel(
-        QStringLiteral("Adjust map mouse controls. Mouse wheel zoom applies to both 2D and 3D (globe). "
+    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Adjust map mouse controls. Mouse wheel zoom applies to both 2D and 3D (globe). "
                        "Defaults: wheel zoom 0.50x, 3D pan 0.80x, 3D orbit 0.80x."),
         group));
 
@@ -109,8 +110,7 @@ void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
     this->scroll_zoom_sensitivity_control->setSliderStep(0.01);
     this->scroll_zoom_sensitivity_control->setSuffix(QStringLiteral("x"));
     this->scroll_zoom_sensitivity_control->setValue(current.scroll_zoom_sensitivity);
-    form->addRow(QStringLiteral("Mouse wheel zoom speed"),
-                 this->scroll_zoom_sensitivity_control);
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Mouse wheel zoom speed"), group), this->scroll_zoom_sensitivity_control);
 
     this->mouse_3d_pan_sensitivity_control = new SliderNumberControl(group);
     this->mouse_3d_pan_sensitivity_control->setRange(
@@ -120,8 +120,7 @@ void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
     this->mouse_3d_pan_sensitivity_control->setSliderStep(0.01);
     this->mouse_3d_pan_sensitivity_control->setSuffix(QStringLiteral("x"));
     this->mouse_3d_pan_sensitivity_control->setValue(current.mouse_3d_pan_sensitivity);
-    form->addRow(QStringLiteral("3D mouse pan speed"),
-                 this->mouse_3d_pan_sensitivity_control);
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "3D mouse pan speed"), group), this->mouse_3d_pan_sensitivity_control);
 
     this->orbit_3d_sensitivity_control = new SliderNumberControl(group);
     this->orbit_3d_sensitivity_control->setRange(
@@ -131,8 +130,7 @@ void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
     this->orbit_3d_sensitivity_control->setSliderStep(0.01);
     this->orbit_3d_sensitivity_control->setSuffix(QStringLiteral("x"));
     this->orbit_3d_sensitivity_control->setValue(current.orbit_3d_sensitivity);
-    form->addRow(QStringLiteral("3D orbit speed"),
-                 this->orbit_3d_sensitivity_control);
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "3D orbit speed"), group), this->orbit_3d_sensitivity_control);
 
     group_layout->addLayout(form);
 
@@ -140,7 +138,7 @@ void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
     this->navigation_status->setWordWrap(true);
     group_layout->addWidget(this->navigation_status);
 
-    QPushButton *restore_defaults = new QPushButton(QStringLiteral("Restore Defaults"), group);
+    QPushButton *restore_defaults = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Restore Defaults"), group);
     group_layout->addWidget(restore_defaults, 0, Qt::AlignLeft);
 
     this->navigation_save_debounce = new QTimer(this);
@@ -170,11 +168,11 @@ void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
 
 void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
 {
-    QGroupBox *group = new QGroupBox(QStringLiteral("Map Performance"), parent_widget);
+    QGroupBox *group = new QGroupBox(parent_widget);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Map Performance"))); });
     QVBoxLayout *group_layout = new QVBoxLayout(group);
 
-    group_layout->addWidget(helpLabel(
-        QStringLiteral("These apply immediately to the 3D map renderer and are saved as you change them."),
+    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "These apply immediately to the 3D map renderer and are saved as you change them."),
         group));
 
     QFormLayout *form = new QFormLayout();
@@ -190,9 +188,8 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
     this->terrain_detail_reduction_control->setDecimals(0);
     this->terrain_detail_reduction_control->setSliderStep(1.0);
     this->terrain_detail_reduction_control->setValue(double(current.terrain_detail_reduction));
-    form->addRow(QStringLiteral("Terrain detail reduction"), this->terrain_detail_reduction_control);
-    form->addRow(QString(), helpLabel(
-        QStringLiteral("0 draws every elevation sample the terrain source provides at the map's "
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Terrain detail reduction"), group), this->terrain_detail_reduction_control);
+    form->addRow(QString(), helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "0 draws every elevation sample the terrain source provides at the map's "
                        "level of detail: one terrain cell per sample spacing, about 4 px on "
                        "screen. Each step halves the terrain resolution (about 8, 16 and 32 px "
                        "per cell) and needs a quarter of the triangles. Zoomed in past the "
@@ -206,7 +203,7 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
     this->performance_status->setWordWrap(true);
     group_layout->addWidget(this->performance_status);
 
-    QPushButton *restore_defaults = new QPushButton(QStringLiteral("Restore Defaults"), group);
+    QPushButton *restore_defaults = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Restore Defaults"), group);
     group_layout->addWidget(restore_defaults, 0, Qt::AlignLeft);
 
     this->performance_save_debounce = new QTimer(this);
@@ -230,17 +227,16 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
 
 void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 {
-    QGroupBox *group = new QGroupBox(QStringLiteral("Map Server Settings"), parent_widget);
+    QGroupBox *group = new QGroupBox(parent_widget);
+    LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Map Server Settings"))); });
     QVBoxLayout *group_layout = new QVBoxLayout(group);
 
 #ifdef __EMSCRIPTEN__
-    group_layout->addWidget(helpLabel(
-        QStringLiteral("In this build, the map server connection is set by the hosting page and "
+    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "In this build, the map server connection is set by the hosting page and "
                        "cannot be changed here."),
         group));
 #else
-    group_layout->addWidget(helpLabel(
-        QStringLiteral("Connection changes are saved when you finish editing a field. "
+    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Connection changes are saved when you finish editing a field. "
                        "Restart AOWIS for them to take effect."),
         group));
 #endif
@@ -253,16 +249,20 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 
     this->server_base_url_edit = new QLineEdit(current.base_url, group);
     this->server_base_url_edit->setPlaceholderText(QStringLiteral("http://aowis-server-map.localhost:80"));
-    form->addRow(QStringLiteral("Base URL"), this->server_base_url_edit);
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Base URL"), group), this->server_base_url_edit);
 
     this->server_api_key_edit = new QLineEdit(QString::fromUtf8(current.api_key), group);
-    this->server_api_key_edit->setPlaceholderText(QStringLiteral("(none)"));
-    form->addRow(QStringLiteral("API key"), this->server_api_key_edit);
+    LiveUiText::bind(this->server_api_key_edit, [this] {
+        this->server_api_key_edit->setPlaceholderText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "(none)")));
+    });
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "API key"), group), this->server_api_key_edit);
 
     this->server_delete_api_key_edit = new QLineEdit(
         QString::fromUtf8(current.delete_api_key), group);
-    this->server_delete_api_key_edit->setPlaceholderText(QStringLiteral("(none)"));
-    form->addRow(QStringLiteral("Delete API key"), this->server_delete_api_key_edit);
+    LiveUiText::bind(this->server_delete_api_key_edit, [this] {
+        this->server_delete_api_key_edit->setPlaceholderText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "(none)")));
+    });
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Delete API key"), group), this->server_delete_api_key_edit);
 
     group_layout->addLayout(form);
 
@@ -283,26 +283,26 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(group);
 
-    QGroupBox *providers_group = new QGroupBox(QStringLiteral("2D Map Providers"), parent_widget);
+    QGroupBox *providers_group = new QGroupBox(parent_widget);
+    LiveUiText::bind(providers_group, [providers_group] { providers_group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "2D Map Providers"))); });
     QVBoxLayout *providers_layout = new QVBoxLayout(providers_group);
-    providers_layout->addWidget(helpLabel(QStringLiteral(
-        "Provider changes are saved automatically. Each provider can fall back to another "
+    providers_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Provider changes are saved automatically. Each provider can fall back to another "
         "when you zoom beyond its maximum level. Fallbacks can form a chain: "
         "A → B → C, as long as each source offers more detail. "
         "Your fallback choices are personal; they don't change the server's providers. "
         "With no further fallback, the highest-resolution tiles are smoothly enlarged."), providers_group));
     this->provider_table = new QTableWidget(0, 6, providers_group);
-    this->provider_table->setHorizontalHeaderLabels({QStringLiteral("On"),
-        QStringLiteral("Display name"), QStringLiteral("Tile URL"),
-        QStringLiteral("Min"), QStringLiteral("Max"), QStringLiteral("My fallback")});
+    LiveUiText::bind(this->provider_table, [this] {
+        this->provider_table->setHorizontalHeaderLabels({LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "On")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display name")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile URL")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Min")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Max")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "My fallback"))});
+    });
     this->provider_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     this->provider_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     this->provider_table->setMinimumHeight(220);
     providers_layout->addWidget(this->provider_table);
     QHBoxLayout *buttons = new QHBoxLayout();
-    QPushButton *add = new QPushButton(QStringLiteral("Add provider"), providers_group);
-    QPushButton *remove = new QPushButton(QStringLiteral("Remove selected"), providers_group);
-    QPushButton *reload = new QPushButton(QStringLiteral("Reload from server"), providers_group);
+    QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Add provider"), providers_group);
+    QPushButton *remove = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove selected"), providers_group);
+    QPushButton *reload = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Reload from server"), providers_group);
     buttons->addWidget(add);
     buttons->addWidget(remove);
     buttons->addWidget(reload);
