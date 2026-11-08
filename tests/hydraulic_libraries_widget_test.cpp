@@ -263,24 +263,43 @@ int main(int argc, char **argv)
         }
         app.processEvents();
         const QLabel *id_caption = qobject_cast<QLabel *>(form->labelForField(id_field));
-        const bool in_translation = dialog->windowTitle()
-                == QStringLiteral("TEST: Add hydraulic library item")
-            && id_caption != nullptr && id_caption->text() == QStringLiteral("TEST: ID:")
-            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("TEST: Save")
-            && category->currentIndex() == 5
-            && id_field->text() == QStringLiteral("DRAFT_NOT_SAVED")
-            && values->toPlainText() == draft
-            && values->textCursor().anchor() == 1
+        const bool title_translated = dialog->windowTitle()
+            == QStringLiteral("TEST: Add hydraulic library item");
+        const bool id_translated = id_caption != nullptr
+            && id_caption->text() == QStringLiteral("TEST: ID:");
+        const bool save_translated = buttons->button(QDialogButtonBox::Save)->text()
+            == QStringLiteral("TEST: Save");
+        const bool cancel_translated = buttons->button(QDialogButtonBox::Cancel)->text()
+            == QStringLiteral("TEST: Cancel");
+        const bool collection_preserved = category->currentIndex() == 5;
+        const bool draft_preserved = id_field->text() == QStringLiteral("DRAFT_NOT_SAVED")
+            && values->toPlainText() == draft;
+        const bool cursor_preserved = values->textCursor().anchor() == 1
             && values->textCursor().position() == 6;
+        const bool in_translation = title_translated && id_translated && save_translated
+            && cancel_translated && collection_preserved && draft_preserved && cursor_preserved;
+        if (!in_translation)
+            std::fprintf(stderr, "Modal translation: title=%d id=%d save=%d cancel=%d collection=%d draft=%d cursor=%d\n",
+                         title_translated, id_translated, save_translated, cancel_translated,
+                         collection_preserved, draft_preserved, cursor_preserved);
         QCoreApplication::removeTranslator(&translator);
         app.processEvents();
-        const bool back_to_english = dialog->windowTitle() == QStringLiteral("Add hydraulic library item")
-            && id_caption != nullptr && id_caption->text() == QStringLiteral("ID:")
-            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("Save")
+        const bool title_restored = dialog->windowTitle()
+            == QStringLiteral("Add hydraulic library item");
+        const bool id_restored = id_caption != nullptr
+            && id_caption->text() == QStringLiteral("ID:");
+        const bool save_restored = buttons->button(QDialogButtonBox::Save)->text()
+            == QStringLiteral("Save");
+        const bool cancel_restored = buttons->button(QDialogButtonBox::Cancel)->text()
+            == QStringLiteral("Cancel");
+        const bool back_to_english = title_restored && id_restored && save_restored && cancel_restored
             && id_field->text() == QStringLiteral("DRAFT_NOT_SAVED")
             && values->toPlainText() == draft
             && values->textCursor().anchor() == 1
             && values->textCursor().position() == 6;
+        if (!back_to_english)
+            std::fprintf(stderr, "Modal English restoration: title=%d id=%d save=%d cancel=%d\n",
+                         title_restored, id_restored, save_restored, cancel_restored);
         checked_modal_switch = in_translation && back_to_english;
         dialog->reject();
     });

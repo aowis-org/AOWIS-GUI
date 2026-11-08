@@ -5,6 +5,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -36,6 +37,39 @@ const char *const collection_titles[] = {
     QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Valve headloss curves"),
     QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Valve characteristic curves"),
     QT_TRANSLATE_NOOP("HydraulicLibrariesWidget", "Generic curves")
+};
+
+// QDialogButtonBox automatically replaces standard-button captions when it
+// handles LanguageChange. Apply our application translations *after* Qt's
+// standard-button update, including while an edit dialog is already open.
+class HydraulicLibraryDialogButtons final : public QDialogButtonBox
+{
+public:
+    explicit HydraulicLibraryDialogButtons(QWidget *parent)
+        : QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, parent)
+    {
+        retranslate();
+    }
+
+protected:
+    bool event(QEvent *event) override
+    {
+        const bool result = QDialogButtonBox::event(event);
+        if (event->type() == QEvent::LanguageChange)
+            retranslate();
+        return result;
+    }
+
+private:
+    void retranslate()
+    {
+        QPushButton *save_button = button(QDialogButtonBox::Save);
+        QPushButton *cancel_button = button(QDialogButtonBox::Cancel);
+        if (save_button != nullptr)
+            save_button->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Save"));
+        if (cancel_button != nullptr)
+            cancel_button->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Cancel"));
+    }
 };
 
 QString displayNumber(double value)
@@ -448,13 +482,12 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
     QLabel *hint = new QLabel(&dialog);
     hint->setWordWrap(true);
     dialog_layout->addWidget(hint);
-    QDialogButtonBox *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    QDialogButtonBox *buttons = new HydraulicLibraryDialogButtons(&dialog);
     dialog_layout->addWidget(buttons);
     // QDialog is a live top-level window even during exec(). Replacing its
     // labels in place must not touch any QLineEdit/QPlainTextEdit or validators.
     LiveUiText::bind(&dialog, [&dialog, creating, collection, id_label,
-                              comment_label, values_label, hint, buttons] {
+                              comment_label, values_label, hint] {
         dialog.setWindowTitle(creating ? QCoreApplication::translate("HydraulicLibrariesWidget", "Add hydraulic library item")
                                        : QCoreApplication::translate("HydraulicLibrariesWidget", "Edit hydraulic library item"));
         id_label->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "ID:"));
@@ -466,8 +499,6 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
                               : QCoreApplication::translate("HydraulicLibrariesWidget", "Curve points (x, y per line):"));
         hint->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Numerical values use a dot decimal separator. "
                                   "New items receive UUIDv7 identifiers."));
-        buttons->button(QDialogButtonBox::Save)->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Save"));
-        buttons->button(QDialogButtonBox::Cancel)->setText(QCoreApplication::translate("HydraulicLibrariesWidget", "Cancel"));
     });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [this, &dialog, id_edit,
