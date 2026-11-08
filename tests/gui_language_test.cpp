@@ -1,6 +1,7 @@
 #include "app/history_dock.h"
 #include "settings/keyboard_shortcuts_settings_widget.h"
 #include "config/gui_configuration.h"
+#include "entity_inspector/entity_inspector_text.h"
 #include "config/gui_language.h"
 #include "tabs/projects_inspector_panels.h"
 
@@ -68,10 +69,26 @@ int main(int argc, char **argv)
     layout.addWidget(&network);
     const QString title = QStringLiteral("Main %2");
     QTabWidget tabs;
+    QWidget entity_page;
+    QVBoxLayout entity_layout(&entity_page);
+    QLabel geometry_label;
+    EntityInspectorText::setCaption(&geometry_label, "Diameter");
+    EntityInspectorText::setCaption(&geometry_label, "Equivalent<br>Diameter");
+    entity_layout.addWidget(&geometry_label);
+    QComboBox entity_choices;
+    EntityInspectorText::addChoice(&entity_choices, "Open", 1);
+    EntityInspectorText::addChoice(&entity_choices, "Closed", 2);
+    entity_choices.addItem(QStringLiteral("Open"), QStringLiteral("user-pattern-id"));
+    entity_choices.setCurrentIndex(1);
+    entity_layout.addWidget(&entity_choices);
+    int entity_selection_changes = 0;
+    QObject::connect(&entity_choices, &QComboBox::currentIndexChanged,
+                     [&entity_selection_changes](int) { ++entity_selection_changes; });
     RevisionInspectorOverview details;
     RevisionInspectorBranch branch_page(details.name);
     tabs.addTab(&branch_page, QStringLiteral("branch"));
     tabs.addTab(&details, QStringLiteral("details"));
+    tabs.addTab(&entity_page, QStringLiteral("entity"));
     tabs.setCurrentWidget(&details);
     KeyboardShortcutsSettingsWidget shortcuts;
     tabs.addTab(&shortcuts, QStringLiteral("shortcuts"));
@@ -187,6 +204,14 @@ int main(int argc, char **argv)
         for (int row = 0; row < history_rows->count(); ++row)
             if (!matches(code, "live History row", history_rows->item(row)->text(), fresh_rows->item(row)->text()))
                 return 10;
+        const char *const closed[] = {"Closed", "Fermé", "مغلق", "Geschlossen", "Cerrado"};
+        if (!matches(code, "hidden inspector enum", entity_choices.currentText(), QString::fromUtf8(closed[index]))
+            || !matches(code, "inspector enum identity", entity_choices.currentData().toInt(), 2)
+            || !matches(code, "inspector selection signals", entity_selection_changes, 0)
+            || !matches(code, "literal pattern name", entity_choices.itemText(2), QStringLiteral("Open"))
+            || !matches(code, "active geometry caption", geometry_label.text(),
+                        LiveUiText::translate("Equivalent<br>Diameter")))
+            return 11;
         QSettings persisted(guiConfigurationFilePath(), QSettings::IniFormat);
         if (!matches(code, "persisted language", persisted.value(QStringLiteral("interface/language")).toString(), code))
             return 4;

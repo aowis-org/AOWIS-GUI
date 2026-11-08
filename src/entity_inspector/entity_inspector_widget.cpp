@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include "config/unit_quantity_key.h"
 #include "config/unit_numeric_spin_box.h"
 #include "config/unit_profile_manager.h"
@@ -433,20 +434,23 @@ EntityInspectorWidget::EntityInspectorWidget(HydraulicData *hydraulic_data, QWid
     );
     
     this->tabs->addTab(this->scroll_overview, QIcon(":/icon/inspector_dash.png"), "");
-    this->tabs->setTabToolTip(this->tabs->count()-1, "General");
     
     this->tabs->addTab(this->scroll_configuration, QIcon(":/icon/settings_2.png"), "");
-    this->tabs->setTabToolTip(this->tabs->count()-1, "Hydraulic Input");
     
     this->tabs->addTab(this->scroll_sim_meas, QIcon(":/icon/sim_meas.png"), "");
-    this->tabs->setTabToolTip(this->tabs->count()-1, "Hydraulic Simulation & Measurement");
     
     this->tabs->addTab(this->scroll_quality, QIcon(":/icon/inspector_quality.png"), "");
-    this->tabs->setTabToolTip(this->tabs->count()-1, "Water Quality Input");
 
     this->tabs->addTab(this->scroll_quality_sim_meas, QIcon(":/icon/sensor.png"), "");
-    this->tabs->setTabToolTip(this->tabs->count()-1, "Water Quality Simulation & Measurement");
 
+    LiveUiText::bind(this->label_title, [this] { refreshEntityTitle(); });
+    LiveUiText::bind(this->tabs, [this] {
+        this->tabs->setTabToolTip(0, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "General")));
+        this->tabs->setTabToolTip(1, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Hydraulic Input")));
+        this->tabs->setTabToolTip(2, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Hydraulic Simulation & Measurement")));
+        this->tabs->setTabToolTip(3, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Input")));
+        this->tabs->setTabToolTip(4, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Simulation & Measurement")));
+    });
     connect(this->tabs, &QTabWidget::currentChanged, this, &EntityInspectorWidget::signalCurrentTabChanged);
     
     this->layout_main->addWidget(this->label_title);
@@ -487,6 +491,13 @@ QVBoxLayout *EntityInspectorWidget::layoutQualitySimMeas()
     return this->layout_quality_sim_meas;
 }
 
+void EntityInspectorWidget::refreshEntityTitle()
+{
+    if (!this->entity_title_prefix.isEmpty())
+        setTitle(LiveUiText::translate(this->entity_title_prefix.toUtf8().constData())
+                 + QLatin1Char(' ') + this->displayed_entity_id);
+}
+
 void EntityInspectorWidget::setTitle(const QString &title)
 {
     this->label_title->setText("<b>" + title.toHtmlEscaped() + "</b>");
@@ -511,20 +522,20 @@ void EntityInspectorWidget::constrainSpinWidth(QAbstractSpinBox *spin, int maxim
 
 void EntityInspectorWidget::addSimulationRow(QGridLayout *grid, int &row,
                                               SimulationField field,
-                                              const QString &name,
-                                              const QString &tooltip)
+                                              const char *name,
+                                              const char *tooltip)
 {
-    QLabel *label_name = new QLabel(name);
+    QLabel *label_name = LiveUiText::caption<QLabel>(name, nullptr);
     label_name->setWordWrap(true);
-    if (!tooltip.isEmpty())
-        label_name->setToolTip(tooltip);
+    if (tooltip != nullptr)
+        LiveUiText::bind(label_name, [label_name, tooltip] { label_name->setToolTip(LiveUiText::translate(tooltip)); });
 
     QLabel *label_value = new QLabel(QStringLiteral("—"));
     label_value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     label_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
     label_value->setMinimumWidth(105);
-    if (!tooltip.isEmpty())
-        label_value->setToolTip(tooltip);
+    if (tooltip != nullptr)
+        LiveUiText::bind(label_value, [label_value, tooltip] { label_value->setToolTip(LiveUiText::translate(tooltip)); });
 
     grid->addWidget(label_name, row, 0);
     grid->addWidget(label_value, row, 1);
@@ -541,7 +552,7 @@ void EntityInspectorWidget::addGroupSimulation()
     if (this->label_simulation_message != nullptr)
         return;
 
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Simulation");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Simulation"));
     QGridLayout *grid = new QGridLayout(group);
     int row = 0;
 
@@ -549,72 +560,66 @@ void EntityInspectorWidget::addGroupSimulation()
     this->label_simulation_message->setWordWrap(true);
     grid->addWidget(this->label_simulation_message, row++, 0, 1, 2);
 
-    addSimulationRow(grid, row, SimulationField::ResultTime, "Time");
+    addSimulationRow(grid, row, SimulationField::ResultTime, QT_TRANSLATE_NOOP("LiveUiText", "Time"));
 
     switch (this->entity_type)
     {
     case InfrastructureEntity::Junction:
-        addSimulationRow(grid, row, SimulationField::DemandRequested, "Requested Demand",
-                         "Demand requested before pressure-driven demand reduction.");
-        addSimulationRow(grid, row, SimulationField::DemandDelivered, "Delivered Demand",
-                         "Consumer demand actually delivered at the selected timestep.");
-        addSimulationRow(grid, row, SimulationField::DemandDeficit, "Demand Deficit");
-        addSimulationRow(grid, row, SimulationField::TotalDemand, "Total Demand",
-                         "Total junction outflow: delivered demand, emitter flow, and assigned pipe leakage.");
-        addSimulationRow(grid, row, SimulationField::EmitterFlow, "Emitter Flow");
-        addSimulationRow(grid, row, SimulationField::LeakageFlow, "Leakage Flow");
-        addSimulationRow(grid, row, SimulationField::Head, "Head");
-        addSimulationRow(grid, row, SimulationField::PressureHead, "Pressure");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::DemandRequested, QT_TRANSLATE_NOOP("LiveUiText", "Requested Demand"), QT_TRANSLATE_NOOP("LiveUiText", "Demand requested before pressure-driven demand reduction."));
+        addSimulationRow(grid, row, SimulationField::DemandDelivered, QT_TRANSLATE_NOOP("LiveUiText", "Delivered Demand"), QT_TRANSLATE_NOOP("LiveUiText", "Consumer demand actually delivered at the selected timestep."));
+        addSimulationRow(grid, row, SimulationField::DemandDeficit, QT_TRANSLATE_NOOP("LiveUiText", "Demand Deficit"));
+        addSimulationRow(grid, row, SimulationField::TotalDemand, QT_TRANSLATE_NOOP("LiveUiText", "Total Demand"), QT_TRANSLATE_NOOP("LiveUiText", "Total junction outflow: delivered demand, emitter flow, and assigned pipe leakage."));
+        addSimulationRow(grid, row, SimulationField::EmitterFlow, QT_TRANSLATE_NOOP("LiveUiText", "Emitter Flow"));
+        addSimulationRow(grid, row, SimulationField::LeakageFlow, QT_TRANSLATE_NOOP("LiveUiText", "Leakage Flow"));
+        addSimulationRow(grid, row, SimulationField::Head, QT_TRANSLATE_NOOP("LiveUiText", "Head"));
+        addSimulationRow(grid, row, SimulationField::PressureHead, QT_TRANSLATE_NOOP("LiveUiText", "Pressure"));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     case InfrastructureEntity::Reservoir:
-        addSimulationRow(grid, row, SimulationField::NetDemand, "Net Demand",
-                         "Negative means the reservoir supplies the network; positive means it receives water.");
-        addSimulationRow(grid, row, SimulationField::Head, "Head");
-        addSimulationRow(grid, row, SimulationField::PressureHead, "Pressure");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::NetDemand, QT_TRANSLATE_NOOP("LiveUiText", "Net Demand"), QT_TRANSLATE_NOOP("LiveUiText", "Negative means the reservoir supplies the network; positive means it receives water."));
+        addSimulationRow(grid, row, SimulationField::Head, QT_TRANSLATE_NOOP("LiveUiText", "Head"));
+        addSimulationRow(grid, row, SimulationField::PressureHead, QT_TRANSLATE_NOOP("LiveUiText", "Pressure"));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     case InfrastructureEntity::Tank:
-        addSimulationRow(grid, row, SimulationField::NetDemand, "Net Demand",
-                         "Positive means the tank is filling; negative means it supplies the network.");
-        addSimulationRow(grid, row, SimulationField::Head, "Head");
-        addSimulationRow(grid, row, SimulationField::PressureHead, "Pressure");
-        addSimulationRow(grid, row, SimulationField::WaterLevel, "Water Level");
-        addSimulationRow(grid, row, SimulationField::Volume, "Volume");
-        addSimulationRow(grid, row, SimulationField::MixingZoneVolume, "Mixing-Zone Volume");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::NetDemand, QT_TRANSLATE_NOOP("LiveUiText", "Net Demand"), QT_TRANSLATE_NOOP("LiveUiText", "Positive means the tank is filling; negative means it supplies the network."));
+        addSimulationRow(grid, row, SimulationField::Head, QT_TRANSLATE_NOOP("LiveUiText", "Head"));
+        addSimulationRow(grid, row, SimulationField::PressureHead, QT_TRANSLATE_NOOP("LiveUiText", "Pressure"));
+        addSimulationRow(grid, row, SimulationField::WaterLevel, QT_TRANSLATE_NOOP("LiveUiText", "Water Level"));
+        addSimulationRow(grid, row, SimulationField::Volume, QT_TRANSLATE_NOOP("LiveUiText", "Volume"));
+        addSimulationRow(grid, row, SimulationField::MixingZoneVolume, QT_TRANSLATE_NOOP("LiveUiText", "Mixing-Zone Volume"));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     case InfrastructureEntity::Pipe:
-        addSimulationRow(grid, row, SimulationField::Flow, "Flow");
-        addSimulationRow(grid, row, SimulationField::LeakageFlow, "Leakage Flow");
-        addSimulationRow(grid, row, SimulationField::Velocity, "Velocity");
-        addSimulationRow(grid, row, SimulationField::HeadLoss, "Head Loss");
-        addSimulationRow(grid, row, SimulationField::UnitHeadLoss, "Unit Head Loss");
-        addSimulationRow(grid, row, SimulationField::FrictionFactor, "Friction Factor");
-        addSimulationRow(grid, row, SimulationField::Status, "Status");
-        addSimulationRow(grid, row, SimulationField::Roughness, "Roughness",
-                         "Effective roughness returned by the hydraulic engine for the configured headloss formula.");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::Flow, QT_TRANSLATE_NOOP("LiveUiText", "Flow"));
+        addSimulationRow(grid, row, SimulationField::LeakageFlow, QT_TRANSLATE_NOOP("LiveUiText", "Leakage Flow"));
+        addSimulationRow(grid, row, SimulationField::Velocity, QT_TRANSLATE_NOOP("LiveUiText", "Velocity"));
+        addSimulationRow(grid, row, SimulationField::HeadLoss, QT_TRANSLATE_NOOP("LiveUiText", "Head Loss"));
+        addSimulationRow(grid, row, SimulationField::UnitHeadLoss, QT_TRANSLATE_NOOP("LiveUiText", "Unit Head Loss"));
+        addSimulationRow(grid, row, SimulationField::FrictionFactor, QT_TRANSLATE_NOOP("LiveUiText", "Friction Factor"));
+        addSimulationRow(grid, row, SimulationField::Status, QT_TRANSLATE_NOOP("LiveUiText", "Status"));
+        addSimulationRow(grid, row, SimulationField::Roughness, QT_TRANSLATE_NOOP("LiveUiText", "Roughness"), QT_TRANSLATE_NOOP("LiveUiText", "Effective roughness returned by the hydraulic engine for the configured headloss formula."));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     case InfrastructureEntity::Pump:
-        addSimulationRow(grid, row, SimulationField::Flow, "Flow");
-        addSimulationRow(grid, row, SimulationField::Velocity, "Velocity");
-        addSimulationRow(grid, row, SimulationField::Head, "Head Gain");
-        addSimulationRow(grid, row, SimulationField::Status, "Status");
-        addSimulationRow(grid, row, SimulationField::PumpState, "Operating State");
-        addSimulationRow(grid, row, SimulationField::Speed, "Speed");
-        addSimulationRow(grid, row, SimulationField::Efficiency, "Efficiency");
-        addSimulationRow(grid, row, SimulationField::Power, "Power");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::Flow, QT_TRANSLATE_NOOP("LiveUiText", "Flow"));
+        addSimulationRow(grid, row, SimulationField::Velocity, QT_TRANSLATE_NOOP("LiveUiText", "Velocity"));
+        addSimulationRow(grid, row, SimulationField::Head, QT_TRANSLATE_NOOP("LiveUiText", "Head Gain"));
+        addSimulationRow(grid, row, SimulationField::Status, QT_TRANSLATE_NOOP("LiveUiText", "Status"));
+        addSimulationRow(grid, row, SimulationField::PumpState, QT_TRANSLATE_NOOP("LiveUiText", "Operating State"));
+        addSimulationRow(grid, row, SimulationField::Speed, QT_TRANSLATE_NOOP("LiveUiText", "Speed"));
+        addSimulationRow(grid, row, SimulationField::Efficiency, QT_TRANSLATE_NOOP("LiveUiText", "Efficiency"));
+        addSimulationRow(grid, row, SimulationField::Power, QT_TRANSLATE_NOOP("LiveUiText", "Power"));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     case InfrastructureEntity::Valve:
-        addSimulationRow(grid, row, SimulationField::Flow, "Flow");
-        addSimulationRow(grid, row, SimulationField::Velocity, "Velocity");
-        addSimulationRow(grid, row, SimulationField::HeadLoss, "Head Loss");
-        addSimulationRow(grid, row, SimulationField::Status, "Status");
-        addSimulationRow(grid, row, SimulationField::ValveRegulating, "Regulating");
-        addSimulationRow(grid, row, SimulationField::Setting, "Setting");
-        addSimulationRow(grid, row, SimulationField::ReferencedByControl, "Referenced by Control");
+        addSimulationRow(grid, row, SimulationField::Flow, QT_TRANSLATE_NOOP("LiveUiText", "Flow"));
+        addSimulationRow(grid, row, SimulationField::Velocity, QT_TRANSLATE_NOOP("LiveUiText", "Velocity"));
+        addSimulationRow(grid, row, SimulationField::HeadLoss, QT_TRANSLATE_NOOP("LiveUiText", "Head Loss"));
+        addSimulationRow(grid, row, SimulationField::Status, QT_TRANSLATE_NOOP("LiveUiText", "Status"));
+        addSimulationRow(grid, row, SimulationField::ValveRegulating, QT_TRANSLATE_NOOP("LiveUiText", "Regulating"));
+        addSimulationRow(grid, row, SimulationField::Setting, QT_TRANSLATE_NOOP("LiveUiText", "Setting"));
+        addSimulationRow(grid, row, SimulationField::ReferencedByControl, QT_TRANSLATE_NOOP("LiveUiText", "Referenced by Control"));
         break;
     default:
         break;
@@ -625,7 +630,7 @@ void EntityInspectorWidget::addGroupSimulation()
 
     if (this->entity_type == InfrastructureEntity::Pump)
     {
-        GroupBoxCollapsible *energy_group = new GroupBoxCollapsible("Simulation Energy Summary");
+        GroupBoxCollapsible *energy_group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Simulation Energy Summary"));
         QGridLayout *energy_grid = new QGridLayout(energy_group);
         int energy_row = 0;
 
@@ -633,14 +638,14 @@ void EntityInspectorWidget::addGroupSimulation()
         this->label_simulation_energy_message->setWordWrap(true);
         energy_grid->addWidget(this->label_simulation_energy_message, energy_row++, 0, 1, 2);
 
-        addSimulationRow(energy_grid, energy_row, SimulationField::TimeOnline, "Time Online");
-        addSimulationRow(energy_grid, energy_row, SimulationField::AverageEfficiency, "Average Efficiency");
+        addSimulationRow(energy_grid, energy_row, SimulationField::TimeOnline, QT_TRANSLATE_NOOP("LiveUiText", "Time Online"));
+        addSimulationRow(energy_grid, energy_row, SimulationField::AverageEfficiency, QT_TRANSLATE_NOOP("LiveUiText", "Average Efficiency"));
         addSimulationRow(energy_grid, energy_row, SimulationField::AverageEnergyIntensity,
-                         "Average Energy Intensity");
-        addSimulationRow(energy_grid, energy_row, SimulationField::AveragePower, "Average Power");
-        addSimulationRow(energy_grid, energy_row, SimulationField::PeakPower, "Peak Power");
+                         QT_TRANSLATE_NOOP("LiveUiText", "Average Energy Intensity"));
+        addSimulationRow(energy_grid, energy_row, SimulationField::AveragePower, QT_TRANSLATE_NOOP("LiveUiText", "Average Power"));
+        addSimulationRow(energy_grid, energy_row, SimulationField::PeakPower, QT_TRANSLATE_NOOP("LiveUiText", "Peak Power"));
         addSimulationRow(energy_grid, energy_row, SimulationField::AverageCostPerDay,
-                         "Average Energy Cost");
+                         QT_TRANSLATE_NOOP("LiveUiText", "Average Energy Cost"));
         energy_grid->setColumnStretch(1, 1);
         layoutSimMeas()->addWidget(energy_group);
     }
@@ -1030,7 +1035,7 @@ void EntityInspectorWidget::addGroupWaterQualitySimulation()
     if (this->label_quality_simulation_message != nullptr)
         return;
 
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Simulation");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Simulation"));
     QGridLayout *grid = new QGridLayout(group);
     int row = 0;
 
@@ -1038,19 +1043,20 @@ void EntityInspectorWidget::addGroupWaterQualitySimulation()
     this->label_quality_simulation_message->setWordWrap(true);
     grid->addWidget(this->label_quality_simulation_message, row++, 0, 1, 2);
 
-    QLabel *label_time_name = new QLabel("Time");
+    QLabel *label_time_name = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Time"), nullptr);
     this->label_quality_simulation_time = new QLabel(QStringLiteral("—"));
     this->label_quality_simulation_time->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     grid->addWidget(label_time_name, row, 0);
     grid->addWidget(this->label_quality_simulation_time, row++, 1);
 
-    this->label_quality_simulation_value_name = new QLabel("Water Quality");
+    this->label_quality_simulation_value_name = new QLabel();
+    EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Water Quality"));
     this->label_quality_simulation_value = new QLabel(QStringLiteral("—"));
     this->label_quality_simulation_value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     grid->addWidget(this->label_quality_simulation_value_name, row, 0);
     grid->addWidget(this->label_quality_simulation_value, row++, 1);
 
-    this->label_quality_simulation_source_mass_name = new QLabel("Source Mass Flow");
+    this->label_quality_simulation_source_mass_name = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Source Mass Flow"), nullptr);
     this->label_quality_simulation_source_mass = new QLabel(QStringLiteral("—"));
     this->label_quality_simulation_source_mass->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     grid->addWidget(this->label_quality_simulation_source_mass_name, row, 0);
@@ -1094,7 +1100,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
     {
         this->label_quality_simulation_message->setVisible(true);
         this->label_quality_simulation_message->setText("Water-quality simulation was not run.");
-        this->label_quality_simulation_value_name->setText("Water Quality");
+        EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Water Quality"));
         return;
     }
 
@@ -1233,7 +1239,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
         formatSimulationElapsedTime(result->time_elapsed_s));
     if (timeline->analysis == WaterQualityAnalysisType::Chemical)
     {
-        this->label_quality_simulation_value_name->setText("Chemical Concentration");
+        EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Chemical Concentration"));
         this->label_quality_simulation_value->setText(
             SimulationInspectorUnitPresentation::format(
                 UnitProfileManager::instance().presentation(),
@@ -1250,14 +1256,14 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
     }
     else if (timeline->analysis == WaterQualityAnalysisType::WaterAge)
     {
-        this->label_quality_simulation_value_name->setText("Water Age");
+        EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Water Age"));
         this->label_quality_simulation_value->setText(
             SimulationInspectorUnitPresentation::format(
                 UnitProfileManager::instance().presentation(), AOWIS_QUANTITY("water_age"), value, 6));
     }
     else
     {
-        this->label_quality_simulation_value_name->setText("Source Trace");
+        EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Source Trace"));
         this->label_quality_simulation_value->setText(
             SimulationInspectorUnitPresentation::format(
                 UnitProfileManager::instance().presentation(),
@@ -1267,7 +1273,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
 
 void EntityInspectorWidget::addGroupOverviewImage(const QString &icon_path, const QString &name)
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("General");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "General"));
     QGridLayout *grid = new QGridLayout(group);
     
     QLabel *picture = new QLabel();
@@ -1281,7 +1287,7 @@ void EntityInspectorWidget::addGroupOverviewImage(const QString &icon_path, cons
     
     grid->addWidget(picture, 0, 0, 1, 2);
 
-    this->button_overview_find_on_map = new QPushButton("Find on Map");
+    this->button_overview_find_on_map = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Find on Map"), nullptr);
     this->button_overview_find_on_map->setEnabled(false);
     this->button_overview_find_on_map->hide();
     grid->addWidget(this->button_overview_find_on_map, 1, 0, 1, 2);
@@ -1465,22 +1471,22 @@ void EntityInspectorWidget::refreshSimulationWarnings()
 
 void EntityInspectorWidget::addGroupGeneral(const QString &name)
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("General");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "General"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_name = new QLabel("Name");
+    QLabel *label_name = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Name"), nullptr);
     this->line_name = new QLineEdit();
     this->line_name->setText(name);
 
-    QLabel *label_model_role = new QLabel("Model Role");
+    QLabel *label_model_role = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Model Role"), nullptr);
     this->combo_model_role = new QComboBox();
-    this->combo_model_role->addItem("[Unspecified]", static_cast<int>(EntityModelRole::Unspecified));
-    this->combo_model_role->addItem("Existing Asset", static_cast<int>(EntityModelRole::ExistingAsset));
-    this->combo_model_role->addItem("Planned Asset", static_cast<int>(EntityModelRole::PlannedAsset));
-    this->combo_model_role->addItem("Virtual / Model-Only", static_cast<int>(EntityModelRole::VirtualModelElement));
-    this->combo_model_role->addItem("Boundary Condition", static_cast<int>(EntityModelRole::BoundaryCondition));
-    this->combo_model_role->addItem("Temporary / Testing", static_cast<int>(EntityModelRole::TemporaryTesting));
-    this->combo_model_role->addItem("Retired Asset", static_cast<int>(EntityModelRole::RetiredAsset));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "[Unspecified]"), static_cast<int>(EntityModelRole::Unspecified));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Existing Asset"), static_cast<int>(EntityModelRole::ExistingAsset));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Planned Asset"), static_cast<int>(EntityModelRole::PlannedAsset));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Virtual / Model-Only"), static_cast<int>(EntityModelRole::VirtualModelElement));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Boundary Condition"), static_cast<int>(EntityModelRole::BoundaryCondition));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Temporary / Testing"), static_cast<int>(EntityModelRole::TemporaryTesting));
+    EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Retired Asset"), static_cast<int>(EntityModelRole::RetiredAsset));
     this->combo_model_role->setToolTip(
         "Describes whether this entity represents a real asset, a planned asset, "
         "a model-only helper, a boundary condition, or a temporary/testing element."
@@ -1488,7 +1494,7 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
 
     const QDate date_unset(100, 1, 1);
 
-    QLabel *label_date_added = new QLabel("Date Added");
+    QLabel *label_date_added = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Date Added"), nullptr);
     this->date_added = new QDateEdit();
     this->date_added->setCalendarPopup(true);
     this->date_added->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
@@ -1497,7 +1503,7 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
     this->date_added->setSpecialValueText("[Not set]");
     this->date_added->setDate(date_unset);
 
-    QLabel *label_date_installed = new QLabel("Installation<br>Date");
+    QLabel *label_date_installed = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Installation<br>Date"), nullptr);
     this->date_installed = new QDateEdit();
     this->date_installed->setCalendarPopup(true);
     this->date_installed->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
@@ -1506,7 +1512,7 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
     this->date_installed->setSpecialValueText("[Not set]");
     this->date_installed->setDate(date_unset);
 
-    this->check_enabled = new QCheckBox("Enabled");
+    this->check_enabled = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Enabled"), nullptr);
     this->check_enabled->setChecked(true);
 
     grid->addWidget(label_name, 0, 0);
@@ -1524,10 +1530,10 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
 
 void EntityInspectorWidget::addGroupEndpoints()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Endpoints");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Endpoints"));
     QGridLayout *grid = new QGridLayout(group);
     
-    QLabel *label_node_1 = new QLabel("Node 1");
+    QLabel *label_node_1 = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Node 1"), nullptr);
     this->label_node_1_id = new QLabel();
     this->label_node_1_id->setTextInteractionFlags(Qt::TextSelectableByMouse);
     this->label_node_1_id->setAlignment(Qt::AlignCenter);
@@ -1540,7 +1546,7 @@ void EntityInspectorWidget::addGroupEndpoints()
     this->button_node_1_inspect->setToolTip("Show in Inspector");
     this->button_node_1_inspect->setMaximumWidth(35);
     
-    QLabel *label_node_2 = new QLabel("Node 2");
+    QLabel *label_node_2 = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Node 2"), nullptr);
     this->label_node_2_id = new QLabel();
     this->label_node_2_id->setTextInteractionFlags(Qt::TextSelectableByMouse);
     this->label_node_2_id->setAlignment(Qt::AlignCenter);
@@ -1599,7 +1605,7 @@ void EntityInspectorWidget::addGroupEndpoints()
 
 void EntityInspectorWidget::addGroupPosition()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Position");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Position"));
     QGridLayout *grid = new QGridLayout(group);
     
     // Resolve the selected entity for every read/write, not just when the
@@ -1631,11 +1637,11 @@ void EntityInspectorWidget::addGroupPosition()
         return this->hydraulic_data->setNodeCoordinate(this->entity_uuid, coordinate);
     };
 
-    QLabel *label_latitude = new QLabel("Latitude");
+    QLabel *label_latitude = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Latitude"), nullptr);
     this->spin_latitude = new CoordinateNumericSpinBox(
         read_coordinate, write_coordinate, CoordinatePropertyBinding::Component::Latitude);
 
-    QLabel *label_longitude = new QLabel("Longitude");
+    QLabel *label_longitude = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Longitude"), nullptr);
     this->spin_longitude = new CoordinateNumericSpinBox(
         read_coordinate, write_coordinate, CoordinatePropertyBinding::Component::Longitude);
 
@@ -1644,13 +1650,13 @@ void EntityInspectorWidget::addGroupPosition()
     this->label_geographic_altitude->setToolTip(QStringLiteral(
         "Recorded geographic/GPS altitude, when available; not hydraulic elevation."));
 
-    this->button_find_on_map = new QPushButton("Find on Map");
+    this->button_find_on_map = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Find on Map"), nullptr);
     
     grid->addWidget(label_latitude, 0, 0);
     grid->addWidget(this->spin_latitude, 0, 1);
     grid->addWidget(label_longitude, 1, 0);
     grid->addWidget(this->spin_longitude, 1, 1);
-    grid->addWidget(new QLabel(QStringLiteral("Geographic altitude"), group), 2, 0);
+    grid->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Geographic altitude"), group), 2, 0);
     grid->addWidget(this->label_geographic_altitude, 2, 1);
     grid->addWidget(this->button_find_on_map, 3, 0, 1, 2);
 
@@ -1883,7 +1889,8 @@ void EntityInspectorWidget::refreshHydraulicGeneral(
     setOptionalDate(this->date_added, metadata.date_added);
     setOptionalDate(this->date_installed, metadata.date_installed);
     this->check_enabled->setChecked(metadata.enabled);
-    setTitle(this->entity_title_prefix + " " + id);
+    this->displayed_entity_id = id;
+    refreshEntityTitle();
 }
 
 void EntityInspectorWidget::refreshHydraulicNode()
@@ -2075,54 +2082,51 @@ void EntityInspectorWidget::setOptionalDate(QDateEdit *date_edit, const std::opt
 
 void EntityInspectorWidget::addGroupElevation()
 {
-    QString group_title;
-    QString absolute_input_text;
-    QString offset_label_text;
-    QString value_label_text;
-    QString offset_tooltip;
+    const char *group_title = nullptr;
+    const char *absolute_input_text = nullptr;
+    const char *offset_label_text = nullptr;
+    const char *value_label_text = nullptr;
+    const char *offset_tooltip = nullptr;
 
     switch (this->entity_type)
     {
     case InfrastructureEntity::Junction:
-        group_title = "Elevation";
-        absolute_input_text = "Total Elevation";
-        offset_label_text = "Elevation Offset";
-        value_label_text = "Total Elevation";
+        group_title = QT_TRANSLATE_NOOP("LiveUiText", "Elevation");
+        absolute_input_text = QT_TRANSLATE_NOOP("LiveUiText", "Total Elevation");
+        offset_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Elevation Offset");
+        value_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Total Elevation");
         offset_tooltip =
-            "Distance from <i>Terrain Elevation</i>.<br>Positive: Above Ground.<br>Negative: Below Ground.";
+            QT_TRANSLATE_NOOP("LiveUiText", "Distance from <i>Terrain Elevation</i>.<br>Positive: Above Ground.<br>Negative: Below Ground.");
         break;
     case InfrastructureEntity::Reservoir:
-        group_title = "Head";
-        absolute_input_text = "Total Head";
-        offset_label_text = "Head Offset";
-        value_label_text = "Total Head";
+        group_title = QT_TRANSLATE_NOOP("LiveUiText", "Head");
+        absolute_input_text = QT_TRANSLATE_NOOP("LiveUiText", "Total Head");
+        offset_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Head Offset");
+        value_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Total Head");
         offset_tooltip =
-            "Hydraulic head relative to <i>Terrain Elevation</i>. Positive values are above terrain.";
+            QT_TRANSLATE_NOOP("LiveUiText", "Hydraulic head relative to <i>Terrain Elevation</i>. Positive values are above terrain.");
         break;
     case InfrastructureEntity::Tank:
-        group_title = "Bottom Elevation";
-        absolute_input_text = "Bottom Elevation";
-        offset_label_text = "Bottom Offset";
-        value_label_text = "Bottom Elevation";
+        group_title = QT_TRANSLATE_NOOP("LiveUiText", "Bottom Elevation");
+        absolute_input_text = QT_TRANSLATE_NOOP("LiveUiText", "Bottom Elevation");
+        offset_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Bottom Offset");
+        value_label_text = QT_TRANSLATE_NOOP("LiveUiText", "Bottom Elevation");
         offset_tooltip =
-            "Tank bottom relative to terrain. Positive = above ground, negative = below ground.";
+            QT_TRANSLATE_NOOP("LiveUiText", "Tank bottom relative to terrain. Positive = above ground, negative = below ground.");
         break;
     default:
         return;
     }
 
-    this->group_elevation = new GroupBoxCollapsible(group_title);
+    this->group_elevation = EntityInspectorText::group(group_title);
     QGridLayout *grid = new QGridLayout(this->group_elevation);
     
     this->combo_elevation_input_type = new QComboBox();
-    this->combo_elevation_input_type->addItem(
-        absolute_input_text,
+    EntityInspectorText::addChoice(this->combo_elevation_input_type, absolute_input_text,
         static_cast<int>(HydraulicNodeElevationInputType::AbsoluteElevation));
-    this->combo_elevation_input_type->addItem(
-        "Terrain Elevation + Offset",
-        static_cast<int>(HydraulicNodeElevationInputType::TerrainElevationAndOffset));
+    EntityInspectorText::addChoice(this->combo_elevation_input_type, QT_TRANSLATE_NOOP("LiveUiText", "Terrain Elevation + Offset"), static_cast<int>(HydraulicNodeElevationInputType::TerrainElevationAndOffset));
     
-    this->button_terrain_elevation = new QPushButton("Retrieve Terrain Elevation");
+    this->button_terrain_elevation = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Retrieve Terrain Elevation"), nullptr);
     this->button_terrain_elevation->setToolTip(
         "Uses the AOWIS terrain subsystem and its shared DEM cache.<br>"
         "Accuracy depends on the dataset and local terrain."
@@ -2200,15 +2204,15 @@ void EntityInspectorWidget::addGroupElevation()
             }, quantity, "m", -10000.0, 10000.0, 0.1, 3, this);
     };
 
-    this->label_terrain_elevation = new QLabel("Terrain Elevation");
+    this->label_terrain_elevation = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Terrain Elevation"), nullptr);
     this->spin_terrain_elevation = node_editor(0);
 
-    this->label_elevation_offset = new QLabel(offset_label_text);
+    this->label_elevation_offset = LiveUiText::caption<QLabel>(offset_label_text, nullptr);
     this->label_elevation_offset->setWordWrap(true);
     this->spin_elevation_offset = node_editor(1);
-    this->spin_elevation_offset->setToolTip(offset_tooltip);
+    LiveUiText::bind(this->spin_elevation_offset, [this, offset_tooltip] { this->spin_elevation_offset->setToolTip(LiveUiText::translate(offset_tooltip)); });
 
-    this->label_elevation_value = new QLabel(value_label_text);
+    this->label_elevation_value = LiveUiText::caption<QLabel>(value_label_text, nullptr);
     this->label_elevation_value->setWordWrap(true);
     this->spin_elevation_value = node_editor(2);
 
@@ -2224,7 +2228,7 @@ void EntityInspectorWidget::addGroupElevation()
 
     if (this->entity_type == InfrastructureEntity::Reservoir)
     {
-        QLabel *label_head_pattern = new QLabel("Head Pattern");
+        QLabel *label_head_pattern = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Head Pattern"), nullptr);
         this->combo_head_pattern = new QComboBox();
         this->combo_head_pattern->setToolTip("Select a time pattern for variable reservoir head, or Constant for a fixed head.");
         constrainComboWidth(this->combo_head_pattern);
@@ -2680,14 +2684,13 @@ void EntityInspectorWidget::onHeadlossFormulaChanged(HeadlossFormulas formulas)
 
 void EntityInspectorWidget::addGroupDemands(bool include_emitter)
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible(
-        include_emitter ? "Demands / Emitter" : "Demands");
+    GroupBoxCollapsible *group = EntityInspectorText::group(include_emitter ? QT_TRANSLATE_NOOP("LiveUiText", "Demands / Emitter") : QT_TRANSLATE_NOOP("LiveUiText", "Demands"));
     QGridLayout *grid = new QGridLayout(group);
 
     this->label_demands_summary = new QLabel();
     this->label_demands_summary->setWordWrap(true);
 
-    QPushButton *button_editor = new QPushButton("Open Editor");
+    QPushButton *button_editor = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Open Editor"), nullptr);
     connect(button_editor, &QPushButton::clicked, this, [this]()
     {
         openDemandsEditor();
@@ -2698,7 +2701,7 @@ void EntityInspectorWidget::addGroupDemands(bool include_emitter)
 
     if (include_emitter)
     {
-        QLabel *label_emitter_coefficient = new QLabel("Emitter<br>Coefficient");
+        QLabel *label_emitter_coefficient = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Emitter<br>Coefficient"), nullptr);
         const QUuid junction_uuid = this->entity_uuid;
         HydraulicData *data = this->hydraulic_data;
         const auto read_junction = [data, junction_uuid]() -> std::optional<HydraulicNodeJunction> {
@@ -2727,7 +2730,7 @@ void EntityInspectorWidget::addGroupDemands(bool include_emitter)
             "units. The coefficient dimension changes with the exponent n.");
         constrainSpinWidth(coefficient);
 
-        QLabel *label_emitter_pressure_exponent = new QLabel("Emitter<br>Exponent");
+        QLabel *label_emitter_pressure_exponent = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Emitter<br>Exponent"), nullptr);
         UnitNumericSpinBox *exponent = new UnitNumericSpinBox(
             read_exponent,
             [data, junction_uuid](double value) {
@@ -3035,15 +3038,9 @@ void EntityInspectorWidget::addDemandRow(
     QComboBox *combo_pattern = new QComboBox(this->table_demands);
 
     QComboBox *combo_source = new QComboBox(this->table_demands);
-    combo_source->addItem(
-        "Manual Estimation",
-        static_cast<int>(HydraulicDemandSourceMethod::ManualEstimation));
-    combo_source->addItem(
-        "Meter Data",
-        static_cast<int>(HydraulicDemandSourceMethod::MeterData));
-    combo_source->addItem(
-        "Scenario",
-        static_cast<int>(HydraulicDemandSourceMethod::Scenario));
+    EntityInspectorText::addChoice(combo_source, QT_TRANSLATE_NOOP("LiveUiText", "Manual Estimation"), static_cast<int>(HydraulicDemandSourceMethod::ManualEstimation));
+    EntityInspectorText::addChoice(combo_source, QT_TRANSLATE_NOOP("LiveUiText", "Meter Data"), static_cast<int>(HydraulicDemandSourceMethod::MeterData));
+    EntityInspectorText::addChoice(combo_source, QT_TRANSLATE_NOOP("LiveUiText", "Scenario"), static_cast<int>(HydraulicDemandSourceMethod::Scenario));
 
     QLineEdit *line_note = new QLineEdit(this->table_demands);
     QPushButton *button_delete = new QPushButton(QIcon(":/icon/remove.png"), "", this->table_demands);
@@ -3179,14 +3176,14 @@ void EntityInspectorWidget::populateTimePatternCombo(
     {
         combo_pattern->clear();
 
-        combo_pattern->addItem("Constant");
+        EntityInspectorText::addChoice(combo_pattern, QT_TRANSLATE_NOOP("LiveUiText", "Constant"));
         combo_pattern->setItemData(
             combo_pattern->count() - 1,
             static_cast<int>(HydraulicTimePatternMode::Constant), pattern_mode_role);
         combo_pattern->setItemData(
             combo_pattern->count() - 1, QUuid(), pattern_uuid_role);
 
-        combo_pattern->addItem("[Select Pattern]");
+        EntityInspectorText::addChoice(combo_pattern, QT_TRANSLATE_NOOP("LiveUiText", "[Select Pattern]"));
         combo_pattern->setItemData(
             combo_pattern->count() - 1,
             static_cast<int>(HydraulicTimePatternMode::TimePattern), pattern_mode_role);
@@ -3254,10 +3251,10 @@ void EntityInspectorWidget::openDemandsEditor()
     }
 
     this->dialog_demands = new QDialog(this);
-    this->dialog_demands->setWindowTitle(
-        this->entity_type == InfrastructureEntity::DemandPoint
-            ? QStringLiteral("Demand Point Demands")
-            : QStringLiteral("Junction Demands"));
+    LiveUiText::bind(this->dialog_demands, [this] {
+        this->dialog_demands->setWindowTitle(this->entity_type == InfrastructureEntity::DemandPoint
+            ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Demand Point Demands")) : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Junction Demands")));
+    });
     this->dialog_demands->resize(950, 420);
     this->dialog_demands->setAttribute(Qt::WA_DeleteOnClose);
 
@@ -3265,8 +3262,14 @@ void EntityInspectorWidget::openDemandsEditor()
 
     this->table_demands = new QTableWidget(this->dialog_demands);
     this->table_demands->setColumnCount(6);
-    this->table_demands->setHorizontalHeaderLabels(
-        QStringList{"Category", "Base Demand", "Pattern", "Source / Method", "Note", ""});
+    LiveUiText::bind(this->table_demands, [this] {
+        this->table_demands->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Category")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Base Demand")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Pattern")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Source / Method")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Note")), QString()});
+    });
     this->table_demands->verticalHeader()->setVisible(false);
     this->table_demands->setSelectionMode(QAbstractItemView::NoSelection);
     this->table_demands->horizontalHeader()->setStretchLastSection(false);
@@ -3280,14 +3283,14 @@ void EntityInspectorWidget::openDemandsEditor()
     this->table_demands->setColumnWidth(2, 150);
     this->table_demands->setColumnWidth(5, 35);
 
-    QPushButton *button_demand = new QPushButton("Add Demand");
+    QPushButton *button_demand = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Add Demand"), nullptr);
     connect(button_demand, &QPushButton::clicked, this, [this]()
     {
         HydraulicDemand demand;
         addCurrentDemand(demand);
     });
 
-    QPushButton *button_patterns = new QPushButton("Manage Patterns");
+    QPushButton *button_patterns = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Manage Patterns"), nullptr);
 
     grid->addWidget(this->table_demands, 0, 0, 1, 2);
     grid->addWidget(button_demand, 1, 0);
@@ -3307,11 +3310,11 @@ void EntityInspectorWidget::openDemandsEditor()
 
 void EntityInspectorWidget::addGroupNodeQualityInputs()
 {
-    GroupBoxCollapsible *group_chemical = new GroupBoxCollapsible("Chemical — Node Inputs");
+    GroupBoxCollapsible *group_chemical = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Chemical — Node Inputs"));
     QGridLayout *grid_chemical = new QGridLayout(group_chemical);
     int chemical_row = 0;
 
-    QLabel *label_initial_chemical = new QLabel("Initial Chemical Concentration");
+    QLabel *label_initial_chemical = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Chemical Concentration"), nullptr);
     label_initial_chemical->setWordWrap(true);
     // All node types share these canonical-backed editors. Only accepted user
     // edits invoke the HydraulicData setters; unit changes are read-only.
@@ -3350,23 +3353,23 @@ void EntityInspectorWidget::addGroupNodeQualityInputs()
     this->spin_quality_initial_chemical = quality_editor(NodeQualityNumber::InitialChemical);
     constrainSpinWidth(this->spin_quality_initial_chemical);
 
-    QLabel *label_source_type = new QLabel("Source Type");
+    QLabel *label_source_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Source Type"), nullptr);
     this->combo_quality_source_type = new QComboBox();
-    this->combo_quality_source_type->addItem("None", static_cast<int>(HydraulicNodeQualitySourceType::None));
-    this->combo_quality_source_type->addItem("Concentration", static_cast<int>(HydraulicNodeQualitySourceType::Concentration));
-    this->combo_quality_source_type->addItem("Mass Booster", static_cast<int>(HydraulicNodeQualitySourceType::MassBooster));
-    this->combo_quality_source_type->addItem("Flow-Paced Booster", static_cast<int>(HydraulicNodeQualitySourceType::FlowPacedBooster));
-    this->combo_quality_source_type->addItem("Setpoint Booster", static_cast<int>(HydraulicNodeQualitySourceType::SetpointBooster));
+    EntityInspectorText::addChoice(this->combo_quality_source_type, QT_TRANSLATE_NOOP("LiveUiText", "None"), static_cast<int>(HydraulicNodeQualitySourceType::None));
+    EntityInspectorText::addChoice(this->combo_quality_source_type, QT_TRANSLATE_NOOP("LiveUiText", "Concentration"), static_cast<int>(HydraulicNodeQualitySourceType::Concentration));
+    EntityInspectorText::addChoice(this->combo_quality_source_type, QT_TRANSLATE_NOOP("LiveUiText", "Mass Booster"), static_cast<int>(HydraulicNodeQualitySourceType::MassBooster));
+    EntityInspectorText::addChoice(this->combo_quality_source_type, QT_TRANSLATE_NOOP("LiveUiText", "Flow-Paced Booster"), static_cast<int>(HydraulicNodeQualitySourceType::FlowPacedBooster));
+    EntityInspectorText::addChoice(this->combo_quality_source_type, QT_TRANSLATE_NOOP("LiveUiText", "Setpoint Booster"), static_cast<int>(HydraulicNodeQualitySourceType::SetpointBooster));
 
-    QLabel *label_source_concentration = new QLabel("Source<br>Concentration");
+    QLabel *label_source_concentration = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Source<br>Concentration"), nullptr);
     this->spin_quality_source_concentration = quality_editor(NodeQualityNumber::SourceConcentration);
     constrainSpinWidth(this->spin_quality_source_concentration);
 
-    QLabel *label_source_mass_flow = new QLabel("Source<br>Mass Flow");
+    QLabel *label_source_mass_flow = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Source<br>Mass Flow"), nullptr);
     this->spin_quality_source_mass_flow = quality_editor(NodeQualityNumber::SourceMassFlow);
     constrainSpinWidth(this->spin_quality_source_mass_flow);
 
-    QLabel *label_source_pattern = new QLabel("Source Pattern");
+    QLabel *label_source_pattern = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Source Pattern"), nullptr);
     this->combo_quality_source_pattern = new QComboBox();
     constrainComboWidth(this->combo_quality_source_pattern);
 
@@ -3381,27 +3384,27 @@ void EntityInspectorWidget::addGroupNodeQualityInputs()
     grid_chemical->addWidget(label_source_pattern, chemical_row, 0);
     grid_chemical->addWidget(this->combo_quality_source_pattern, chemical_row++, 1);
 
-    GroupBoxCollapsible *group_water_age = new GroupBoxCollapsible("Water Age — Node Inputs");
+    GroupBoxCollapsible *group_water_age = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Water Age — Node Inputs"));
     QGridLayout *grid_water_age = new QGridLayout(group_water_age);
 
-    QLabel *label_initial_water_age = new QLabel("Initial Water Age");
+    QLabel *label_initial_water_age = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Water Age"), nullptr);
     this->spin_quality_initial_water_age = quality_editor(NodeQualityNumber::InitialWaterAge);
     constrainSpinWidth(this->spin_quality_initial_water_age);
 
     grid_water_age->addWidget(label_initial_water_age, 0, 0);
     grid_water_age->addWidget(this->spin_quality_initial_water_age, 0, 1);
 
-    GroupBoxCollapsible *group_source_trace = new GroupBoxCollapsible("Source Trace — Trace Origin");
+    GroupBoxCollapsible *group_source_trace = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Source Trace — Trace Origin"));
     QGridLayout *grid_source_trace = new QGridLayout(group_source_trace);
 
-    QLabel *label_source_trace_origin = new QLabel("Current Trace Origin:");
+    QLabel *label_source_trace_origin = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Current Trace Origin:"), nullptr);
     this->label_source_trace_origin_value = new QLabel();
     this->label_source_trace_origin_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
     this->button_source_trace_origin_inspect = new QPushButton(QIcon(":/icon/target.png"), "");
     this->button_source_trace_origin_inspect->setIconSize(QSize(20, 20));
     this->button_source_trace_origin_inspect->setToolTip("Open Trace Origin in Inspector");
     this->button_source_trace_origin_inspect->setMaximumWidth(35);
-    this->check_source_trace_origin_current_node = new QCheckBox("Use This Node as Trace Origin");
+    this->check_source_trace_origin_current_node = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Use This Node as Trace Origin"), nullptr);
     this->check_source_trace_origin_current_node->setToolTip(
         "Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.");
 
@@ -3619,7 +3622,7 @@ void EntityInspectorWidget::requestUseCurrentNodeAsSourceTraceOrigin()
 
 void EntityInspectorWidget::addGroupNoEntitySpecificQualityInputs(const QString &entity_name)
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Water Quality Inputs");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Inputs"));
     QGridLayout *grid = new QGridLayout(group);
     QLabel *label = new QLabel(
         QStringLiteral("EPANET defines no %1-specific water-quality input parameters.")
@@ -3636,7 +3639,7 @@ void EntityInspectorWidget::populateQualitySourcePatternCombo(const QUuid &patte
 
     const QSignalBlocker blocker(this->combo_quality_source_pattern);
     this->combo_quality_source_pattern->clear();
-    this->combo_quality_source_pattern->addItem("None", QUuid());
+    EntityInspectorText::addChoice(this->combo_quality_source_pattern, QT_TRANSLATE_NOOP("LiveUiText", "None"), QUuid());
     for (const HydraulicPatternTime &pattern : this->hydraulic_data->networkHydraulic().patterns_time)
     {
         const QString label = pattern.id.isEmpty()
@@ -3717,13 +3720,13 @@ void EntityInspectorWidget::refreshNodeQualityInputs()
 
 void EntityInspectorWidget::addGroupAlerts()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Alerts");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Alerts"));
     layoutOverview()->addWidget(group);
 }
 
 void EntityInspectorWidget::addGroupHistory()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("History");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "History"));
     QGridLayout *grid = new QGridLayout(group);
     
     

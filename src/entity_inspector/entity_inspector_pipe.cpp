@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include <aowis/model/units/quantity.h>
 #include "entity_inspector/entity_inspector_pipe.h"
 
@@ -46,14 +47,14 @@ EntityInspectorPipe::EntityInspectorPipe(HydraulicData *hydraulic_data, const Hy
 
 void EntityInspectorPipe::addGroupGeometry()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Geometry");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Geometry"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_status_initial = new QLabel("Initial Status");
+    QLabel *label_status_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Status"), nullptr);
     this->combo_status_initial = new QComboBox();
-    this->combo_status_initial->addItem("Open", static_cast<int>(HydraulicLinkPipeInitialStatus::Open));
-    this->combo_status_initial->addItem("Closed", static_cast<int>(HydraulicLinkPipeInitialStatus::Closed));
-    this->combo_status_initial->addItem("Check Valve", static_cast<int>(HydraulicLinkPipeInitialStatus::CheckValve));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Open"), static_cast<int>(HydraulicLinkPipeInitialStatus::Open));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Closed"), static_cast<int>(HydraulicLinkPipeInitialStatus::Closed));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Check Valve"), static_cast<int>(HydraulicLinkPipeInitialStatus::CheckValve));
 
     // The widget value is only a representation. Bindings read the authoritative
     // pipe property on every refresh, so conversion/rounding cannot modify it.
@@ -85,18 +86,18 @@ void EntityInspectorPipe::addGroupGeometry()
             }, quantity, storage_unit, minimum, maximum, step, decimals, group);
     };
 
-    QLabel *label_diameter = new QLabel("Diameter");
+    QLabel *label_diameter = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Diameter"), nullptr);
     this->spin_diameter = geometry_editor(0);
 
-    QLabel *label_length_calculated = new QLabel("Calculated Length");
+    QLabel *label_length_calculated = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Calculated Length"), nullptr);
     this->spin_length_calculated = geometry_editor(1);
     this->spin_length_calculated->setReadOnly(true);
     this->spin_length_calculated->setButtonSymbols(QAbstractSpinBox::NoButtons);
     this->spin_length_calculated->setToolTip("Calculated from the endpoint and intermediate vertex coordinates.");
 
-    this->check_length_measured = new QCheckBox("Override with measured length");
+    this->check_length_measured = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Override with measured length"), nullptr);
 
-    QLabel *label_length_measured = new QLabel("Measured Length");
+    QLabel *label_length_measured = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Measured Length"), nullptr);
     this->spin_length_measured = geometry_editor(2);
     this->spin_length_measured->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     this->spin_length_measured->setEnabled(false);
@@ -142,22 +143,19 @@ void EntityInspectorPipe::addGroupGeometry()
 
 void EntityInspectorPipe::addGroupRoughness()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Roughness");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Roughness"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_material = new QLabel("Material");
+    QLabel *label_material = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Material"), nullptr);
     this->combo_material = new QComboBox();
     this->combo_material->setEditable(false);
     this->combo_material->setToolTip(
         "Pipe materials are defined by the network material library.");
 
-    QLabel *label_roughness_mode = new QLabel("Roughness<br>Source");
+    QLabel *label_roughness_mode = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Source"), nullptr);
     this->combo_roughness_mode = new QComboBox();
-    this->combo_roughness_mode->addItem(
-        "Explicit", static_cast<int>(HydraulicPipeRoughnessMode::Explicit));
-    this->combo_roughness_mode->addItem(
-        "Material + age",
-        static_cast<int>(HydraulicPipeRoughnessMode::MaterialLibrary));
+    EntityInspectorText::addChoice(this->combo_roughness_mode, QT_TRANSLATE_NOOP("LiveUiText", "Explicit"), static_cast<int>(HydraulicPipeRoughnessMode::Explicit));
+    EntityInspectorText::addChoice(this->combo_roughness_mode, QT_TRANSLATE_NOOP("LiveUiText", "Material + age"), static_cast<int>(HydraulicPipeRoughnessMode::MaterialLibrary));
     this->combo_roughness_mode->setToolTip(
         "Explicit uses the pipe roughness values below. Material + installation age "
         "uses the newest applicable age row in the selected material library entry.");
@@ -209,22 +207,22 @@ void EntityInspectorPipe::addGroupRoughness()
                              [](const QString &) { return QString(); }));
     };
 
-    QLabel *label_roughness_hw = new QLabel("Roughness<br>Hazen-Williams");
+    QLabel *label_roughness_hw = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Hazen-Williams"), nullptr);
     label_roughness_hw->setWordWrap(true);
     this->spin_roughness_hw = roughness_editor(0);
     this->spin_roughness_hw->setToolTip("Pipe roughness coefficient C");
 
-    QLabel *label_roughness_dw = new QLabel("Roughness<br>Darcy-Weisbach");
+    QLabel *label_roughness_dw = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Darcy-Weisbach"), nullptr);
     label_roughness_dw->setWordWrap(true);
     this->spin_roughness_dw = roughness_editor(1);
     this->spin_roughness_dw->setToolTip("Absolute pipe roughness ε in the selected display unit");
 
-    QLabel *label_roughness_cm = new QLabel("Roughness<br>Chezy-Manning");
+    QLabel *label_roughness_cm = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Chezy-Manning"), nullptr);
     label_roughness_cm->setWordWrap(true);
     this->spin_roughness_cm = roughness_editor(2);
     this->spin_roughness_cm->setToolTip("Manning roughness coefficient n");
 
-    QLabel *label_loss_coefficient = new QLabel("Loss Coefficient");
+    QLabel *label_loss_coefficient = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Loss Coefficient"), nullptr);
     label_loss_coefficient->setWordWrap(true);
     this->spin_loss_coefficient = roughness_editor(3);
     this->spin_loss_coefficient->setToolTip(QStringLiteral("Dimensionless minor loss coefficient K<br>for local losses from bends, fittings,<br>entrances, exits, etc.<br><br>Default is 0 for no additional minor losses."));
@@ -332,7 +330,7 @@ void EntityInspectorPipe::refreshPipe()
     refreshPipeGeometry();
 
     this->combo_material->clear();
-    this->combo_material->addItem(QStringLiteral("[Not set]"), QUuid());
+    EntityInspectorText::addChoice(this->combo_material, QT_TRANSLATE_NOOP("LiveUiText", "[Not set]"), QUuid());
     for (const HydraulicPipeMaterial &material : this->hydraulic_data->networkHydraulic().pipe_materials)
         this->combo_material->addItem(material.id, material.uuid);
 
@@ -350,14 +348,14 @@ void EntityInspectorPipe::refreshPipe()
 
 void EntityInspectorPipe::addGroupQuality()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Chemical — Pipe Reactions");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Chemical — Pipe Reactions"));
     QGridLayout *grid = new QGridLayout(group);
     int row = 0;
 
-    this->check_override_bulk = new QCheckBox("Override global bulk reaction");
-    this->check_override_wall = new QCheckBox("Override global wall reaction");
+    this->check_override_bulk = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Override global bulk reaction"), nullptr);
+    this->check_override_wall = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Override global wall reaction"), nullptr);
 
-    QLabel *label_bulk = new QLabel("Bulk Reaction Coefficient");
+    QLabel *label_bulk = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Bulk Reaction Coefficient"), nullptr);
     label_bulk->setWordWrap(true);
     this->spin_bulk_reaction = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
@@ -383,7 +381,7 @@ void EntityInspectorPipe::addGroupQuality()
         "Coefficient dimensions depend on bulk reaction order; the profile changes the "
         "inverse-time unit while retaining canonical concentration (mg/L).");
 
-    QLabel *label_wall = new QLabel("Wall Reaction Coefficient");
+    QLabel *label_wall = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Wall Reaction Coefficient"), nullptr);
     label_wall->setWordWrap(true);
     this->stack_wall_reaction = new QStackedWidget(group);
     // First-order wall coefficient is length/time (m/day); zero-order wall

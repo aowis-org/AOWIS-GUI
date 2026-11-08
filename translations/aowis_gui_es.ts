@@ -1916,6 +1916,874 @@ Clic derecho: volver a 1,0×</translation>
       <source>Water Age</source>
       <translation>Edad del agua</translation>
     </message>
+    <message>
+      <source>1-point curve</source>
+      <translation>Curva de 1 punto</translation>
+    </message>
+    <message>
+      <source>3-point curve</source>
+      <translation>Curva de 3 puntos</translation>
+    </message>
+    <message>
+      <source>Above level / pressure</source>
+      <translation>Por encima del nivel / presión</translation>
+    </message>
+    <message>
+      <source>Active</source>
+      <translation>Activo</translation>
+    </message>
+    <message>
+      <source>Add Control</source>
+      <translation>Añadir control</translation>
+    </message>
+    <message>
+      <source>Add Demand</source>
+      <translation>Añadir demanda</translation>
+    </message>
+    <message>
+      <source>Add Water Meter</source>
+      <translation>Añadir contador de agua</translation>
+    </message>
+    <message>
+      <source>Alerts</source>
+      <translation>Alertas</translation>
+    </message>
+    <message>
+      <source>Assigned junction</source>
+      <translation>Nudo asignado</translation>
+    </message>
+    <message>
+      <source>Assigned&lt;br&gt;Junction</source>
+      <translation>Nudo&lt;br&gt;asignado</translation>
+    </message>
+    <message>
+      <source>Attach / Reattach on Map</source>
+      <translation>Conectar / reconectar en el mapa</translation>
+    </message>
+    <message>
+      <source>Average Efficiency</source>
+      <translation>Rendimiento medio</translation>
+    </message>
+    <message>
+      <source>Average Energy Cost</source>
+      <translation>Coste energético medio</translation>
+    </message>
+    <message>
+      <source>Average Energy Intensity</source>
+      <translation>Intensidad energética media</translation>
+    </message>
+    <message>
+      <source>Average Power</source>
+      <translation>Potencia media</translation>
+    </message>
+    <message>
+      <source>Below level / pressure</source>
+      <translation>Por debajo del nivel / presión</translation>
+    </message>
+    <message>
+      <source>Bottom Elevation</source>
+      <translation>Cota del fondo</translation>
+    </message>
+    <message>
+      <source>Bottom Offset</source>
+      <translation>Desfase del fondo</translation>
+    </message>
+    <message>
+      <source>Boundary Condition</source>
+      <translation>Condición de contorno</translation>
+    </message>
+    <message>
+      <source>Bulk Reaction Coefficient</source>
+      <translation>Coeficiente de reacción en el agua</translation>
+    </message>
+    <message>
+      <source>Calculated Length</source>
+      <translation>Longitud calculada</translation>
+    </message>
+    <message>
+      <source>Category</source>
+      <translation>Categoría</translation>
+    </message>
+    <message>
+      <source>Characteristic Curve</source>
+      <translation>Curva característica</translation>
+    </message>
+    <message>
+      <source>Check Valve</source>
+      <translation>Válvula de retención</translation>
+    </message>
+    <message>
+      <source>Chemical Concentration</source>
+      <translation>Concentración química</translation>
+    </message>
+    <message>
+      <source>Chemical — Node Inputs</source>
+      <translation>Química — entradas del nudo</translation>
+    </message>
+    <message>
+      <source>Chemical — Pipe Reactions</source>
+      <translation>Química — reacciones en la tubería</translation>
+    </message>
+    <message>
+      <source>Chemical — Tank Reactions</source>
+      <translation>Química — reacciones en el depósito</translation>
+    </message>
+    <message>
+      <source>Closed</source>
+      <translation>Cerrado</translation>
+    </message>
+    <message>
+      <source>Comment</source>
+      <translation>Comentario</translation>
+    </message>
+    <message>
+      <source>Complete Mix</source>
+      <translation>Mezcla completa</translation>
+    </message>
+    <message>
+      <source>Concentration</source>
+      <translation>Concentración</translation>
+    </message>
+    <message>
+      <source>Constant</source>
+      <translation>Constante</translation>
+    </message>
+    <message>
+      <source>Constant power</source>
+      <translation>Potencia constante</translation>
+    </message>
+    <message>
+      <source>Consumer demand actually delivered at the selected timestep.</source>
+      <translation>Demanda realmente suministrada en el instante seleccionado.</translation>
+    </message>
+    <message>
+      <source>Controls</source>
+      <translation>Controles</translation>
+    </message>
+    <message>
+      <source>Cross-Section Area</source>
+      <translation>Área transversal</translation>
+    </message>
+    <message>
+      <source>Current Trace Origin:</source>
+      <translation>Origen de rastreo actual:</translation>
+    </message>
+    <message>
+      <source>Cylindrical</source>
+      <translation>Cilíndrico</translation>
+    </message>
+    <message>
+      <source>Date Added</source>
+      <translation>Fecha de alta</translation>
+    </message>
+    <message>
+      <source>Delivered Demand</source>
+      <translation>Demanda suministrada</translation>
+    </message>
+    <message>
+      <source>Demand Point Demands</source>
+      <translation>Demandas del punto de demanda</translation>
+    </message>
+    <message>
+      <source>Demand requested before pressure-driven demand reduction.</source>
+      <translation>Demanda solicitada antes de la reducción por presión.</translation>
+    </message>
+    <message>
+      <source>Demand&lt;br&gt;Allocation</source>
+      <translation>Asignación&lt;br&gt;de demanda</translation>
+    </message>
+    <message>
+      <source>Demands</source>
+      <translation>Demandas</translation>
+    </message>
+    <message>
+      <source>Demands / Emitter</source>
+      <translation>Demandas / emisor</translation>
+    </message>
+    <message>
+      <source>Derived Cross-Section Area</source>
+      <translation>Área transversal derivada</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>Descripción</translation>
+    </message>
+    <message>
+      <source>Detach</source>
+      <translation>Desconectar</translation>
+    </message>
+    <message>
+      <source>Details</source>
+      <translation>Detalles</translation>
+    </message>
+    <message>
+      <source>Distance from &lt;i&gt;Terrain Elevation&lt;/i&gt;.&lt;br&gt;Positive: Above Ground.&lt;br&gt;Negative: Below Ground.</source>
+      <translation>Distancia respecto a la &lt;i&gt;cota del terreno&lt;/i&gt;.&lt;br&gt;Positiva por encima.&lt;br&gt;Negativa por debajo.</translation>
+    </message>
+    <message>
+      <source>Effective roughness returned by the hydraulic engine for the configured headloss formula.</source>
+      <translation>Rugosidad efectiva del motor hidráulico para la fórmula de pérdida de carga seleccionada.</translation>
+    </message>
+    <message>
+      <source>Efficiency</source>
+      <translation>Rendimiento</translation>
+    </message>
+    <message>
+      <source>Efficiency Curve</source>
+      <translation>Curva de rendimiento</translation>
+    </message>
+    <message>
+      <source>Elapsed time</source>
+      <translation>Tiempo transcurrido</translation>
+    </message>
+    <message>
+      <source>Elevation Offset</source>
+      <translation>Desfase de cota</translation>
+    </message>
+    <message>
+      <source>Emitter&lt;br&gt;Coefficient</source>
+      <translation>Coeficiente&lt;br&gt;del emisor</translation>
+    </message>
+    <message>
+      <source>Emitter&lt;br&gt;Exponent</source>
+      <translation>Exponente&lt;br&gt;del emisor</translation>
+    </message>
+    <message>
+      <source>Enabled</source>
+      <translation>Habilitado</translation>
+    </message>
+    <message>
+      <source>Endpoints</source>
+      <translation>Extremos</translation>
+    </message>
+    <message>
+      <source>Energy</source>
+      <translation>Energía</translation>
+    </message>
+    <message>
+      <source>Energy Cost Input</source>
+      <translation>Datos de costes energéticos</translation>
+    </message>
+    <message>
+      <source>Energy Price</source>
+      <translation>Precio de la energía</translation>
+    </message>
+    <message>
+      <source>Entity Inspector  |  [%1] Toggle sidebar</source>
+      <translation>Inspector de elementos  |  [%1] Mostrar u ocultar el panel</translation>
+    </message>
+    <message>
+      <source>Equivalent&lt;br&gt;Diameter</source>
+      <translation>Diámetro&lt;br&gt;equivalente</translation>
+    </message>
+    <message>
+      <source>Existing Asset</source>
+      <translation>Activo existente</translation>
+    </message>
+    <message>
+      <source>Explicit</source>
+      <translation>Explícito</translation>
+    </message>
+    <message>
+      <source>Find Attachment on Map</source>
+      <translation>Localizar conexión en el mapa</translation>
+    </message>
+    <message>
+      <source>Find on Map</source>
+      <translation>Localizar en el mapa</translation>
+    </message>
+    <message>
+      <source>First In, First Out</source>
+      <translation>Primero en entrar, primero en salir</translation>
+    </message>
+    <message>
+      <source>Flow</source>
+      <translation>Caudal</translation>
+    </message>
+    <message>
+      <source>Flow Setting</source>
+      <translation>Consigna de caudal</translation>
+    </message>
+    <message>
+      <source>Flow-Paced Booster</source>
+      <translation>Dosificación proporcional al caudal</translation>
+    </message>
+    <message>
+      <source>Friction Factor</source>
+      <translation>Factor de fricción</translation>
+    </message>
+    <message>
+      <source>From Library</source>
+      <translation>Desde la biblioteca</translation>
+    </message>
+    <message>
+      <source>General</source>
+      <translation>General</translation>
+    </message>
+    <message>
+      <source>Geographic altitude</source>
+      <translation>Altitud geográfica</translation>
+    </message>
+    <message>
+      <source>Geometry</source>
+      <translation>Geometría</translation>
+    </message>
+    <message>
+      <source>Geometry / Levels</source>
+      <translation>Geometría / niveles</translation>
+    </message>
+    <message>
+      <source>Geometry Input</source>
+      <translation>Entrada de geometría</translation>
+    </message>
+    <message>
+      <source>Global</source>
+      <translation>Global</translation>
+    </message>
+    <message>
+      <source>Graphs</source>
+      <translation>Gráficos</translation>
+    </message>
+    <message>
+      <source>Head Gain</source>
+      <translation>Ganancia de carga</translation>
+    </message>
+    <message>
+      <source>Head Loss Curve</source>
+      <translation>Curva de pérdida de carga</translation>
+    </message>
+    <message>
+      <source>Head Offset</source>
+      <translation>Desfase de carga</translation>
+    </message>
+    <message>
+      <source>Head Pattern</source>
+      <translation>Patrón de carga</translation>
+    </message>
+    <message>
+      <source>History</source>
+      <translation>Historial</translation>
+    </message>
+    <message>
+      <source>Hydraulic Input</source>
+      <translation>Datos hidráulicos</translation>
+    </message>
+    <message>
+      <source>Hydraulic Simulation &amp; Measurement</source>
+      <translation>Simulación y medición hidráulicas</translation>
+    </message>
+    <message>
+      <source>Hydraulic head relative to &lt;i&gt;Terrain Elevation&lt;/i&gt;. Positive values are above terrain.</source>
+      <translation>Carga hidráulica respecto a la &lt;i&gt;cota del terreno&lt;/i&gt;. Los valores positivos están por encima del terreno.</translation>
+    </message>
+    <message>
+      <source>ID</source>
+      <translation>ID</translation>
+    </message>
+    <message>
+      <source>Initial Chemical Concentration</source>
+      <translation>Concentración química inicial</translation>
+    </message>
+    <message>
+      <source>Initial Level</source>
+      <translation>Nivel inicial</translation>
+    </message>
+    <message>
+      <source>Initial Speed</source>
+      <translation>Velocidad inicial</translation>
+    </message>
+    <message>
+      <source>Initial Status</source>
+      <translation>Estado inicial</translation>
+    </message>
+    <message>
+      <source>Initial Water Age</source>
+      <translation>Edad inicial del agua</translation>
+    </message>
+    <message>
+      <source>Installation Date</source>
+      <translation>Fecha de instalación</translation>
+    </message>
+    <message>
+      <source>Installation&lt;br&gt;Date</source>
+      <translation>Fecha de&lt;br&gt;instalación</translation>
+    </message>
+    <message>
+      <source>Junction Demands</source>
+      <translation>Demandas del nudo</translation>
+    </message>
+    <message>
+      <source>Last In, First Out</source>
+      <translation>Último en entrar, primero en salir</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>Latitud</translation>
+    </message>
+    <message>
+      <source>Leakage Flow</source>
+      <translation>Caudal de fuga</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>Longitud</translation>
+    </message>
+    <message>
+      <source>Loss Coefficient</source>
+      <translation>Coeficiente de pérdida</translation>
+    </message>
+    <message>
+      <source>Manage Patterns</source>
+      <translation>Gestionar patrones</translation>
+    </message>
+    <message>
+      <source>Manual Estimation</source>
+      <translation>Estimación manual</translation>
+    </message>
+    <message>
+      <source>Manufacturer</source>
+      <translation>Fabricante</translation>
+    </message>
+    <message>
+      <source>Mass Booster</source>
+      <translation>Dosificación másica</translation>
+    </message>
+    <message>
+      <source>Material</source>
+      <translation>Material</translation>
+    </message>
+    <message>
+      <source>Material + age</source>
+      <translation>Material + antigüedad</translation>
+    </message>
+    <message>
+      <source>Maximum Level</source>
+      <translation>Nivel máximo</translation>
+    </message>
+    <message>
+      <source>Maximum Volume</source>
+      <translation>Volumen máximo</translation>
+    </message>
+    <message>
+      <source>Measured Length</source>
+      <translation>Longitud medida</translation>
+    </message>
+    <message>
+      <source>Meter Data</source>
+      <translation>Datos del contador</translation>
+    </message>
+    <message>
+      <source>Meter UUID</source>
+      <translation>UUID del contador</translation>
+    </message>
+    <message>
+      <source>Minimum Level</source>
+      <translation>Nivel mínimo</translation>
+    </message>
+    <message>
+      <source>Minimum Volume</source>
+      <translation>Volumen mínimo</translation>
+    </message>
+    <message>
+      <source>Mixing Fraction</source>
+      <translation>Fracción de mezcla</translation>
+    </message>
+    <message>
+      <source>Mixing Model</source>
+      <translation>Modelo de mezcla</translation>
+    </message>
+    <message>
+      <source>Mixing-Zone Volume</source>
+      <translation>Volumen de la zona de mezcla</translation>
+    </message>
+    <message>
+      <source>Model</source>
+      <translation>Modelo</translation>
+    </message>
+    <message>
+      <source>Model Role</source>
+      <translation>Función en el modelo</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>Nombre</translation>
+    </message>
+    <message>
+      <source>Negative means the reservoir supplies the network; positive means it receives water.</source>
+      <translation>Un valor negativo indica que el embalse abastece la red. Un valor positivo indica que recibe agua.</translation>
+    </message>
+    <message>
+      <source>Net Demand</source>
+      <translation>Demanda neta</translation>
+    </message>
+    <message>
+      <source>Network Attachment</source>
+      <translation>Conexión a la red</translation>
+    </message>
+    <message>
+      <source>Node 1</source>
+      <translation>Nudo 1</translation>
+    </message>
+    <message>
+      <source>Node 2</source>
+      <translation>Nudo 2</translation>
+    </message>
+    <message>
+      <source>Off</source>
+      <translation>Apagado</translation>
+    </message>
+    <message>
+      <source>Open</source>
+      <translation>Abierto</translation>
+    </message>
+    <message>
+      <source>Open Editor</source>
+      <translation>Abrir editor</translation>
+    </message>
+    <message>
+      <source>Operating State</source>
+      <translation>Estado operativo</translation>
+    </message>
+    <message>
+      <source>Overflow Allowed</source>
+      <translation>Desbordamiento permitido</translation>
+    </message>
+    <message>
+      <source>Override global bulk reaction</source>
+      <translation>Sustituir reacción global en el agua</translation>
+    </message>
+    <message>
+      <source>Override global tank bulk reaction</source>
+      <translation>Sustituir reacción global en el agua del depósito</translation>
+    </message>
+    <message>
+      <source>Override global wall reaction</source>
+      <translation>Sustituir reacción global en la pared</translation>
+    </message>
+    <message>
+      <source>Override with measured length</source>
+      <translation>Usar la longitud medida</translation>
+    </message>
+    <message>
+      <source>Pattern</source>
+      <translation>Patrón temporal</translation>
+    </message>
+    <message>
+      <source>Peak Power</source>
+      <translation>Potencia máxima</translation>
+    </message>
+    <message>
+      <source>Pipe</source>
+      <translation>Tubería</translation>
+    </message>
+    <message>
+      <source>Pipe Position</source>
+      <translation>Posición en la tubería</translation>
+    </message>
+    <message>
+      <source>Planned Asset</source>
+      <translation>Activo previsto</translation>
+    </message>
+    <message>
+      <source>Position</source>
+      <translation>Posición</translation>
+    </message>
+    <message>
+      <source>Position Setting</source>
+      <translation>Consigna de posición</translation>
+    </message>
+    <message>
+      <source>Positive means the tank is filling; negative means it supplies the network.</source>
+      <translation>Un valor positivo indica que el depósito se llena. Un valor negativo indica que abastece la red.</translation>
+    </message>
+    <message>
+      <source>Power</source>
+      <translation>Potencia</translation>
+    </message>
+    <message>
+      <source>Press %1 to show or hide the right sidebar.</source>
+      <translation>Pulse %1 para mostrar u ocultar el panel derecho.</translation>
+    </message>
+    <message>
+      <source>Pressure Drop</source>
+      <translation>Caída de presión</translation>
+    </message>
+    <message>
+      <source>Pressure Setting</source>
+      <translation>Consigna de presión</translation>
+    </message>
+    <message>
+      <source>Price Pattern</source>
+      <translation>Patrón de precios</translation>
+    </message>
+    <message>
+      <source>Pump Input</source>
+      <translation>Datos de la bomba</translation>
+    </message>
+    <message>
+      <source>Referenced by Control</source>
+      <translation>Referenciado por un control</translation>
+    </message>
+    <message>
+      <source>Regulating</source>
+      <translation>Regulando</translation>
+    </message>
+    <message>
+      <source>Remove</source>
+      <translation>Quitar</translation>
+    </message>
+    <message>
+      <source>Remove Water Meter</source>
+      <translation>Quitar contador de agua</translation>
+    </message>
+    <message>
+      <source>Requested Demand</source>
+      <translation>Demanda solicitada</translation>
+    </message>
+    <message>
+      <source>Retired Asset</source>
+      <translation>Activo retirado</translation>
+    </message>
+    <message>
+      <source>Retrieve Terrain Elevation</source>
+      <translation>Obtener cota del terreno</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Chezy-Manning</source>
+      <translation>Rugosidad&lt;br&gt;Chezy-Manning</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Darcy-Weisbach</source>
+      <translation>Rugosidad&lt;br&gt;Darcy-Weisbach</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Hazen-Williams</source>
+      <translation>Rugosidad&lt;br&gt;Hazen-Williams</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Source</source>
+      <translation>Fuente de&lt;br&gt;rugosidad</translation>
+    </message>
+    <message>
+      <source>Scenario</source>
+      <translation>Escenario</translation>
+    </message>
+    <message>
+      <source>Serial Number</source>
+      <translation>Número de serie</translation>
+    </message>
+    <message>
+      <source>Setpoint Booster</source>
+      <translation>Dosificación de consigna</translation>
+    </message>
+    <message>
+      <source>Setting</source>
+      <translation>Consigna</translation>
+    </message>
+    <message>
+      <source>Simulation</source>
+      <translation>Simulación</translation>
+    </message>
+    <message>
+      <source>Simulation Energy Summary</source>
+      <translation>Resumen energético de la simulación</translation>
+    </message>
+    <message>
+      <source>Source / Method</source>
+      <translation>Fuente / método</translation>
+    </message>
+    <message>
+      <source>Source Mass Flow</source>
+      <translation>Caudal másico de la fuente</translation>
+    </message>
+    <message>
+      <source>Source Pattern</source>
+      <translation>Patrón de la fuente</translation>
+    </message>
+    <message>
+      <source>Source Trace</source>
+      <translation>Rastreo de fuente</translation>
+    </message>
+    <message>
+      <source>Source Trace — Trace Origin</source>
+      <translation>Rastreo de fuente — origen</translation>
+    </message>
+    <message>
+      <source>Source Type</source>
+      <translation>Tipo de fuente</translation>
+    </message>
+    <message>
+      <source>Source&lt;br&gt;Concentration</source>
+      <translation>Concentración&lt;br&gt;de la fuente</translation>
+    </message>
+    <message>
+      <source>Source&lt;br&gt;Mass Flow</source>
+      <translation>Caudal másico&lt;br&gt;de la fuente</translation>
+    </message>
+    <message>
+      <source>Speed</source>
+      <translation>Velocidad</translation>
+    </message>
+    <message>
+      <source>Speed Pattern</source>
+      <translation>Patrón de velocidad</translation>
+    </message>
+    <message>
+      <source>Split by pipe position</source>
+      <translation>Repartir según la posición en la tubería</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>Estado</translation>
+    </message>
+    <message>
+      <source>Tags</source>
+      <translation>Etiquetas</translation>
+    </message>
+    <message>
+      <source>Tank Mixing — All Modes</source>
+      <translation>Mezcla en el depósito — todos los modos</translation>
+    </message>
+    <message>
+      <source>Tank bottom relative to terrain. Positive = above ground, negative = below ground.</source>
+      <translation>Fondo del depósito respecto al terreno. Positivo por encima, negativo por debajo.</translation>
+    </message>
+    <message>
+      <source>Target</source>
+      <translation>Destino</translation>
+    </message>
+    <message>
+      <source>Temporary / Testing</source>
+      <translation>Temporal / pruebas</translation>
+    </message>
+    <message>
+      <source>Terrain Elevation</source>
+      <translation>Cota del terreno</translation>
+    </message>
+    <message>
+      <source>Terrain Elevation + Offset</source>
+      <translation>Cota del terreno + desfase</translation>
+    </message>
+    <message>
+      <source>Time</source>
+      <translation>Tiempo</translation>
+    </message>
+    <message>
+      <source>Time Online</source>
+      <translation>Tiempo en servicio</translation>
+    </message>
+    <message>
+      <source>Time of day</source>
+      <translation>Hora del día</translation>
+    </message>
+    <message>
+      <source>Total Elevation</source>
+      <translation>Cota total</translation>
+    </message>
+    <message>
+      <source>Total Head</source>
+      <translation>Carga total</translation>
+    </message>
+    <message>
+      <source>Total junction outflow: delivered demand, emitter flow, and assigned pipe leakage.</source>
+      <translation>Caudal total de salida del nudo: demanda suministrada, caudal del emisor y fugas de tuberías asignadas.</translation>
+    </message>
+    <message>
+      <source>Two-Compartment</source>
+      <translation>Dos compartimentos</translation>
+    </message>
+    <message>
+      <source>Type</source>
+      <translation>Tipo</translation>
+    </message>
+    <message>
+      <source>Uniform Area</source>
+      <translation>Área uniforme</translation>
+    </message>
+    <message>
+      <source>Unit Head Loss</source>
+      <translation>Pérdida de carga unitaria</translation>
+    </message>
+    <message>
+      <source>Use This Node as Trace Origin</source>
+      <translation>Usar este nudo como origen del rastreo</translation>
+    </message>
+    <message>
+      <source>Valve Configuration</source>
+      <translation>Configuración de la válvula</translation>
+    </message>
+    <message>
+      <source>Valve Type</source>
+      <translation>Tipo de válvula</translation>
+    </message>
+    <message>
+      <source>Virtual / Model-Only</source>
+      <translation>Virtual / solo modelo</translation>
+    </message>
+    <message>
+      <source>Volume</source>
+      <translation>Volumen</translation>
+    </message>
+    <message>
+      <source>Volume Curve</source>
+      <translation>Curva de volumen</translation>
+    </message>
+    <message>
+      <source>Wall Reaction Coefficient</source>
+      <translation>Coeficiente de reacción en la pared</translation>
+    </message>
+    <message>
+      <source>Water Age — Node Inputs</source>
+      <translation>Edad del agua — datos del nudo</translation>
+    </message>
+    <message>
+      <source>Water Level</source>
+      <translation>Nivel de agua</translation>
+    </message>
+    <message>
+      <source>Water Meter</source>
+      <translation>Contador de agua</translation>
+    </message>
+    <message>
+      <source>Water Quality</source>
+      <translation>Calidad del agua</translation>
+    </message>
+    <message>
+      <source>Water Quality Input</source>
+      <translation>Datos de calidad del agua</translation>
+    </message>
+    <message>
+      <source>Water Quality Inputs</source>
+      <translation>Datos de calidad del agua</translation>
+    </message>
+    <message>
+      <source>Water Quality Simulation &amp; Measurement</source>
+      <translation>Simulación y medición de la calidad del agua</translation>
+    </message>
+    <message>
+      <source>Water-meter observations and demand time series will be shown here.</source>
+      <translation>Aquí se mostrarán las lecturas del contador y las series temporales de demanda.</translation>
+    </message>
+    <message>
+      <source>[Not set]</source>
+      <translation>[Sin definir]</translation>
+    </message>
+    <message>
+      <source>[Select Pattern]</source>
+      <translation>[Seleccionar patrón]</translation>
+    </message>
+    <message>
+      <source>[Unspecified]</source>
+      <translation>[Sin especificar]</translation>
+    </message>
+    <message>
+      <source>Valve</source>
+      <translation>Válvula</translation>
+    </message>
+    <message>
+      <source>Curve</source>
+      <translation>Curva</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>

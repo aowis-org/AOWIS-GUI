@@ -1916,6 +1916,874 @@ Right-click: animate back to 1.0×</source>
       <source>Water Age</source>
       <translation>عمر المياه</translation>
     </message>
+    <message>
+      <source>1-point curve</source>
+      <translation>منحنى من نقطة واحدة</translation>
+    </message>
+    <message>
+      <source>3-point curve</source>
+      <translation>منحنى من ثلاث نقاط</translation>
+    </message>
+    <message>
+      <source>Above level / pressure</source>
+      <translation>فوق المنسوب / الضغط</translation>
+    </message>
+    <message>
+      <source>Active</source>
+      <translation>نشط</translation>
+    </message>
+    <message>
+      <source>Add Control</source>
+      <translation>إضافة عنصر تحكم</translation>
+    </message>
+    <message>
+      <source>Add Demand</source>
+      <translation>إضافة طلب</translation>
+    </message>
+    <message>
+      <source>Add Water Meter</source>
+      <translation>إضافة عداد مياه</translation>
+    </message>
+    <message>
+      <source>Alerts</source>
+      <translation>التنبيهات</translation>
+    </message>
+    <message>
+      <source>Assigned junction</source>
+      <translation>العقدة المعيّنة</translation>
+    </message>
+    <message>
+      <source>Assigned&lt;br&gt;Junction</source>
+      <translation>العقدة&lt;br&gt;المعيّنة</translation>
+    </message>
+    <message>
+      <source>Attach / Reattach on Map</source>
+      <translation>ربط / إعادة ربط على الخريطة</translation>
+    </message>
+    <message>
+      <source>Average Efficiency</source>
+      <translation>متوسط الكفاءة</translation>
+    </message>
+    <message>
+      <source>Average Energy Cost</source>
+      <translation>متوسط تكلفة الطاقة</translation>
+    </message>
+    <message>
+      <source>Average Energy Intensity</source>
+      <translation>متوسط كثافة الطاقة</translation>
+    </message>
+    <message>
+      <source>Average Power</source>
+      <translation>متوسط القدرة</translation>
+    </message>
+    <message>
+      <source>Below level / pressure</source>
+      <translation>تحت المنسوب / الضغط</translation>
+    </message>
+    <message>
+      <source>Bottom Elevation</source>
+      <translation>منسوب القاع</translation>
+    </message>
+    <message>
+      <source>Bottom Offset</source>
+      <translation>إزاحة القاع</translation>
+    </message>
+    <message>
+      <source>Boundary Condition</source>
+      <translation>شرط حدودي</translation>
+    </message>
+    <message>
+      <source>Bulk Reaction Coefficient</source>
+      <translation>معامل التفاعل في الماء</translation>
+    </message>
+    <message>
+      <source>Calculated Length</source>
+      <translation>الطول المحسوب</translation>
+    </message>
+    <message>
+      <source>Category</source>
+      <translation>الفئة</translation>
+    </message>
+    <message>
+      <source>Characteristic Curve</source>
+      <translation>المنحنى المميز</translation>
+    </message>
+    <message>
+      <source>Check Valve</source>
+      <translation>صمام عدم الرجوع</translation>
+    </message>
+    <message>
+      <source>Chemical Concentration</source>
+      <translation>التركيز الكيميائي</translation>
+    </message>
+    <message>
+      <source>Chemical — Node Inputs</source>
+      <translation>الكيمياء — مدخلات العقدة</translation>
+    </message>
+    <message>
+      <source>Chemical — Pipe Reactions</source>
+      <translation>الكيمياء — تفاعلات الأنابيب</translation>
+    </message>
+    <message>
+      <source>Chemical — Tank Reactions</source>
+      <translation>الكيمياء — تفاعلات الخزان</translation>
+    </message>
+    <message>
+      <source>Closed</source>
+      <translation>مغلق</translation>
+    </message>
+    <message>
+      <source>Comment</source>
+      <translation>تعليق</translation>
+    </message>
+    <message>
+      <source>Complete Mix</source>
+      <translation>خلط كامل</translation>
+    </message>
+    <message>
+      <source>Concentration</source>
+      <translation>التركيز</translation>
+    </message>
+    <message>
+      <source>Constant</source>
+      <translation>ثابت</translation>
+    </message>
+    <message>
+      <source>Constant power</source>
+      <translation>قدرة ثابتة</translation>
+    </message>
+    <message>
+      <source>Consumer demand actually delivered at the selected timestep.</source>
+      <translation>الطلب الذي تمت تلبيته فعليًا عند الخطوة الزمنية المحددة.</translation>
+    </message>
+    <message>
+      <source>Controls</source>
+      <translation>عناصر التحكم</translation>
+    </message>
+    <message>
+      <source>Cross-Section Area</source>
+      <translation>مساحة المقطع</translation>
+    </message>
+    <message>
+      <source>Current Trace Origin:</source>
+      <translation>مصدر التتبّع الحالي:</translation>
+    </message>
+    <message>
+      <source>Cylindrical</source>
+      <translation>أسطواني</translation>
+    </message>
+    <message>
+      <source>Date Added</source>
+      <translation>تاريخ الإضافة</translation>
+    </message>
+    <message>
+      <source>Delivered Demand</source>
+      <translation>الطلب الملبّى</translation>
+    </message>
+    <message>
+      <source>Demand Point Demands</source>
+      <translation>طلبات نقطة الطلب</translation>
+    </message>
+    <message>
+      <source>Demand requested before pressure-driven demand reduction.</source>
+      <translation>الطلب المطلوب قبل التخفيض المرتبط بالضغط.</translation>
+    </message>
+    <message>
+      <source>Demand&lt;br&gt;Allocation</source>
+      <translation>توزيع&lt;br&gt;الطلب</translation>
+    </message>
+    <message>
+      <source>Demands</source>
+      <translation>الطلبات</translation>
+    </message>
+    <message>
+      <source>Demands / Emitter</source>
+      <translation>الطلبات / الباعث</translation>
+    </message>
+    <message>
+      <source>Derived Cross-Section Area</source>
+      <translation>مساحة المقطع المشتقة</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>الوصف</translation>
+    </message>
+    <message>
+      <source>Detach</source>
+      <translation>فصل</translation>
+    </message>
+    <message>
+      <source>Details</source>
+      <translation>التفاصيل</translation>
+    </message>
+    <message>
+      <source>Distance from &lt;i&gt;Terrain Elevation&lt;/i&gt;.&lt;br&gt;Positive: Above Ground.&lt;br&gt;Negative: Below Ground.</source>
+      <translation>المسافة بالنسبة إلى &lt;i&gt;منسوب التضاريس&lt;/i&gt;.&lt;br&gt;موجبة فوق الأرض.&lt;br&gt;سالبة تحتها.</translation>
+    </message>
+    <message>
+      <source>Effective roughness returned by the hydraulic engine for the configured headloss formula.</source>
+      <translation>الخشونة الفعلية التي يعيدها المحرك الهيدروليكي لمعادلة فاقد الحمل المختارة.</translation>
+    </message>
+    <message>
+      <source>Efficiency</source>
+      <translation>الكفاءة</translation>
+    </message>
+    <message>
+      <source>Efficiency Curve</source>
+      <translation>منحنى الكفاءة</translation>
+    </message>
+    <message>
+      <source>Elapsed time</source>
+      <translation>الوقت المنقضي</translation>
+    </message>
+    <message>
+      <source>Elevation Offset</source>
+      <translation>إزاحة المنسوب</translation>
+    </message>
+    <message>
+      <source>Emitter&lt;br&gt;Coefficient</source>
+      <translation>معامل&lt;br&gt;الباعث</translation>
+    </message>
+    <message>
+      <source>Emitter&lt;br&gt;Exponent</source>
+      <translation>أسّ&lt;br&gt;الباعث</translation>
+    </message>
+    <message>
+      <source>Enabled</source>
+      <translation>مفعّل</translation>
+    </message>
+    <message>
+      <source>Endpoints</source>
+      <translation>نقاط النهاية</translation>
+    </message>
+    <message>
+      <source>Energy</source>
+      <translation>الطاقة</translation>
+    </message>
+    <message>
+      <source>Energy Cost Input</source>
+      <translation>مدخلات تكلفة الطاقة</translation>
+    </message>
+    <message>
+      <source>Energy Price</source>
+      <translation>سعر الطاقة</translation>
+    </message>
+    <message>
+      <source>Entity Inspector  |  [%1] Toggle sidebar</source>
+      <translation>فاحص العناصر  |  [%1] إظهار الشريط الجانبي أو إخفاؤه</translation>
+    </message>
+    <message>
+      <source>Equivalent&lt;br&gt;Diameter</source>
+      <translation>القطر&lt;br&gt;المكافئ</translation>
+    </message>
+    <message>
+      <source>Existing Asset</source>
+      <translation>أصل قائم</translation>
+    </message>
+    <message>
+      <source>Explicit</source>
+      <translation>صريح</translation>
+    </message>
+    <message>
+      <source>Find Attachment on Map</source>
+      <translation>تحديد موضع الربط على الخريطة</translation>
+    </message>
+    <message>
+      <source>Find on Map</source>
+      <translation>تحديد الموقع على الخريطة</translation>
+    </message>
+    <message>
+      <source>First In, First Out</source>
+      <translation>الداخل أولًا يخرج أولًا</translation>
+    </message>
+    <message>
+      <source>Flow</source>
+      <translation>التدفق</translation>
+    </message>
+    <message>
+      <source>Flow Setting</source>
+      <translation>إعداد التدفق</translation>
+    </message>
+    <message>
+      <source>Flow-Paced Booster</source>
+      <translation>حقن متناسب مع التدفق</translation>
+    </message>
+    <message>
+      <source>Friction Factor</source>
+      <translation>معامل الاحتكاك</translation>
+    </message>
+    <message>
+      <source>From Library</source>
+      <translation>من المكتبة</translation>
+    </message>
+    <message>
+      <source>General</source>
+      <translation>عام</translation>
+    </message>
+    <message>
+      <source>Geographic altitude</source>
+      <translation>الارتفاع الجغرافي</translation>
+    </message>
+    <message>
+      <source>Geometry</source>
+      <translation>الهندسة</translation>
+    </message>
+    <message>
+      <source>Geometry / Levels</source>
+      <translation>الهندسة / المناسيب</translation>
+    </message>
+    <message>
+      <source>Geometry Input</source>
+      <translation>مدخل الهندسة</translation>
+    </message>
+    <message>
+      <source>Global</source>
+      <translation>عام</translation>
+    </message>
+    <message>
+      <source>Graphs</source>
+      <translation>الرسوم البيانية</translation>
+    </message>
+    <message>
+      <source>Head Gain</source>
+      <translation>زيادة الحمل</translation>
+    </message>
+    <message>
+      <source>Head Loss Curve</source>
+      <translation>منحنى فاقد الحمل</translation>
+    </message>
+    <message>
+      <source>Head Offset</source>
+      <translation>إزاحة الحمل</translation>
+    </message>
+    <message>
+      <source>Head Pattern</source>
+      <translation>نمط الحمل</translation>
+    </message>
+    <message>
+      <source>History</source>
+      <translation>السجل</translation>
+    </message>
+    <message>
+      <source>Hydraulic Input</source>
+      <translation>المدخلات الهيدروليكية</translation>
+    </message>
+    <message>
+      <source>Hydraulic Simulation &amp; Measurement</source>
+      <translation>المحاكاة والقياسات الهيدروليكية</translation>
+    </message>
+    <message>
+      <source>Hydraulic head relative to &lt;i&gt;Terrain Elevation&lt;/i&gt;. Positive values are above terrain.</source>
+      <translation>الحمل الهيدروليكي بالنسبة إلى &lt;i&gt;منسوب التضاريس&lt;/i&gt;. القيم الموجبة فوق الأرض.</translation>
+    </message>
+    <message>
+      <source>ID</source>
+      <translation>المعرّف</translation>
+    </message>
+    <message>
+      <source>Initial Chemical Concentration</source>
+      <translation>التركيز الكيميائي الابتدائي</translation>
+    </message>
+    <message>
+      <source>Initial Level</source>
+      <translation>المنسوب الابتدائي</translation>
+    </message>
+    <message>
+      <source>Initial Speed</source>
+      <translation>السرعة الابتدائية</translation>
+    </message>
+    <message>
+      <source>Initial Status</source>
+      <translation>الحالة الابتدائية</translation>
+    </message>
+    <message>
+      <source>Initial Water Age</source>
+      <translation>عمر المياه الابتدائي</translation>
+    </message>
+    <message>
+      <source>Installation Date</source>
+      <translation>تاريخ التركيب</translation>
+    </message>
+    <message>
+      <source>Installation&lt;br&gt;Date</source>
+      <translation>تاريخ&lt;br&gt;التركيب</translation>
+    </message>
+    <message>
+      <source>Junction Demands</source>
+      <translation>طلبات العقدة</translation>
+    </message>
+    <message>
+      <source>Last In, First Out</source>
+      <translation>الداخل أخيرًا يخرج أولًا</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>خط العرض</translation>
+    </message>
+    <message>
+      <source>Leakage Flow</source>
+      <translation>تدفق التسرب</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>خط الطول</translation>
+    </message>
+    <message>
+      <source>Loss Coefficient</source>
+      <translation>معامل الفقد</translation>
+    </message>
+    <message>
+      <source>Manage Patterns</source>
+      <translation>إدارة الأنماط</translation>
+    </message>
+    <message>
+      <source>Manual Estimation</source>
+      <translation>تقدير يدوي</translation>
+    </message>
+    <message>
+      <source>Manufacturer</source>
+      <translation>الشركة المصنّعة</translation>
+    </message>
+    <message>
+      <source>Mass Booster</source>
+      <translation>حقن كتلي</translation>
+    </message>
+    <message>
+      <source>Material</source>
+      <translation>المادة</translation>
+    </message>
+    <message>
+      <source>Material + age</source>
+      <translation>المادة والعمر</translation>
+    </message>
+    <message>
+      <source>Maximum Level</source>
+      <translation>المنسوب الأقصى</translation>
+    </message>
+    <message>
+      <source>Maximum Volume</source>
+      <translation>الحجم الأقصى</translation>
+    </message>
+    <message>
+      <source>Measured Length</source>
+      <translation>الطول المقاس</translation>
+    </message>
+    <message>
+      <source>Meter Data</source>
+      <translation>بيانات العداد</translation>
+    </message>
+    <message>
+      <source>Meter UUID</source>
+      <translation>معرّف العداد UUID</translation>
+    </message>
+    <message>
+      <source>Minimum Level</source>
+      <translation>المنسوب الأدنى</translation>
+    </message>
+    <message>
+      <source>Minimum Volume</source>
+      <translation>الحجم الأدنى</translation>
+    </message>
+    <message>
+      <source>Mixing Fraction</source>
+      <translation>نسبة الخلط</translation>
+    </message>
+    <message>
+      <source>Mixing Model</source>
+      <translation>نموذج الخلط</translation>
+    </message>
+    <message>
+      <source>Mixing-Zone Volume</source>
+      <translation>حجم منطقة الخلط</translation>
+    </message>
+    <message>
+      <source>Model</source>
+      <translation>الطراز</translation>
+    </message>
+    <message>
+      <source>Model Role</source>
+      <translation>الدور في النموذج</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>الاسم</translation>
+    </message>
+    <message>
+      <source>Negative means the reservoir supplies the network; positive means it receives water.</source>
+      <translation>القيمة السالبة تعني أن الخزان يغذي الشبكة، والموجبة تعني أنه يستقبل الماء.</translation>
+    </message>
+    <message>
+      <source>Net Demand</source>
+      <translation>صافي الطلب</translation>
+    </message>
+    <message>
+      <source>Network Attachment</source>
+      <translation>الربط بالشبكة</translation>
+    </message>
+    <message>
+      <source>Node 1</source>
+      <translation>العقدة 1</translation>
+    </message>
+    <message>
+      <source>Node 2</source>
+      <translation>العقدة 2</translation>
+    </message>
+    <message>
+      <source>Off</source>
+      <translation>متوقف</translation>
+    </message>
+    <message>
+      <source>Open</source>
+      <translation>مفتوح</translation>
+    </message>
+    <message>
+      <source>Open Editor</source>
+      <translation>فتح المحرر</translation>
+    </message>
+    <message>
+      <source>Operating State</source>
+      <translation>حالة التشغيل</translation>
+    </message>
+    <message>
+      <source>Overflow Allowed</source>
+      <translation>يسمح بالفيضان</translation>
+    </message>
+    <message>
+      <source>Override global bulk reaction</source>
+      <translation>تجاوز التفاعل العام في الماء</translation>
+    </message>
+    <message>
+      <source>Override global tank bulk reaction</source>
+      <translation>تجاوز التفاعل العام في ماء الخزان</translation>
+    </message>
+    <message>
+      <source>Override global wall reaction</source>
+      <translation>تجاوز التفاعل العام عند الجدار</translation>
+    </message>
+    <message>
+      <source>Override with measured length</source>
+      <translation>استخدام الطول المقاس</translation>
+    </message>
+    <message>
+      <source>Pattern</source>
+      <translation>النمط الزمني</translation>
+    </message>
+    <message>
+      <source>Peak Power</source>
+      <translation>القدرة القصوى</translation>
+    </message>
+    <message>
+      <source>Pipe</source>
+      <translation>أنبوب</translation>
+    </message>
+    <message>
+      <source>Pipe Position</source>
+      <translation>الموضع على الأنبوب</translation>
+    </message>
+    <message>
+      <source>Planned Asset</source>
+      <translation>أصل مخطط</translation>
+    </message>
+    <message>
+      <source>Position</source>
+      <translation>الموضع</translation>
+    </message>
+    <message>
+      <source>Position Setting</source>
+      <translation>إعداد الموضع</translation>
+    </message>
+    <message>
+      <source>Positive means the tank is filling; negative means it supplies the network.</source>
+      <translation>القيمة الموجبة تعني أن الخزان يمتلئ، والسالبة تعني أنه يغذي الشبكة.</translation>
+    </message>
+    <message>
+      <source>Power</source>
+      <translation>القدرة</translation>
+    </message>
+    <message>
+      <source>Press %1 to show or hide the right sidebar.</source>
+      <translation>اضغط %1 لإظهار الشريط الجانبي الأيمن أو إخفائه.</translation>
+    </message>
+    <message>
+      <source>Pressure Drop</source>
+      <translation>هبوط الضغط</translation>
+    </message>
+    <message>
+      <source>Pressure Setting</source>
+      <translation>إعداد الضغط</translation>
+    </message>
+    <message>
+      <source>Price Pattern</source>
+      <translation>نمط الأسعار</translation>
+    </message>
+    <message>
+      <source>Pump Input</source>
+      <translation>مدخلات المضخة</translation>
+    </message>
+    <message>
+      <source>Referenced by Control</source>
+      <translation>مشار إليه في عنصر تحكم</translation>
+    </message>
+    <message>
+      <source>Regulating</source>
+      <translation>قيد التنظيم</translation>
+    </message>
+    <message>
+      <source>Remove</source>
+      <translation>إزالة</translation>
+    </message>
+    <message>
+      <source>Remove Water Meter</source>
+      <translation>إزالة عداد المياه</translation>
+    </message>
+    <message>
+      <source>Requested Demand</source>
+      <translation>الطلب المطلوب</translation>
+    </message>
+    <message>
+      <source>Retired Asset</source>
+      <translation>أصل خارج الخدمة</translation>
+    </message>
+    <message>
+      <source>Retrieve Terrain Elevation</source>
+      <translation>جلب منسوب التضاريس</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Chezy-Manning</source>
+      <translation>خشونة&lt;br&gt;شيزي مانينغ</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Darcy-Weisbach</source>
+      <translation>خشونة&lt;br&gt;دارسي فايسباخ</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Hazen-Williams</source>
+      <translation>خشونة&lt;br&gt;هازن وليامز</translation>
+    </message>
+    <message>
+      <source>Roughness&lt;br&gt;Source</source>
+      <translation>مصدر&lt;br&gt;الخشونة</translation>
+    </message>
+    <message>
+      <source>Scenario</source>
+      <translation>سيناريو</translation>
+    </message>
+    <message>
+      <source>Serial Number</source>
+      <translation>الرقم التسلسلي</translation>
+    </message>
+    <message>
+      <source>Setpoint Booster</source>
+      <translation>حقن بقيمة مستهدفة</translation>
+    </message>
+    <message>
+      <source>Setting</source>
+      <translation>القيمة المضبوطة</translation>
+    </message>
+    <message>
+      <source>Simulation</source>
+      <translation>المحاكاة</translation>
+    </message>
+    <message>
+      <source>Simulation Energy Summary</source>
+      <translation>ملخص طاقة المحاكاة</translation>
+    </message>
+    <message>
+      <source>Source / Method</source>
+      <translation>المصدر / الطريقة</translation>
+    </message>
+    <message>
+      <source>Source Mass Flow</source>
+      <translation>التدفق الكتلي للمصدر</translation>
+    </message>
+    <message>
+      <source>Source Pattern</source>
+      <translation>نمط المصدر</translation>
+    </message>
+    <message>
+      <source>Source Trace</source>
+      <translation>تتبّع المصدر</translation>
+    </message>
+    <message>
+      <source>Source Trace — Trace Origin</source>
+      <translation>تتبّع المصدر — المنشأ</translation>
+    </message>
+    <message>
+      <source>Source Type</source>
+      <translation>نوع المصدر</translation>
+    </message>
+    <message>
+      <source>Source&lt;br&gt;Concentration</source>
+      <translation>تركيز&lt;br&gt;المصدر</translation>
+    </message>
+    <message>
+      <source>Source&lt;br&gt;Mass Flow</source>
+      <translation>التدفق الكتلي&lt;br&gt;للمصدر</translation>
+    </message>
+    <message>
+      <source>Speed</source>
+      <translation>السرعة</translation>
+    </message>
+    <message>
+      <source>Speed Pattern</source>
+      <translation>نمط السرعة</translation>
+    </message>
+    <message>
+      <source>Split by pipe position</source>
+      <translation>التوزيع حسب الموضع على الأنبوب</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>الحالة</translation>
+    </message>
+    <message>
+      <source>Tags</source>
+      <translation>الوسوم</translation>
+    </message>
+    <message>
+      <source>Tank Mixing — All Modes</source>
+      <translation>خلط الخزان — جميع الأوضاع</translation>
+    </message>
+    <message>
+      <source>Tank bottom relative to terrain. Positive = above ground, negative = below ground.</source>
+      <translation>قاع الخزان بالنسبة إلى الأرض. القيم الموجبة فوق الأرض والسالبة تحتها.</translation>
+    </message>
+    <message>
+      <source>Target</source>
+      <translation>الهدف</translation>
+    </message>
+    <message>
+      <source>Temporary / Testing</source>
+      <translation>مؤقت / اختبار</translation>
+    </message>
+    <message>
+      <source>Terrain Elevation</source>
+      <translation>منسوب التضاريس</translation>
+    </message>
+    <message>
+      <source>Terrain Elevation + Offset</source>
+      <translation>منسوب التضاريس + الإزاحة</translation>
+    </message>
+    <message>
+      <source>Time</source>
+      <translation>الوقت</translation>
+    </message>
+    <message>
+      <source>Time Online</source>
+      <translation>مدة التشغيل</translation>
+    </message>
+    <message>
+      <source>Time of day</source>
+      <translation>وقت اليوم</translation>
+    </message>
+    <message>
+      <source>Total Elevation</source>
+      <translation>المنسوب الكلي</translation>
+    </message>
+    <message>
+      <source>Total Head</source>
+      <translation>الحمل الكلي</translation>
+    </message>
+    <message>
+      <source>Total junction outflow: delivered demand, emitter flow, and assigned pipe leakage.</source>
+      <translation>إجمالي التدفق الخارج من العقدة: الطلب الملبّى وتدفق الباعث والتسرب المخصص من الأنابيب.</translation>
+    </message>
+    <message>
+      <source>Two-Compartment</source>
+      <translation>حجرتان</translation>
+    </message>
+    <message>
+      <source>Type</source>
+      <translation>النوع</translation>
+    </message>
+    <message>
+      <source>Uniform Area</source>
+      <translation>مساحة مقطع ثابتة</translation>
+    </message>
+    <message>
+      <source>Unit Head Loss</source>
+      <translation>فاقد الحمل لوحدة الطول</translation>
+    </message>
+    <message>
+      <source>Use This Node as Trace Origin</source>
+      <translation>استخدام هذه العقدة مصدرًا للتتبّع</translation>
+    </message>
+    <message>
+      <source>Valve Configuration</source>
+      <translation>إعدادات الصمام</translation>
+    </message>
+    <message>
+      <source>Valve Type</source>
+      <translation>نوع الصمام</translation>
+    </message>
+    <message>
+      <source>Virtual / Model-Only</source>
+      <translation>افتراضي / في النموذج فقط</translation>
+    </message>
+    <message>
+      <source>Volume</source>
+      <translation>الحجم</translation>
+    </message>
+    <message>
+      <source>Volume Curve</source>
+      <translation>منحنى الحجم</translation>
+    </message>
+    <message>
+      <source>Wall Reaction Coefficient</source>
+      <translation>معامل تفاعل الجدار</translation>
+    </message>
+    <message>
+      <source>Water Age — Node Inputs</source>
+      <translation>عمر المياه — مدخلات العقدة</translation>
+    </message>
+    <message>
+      <source>Water Level</source>
+      <translation>منسوب المياه</translation>
+    </message>
+    <message>
+      <source>Water Meter</source>
+      <translation>عداد مياه</translation>
+    </message>
+    <message>
+      <source>Water Quality</source>
+      <translation>جودة المياه</translation>
+    </message>
+    <message>
+      <source>Water Quality Input</source>
+      <translation>مدخلات جودة المياه</translation>
+    </message>
+    <message>
+      <source>Water Quality Inputs</source>
+      <translation>مدخلات جودة المياه</translation>
+    </message>
+    <message>
+      <source>Water Quality Simulation &amp; Measurement</source>
+      <translation>محاكاة جودة المياه وقياساتها</translation>
+    </message>
+    <message>
+      <source>Water-meter observations and demand time series will be shown here.</source>
+      <translation>ستُعرض هنا قراءات عداد المياه والسلاسل الزمنية للطلب.</translation>
+    </message>
+    <message>
+      <source>[Not set]</source>
+      <translation>[غير محدد]</translation>
+    </message>
+    <message>
+      <source>[Select Pattern]</source>
+      <translation>[اختر نمطًا]</translation>
+    </message>
+    <message>
+      <source>[Unspecified]</source>
+      <translation>[غير معيّن]</translation>
+    </message>
+    <message>
+      <source>Valve</source>
+      <translation>صمام</translation>
+    </message>
+    <message>
+      <source>Curve</source>
+      <translation>منحنى</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>

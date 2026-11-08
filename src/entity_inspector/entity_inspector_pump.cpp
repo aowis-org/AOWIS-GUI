@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include <aowis/model/units/quantity.h>
 #include "entity_inspector/entity_inspector_pump.h"
 
@@ -115,23 +116,17 @@ EntityInspectorPump::EntityInspectorPump(HydraulicData *hydraulic_data,
 
 void EntityInspectorPump::addGroupPumpInput()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Pump Input");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Pump Input"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_type = new QLabel("Type");
+    QLabel *label_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Type"), nullptr);
     this->combo_type = new QComboBox();
-    this->combo_type->addItem(
-        "Constant power", static_cast<int>(HydraulicLinkPumpDefinitionType::ConstantPower));
-    this->combo_type->addItem(
-        "1-point curve",
-        static_cast<int>(HydraulicLinkPumpDefinitionType::OnePointCurve));
-    this->combo_type->addItem(
-        "3-point curve",
-        static_cast<int>(HydraulicLinkPumpDefinitionType::ThreePointCurve));
-    this->combo_type->addItem(
-        "From Library", static_cast<int>(HydraulicLinkPumpDefinitionType::Library));
+    EntityInspectorText::addChoice(this->combo_type, QT_TRANSLATE_NOOP("LiveUiText", "Constant power"), static_cast<int>(HydraulicLinkPumpDefinitionType::ConstantPower));
+    EntityInspectorText::addChoice(this->combo_type, QT_TRANSLATE_NOOP("LiveUiText", "1-point curve"), static_cast<int>(HydraulicLinkPumpDefinitionType::OnePointCurve));
+    EntityInspectorText::addChoice(this->combo_type, QT_TRANSLATE_NOOP("LiveUiText", "3-point curve"), static_cast<int>(HydraulicLinkPumpDefinitionType::ThreePointCurve));
+    EntityInspectorText::addChoice(this->combo_type, QT_TRANSLATE_NOOP("LiveUiText", "From Library"), static_cast<int>(HydraulicLinkPumpDefinitionType::Library));
 
-    this->label_constant_power = new QLabel("Power");
+    this->label_constant_power = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Power"), nullptr);
     this->spin_constant_power = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
             if (!this->hydraulic_data) return std::nullopt;
@@ -149,7 +144,7 @@ void EntityInspectorPump::addGroupPumpInput()
         }, AOWIS_QUANTITY("power"), "kW", 0.0, 1000000.0, 1.0, 3, group);
     this->spin_constant_power->setSpecialValueText("Not configured");
 
-    QLabel *label_speed_initial = new QLabel("Initial Speed");
+    QLabel *label_speed_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Speed"), nullptr);
     this->spin_speed_initial = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
             if (!this->hydraulic_data) return std::nullopt;
@@ -164,14 +159,12 @@ void EntityInspectorPump::addGroupPumpInput()
         [](const QString &) { return QStringLiteral(" ×"); });
     this->spin_speed_initial->setSpecialValueText("0.00 × (off)");
 
-    QLabel *label_status_initial = new QLabel("Initial Status");
+    QLabel *label_status_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Status"), nullptr);
     this->combo_status_initial = new QComboBox();
-    this->combo_status_initial->addItem(
-        "On", static_cast<int>(HydraulicLinkPumpInitialStatus::On));
-    this->combo_status_initial->addItem(
-        "Off", static_cast<int>(HydraulicLinkPumpInitialStatus::Off));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "On"), static_cast<int>(HydraulicLinkPumpInitialStatus::On));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Off"), static_cast<int>(HydraulicLinkPumpInitialStatus::Off));
 
-    QLabel *label_speed_pattern = new QLabel("Speed Pattern");
+    QLabel *label_speed_pattern = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Speed Pattern"), nullptr);
     this->combo_speed_pattern = new QComboBox();
     constrainComboWidth(this->combo_speed_pattern);
 
@@ -195,7 +188,7 @@ void EntityInspectorPump::addGroupPumpInput()
 
 void EntityInspectorPump::addGroupControls()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Controls");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Controls"));
     QVBoxLayout *layout = new QVBoxLayout(group);
 
     this->table_controls = new QTableWidget(group);
@@ -230,19 +223,11 @@ void EntityInspectorPump::addGroupControls()
 
     QHBoxLayout *add_layout = new QHBoxLayout();
     this->combo_new_control_type = new QComboBox(group);
-    this->combo_new_control_type->addItem(
-        QStringLiteral("Below level / pressure"),
-        static_cast<int>(HydraulicControlSimpleType::LowLevel));
-    this->combo_new_control_type->addItem(
-        QStringLiteral("Above level / pressure"),
-        static_cast<int>(HydraulicControlSimpleType::HighLevel));
-    this->combo_new_control_type->addItem(
-        QStringLiteral("Elapsed time"),
-        static_cast<int>(HydraulicControlSimpleType::Timer));
-    this->combo_new_control_type->addItem(
-        QStringLiteral("Time of day"),
-        static_cast<int>(HydraulicControlSimpleType::TimeOfDay));
-    this->button_add_control = new QPushButton(QStringLiteral("Add Control"), group);
+    EntityInspectorText::addChoice(this->combo_new_control_type, QT_TRANSLATE_NOOP("LiveUiText", "Below level / pressure"), static_cast<int>(HydraulicControlSimpleType::LowLevel));
+    EntityInspectorText::addChoice(this->combo_new_control_type, QT_TRANSLATE_NOOP("LiveUiText", "Above level / pressure"), static_cast<int>(HydraulicControlSimpleType::HighLevel));
+    EntityInspectorText::addChoice(this->combo_new_control_type, QT_TRANSLATE_NOOP("LiveUiText", "Elapsed time"), static_cast<int>(HydraulicControlSimpleType::Timer));
+    EntityInspectorText::addChoice(this->combo_new_control_type, QT_TRANSLATE_NOOP("LiveUiText", "Time of day"), static_cast<int>(HydraulicControlSimpleType::TimeOfDay));
+    this->button_add_control = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Add Control"), group);
     constrainComboWidth(this->combo_new_control_type);
     add_layout->addWidget(this->combo_new_control_type, 1);
     add_layout->addWidget(this->button_add_control);
@@ -262,14 +247,14 @@ void EntityInspectorPump::addGroupControls()
 
 void EntityInspectorPump::addGroupEnergyCostInput()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Energy Cost Input");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Energy Cost Input"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_efficiency_curve = new QLabel("Efficiency Curve");
+    QLabel *label_efficiency_curve = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Efficiency Curve"), nullptr);
     this->combo_efficiency_curve = new QComboBox();
     constrainComboWidth(this->combo_efficiency_curve);
 
-    QLabel *label_energy_price = new QLabel("Energy Price");
+    QLabel *label_energy_price = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Energy Price"), nullptr);
     this->spin_energy_price = new UnitEnergyPriceSpinBox(
         [this]() -> std::optional<double> {
             if (!this->hydraulic_data) return std::nullopt;
@@ -284,7 +269,7 @@ void EntityInspectorPump::addGroupEnergyCostInput()
             return this->hydraulic_data->setPumpEnergyPricePerKwh(this->pump_uuid, price_per_kwh);
         }, group);
 
-    QLabel *label_price_pattern = new QLabel("Price Pattern");
+    QLabel *label_price_pattern = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Price Pattern"), nullptr);
     this->combo_price_pattern = new QComboBox();
     constrainComboWidth(this->combo_price_pattern);
 
@@ -302,7 +287,7 @@ void EntityInspectorPump::addGroupEnergyCostInput()
 
 void EntityInspectorPump::addGroupEnergy()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Energy");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Energy"));
     new QGridLayout(group);
     layoutConfiguration()->addWidget(group);
 }
@@ -799,7 +784,7 @@ void EntityInspectorPump::refreshPumpControls()
             [](const QString &) { return QStringLiteral(" ×"); });
         speed->refreshUnits(UnitProfileManager::instance().presentation());
         this->table_controls->setCellWidget(row, 5, speed);
-        QPushButton *remove = new QPushButton(QStringLiteral("Remove"), this->table_controls);
+        QPushButton *remove = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove"), this->table_controls);
         this->table_controls->setCellWidget(row, 6, remove);
         connect(remove, &QPushButton::clicked, this, [this, control_uuid = control.uuid]()
         {
@@ -865,8 +850,7 @@ void EntityInspectorPump::populateSpeedPatternCombo(const QUuid &pattern_uuid)
 void EntityInspectorPump::populateEfficiencyInputCombo(const HydraulicLinkPump &pump)
 {
     this->combo_efficiency_curve->clear();
-    this->combo_efficiency_curve->addItem(
-        "Global", static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Global));
+    EntityInspectorText::addChoice(this->combo_efficiency_curve, QT_TRANSLATE_NOOP("LiveUiText", "Global"), static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Global));
     this->combo_efficiency_curve->addItem(
         QStringLiteral("Constant (%1%)").arg(pump.constant_efficiency_percent, 0, 'f', 1),
         static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Constant));
@@ -919,10 +903,8 @@ void EntityInspectorPump::populateEfficiencyInputCombo(const HydraulicLinkPump &
 void EntityInspectorPump::populatePricePatternCombo(const HydraulicLinkPump &pump)
 {
     this->combo_price_pattern->clear();
-    this->combo_price_pattern->addItem(
-        "Global", static_cast<int>(HydraulicLinkPumpEnergyPriceInputType::Global));
-    this->combo_price_pattern->addItem(
-        "Constant", static_cast<int>(HydraulicLinkPumpEnergyPriceInputType::Constant));
+    EntityInspectorText::addChoice(this->combo_price_pattern, QT_TRANSLATE_NOOP("LiveUiText", "Global"), static_cast<int>(HydraulicLinkPumpEnergyPriceInputType::Global));
+    EntityInspectorText::addChoice(this->combo_price_pattern, QT_TRANSLATE_NOOP("LiveUiText", "Constant"), static_cast<int>(HydraulicLinkPumpEnergyPriceInputType::Constant));
 
     bool selected_pattern_exists = pump.price_pattern_uuid.isNull();
     const QList<HydraulicPatternTime> &patterns =

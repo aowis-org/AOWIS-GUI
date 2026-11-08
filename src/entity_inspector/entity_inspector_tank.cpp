@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include <aowis/model/units/quantity.h>
 #include "entity_inspector/entity_inspector_tank.h"
 
@@ -60,7 +61,7 @@ EntityInspectorTank::EntityInspectorTank(HydraulicData *hydraulic_data, const QU
 
 void EntityInspectorTank::addGroupGeometry()
 {
-    this->group_geometry = new GroupBoxCollapsible("Geometry / Levels");
+    this->group_geometry = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Geometry / Levels"));
     QGridLayout *grid = new QGridLayout(this->group_geometry);
 
     connect(this->group_geometry, &GroupBoxCollapsible::signalExpanded, this, &EntityInspectorTank::onGroupExpand);
@@ -89,31 +90,26 @@ void EntityInspectorTank::addGroupGeometry()
             "m", -1000000.0, 1000000.0, 0.1, 3, this->group_geometry);
     };
 
-    QLabel *label_level_initial = new QLabel("Initial Level");
+    QLabel *label_level_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Level"), nullptr);
     this->spin_level_initial = level_editor(0);
     configureTankSpinAppearance(this->spin_level_initial);
 
-    QLabel *label_level_minimum = new QLabel("Minimum Level");
+    QLabel *label_level_minimum = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Minimum Level"), nullptr);
     this->spin_level_minimum = level_editor(1);
     configureTankSpinAppearance(this->spin_level_minimum);
 
-    QLabel *label_level_maximum = new QLabel("Maximum Level");
+    QLabel *label_level_maximum = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Maximum Level"), nullptr);
     this->spin_level_maximum = level_editor(2);
     configureTankSpinAppearance(this->spin_level_maximum);
 
-    this->check_overflow = new QCheckBox("Overflow Allowed");
+    this->check_overflow = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Overflow Allowed"), nullptr);
 
-    QLabel *label_geometry_type = new QLabel("Geometry Input");
+    QLabel *label_geometry_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Geometry Input"), nullptr);
     this->combo_geometry_type = new QComboBox();
-    this->combo_geometry_type->addItem(
-        "Cylindrical", static_cast<int>(HydraulicNodeTankGeometryInputType::Cylindrical));
-    this->combo_geometry_type->addItem(
-        "Uniform Area", static_cast<int>(HydraulicNodeTankGeometryInputType::UniformArea));
-    this->combo_geometry_type->addItem(
-        "Maximum Volume",
-        static_cast<int>(HydraulicNodeTankGeometryInputType::VolumeAtMaximumLevel));
-    this->combo_geometry_type->addItem(
-        "Volume Curve", static_cast<int>(HydraulicNodeTankGeometryInputType::VolumeCurve));
+    EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Cylindrical"), static_cast<int>(HydraulicNodeTankGeometryInputType::Cylindrical));
+    EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Uniform Area"), static_cast<int>(HydraulicNodeTankGeometryInputType::UniformArea));
+    EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Maximum Volume"), static_cast<int>(HydraulicNodeTankGeometryInputType::VolumeAtMaximumLevel));
+    EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Volume Curve"), static_cast<int>(HydraulicNodeTankGeometryInputType::VolumeCurve));
 
     // The same four controls can be input editors or calculated read-only
     // results, depending on the geometry mode. In either case the Model values
@@ -152,26 +148,28 @@ void EntityInspectorTank::addGroupGeometry()
             step, 3, this->group_geometry);
     };
 
-    this->label_diameter = new QLabel("Diameter");
+    this->label_diameter = new QLabel();
+    EntityInspectorText::setCaption(this->label_diameter, QT_TRANSLATE_NOOP("LiveUiText", "Diameter"));
     this->spin_diameter = geometry_editor(0);
     configureTankSpinAppearance(this->spin_diameter);
 
-    this->label_area = new QLabel("Cross-Section Area");
+    this->label_area = new QLabel();
+    EntityInspectorText::setCaption(this->label_area, QT_TRANSLATE_NOOP("LiveUiText", "Cross-Section Area"));
     this->label_area->setWordWrap(true);
     this->spin_area = geometry_editor(1);
     configureTankSpinAppearance(this->spin_area);
 
-    this->label_volume_minimum = new QLabel("Minimum Volume");
+    this->label_volume_minimum = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Minimum Volume"), nullptr);
     this->label_volume_minimum->setWordWrap(true);
     this->spin_volume_minimum = geometry_editor(2);
     configureTankSpinAppearance(this->spin_volume_minimum);
 
-    this->label_volume_maximum = new QLabel("Maximum Volume");
+    this->label_volume_maximum = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Maximum Volume"), nullptr);
     this->label_volume_maximum->setWordWrap(true);
     this->spin_volume_maximum = geometry_editor(3);
     configureTankSpinAppearance(this->spin_volume_maximum);
 
-    this->label_volume_curve = new QLabel("Volume Curve");
+    this->label_volume_curve = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Volume Curve"), nullptr);
     this->combo_volume_curve = new QComboBox();
     constrainComboWidth(this->combo_volume_curve);
 
@@ -345,8 +343,8 @@ void EntityInspectorTank::updateGeometryModeUi(
     this->label_volume_curve->setVisible(group_expanded && is_volume_curve);
     this->combo_volume_curve->setVisible(group_expanded && is_volume_curve);
 
-    this->label_diameter->setText(is_cylindrical ? "Diameter" : "Equivalent<br>Diameter");
-    this->label_area->setText(is_uniform_area ? "Cross-Section Area" : "Derived Cross-Section Area");
+    EntityInspectorText::setCaption(this->label_diameter, is_cylindrical ? QT_TRANSLATE_NOOP("LiveUiText", "Diameter") : QT_TRANSLATE_NOOP("LiveUiText", "Equivalent<br>Diameter"));
+    EntityInspectorText::setCaption(this->label_area, is_uniform_area ? QT_TRANSLATE_NOOP("LiveUiText", "Cross-Section Area") : QT_TRANSLATE_NOOP("LiveUiText", "Derived Cross-Section Area"));
 
     if (is_cylindrical)
     {
@@ -567,19 +565,19 @@ void EntityInspectorTank::addGroupQuality()
 {
     addGroupNodeQualityInputs();
 
-    GroupBoxCollapsible *group_mixing = new GroupBoxCollapsible("Tank Mixing — All Modes");
+    GroupBoxCollapsible *group_mixing = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Tank Mixing — All Modes"));
     QGridLayout *grid_mixing = new QGridLayout(group_mixing);
     int mixing_row = 0;
 
-    QLabel *label_mixing_model = new QLabel("Mixing Model");
+    QLabel *label_mixing_model = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Mixing Model"), nullptr);
     this->combo_quality_mixing = new QComboBox();
-    this->combo_quality_mixing->addItem("Complete Mix", static_cast<int>(HydraulicNodeTankMixingModel::CompleteMix));
-    this->combo_quality_mixing->addItem("Two-Compartment", static_cast<int>(HydraulicNodeTankMixingModel::TwoCompartment));
-    this->combo_quality_mixing->addItem("First In, First Out", static_cast<int>(HydraulicNodeTankMixingModel::FirstInFirstOut));
-    this->combo_quality_mixing->addItem("Last In, First Out", static_cast<int>(HydraulicNodeTankMixingModel::LastInFirstOut));
+    EntityInspectorText::addChoice(this->combo_quality_mixing, QT_TRANSLATE_NOOP("LiveUiText", "Complete Mix"), static_cast<int>(HydraulicNodeTankMixingModel::CompleteMix));
+    EntityInspectorText::addChoice(this->combo_quality_mixing, QT_TRANSLATE_NOOP("LiveUiText", "Two-Compartment"), static_cast<int>(HydraulicNodeTankMixingModel::TwoCompartment));
+    EntityInspectorText::addChoice(this->combo_quality_mixing, QT_TRANSLATE_NOOP("LiveUiText", "First In, First Out"), static_cast<int>(HydraulicNodeTankMixingModel::FirstInFirstOut));
+    EntityInspectorText::addChoice(this->combo_quality_mixing, QT_TRANSLATE_NOOP("LiveUiText", "Last In, First Out"), static_cast<int>(HydraulicNodeTankMixingModel::LastInFirstOut));
     constrainComboWidth(this->combo_quality_mixing);
 
-    QLabel *label_mixing_fraction = new QLabel("Mixing Fraction");
+    QLabel *label_mixing_fraction = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Mixing Fraction"), nullptr);
     this->spin_quality_mixing_fraction = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
             if (!this->hydraulic_data) return std::nullopt;
@@ -602,13 +600,13 @@ void EntityInspectorTank::addGroupQuality()
     grid_mixing->addWidget(label_mixing_fraction, mixing_row, 0);
     grid_mixing->addWidget(this->spin_quality_mixing_fraction, mixing_row++, 1);
 
-    GroupBoxCollapsible *group_reactions = new GroupBoxCollapsible("Chemical — Tank Reactions");
+    GroupBoxCollapsible *group_reactions = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Chemical — Tank Reactions"));
     QGridLayout *grid_reactions = new QGridLayout(group_reactions);
     int reaction_row = 0;
 
-    this->check_quality_override_bulk_reaction = new QCheckBox("Override global tank bulk reaction");
+    this->check_quality_override_bulk_reaction = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Override global tank bulk reaction"), nullptr);
 
-    QLabel *label_bulk_coefficient = new QLabel("Bulk Reaction Coefficient");
+    QLabel *label_bulk_coefficient = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Bulk Reaction Coefficient"), nullptr);
     label_bulk_coefficient->setWordWrap(true);
     this->spin_quality_bulk_reaction_coefficient = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {

@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include "entity_inspector/entity_inspector_demand_point.h"
 
 #include <QGridLayout>
@@ -59,20 +60,20 @@ EntityInspectorDemandPoint::EntityInspectorDemandPoint(
 
 void EntityInspectorDemandPoint::addGroupDetails()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Details");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Details"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_description = new QLabel("Description");
+    QLabel *label_description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Description"), nullptr);
     this->edit_description = new QPlainTextEdit();
     this->edit_description->setPlaceholderText("Describe this demand point...");
     this->edit_description->setMaximumHeight(90);
 
-    QLabel *label_tags = new QLabel("Tags");
+    QLabel *label_tags = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Tags"), nullptr);
     this->line_tags = new QLineEdit();
     this->line_tags->setPlaceholderText("household, school, irrigation");
     this->line_tags->setToolTip("Comma-separated tags. Empty entries and duplicates are ignored.");
 
-    QLabel *label_comment = new QLabel("Comment");
+    QLabel *label_comment = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Comment"), nullptr);
     this->edit_comment = new QPlainTextEdit();
     this->edit_comment->setPlaceholderText("Free-form modelling or operational note...");
     this->edit_comment->setMaximumHeight(90);
@@ -163,43 +164,39 @@ void EntityInspectorDemandPoint::refreshDetails()
 
 void EntityInspectorDemandPoint::addGroupAttachment()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Network Attachment");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Network Attachment"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_type = new QLabel("Type");
+    QLabel *label_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Type"), nullptr);
     this->label_attachment_type_value = new QLabel();
     this->label_attachment_type_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    QLabel *label_target = new QLabel("Target");
+    QLabel *label_target = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Target"), nullptr);
     this->label_attachment_target_value = new QLabel();
     this->label_attachment_target_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    QLabel *label_position = new QLabel("Pipe Position");
+    QLabel *label_position = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Pipe Position"), nullptr);
     this->label_attachment_position_value = new QLabel();
     this->label_attachment_position_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    this->label_pipe_allocation_mode = new QLabel("Demand<br>Allocation");
+    this->label_pipe_allocation_mode = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Demand<br>Allocation"), nullptr);
     this->combo_pipe_allocation_mode = new QComboBox();
-    this->combo_pipe_allocation_mode->addItem(
-        "Split by pipe position",
-        static_cast<int>(HydraulicDemandPointPipeAllocationMode::InterpolateByPosition));
-    this->combo_pipe_allocation_mode->addItem(
-        "Assigned junction",
-        static_cast<int>(HydraulicDemandPointPipeAllocationMode::AssignedJunction));
+    EntityInspectorText::addChoice(this->combo_pipe_allocation_mode, QT_TRANSLATE_NOOP("LiveUiText", "Split by pipe position"), static_cast<int>(HydraulicDemandPointPipeAllocationMode::InterpolateByPosition));
+    EntityInspectorText::addChoice(this->combo_pipe_allocation_mode, QT_TRANSLATE_NOOP("LiveUiText", "Assigned junction"), static_cast<int>(HydraulicDemandPointPipeAllocationMode::AssignedJunction));
     this->combo_pipe_allocation_mode->setToolTip(
         "'Split by pipe position' mode distributes demand between both pipe endpoint junctions according "
         "to the demand-point position. <br>"
         "'Assigned junction' mode keeps the visual pipe attachment "
         "but applies all demand to one selected endpoint junction.");
 
-    this->label_pipe_assigned_junction = new QLabel("Assigned<br>Junction");
+    this->label_pipe_assigned_junction = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Assigned<br>Junction"), nullptr);
     this->combo_pipe_assigned_junction = new QComboBox();
     this->combo_pipe_assigned_junction->setToolTip(
         "The pipe endpoint junction that receives 100% of this demand point's demand.");
 
-    this->button_attachment_select = new QPushButton("Attach / Reattach on Map");
-    this->button_attachment_locate = new QPushButton("Find Attachment on Map");
-    this->button_attachment_detach = new QPushButton("Detach");
+    this->button_attachment_select = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Attach / Reattach on Map"), nullptr);
+    this->button_attachment_locate = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Find Attachment on Map"), nullptr);
+    this->button_attachment_detach = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Detach"), nullptr);
 
     grid->addWidget(label_type, 0, 0);
     grid->addWidget(this->label_attachment_type_value, 0, 1);
@@ -378,16 +375,16 @@ void EntityInspectorDemandPoint::refreshAttachment()
 
 void EntityInspectorDemandPoint::addGroupMeter()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Water Meter");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Water Meter"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_uuid = new QLabel("Meter UUID");
+    QLabel *label_uuid = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Meter UUID"), nullptr);
     this->label_meter_uuid_value = new QLabel(QStringLiteral("—"));
     this->label_meter_uuid_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
     this->label_meter_uuid_value->setWordWrap(true);
 
-    this->button_meter_add = new QPushButton("Add Water Meter");
-    this->button_meter_remove = new QPushButton("Remove Water Meter");
+    this->button_meter_add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Add Water Meter"), nullptr);
+    this->button_meter_remove = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove Water Meter"), nullptr);
 
     grid->addWidget(label_uuid, 0, 0);
     grid->addWidget(this->label_meter_uuid_value, 0, 1);
@@ -398,29 +395,22 @@ void EntityInspectorDemandPoint::addGroupMeter()
     QGridLayout *fields = new QGridLayout(this->widget_meter_fields);
     fields->setContentsMargins(0, 0, 0, 0);
 
-    QLabel *label_id = new QLabel("ID");
+    QLabel *label_id = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "ID"), nullptr);
     this->line_meter_id = new QLineEdit();
 
-    this->check_meter_enabled = new QCheckBox("Enabled");
+    this->check_meter_enabled = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Enabled"), nullptr);
 
-    QLabel *label_model_role = new QLabel("Model Role");
+    QLabel *label_model_role = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Model Role"), nullptr);
     this->combo_meter_model_role = new QComboBox();
-    this->combo_meter_model_role->addItem(
-        "[Unspecified]", static_cast<int>(EntityModelRole::Unspecified));
-    this->combo_meter_model_role->addItem(
-        "Existing Asset", static_cast<int>(EntityModelRole::ExistingAsset));
-    this->combo_meter_model_role->addItem(
-        "Planned Asset", static_cast<int>(EntityModelRole::PlannedAsset));
-    this->combo_meter_model_role->addItem(
-        "Virtual / Model-Only", static_cast<int>(EntityModelRole::VirtualModelElement));
-    this->combo_meter_model_role->addItem(
-        "Boundary Condition", static_cast<int>(EntityModelRole::BoundaryCondition));
-    this->combo_meter_model_role->addItem(
-        "Temporary / Testing", static_cast<int>(EntityModelRole::TemporaryTesting));
-    this->combo_meter_model_role->addItem(
-        "Retired Asset", static_cast<int>(EntityModelRole::RetiredAsset));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "[Unspecified]"), static_cast<int>(EntityModelRole::Unspecified));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Existing Asset"), static_cast<int>(EntityModelRole::ExistingAsset));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Planned Asset"), static_cast<int>(EntityModelRole::PlannedAsset));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Virtual / Model-Only"), static_cast<int>(EntityModelRole::VirtualModelElement));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Boundary Condition"), static_cast<int>(EntityModelRole::BoundaryCondition));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Temporary / Testing"), static_cast<int>(EntityModelRole::TemporaryTesting));
+    EntityInspectorText::addChoice(this->combo_meter_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Retired Asset"), static_cast<int>(EntityModelRole::RetiredAsset));
 
-    QLabel *label_date_added = new QLabel("Date Added");
+    QLabel *label_date_added = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Date Added"), nullptr);
     this->date_meter_added = new QDateEdit();
     this->date_meter_added->setCalendarPopup(true);
     this->date_meter_added->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
@@ -428,7 +418,7 @@ void EntityInspectorDemandPoint::addGroupMeter()
     this->date_meter_added->setSpecialValueText("[Not set]");
     this->date_meter_added->setDate(meterUnsetDate());
 
-    QLabel *label_date_installed = new QLabel("Installation Date");
+    QLabel *label_date_installed = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Installation Date"), nullptr);
     this->date_meter_installed = new QDateEdit();
     this->date_meter_installed->setCalendarPopup(true);
     this->date_meter_installed->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
@@ -436,26 +426,26 @@ void EntityInspectorDemandPoint::addGroupMeter()
     this->date_meter_installed->setSpecialValueText("[Not set]");
     this->date_meter_installed->setDate(meterUnsetDate());
 
-    QLabel *label_manufacturer = new QLabel("Manufacturer");
+    QLabel *label_manufacturer = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Manufacturer"), nullptr);
     this->line_meter_manufacturer = new QLineEdit();
 
-    QLabel *label_model = new QLabel("Model");
+    QLabel *label_model = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Model"), nullptr);
     this->line_meter_model = new QLineEdit();
 
-    QLabel *label_serial = new QLabel("Serial Number");
+    QLabel *label_serial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Serial Number"), nullptr);
     this->line_meter_serial = new QLineEdit();
 
-    QLabel *label_description = new QLabel("Description");
+    QLabel *label_description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Description"), nullptr);
     this->edit_meter_description = new QPlainTextEdit();
     this->edit_meter_description->setMaximumHeight(80);
 
-    QLabel *label_tags = new QLabel("Tags");
+    QLabel *label_tags = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Tags"), nullptr);
     this->line_meter_tags = new QLineEdit();
     this->line_meter_tags->setPlaceholderText("billing, smart-meter, lorawan");
     this->line_meter_tags->setToolTip(
         "Comma-separated tags. Empty entries and duplicates are ignored.");
 
-    QLabel *label_comment = new QLabel("Comment");
+    QLabel *label_comment = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Comment"), nullptr);
     this->edit_meter_comment = new QPlainTextEdit();
     this->edit_meter_comment->setMaximumHeight(80);
 
@@ -694,11 +684,10 @@ void EntityInspectorDemandPoint::refreshMeter()
 
 void EntityInspectorDemandPoint::addGroupGraphs()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Graphs");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Graphs"));
     QGridLayout *grid = new QGridLayout(group);
 
-    QLabel *label_devnote = new QLabel(
-        "Water-meter observations and demand time series will be shown here.");
+    QLabel *label_devnote = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Water-meter observations and demand time series will be shown here."), nullptr);
     label_devnote->setWordWrap(true);
 
     grid->addWidget(label_devnote, 0, 0);

@@ -1,3 +1,4 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include <aowis/model/units/quantity.h>
 #include "entity_inspector/entity_inspector_valve.h"
 
@@ -45,10 +46,10 @@ EntityInspectorValve::EntityInspectorValve(HydraulicData *hydraulic_data, const 
 
 void EntityInspectorValve::addGroupValveConfiguration()
 {
-    GroupBoxCollapsible *group = new GroupBoxCollapsible("Valve Configuration");
+    GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Valve Configuration"));
     QGridLayout *grid = new QGridLayout(group);
     
-    QLabel *label_valve_type = new QLabel("Valve Type");
+    QLabel *label_valve_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Valve Type"), nullptr);
     this->combo_valve_type = new QComboBox();
     this->combo_valve_type->addItem(
         "PRV: Pressure Reducing Valve",
@@ -80,7 +81,8 @@ void EntityInspectorValve::addGroupValveConfiguration()
         );
     constrainComboWidth(this->combo_valve_type);
     
-    this->label_setting = new QLabel("Setting");
+    this->label_setting = new QLabel();
+    EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Setting"));
     this->stack_setting = new QStackedWidget(group);
     // Each setting has its own binding and physical dimension. Changing the
     // valve type swaps editors; it never reinterprets a previous editor value.
@@ -149,25 +151,23 @@ void EntityInspectorValve::addGroupValveConfiguration()
     this->stack_setting->addWidget(this->spin_setting_loss);
     this->stack_setting->addWidget(this->spin_setting_position);
     
-    this->label_setting_curve = new QLabel("Curve");
+    this->label_setting_curve = new QLabel();
+    EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Curve"));
     this->combo_setting_curve = new QComboBox();
     constrainComboWidth(this->combo_setting_curve);
     this->combo_setting_curve->addItem("Select curve...");
     this->label_setting_curve->hide();
     this->combo_setting_curve->hide();
     
-    QLabel *label_status_initial = new QLabel("Initial Status");
+    QLabel *label_status_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Status"), nullptr);
     this->combo_status_initial = new QComboBox();
-    this->combo_status_initial->addItem(
-        "Active", static_cast<int>(HydraulicLinkValveInitialStatus::Active));
-    this->combo_status_initial->addItem(
-        "Open", static_cast<int>(HydraulicLinkValveInitialStatus::Open));
-    this->combo_status_initial->addItem(
-        "Closed", static_cast<int>(HydraulicLinkValveInitialStatus::Closed));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Active"), static_cast<int>(HydraulicLinkValveInitialStatus::Active));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Open"), static_cast<int>(HydraulicLinkValveInitialStatus::Open));
+    EntityInspectorText::addChoice(this->combo_status_initial, QT_TRANSLATE_NOOP("LiveUiText", "Closed"), static_cast<int>(HydraulicLinkValveInitialStatus::Closed));
     
     // Model values remain authoritative; the display spin boxes never own the
     // rounded diameter or loss coefficient. Both read the live valve record.
-    QLabel *label_diameter = new QLabel("Diameter");
+    QLabel *label_diameter = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Diameter"), nullptr);
     this->spin_diameter = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
             if (!this->hydraulic_data) return std::nullopt;
@@ -179,7 +179,7 @@ void EntityInspectorValve::addGroupValveConfiguration()
             return this->hydraulic_data->setValveDiameterMm(this->valve_uuid, diameter_mm);
         }, AOWIS_QUANTITY("link_diameter"), "mm", 0.0, 1000000.0, 10.0, 2, group);
 
-    QLabel *label_loss_coeff = new QLabel("Loss Coefficient");
+    QLabel *label_loss_coeff = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Loss Coefficient"), nullptr);
     label_loss_coeff->setWordWrap(true);
     this->spin_loss_coeff = new UnitNumericSpinBox(
         [this]() -> std::optional<double> {
@@ -369,31 +369,31 @@ void EntityInspectorValve::onValveTypeChanged(HydraulicLinkValveType type)
 
     switch (type) {
     case HydraulicLinkValveType::PRV:
-        this->label_setting->setText("Pressure Setting");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
         this->spin_setting_pressure->setToolTip(
             "Target downstream pressure head for the pressure reducing valve.");
         break;
     case HydraulicLinkValveType::PSV:
-        this->label_setting->setText("Pressure Setting");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
         this->spin_setting_pressure->setToolTip(
             "Target upstream pressure head for the pressure sustaining valve.");
         break;
     case HydraulicLinkValveType::PBV:
-        this->label_setting->setText("Pressure Drop");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Drop"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
         this->spin_setting_pressure->setToolTip(
             "Fixed pressure drop across the pressure breaker valve.");
         break;
     case HydraulicLinkValveType::FCV:
-        this->label_setting->setText("Flow Setting");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Flow Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_flow);
         this->spin_setting_flow->setToolTip(
             "Target flow through the flow control valve.");
         break;
     case HydraulicLinkValveType::TCV:
-        this->label_setting->setText("Loss Coefficient");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Loss Coefficient"));
         this->stack_setting->setCurrentWidget(this->spin_setting_loss);
         this->spin_setting_loss->setToolTip(
             "Throttle setting expressed as a dimensionless loss coefficient.");
@@ -401,19 +401,19 @@ void EntityInspectorValve::onValveTypeChanged(HydraulicLinkValveType type)
     case HydraulicLinkValveType::GPV:
         this->label_setting->hide();
         this->stack_setting->hide();
-        this->label_setting_curve->setText("Head Loss Curve");
+        EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Head Loss Curve"));
         this->label_setting_curve->show();
         this->combo_setting_curve->show();
         this->combo_setting_curve->setToolTip(
             "Head-loss curve used by the general purpose valve.");
         break;
     case HydraulicLinkValveType::PCV:
-        this->label_setting->setText("Position Setting");
+        EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Position Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_position);
         this->spin_setting_position->setToolTip(
             "Valve opening position as a percentage or fraction."
             "<br>PCV support requires EPANET 2.3 or newer.");
-        this->label_setting_curve->setText("Characteristic Curve");
+        EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Characteristic Curve"));
         this->label_setting_curve->show();
         this->combo_setting_curve->show();
         this->combo_setting_curve->setToolTip(

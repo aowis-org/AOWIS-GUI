@@ -1,24 +1,21 @@
+#include "entity_inspector/entity_inspector_text.h"
 #include "entity_inspector/entity_inspector_dock.h"
 #include "config/gui_configuration.h"
 #include "config/shortcut_registry.h"
 
 
 EntityInspectorDock::EntityInspectorDock(HydraulicData *hydraulic_data, QWidget *parent)
-    : QDockWidget(QStringLiteral("Entity Inspector  |  [%1] Toggle sidebar")
-                      .arg(guiShortcutPresentation(GuiShortcutId::SidebarToggle)), parent),
-    hydraulic_data(hydraulic_data)
+    : QDockWidget(parent), hydraulic_data(hydraulic_data)
 {
-    setToolTip(QStringLiteral("Press %1 to show or hide the right sidebar.")
-                   .arg(guiShortcutPresentation(GuiShortcutId::SidebarToggle)));
-    connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged,
-            this, [this](GuiShortcutId id)
-    {
-        if (id != GuiShortcutId::SidebarToggle)
-            return;
-
+    const std::function<void()> refresh = [this] {
         const QString shortcut = guiShortcutPresentation(GuiShortcutId::SidebarToggle);
-        setWindowTitle(QStringLiteral("Entity Inspector  |  [%1] Toggle sidebar").arg(shortcut));
-        setToolTip(QStringLiteral("Press %1 to show or hide the right sidebar.").arg(shortcut));
+        setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Entity Inspector  |  [%1] Toggle sidebar")).arg(shortcut));
+        setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Press %1 to show or hide the right sidebar.")).arg(shortcut));
+    };
+    LiveUiText::bind(this, refresh);
+    connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged, this, [refresh](GuiShortcutId id) {
+        if (id == GuiShortcutId::SidebarToggle)
+            refresh();
     });
     setMinimumWidth(Sizes::SidebarRightWidth);
     setMaximumWidth(Sizes::SidebarRightWidth);

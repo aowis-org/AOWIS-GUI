@@ -181,7 +181,7 @@ private:
     };
 
     void addSimulationRow(QGridLayout *grid, int &row, SimulationField field,
-                          const QString &name, const QString &tooltip = QString());
+                          const char *name, const char *tooltip = nullptr);
     void addGroupSimulationErrors();
     void refreshSimulationErrors();
     void addGroupSimulationWarnings();
@@ -245,6 +245,8 @@ private:
     QUuid entity_uuid;
     QUuid node_uuid_1;
     QUuid node_uuid_2;
+    void refreshEntityTitle();
+    QString displayed_entity_id;
     QString entity_title_prefix;
     bool demands_refresh_pending = false;
     bool demands_structure_stale = false;
