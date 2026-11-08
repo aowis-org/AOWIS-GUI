@@ -1220,7 +1220,9 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     target_link_libraries(aowis-unit-numeric-spin-box-tests PRIVATE Qt6::Widgets)
     add_test(NAME aowis-unit-numeric-spin-box COMMAND aowis-unit-numeric-spin-box-tests)
     set_tests_properties(aowis-unit-numeric-spin-box PROPERTIES LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
-    add_executable(aowis-unit-table-presentation-tests tests/unit_table_presentation_test.cpp)
+    add_executable(aowis-unit-table-presentation-tests
+        tests/unit_table_presentation_test.cpp
+        translations/translations.qrc)
     target_include_directories(aowis-unit-table-presentation-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)

@@ -415,7 +415,7 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
         // presentation strings when a translator changes; preserve network
         // rendering, selections and the editor/monitor mode.
         connect(surface, &MapBgfxSurface::localizedPresentationRefreshRequested,
-                this, [this]() { refreshBgfxLegend(); });
+                this, &MapMonitorContainer::refreshHudLegendText);
         surface->setNavigationHandlers(
             [this](QKeyEvent *event)
             {
@@ -1438,14 +1438,24 @@ void MapMonitorContainer::pushBgfxLegend(const NetworkSymbologyRanges &ranges)
         return;
     if (this->bgfx_surface == nullptr || this->hydraulic_data == nullptr)
         return;
-    MapBgfxHud::Legend legend = mapBgfxLegendContent(
-        *this->hydraulic_data, this->symbology_settings, ranges);
-    legend.visible = this->bgfx_render_surface_active;
-    this->bgfx_surface->setHudLegend(legend);
+    this->hud_legend_settings = this->symbology_settings;
+    this->hud_legend_ranges = ranges;
+    refreshHudLegendText();
     // Value labels show the numbers of the legend ramps (same unit).
     this->bgfx_surface->setLabelValueFormats(
         mapBgfxLabelValueFormat(*this->hydraulic_data, this->symbology_settings, ranges, false),
         mapBgfxLabelValueFormat(*this->hydraulic_data, this->symbology_settings, ranges, true));
+}
+
+void MapMonitorContainer::refreshHudLegendText()
+{
+    if (this->editor_mode || this->basemap_only || !this->hud_legend_ranges
+        || this->bgfx_surface == nullptr || this->hydraulic_data == nullptr)
+        return;
+    MapBgfxHud::Legend legend = mapBgfxLegendContent(
+        *this->hydraulic_data, this->hud_legend_settings, *this->hud_legend_ranges);
+    legend.visible = this->bgfx_render_surface_active;
+    this->bgfx_surface->setHudLegend(legend);
 }
 
 void MapMonitorContainer::refreshBgfxLegend()

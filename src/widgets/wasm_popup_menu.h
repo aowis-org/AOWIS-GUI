@@ -11,6 +11,8 @@
 
 class QEnterEvent;
 class QEvent;
+class QLabel;
+class QPushButton;
 class QTimer;
 class QVBoxLayout;
 class QWidget;
@@ -24,12 +26,12 @@ public:
     void setDeleteOnClose(bool enabled);
     bool isPopupVisible() const;
 
-    void addAction(const QString &text,
+    QPushButton *addAction(const QString &text,
                    const std::function<void()> &callback,
                    const QString &tool_tip = QString());
     WasmPopupMenu *addSubMenu(const QString &text);
     void addSeparator();
-    void addSection(const QString &text);
+    QLabel *addSection(const QString &text);
     void addWidget(QWidget *widget, int index = -1);
     void clear();
 

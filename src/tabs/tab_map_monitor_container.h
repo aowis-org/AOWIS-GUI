@@ -27,6 +27,7 @@
 #include <QIcon>
 
 #include <memory>
+#include <optional>
 
 #include "common/_enums_structs.h"
 #include "network/network_symbology.h"
@@ -229,6 +230,10 @@ private:
     // resolved, the unit profile changes or the surface becomes active.
     void rememberMonitorSelection(InfrastructureEntity entity_type, const QUuid &uuid);
     void applyMonitorDiagnostics();
+    // Last ranges delivered to the HUD. Language changes reuse that exact frame's inputs.
+    std::optional<NetworkSymbologyRanges> hud_legend_ranges;
+    NetworkSymbologySettings hud_legend_settings;
+    void refreshHudLegendText();
     void pushBgfxLegend(const NetworkSymbologyRanges &ranges);
     void refreshBgfxLegend();
     void refreshBgfxDownloadActivity();

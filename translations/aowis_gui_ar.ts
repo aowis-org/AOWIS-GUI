@@ -1806,7 +1806,7 @@ Right-click: animate back to 1.0×</source>
     </message>
     <message>
       <source>None</source>
-      <translation>بلا مصادقة</translation>
+      <translation>لا شيء</translation>
     </message>
     <message>
       <source>Note</source>
@@ -2783,6 +2783,80 @@ Right-click: animate back to 1.0×</source>
     <message>
       <source>Curve</source>
       <translation>منحنى</translation>
+    </message>
+    <message>
+      <source>Map Symbology Legend</source>
+      <translation>مفتاح رموز الخريطة</translation>
+    </message>
+    <message>
+      <source>Node Legend</source>
+      <translation>مفتاح رموز العقد</translation>
+    </message>
+    <message>
+      <source>Link Legend</source>
+      <translation>مفتاح رموز الوصلات</translation>
+    </message>
+    <message>
+      <source>Heatmap Overlay</source>
+      <translation>طبقة الخريطة الحرارية</translation>
+    </message>
+    <message>
+      <source>No finite values</source>
+      <translation>لا توجد قيم منتهية</translation>
+    </message>
+    <message>
+      <source>%1 · uniform</source>
+      <translation>%1 · موحّد</translation>
+    </message>
+    <message>
+      <source>%1 · flipped</source>
+      <translation>%1 · معكوس</translation>
+    </message>
+    <message>
+      <source>Minimum: %1%3
+Maximum: %2%3
+Colors: %4
+Click to choose colors</source>
+      <translation>الحد الأدنى: %1%3
+الحد الأقصى: %2%3
+الألوان: %4
+انقر لاختيار الألوان</translation>
+    </message>
+    <message>
+      <source>Sequential</source>
+      <translation>متتابعة</translation>
+    </message>
+    <message>
+      <source>Diverging</source>
+      <translation>متباعدة</translation>
+    </message>
+    <message>
+      <source>Flip</source>
+      <translation>عكس</translation>
+    </message>
+    <message>
+      <source>Use %1 colors</source>
+      <translation>استخدام لوحة الألوان %1</translation>
+    </message>
+    <message>
+      <source>Flip color direction</source>
+      <translation>عكس ترتيب الألوان</translation>
+    </message>
+    <message>
+      <source>Reset colors to the default palette</source>
+      <translation>استعادة لوحة الألوان الافتراضية</translation>
+    </message>
+    <message>
+      <source>Hazen-Williams C</source>
+      <translation>معامل هازن وليامز C</translation>
+    </message>
+    <message>
+      <source>Absolute Roughness ε</source>
+      <translation>الخشونة المطلقة ε</translation>
+    </message>
+    <message>
+      <source>Manning Roughness n</source>
+      <translation>معامل خشونة مانينغ n</translation>
     </message>
   </context>
   <context>

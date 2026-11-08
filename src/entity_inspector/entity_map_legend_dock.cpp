@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "entity_inspector/entity_map_legend_dock.h"
 
 #include "config/gui_configuration.h"
@@ -145,12 +146,18 @@ class MapSymbologyRampWidget final : public QWidget
 public:
     using PaletteChangedCallback = std::function<void(NetworkSymbologyPalette, bool)>;
 
-    explicit MapSymbologyRampWidget(QWidget *hover_parent, QWidget *parent = nullptr)
-        : QWidget(parent),
+    MapSymbologyRampWidget(QWidget *hover_parent, GroupBoxCollapsible *group,
+                          const char *scope, const char *empty_title)
+        : QWidget(group), group(group), scope(scope), empty_title(empty_title),
           hover_parent(hover_parent),
           hover_swatch(new MapSymbologyHoverSwatch(hover_parent))
     {
         setMouseTracking(true);
+        LiveUiText::bind(this, [this] {
+            refreshTitle();
+            updateToolTip();
+            update();
+        });
         setFixedHeight(54);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     }
@@ -188,11 +195,19 @@ public:
         update();
     }
 
-    void setRange(double minimum, double maximum, const QString &unit)
+    void clearMetric()
+    {
+        this->metric = nullptr;
+        refreshTitle();
+    }
+
+    void setRange(const LegendDescriptor &metric, double minimum, double maximum, const QString &unit)
     {
         this->value_minimum = minimum;
         this->value_maximum = maximum;
+        this->metric = &metric;
         this->unit = unit;
+        refreshTitle();
         hideHoverSwatch();
         updateToolTip();
         update();
@@ -219,7 +234,7 @@ protected:
             painter.setBrush(QWidget::palette().brush(QPalette::AlternateBase));
             painter.drawRoundedRect(ramp_rect, 4.0, 4.0);
             painter.setPen(text_color);
-            painter.drawText(rect(), Qt::AlignCenter, QStringLiteral("No finite values"));
+            painter.drawText(rect(), Qt::AlignCenter, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "No finite values")));
             return;
         }
 
@@ -292,7 +307,19 @@ protected:
 private:
     double value_minimum = 0.0;
     double value_maximum = 0.0;
+    GroupBoxCollapsible *group;
+    const char *scope;
+    const char *empty_title;
+    const LegendDescriptor *metric = nullptr; // Refers to the constexpr descriptor table.
     QString unit;
+
+    void refreshTitle()
+    {
+        this->group->setTitle(this->metric == nullptr ? LiveUiText::translate(this->empty_title)
+            : legendGroupTitle(QCoreApplication::translate("MapBgfxLegendContent", this->scope),
+                               MapLegendUnitPresentation::label(*this->metric), this->unit));
+    }
+
     QWidget *hover_parent = nullptr;
     QPointer<MapSymbologyHoverSwatch> hover_swatch;
     NetworkSymbologyPalette palette = NetworkSymbologyPalette::Viridis;
@@ -333,12 +360,18 @@ private:
         constexpr int preview_width = 124;
         constexpr int preview_height = 36;
 
-        menu->addSection(QStringLiteral("Sequential"));
+        {
+            QLabel *section = menu->addSection(QString());
+            LiveUiText::bind(menu, [section] { section->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Sequential"))); });
+        }
 
         for (const NetworkSymbologyPalette palette_choice : palette_choices)
         {
             if (palette_choice == NetworkSymbologyPalette::CoolWarm)
-                menu->addSection(QStringLiteral("Diverging"));
+            {
+                QLabel *section = menu->addSection(QString());
+                LiveUiText::bind(menu, [section] { section->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Diverging"))); });
+            }
 
             QWidget *row = new QWidget(menu);
             QHBoxLayout *row_layout = new QHBoxLayout(row);
@@ -356,16 +389,16 @@ private:
             palette_button->setCheckable(true);
             palette_button->setChecked(this->palette == palette_choice);
             palette_button->setFixedSize(preview_width, preview_height);
-            palette_button->setToolTip(
-                QStringLiteral("Use %1 colors")
-                    .arg(networkSymbologyPaletteName(palette_choice)));
+            LiveUiText::bind(palette_button, [palette_button, palette_choice] {
+                palette_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Use %1 colors")).arg(networkSymbologyPaletteName(palette_choice)));
+            });
 
-            QPushButton *flip_button = new QPushButton(QStringLiteral("Flip"), row);
+            QPushButton *flip_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Flip"), row);
             flip_button->setCheckable(true);
             flip_button->setChecked(
                 this->palette == palette_choice && this->palette_flipped);
             flip_button->setFixedHeight(preview_height);
-            flip_button->setToolTip(QStringLiteral("Flip color direction"));
+            LiveUiText::bind(flip_button, [flip_button] { flip_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Flip color direction"))); });
 
             row_layout->addWidget(palette_label);
             row_layout->addStretch(1);
@@ -391,13 +424,16 @@ private:
         }
 
         menu->addSeparator();
-        menu->addAction(
-            QStringLiteral("Reset"),
+        QPushButton *reset_button = menu->addAction(
+            QString(),
             [this]
             {
                 selectPalette(this->default_palette, this->default_palette_flipped);
-            },
-            QStringLiteral("Reset colors to the default palette"));
+            });
+        LiveUiText::bind(reset_button, [reset_button] {
+            reset_button->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset")));
+            reset_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset colors to the default palette")));
+        });
 
         const QPoint popup_position = mapToGlobal(
             QPoint(0, qRound(rampRect().bottom()) + 4));
@@ -420,12 +456,18 @@ private:
         constexpr int preview_width = 124;
         constexpr int preview_height = 26;
 
-        menu->addSection(QStringLiteral("Sequential"));
+        {
+            QAction *section = menu->addSection(QString());
+            LiveUiText::bind(menu, [section] { section->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Sequential"))); });
+        }
 
         for (const NetworkSymbologyPalette palette_choice : palette_choices)
         {
             if (palette_choice == NetworkSymbologyPalette::CoolWarm)
-                menu->addSection(QStringLiteral("Diverging"));
+            {
+                QAction *section = menu->addSection(QString());
+                LiveUiText::bind(menu, [section] { section->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Diverging"))); });
+            }
             QWidget *row = new QWidget(menu);
             QHBoxLayout *row_layout = new QHBoxLayout(row);
             row_layout->setContentsMargins(6, 3, 6, 3);
@@ -442,16 +484,16 @@ private:
             palette_button->setCheckable(true);
             palette_button->setChecked(this->palette == palette_choice);
             palette_button->setFixedSize(preview_width, preview_height);
-            palette_button->setToolTip(
-                QStringLiteral("Use %1 colors")
-                    .arg(networkSymbologyPaletteName(palette_choice)));
+            LiveUiText::bind(palette_button, [palette_button, palette_choice] {
+                palette_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Use %1 colors")).arg(networkSymbologyPaletteName(palette_choice)));
+            });
 
-            QPushButton *flip_button = new QPushButton(QStringLiteral("Flip"), row);
+            QPushButton *flip_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Flip"), row);
             flip_button->setCheckable(true);
             flip_button->setChecked(
                 this->palette == palette_choice && this->palette_flipped);
             flip_button->setFixedHeight(preview_height);
-            flip_button->setToolTip(QStringLiteral("Flip color direction"));
+            LiveUiText::bind(flip_button, [flip_button] { flip_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Flip color direction"))); });
 
             row_layout->addWidget(palette_label);
             row_layout->addStretch(1);
@@ -480,8 +522,11 @@ private:
         }
 
         menu->addSeparator();
-        QAction *reset_action = menu->addAction(QStringLiteral("Reset"));
-        reset_action->setToolTip(QStringLiteral("Reset colors to the default palette"));
+        QAction *reset_action = menu->addAction(QString());
+        LiveUiText::bind(menu, [reset_action] {
+            reset_action->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset")));
+            reset_action->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset colors to the default palette")));
+        });
         connect(reset_action, &QAction::triggered, menu, [this, menu]
         {
             selectPalette(this->default_palette, this->default_palette_flipped);
@@ -509,10 +554,10 @@ private:
             ? QString()
             : QStringLiteral(" %1").arg(this->unit);
         const QString palette_text = this->palette_flipped
-            ? QStringLiteral("%1 · flipped").arg(networkSymbologyPaletteName(this->palette))
+            ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 · flipped")).arg(networkSymbologyPaletteName(this->palette))
             : networkSymbologyPaletteName(this->palette);
         setToolTip(
-            QStringLiteral("Minimum: %1%3\nMaximum: %2%3\nColors: %4\nClick to choose colors")
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Minimum: %1%3\nMaximum: %2%3\nColors: %4\nClick to choose colors"))
                 .arg(minimum_text, maximum_text, unit_suffix, palette_text));
     }
 
@@ -538,7 +583,7 @@ private:
 
         if (uniform)
         {
-            painter.drawText(label_area, Qt::AlignHCenter | Qt::AlignTop, QStringLiteral("%1 · uniform").arg(formatValue(this->value_minimum)));
+            painter.drawText(label_area, Qt::AlignHCenter | Qt::AlignTop, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 · uniform")).arg(formatValue(this->value_minimum)));
             return;
         }
 
@@ -677,9 +722,10 @@ private:
 };
 
 EntityMapLegendDock::EntityMapLegendDock(HydraulicData *hydraulic_data, QWidget *parent)
-    : QDockWidget("Map Symbology Legend", parent),
+    : QDockWidget(parent),
       hydraulic_data(hydraulic_data)
 {
+    LiveUiText::bind(this, [this] { setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Map Symbology Legend"))); });
     setMinimumWidth(Sizes::SidebarRightWidth);
     resize(Sizes::SidebarRightWidth, height());
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
@@ -819,7 +865,7 @@ void EntityMapLegendDock::showMapLegendNode(VisualNode visual_node)
 
     if (visual_node == VisualNode::None)
     {
-        this->group_node->setTitle(QStringLiteral("Node Legend"));
+        this->legend_node->clearMetric();
         this->group_node->setCollapsed(true);
         scheduleDockHeightUpdate();
         return;
@@ -837,7 +883,7 @@ void EntityMapLegendDock::showMapLegendLink(VisualLink visual_link)
 
     if (visual_link == VisualLink::None)
     {
-        this->group_link->setTitle(QStringLiteral("Link Legend"));
+        this->legend_link->clearMetric();
         this->group_link->setCollapsed(true);
         scheduleDockHeightUpdate();
         return;
@@ -855,7 +901,7 @@ void EntityMapLegendDock::showMapLegendHeatmap(VisualHeatmap visual_heatmap)
 
     if (visual_heatmap == VisualHeatmap::None)
     {
-        this->group_heat->setTitle(QStringLiteral("Heatmap Overlay"));
+        this->legend_heat->clearMetric();
         this->group_heat->setCollapsed(true);
         scheduleDockHeightUpdate();
         return;
@@ -906,36 +952,36 @@ void EntityMapLegendDock::setVisibility()
 
 void EntityMapLegendDock::addGroupNode()
 {
-    this->group_node = new GroupBoxCollapsible(QStringLiteral("Node Legend"), this);
+    this->group_node = new GroupBoxCollapsible(this);
     QVBoxLayout *group_layout = new QVBoxLayout(this->group_node);
     group_layout->setContentsMargins(6, 5, 6, 6);
     group_layout->setSpacing(0);
 
-    this->legend_node = new MapSymbologyRampWidget(this, this->group_node);
+    this->legend_node = new MapSymbologyRampWidget(this, this->group_node, "Node", QT_TRANSLATE_NOOP("LiveUiText", "Node Legend"));
     group_layout->addWidget(this->legend_node);
     this->layout->addWidget(this->group_node);
 }
 
 void EntityMapLegendDock::addGroupLink()
 {
-    this->group_link = new GroupBoxCollapsible(QStringLiteral("Link Legend"), this);
+    this->group_link = new GroupBoxCollapsible(this);
     QVBoxLayout *group_layout = new QVBoxLayout(this->group_link);
     group_layout->setContentsMargins(6, 5, 6, 6);
     group_layout->setSpacing(0);
 
-    this->legend_link = new MapSymbologyRampWidget(this, this->group_link);
+    this->legend_link = new MapSymbologyRampWidget(this, this->group_link, "Link", QT_TRANSLATE_NOOP("LiveUiText", "Link Legend"));
     group_layout->addWidget(this->legend_link);
     this->layout->addWidget(this->group_link);
 }
 
 void EntityMapLegendDock::addGroupHeatmap()
 {
-    this->group_heat = new GroupBoxCollapsible(QStringLiteral("Heatmap Overlay"), this);
+    this->group_heat = new GroupBoxCollapsible(this);
     QVBoxLayout *group_layout = new QVBoxLayout(this->group_heat);
     group_layout->setContentsMargins(6, 5, 6, 6);
     group_layout->setSpacing(0);
 
-    this->legend_heat = new MapSymbologyRampWidget(this, this->group_heat);
+    this->legend_heat = new MapSymbologyRampWidget(this, this->group_heat, "Heatmap", QT_TRANSLATE_NOOP("LiveUiText", "Heatmap Overlay"));
     group_layout->addWidget(this->legend_heat);
     this->layout->addWidget(this->group_heat);
 }
@@ -990,9 +1036,7 @@ void EntityMapLegendDock::updateNodeLegend()
     const MapLegendUnitPresentation::Range displayed = MapLegendUnitPresentation::range(
         UnitProfileManager::instance().presentation(), descriptor,
         ranges.node_minimum, ranges.node_maximum);
-    this->group_node->setTitle(legendGroupTitle(
-        QStringLiteral("Node"), MapLegendUnitPresentation::label(descriptor), displayed.unit));
-    this->legend_node->setRange(displayed.minimum, displayed.maximum, displayed.unit);
+    this->legend_node->setRange(descriptor, displayed.minimum, displayed.maximum, displayed.unit);
 }
 
 void EntityMapLegendDock::updateLinkLegend()
@@ -1010,9 +1054,7 @@ void EntityMapLegendDock::updateLinkLegend()
     const MapLegendUnitPresentation::Range displayed = MapLegendUnitPresentation::range(
         UnitProfileManager::instance().presentation(), descriptor,
         ranges.link_minimum, ranges.link_maximum);
-    this->group_link->setTitle(legendGroupTitle(
-        QStringLiteral("Link"), MapLegendUnitPresentation::label(descriptor), displayed.unit));
-    this->legend_link->setRange(displayed.minimum, displayed.maximum, displayed.unit);
+    this->legend_link->setRange(descriptor, displayed.minimum, displayed.maximum, displayed.unit);
 }
 
 void EntityMapLegendDock::updateHeatmapLegend()
@@ -1028,7 +1070,5 @@ void EntityMapLegendDock::updateHeatmapLegend()
     const MapLegendUnitPresentation::Range displayed = MapLegendUnitPresentation::range(
         UnitProfileManager::instance().presentation(), descriptor,
         ranges.heatmap_minimum, ranges.heatmap_maximum);
-    this->group_heat->setTitle(legendGroupTitle(
-        QStringLiteral("Heatmap"), MapLegendUnitPresentation::label(descriptor), displayed.unit));
-    this->legend_heat->setRange(displayed.minimum, displayed.maximum, displayed.unit);
+    this->legend_heat->setRange(descriptor, displayed.minimum, displayed.maximum, displayed.unit);
 }

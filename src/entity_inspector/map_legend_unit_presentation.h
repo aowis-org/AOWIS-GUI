@@ -6,6 +6,7 @@
 
 #include <aowis/model/units/conversion.h>
 
+#include <QCoreApplication>
 #include <QString>
 #include <algorithm>
 #include <cmath>
@@ -25,7 +26,7 @@ struct Range
 
 inline QString label(const MapLegendMetrics::Descriptor &descriptor)
 {
-    return QString::fromUtf8(descriptor.label);
+    return QCoreApplication::translate("LiveUiText", descriptor.label);
 }
 
 inline QString canonicalSymbol(const MapLegendMetrics::Descriptor &descriptor)

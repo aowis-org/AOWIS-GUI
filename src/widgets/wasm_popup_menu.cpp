@@ -133,7 +133,7 @@ bool WasmPopupMenu::isPopupVisible() const
     return isVisible();
 }
 
-void WasmPopupMenu::addAction(const QString &text,
+QPushButton *WasmPopupMenu::addAction(const QString &text,
                               const std::function<void()> &callback,
                               const QString &tool_tip)
 {
@@ -155,6 +155,7 @@ void WasmPopupMenu::addAction(const QString &text,
     });
 
     this->menu_layout->addWidget(button);
+    return button;
 }
 
 WasmPopupMenu *WasmPopupMenu::addSubMenu(const QString &text)
@@ -191,7 +192,7 @@ void WasmPopupMenu::addSeparator()
     this->menu_layout->addWidget(separator);
 }
 
-void WasmPopupMenu::addSection(const QString &text)
+QLabel *WasmPopupMenu::addSection(const QString &text)
 {
     QLabel *label = new QLabel(text, this);
     QFont font = label->font();
@@ -207,6 +208,7 @@ void WasmPopupMenu::addSection(const QString &text)
     label->setPalette(palette);
 
     this->menu_layout->addWidget(label);
+    return label;
 }
 
 void WasmPopupMenu::addWidget(QWidget *widget, int index)

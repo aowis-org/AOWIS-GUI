@@ -2784,6 +2784,80 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
       <source>Curve</source>
       <translation>Kurve</translation>
     </message>
+    <message>
+      <source>Map Symbology Legend</source>
+      <translation>Kartenlegende</translation>
+    </message>
+    <message>
+      <source>Node Legend</source>
+      <translation>Knotenlegende</translation>
+    </message>
+    <message>
+      <source>Link Legend</source>
+      <translation>Verbindungslegende</translation>
+    </message>
+    <message>
+      <source>Heatmap Overlay</source>
+      <translation>Heatmap-Ebene</translation>
+    </message>
+    <message>
+      <source>No finite values</source>
+      <translation>Keine endlichen Werte</translation>
+    </message>
+    <message>
+      <source>%1 · uniform</source>
+      <translation>%1 · einheitlich</translation>
+    </message>
+    <message>
+      <source>%1 · flipped</source>
+      <translation>%1 · umgekehrt</translation>
+    </message>
+    <message>
+      <source>Minimum: %1%3
+Maximum: %2%3
+Colors: %4
+Click to choose colors</source>
+      <translation>Minimum: %1%3
+Maximum: %2%3
+Farben: %4
+Zum Auswählen der Farben klicken</translation>
+    </message>
+    <message>
+      <source>Sequential</source>
+      <translation>Sequenziell</translation>
+    </message>
+    <message>
+      <source>Diverging</source>
+      <translation>Divergierend</translation>
+    </message>
+    <message>
+      <source>Flip</source>
+      <translation>Umkehren</translation>
+    </message>
+    <message>
+      <source>Use %1 colors</source>
+      <translation>Palette %1 verwenden</translation>
+    </message>
+    <message>
+      <source>Flip color direction</source>
+      <translation>Farbreihenfolge umkehren</translation>
+    </message>
+    <message>
+      <source>Reset colors to the default palette</source>
+      <translation>Standardpalette wiederherstellen</translation>
+    </message>
+    <message>
+      <source>Hazen-Williams C</source>
+      <translation>Hazen-Williams-Beiwert C</translation>
+    </message>
+    <message>
+      <source>Absolute Roughness ε</source>
+      <translation>Absolute Rauheit ε</translation>
+    </message>
+    <message>
+      <source>Manning Roughness n</source>
+      <translation>Manning-Rauheit n</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>

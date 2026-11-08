@@ -5,6 +5,7 @@
 #include "simulation/simulation_inspector_unit_presentation.h"
 
 #include <QCoreApplication>
+#include <QTranslator>
 #include <QJsonObject>
 
 #include <cmath>
@@ -453,6 +454,16 @@ int main(int argc, char **argv)
     CHECK(MapLegendUnitPresentation::label(MapLegendMetrics::link(
               VisualLink::Roughness, MapLegendMetrics::RoughnessStyle::DarcyWeisbach))
           == QStringLiteral("Absolute Roughness ε"));
+    const MapLegendMetrics::Descriptor &pressure = MapLegendMetrics::heatmap(VisualHeatmap::Pressure);
+    const MapLegendUnitPresentation::Range before = MapLegendUnitPresentation::range(presentation, pressure, 1.0, 4.0);
+    QTranslator german;
+    CHECK(german.load(QStringLiteral(":/i18n/aowis_gui_de.qm")));
+    CHECK(QCoreApplication::installTranslator(&german));
+    CHECK(MapLegendUnitPresentation::label(pressure) == QStringLiteral("Druck"));
+    const MapLegendUnitPresentation::Range after = MapLegendUnitPresentation::range(presentation, pressure, 1.0, 4.0);
+    CHECK(before.minimum == after.minimum && before.maximum == after.maximum && before.unit == after.unit);
+    CHECK(QCoreApplication::removeTranslator(&german));
+    CHECK(MapLegendUnitPresentation::label(pressure) == QStringLiteral("Pressure"));
     // Map legends convert visible tick ranges only. The color ramp retains
     // the canonical values used by network symbology and simulation.
     using MapRange = MapLegendUnitPresentation::Range;
