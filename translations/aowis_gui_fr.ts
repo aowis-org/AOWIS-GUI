@@ -597,6 +597,186 @@ Chaque commit demande un court message décrivant vos modifications. Vous pouvez
       <source>Parent · %1</source>
       <translation>Parent · %1</translation>
     </message>
+    <message>
+      <source>Checking network…</source>
+      <translation>Vérification du réseau…</translation>
+    </message>
+    <message>
+      <source>Network contents are not persisted for this preview.</source>
+      <translation>Le réseau de cet aperçu n’est pas enregistré.</translation>
+    </message>
+    <message>
+      <source>No personal database selected. Only the committed base can be summarized.</source>
+      <translation>Aucune base personnelle sélectionnée. Seule la révision de base peut être résumée.</translation>
+    </message>
+    <message>
+      <source>Cannot identify the selected HEAD in the personal database.</source>
+      <translation>Impossible d’identifier le HEAD sélectionné dans la base personnelle.</translation>
+    </message>
+    <message>
+      <source>Unable to read saved personal working copies: %1</source>
+      <translation>Impossible de lire les copies de travail personnelles enregistrées : %1</translation>
+    </message>
+    <message>
+      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
+      <translation>Plusieurs copies de travail privées existent pour ce HEAD. Ouvrez les copies de travail personnelles et choisissez-en une. Leur contenu peut varier.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this unborn HEAD.</source>
+      <translation>Aucun réseau hydraulique dans ce HEAD sans révision.</translation>
+    </message>
+    <message>
+      <source>Saved working-copy summary unavailable: %1</source>
+      <translation>Résumé de la copie de travail enregistrée indisponible : %1</translation>
+    </message>
+    <message>
+      <source>A connected DVMDB HTTP endpoint is needed for network statistics.</source>
+      <translation>Les statistiques du réseau nécessitent une connexion HTTP à DVMDB.</translation>
+    </message>
+    <message>
+      <source>Committed network summary unavailable: Invalid response</source>
+      <translation>Résumé du réseau de la révision indisponible : réponse invalide</translation>
+    </message>
+    <message>
+      <source>Committed network summary unavailable: %1</source>
+      <translation>Résumé du réseau de la révision indisponible : %1</translation>
+    </message>
+    <message>
+      <source>Unexpected network summary response.</source>
+      <translation>Réponse inattendue pour le résumé du réseau.</translation>
+    </message>
+    <message>
+      <source>Network count does not match the saved summary.</source>
+      <translation>Le nombre de réseaux diffère du résumé enregistré.</translation>
+    </message>
+    <message>
+      <source>Invalid saved draft identity or generation.</source>
+      <translation>Identifiant ou génération du brouillon enregistré invalide.</translation>
+    </message>
+    <message>
+      <source>Invalid hydraulic network in summary response.</source>
+      <translation>Réseau hydraulique invalide dans le résumé reçu.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this saved working copy.</source>
+      <translation>Aucun réseau hydraulique dans cette copie de travail enregistrée.</translation>
+    </message>
+    <message>
+      <source>No committed hydraulic network. Private draft contents may differ.</source>
+      <translation>Aucun réseau hydraulique dans la révision de base. Le brouillon privé peut avoir un contenu différent.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this committed revision.</source>
+      <translation>Aucun réseau hydraulique dans cette révision.</translation>
+    </message>
+    <message>
+      <source>Network: %1</source>
+      <translation>Réseau : %1</translation>
+    </message>
+    <message>
+      <source>%1 hydraulic networks</source>
+      <translation>%1 réseaux hydrauliques</translation>
+    </message>
+    <message>
+      <source>
+Saved private working copy · generation %1</source>
+      <translation>
+Copie de travail privée enregistrée · génération %1</translation>
+    </message>
+    <message>
+      <source>
+Committed base only; no private draft was found.</source>
+      <translation>
+Révision de base uniquement. Aucun brouillon privé trouvé.</translation>
+    </message>
+    <message>
+      <source>Importing hydraulic network into saved private HEAD…</source>
+      <translation>Importation du réseau hydraulique dans le HEAD privé enregistré…</translation>
+    </message>
+    <message>
+      <source>Network import was not confirmed: %1</source>
+      <translation>Importation du réseau non confirmée : %1</translation>
+    </message>
+    <message>
+      <source>Network saved to draft %1, but lease release is unconfirmed: %2</source>
+      <translation>Réseau enregistré dans le brouillon %1. Libération du verrou non confirmée : %2</translation>
+    </message>
+    <message>
+      <source>HEAD changed since its network summary. Refresh before exporting.</source>
+      <translation>Le HEAD a changé depuis le dernier résumé. Actualisez avant d’exporter.</translation>
+    </message>
+    <message>
+      <source>Saved HEAD export failed: %1</source>
+      <translation>Échec de l’exportation du HEAD enregistré : %1</translation>
+    </message>
+    <message>
+      <source>Hydraulic network</source>
+      <translation>Réseau hydraulique</translation>
+    </message>
+    <message>
+      <source>Junctions</source>
+      <translation>Nœuds de jonction</translation>
+    </message>
+    <message>
+      <source>Pipes</source>
+      <translation>Conduites</translation>
+    </message>
+    <message>
+      <source>Reservoirs</source>
+      <translation>Réservoirs à charge fixe</translation>
+    </message>
+    <message>
+      <source>Tanks</source>
+      <translation>Réservoirs à niveau variable</translation>
+    </message>
+    <message>
+      <source>Pumps</source>
+      <translation>Pompes</translation>
+    </message>
+    <message>
+      <source>Valves</source>
+      <translation>Vannes</translation>
+    </message>
+    <message>
+      <source>Total hydraulic entities: %1</source>
+      <translation>Nombre total d’éléments hydrauliques : %1</translation>
+    </message>
+    <message>
+      <source>Export network…</source>
+      <translation>Exporter le réseau…</translation>
+    </message>
+    <message>
+      <source>Delete unborn HEAD and branch…</source>
+      <translation>Supprimer le HEAD sans révision et sa branche…</translation>
+    </message>
+    <message>
+      <source>Delete HEAD working changes…</source>
+      <translation>Supprimer les modifications du HEAD…</translation>
+    </message>
+    <message>
+      <source>Delete revision and later history…</source>
+      <translation>Supprimer la révision et l’historique ultérieur…</translation>
+    </message>
+    <message>
+      <source>Discard this HEAD's saved private working copy; immutable revisions remain unchanged.</source>
+      <translation>Abandonner la copie de travail privée enregistrée de ce HEAD. Les révisions immuables sont conservées.</translation>
+    </message>
+    <message>
+      <source>Import an EPANET project into this empty unborn private HEAD</source>
+      <translation>Importer un projet EPANET dans ce HEAD privé vide sans révision</translation>
+    </message>
+    <message>
+      <source>Import requires an empty unborn HEAD and an available personal DVMDB. Existing network contents are never overwritten.</source>
+      <translation>L’importation nécessite un HEAD vide sans révision et une base DVMDB personnelle disponible. Les réseaux existants sont conservés.</translation>
+    </message>
+    <message>
+      <source>Export the selected saved private working-copy generation, not the editor's current model</source>
+      <translation>Exporter la génération enregistrée sélectionnée de la copie de travail privée</translation>
+    </message>
+    <message>
+      <source>Export only the selected immutable revision's hydraulic network</source>
+      <translation>Exporter uniquement le réseau hydraulique de la révision immuable sélectionnée</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

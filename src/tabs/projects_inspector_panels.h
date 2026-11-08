@@ -356,6 +356,24 @@ private:
 class RevisionNetworkOverview final : public ProjectsInspectorOverview
 {
 public:
+    struct Message
+    {
+        const char *source = nullptr;
+        QStringList arguments;
+
+        QString translated() const
+        {
+            if (this->source == nullptr)
+                return {};
+            const QString format = QCoreApplication::translate("ProjectsWidget", this->source);
+            if (this->arguments.size() == 2)
+                return format.arg(this->arguments.first(), this->arguments.last());
+            if (this->arguments.size() == 1)
+                return format.arg(this->arguments.first());
+            return format;
+        }
+    };
+
     explicit RevisionNetworkOverview(QWidget *parent = nullptr)
         : ProjectsInspectorOverview(QStringLiteral("Network"), parent)
     {
@@ -373,18 +391,18 @@ public:
         this->state = new QLabel(this);
         this->state->setObjectName(QStringLiteral("projectsNetworkOverviewState"));
         column->insertWidget(1, this->state);
-        QLabel *heading = new QLabel(tr("Hydraulic network"), this);
-        QFont heading_font = heading->font();
+        this->heading = new QLabel(this);
+        QFont heading_font = this->heading->font();
         heading_font.setBold(true);
-        heading->setFont(heading_font);
-        column->addWidget(heading);
-        this->network_status = new QLabel(tr("Checking network…"), this);
+        this->heading->setFont(heading_font);
+        column->addWidget(this->heading);
+        this->network_status = new QLabel(this);
+        this->network_status->setTextFormat(Qt::PlainText);
         this->network_status->setObjectName(QStringLiteral("projectsNetworkOverviewSummaryStatus"));
         this->network_status->setWordWrap(true);
         this->network_status->setMinimumWidth(0);
         column->addWidget(this->network_status);
-        const QStringList captions{tr("Junctions"), tr("Pipes"), tr("Reservoirs"),
-                                   tr("Tanks"), tr("Pumps"), tr("Valves")};
+        const QStringList captions = countCaptions();
         QWidget *counts_widget = new QWidget(this);
         QGridLayout *counts_layout = new QGridLayout(counts_widget);
         counts_layout->setContentsMargins(0, 0, 0, 0);
@@ -403,6 +421,7 @@ public:
             item_layout->addWidget(value);
             counts_layout->addLayout(item_layout, index / 2, index % 2);
             this->counts.append(value);
+            this->count_labels.append(caption);
         }
         column->addWidget(counts_widget);
         this->other_counts = new QLabel(this);
@@ -425,11 +444,13 @@ public:
         column->addWidget(this->delete_revision);
         column->addStretch(1);
         clearCounts();
+        refreshLanguage();
     }
 
     void clearCounts()
     {
         for (QLabel *value : this->counts) value->setText(QStringLiteral("—"));
+        this->total_count = -1;
         this->other_counts->clear();
     }
 
@@ -440,7 +461,20 @@ public:
             QStringLiteral("pumps"), QStringLiteral("valves")};
         for (int index = 0; index < keys.size(); ++index)
             this->counts.at(index)->setText(QLocale().toString(counts.value(keys.at(index)).toInt()));
-        this->other_counts->setText(tr("Total hydraulic entities: %1").arg(QLocale().toString(total)));
+        this->total_count = total;
+        refreshTotal();
+    }
+
+    void setStatus(Message message, Message detail)
+    {
+        this->status_message = message;
+        this->status_detail = detail;
+        refreshStatus();
+    }
+
+    void setStatus(Message message)
+    {
+        setStatus(message, {});
     }
 
     QLabel *branch = nullptr;
@@ -452,6 +486,51 @@ public:
     QPushButton *delete_revision = nullptr;
     QPushButton *import_network = nullptr;
     QPushButton *export_network = nullptr;
+
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        ProjectsInspectorOverview::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    static QStringList countCaptions()
+    {
+        return {tr("Junctions"), tr("Pipes"), tr("Reservoirs"),
+                tr("Tanks"), tr("Pumps"), tr("Valves")};
+    }
+
+    void refreshStatus()
+    {
+        this->network_status->setText(this->status_message.translated() + this->status_detail.translated());
+    }
+
+    void refreshTotal()
+    {
+        if (this->total_count >= 0)
+            this->other_counts->setText(tr("Total hydraulic entities: %1").arg(QLocale().toString(this->total_count)));
+    }
+
+    void refreshLanguage()
+    {
+        this->heading->setText(tr("Hydraulic network"));
+        const QStringList captions = countCaptions();
+        for (int index = 0; index < captions.size(); ++index)
+            this->count_labels.at(index)->setText(captions.at(index));
+        this->open_network->setText(tr("Open network"));
+        this->import_network->setText(tr("Import network…"));
+        this->export_network->setText(tr("Export network…"));
+        refreshStatus();
+        refreshTotal();
+    }
+
+    QLabel *heading = nullptr;
+    QList<QLabel *> count_labels;
+    int total_count = -1;
+    Message status_message{QT_TRANSLATE_NOOP("ProjectsWidget", "Checking network…"), {}};
+    Message status_detail;
 };
 
 // Both HEAD and immutable Revision use this tab to edit the same branch name.

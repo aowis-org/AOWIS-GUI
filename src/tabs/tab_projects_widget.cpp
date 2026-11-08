@@ -2263,6 +2263,7 @@ void ProjectsWidget::refreshRevisionInspectorLanguage()
     this->revision_network_overview->state->setText(head ? tr("Writable HEAD") : tr("Immutable revision"));
     this->revision_network_overview->branch->setText(tr("Branch: %1").arg(this->revision_overview->branch_label->text()));
     refreshCommitLabels();
+    refreshNetworkActionText();
 }
 
 void ProjectsWidget::updateInspectorTabs()
@@ -2632,9 +2633,6 @@ void ProjectsWidget::updateButtons()
         inspectedRevisionBranch() != nullptr,
         !this->revision_overview->commit_message->toPlainText().trimmed().isEmpty()
             || !saved_commit_state.isEmpty());
-    const ProjectPreviewBranch *deletion_branch = inspectedRevisionBranch();
-    const bool deletion_unborn_head = this->selection_kind == SelectionKind::Head
-        && deletion_branch != nullptr && deletion_branch->head.isEmpty();
     const bool may_delete = backed && ready && !creating
         && inspectedRevisionBranch() != nullptr;
     this->revision_branch_page->delete_branch->setEnabled(may_delete);
@@ -2644,15 +2642,6 @@ void ProjectsWidget::updateButtons()
     this->revision_network_overview->delete_revision->setEnabled(
         may_delete && (this->selection_kind == SelectionKind::Revision
             || this->selection_kind == SelectionKind::Head));
-    this->revision_network_overview->delete_revision->setText(
-        this->selection_kind == SelectionKind::Head
-            ? deletion_unborn_head ? tr("Delete unborn HEAD and branch…")
-                                   : tr("Delete HEAD working changes…")
-            : tr("Delete revision and later history…"));
-    this->revision_network_overview->delete_revision->setToolTip(
-        this->selection_kind == SelectionKind::Head && !deletion_unborn_head
-            ? tr("Discard this HEAD's saved private working copy; immutable revisions remain unchanged.")
-            : QString());
     this->displayed_commit_state = saved_commit_state;
     refreshCommitLabels();
     if (saved_commit_state == QStringLiteral("pending") && project != nullptr
@@ -2698,10 +2687,6 @@ void ProjectsWidget::updateButtons()
         && personal.kind != PersonalRepositoryTarget::Kind::Unavailable
         && !this->head_network_import_active;
     this->revision_network_overview->import_network->setEnabled(import_ready);
-    this->revision_network_overview->import_network->setToolTip(import_ready
-        ? tr("Import an EPANET project into this empty unborn private HEAD")
-        : tr("Import requires an empty unborn HEAD and an available personal DVMDB. "
-             "Existing network contents are never overwritten."));
     const bool revision_export = this->selection_kind == SelectionKind::Revision
         && this->network_summary_count == 1
         && DvmdbIdentity::isUuidV7(this->network_summary_id);
@@ -2713,13 +2698,34 @@ void ProjectsWidget::updateButtons()
         && !this->network_summary_generation.isEmpty();
     this->revision_network_overview->export_network->setEnabled(
         ready && backed && (revision_export || draft_export));
+    refreshNetworkActionText();
+    if (this->inspector_actions_stack != nullptr)
+        this->inspector_actions_stack->setVisible(
+            this->selection_kind != SelectionKind::None);
+}
+
+void ProjectsWidget::refreshNetworkActionText()
+{
+    const ProjectPreviewBranch *deletion_branch = inspectedRevisionBranch();
+    const bool deletion_unborn_head = this->selection_kind == SelectionKind::Head
+        && deletion_branch != nullptr && deletion_branch->head.isEmpty();
+    this->revision_network_overview->delete_revision->setText(
+        this->selection_kind == SelectionKind::Head
+            ? deletion_unborn_head ? tr("Delete unborn HEAD and branch…")
+                                   : tr("Delete HEAD working changes…")
+            : tr("Delete revision and later history…"));
+    this->revision_network_overview->delete_revision->setToolTip(
+        this->selection_kind == SelectionKind::Head && !deletion_unborn_head
+            ? tr("Discard this HEAD's saved private working copy; immutable revisions remain unchanged.")
+            : QString());
+    this->revision_network_overview->import_network->setToolTip(this->revision_network_overview->import_network->isEnabledTo(this->revision_network_overview)
+        ? tr("Import an EPANET project into this empty unborn private HEAD")
+        : tr("Import requires an empty unborn HEAD and an available personal DVMDB. "
+             "Existing network contents are never overwritten."));
     this->revision_network_overview->export_network->setToolTip(
         this->selection_kind == SelectionKind::Head
         ? tr("Export the selected saved private working-copy generation, not the editor's current model")
         : tr("Export only the selected immutable revision's hydraulic network"));
-    if (this->inspector_actions_stack != nullptr)
-        this->inspector_actions_stack->setVisible(
-            this->selection_kind != SelectionKind::None);
 }
 
 void ProjectsWidget::broadcastContext()
@@ -3294,10 +3300,10 @@ void ProjectsWidget::refreshNetworkSummary()
         this->selection_kind == SelectionKind::Head ? tr("Writable HEAD")
                                                   : tr("Immutable revision"));
     this->revision_network_overview->clearCounts();
-    this->revision_network_overview->network_status->setText(tr("Checking network…"));
+    this->revision_network_overview->setStatus({QT_TRANSLATE_NOOP("ProjectsWidget", "Checking network…"), {}});
     if (project == nullptr || branch == nullptr || !project->database_backed) {
-        this->revision_network_overview->network_status->setText(
-            tr("Network contents are not persisted for this preview."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "Network contents are not persisted for this preview."), {}});
         return;
     }
     const QString project_id = project->backend_id;
@@ -3308,16 +3314,16 @@ void ProjectsWidget::refreshNetworkSummary()
     }
     const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
     if (target.kind == PersonalRepositoryTarget::Kind::Unavailable) {
-        this->revision_network_overview->network_status->setText(
-            tr("No personal database selected. Only the committed base can be summarized."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "No personal database selected. Only the committed base can be summarized."), {}});
         refreshCommittedNetworkSummary(epoch, project_id, branch_name, {});
         return;
     }
     const QString branch_uuid = branch->id.mid(project->id.size() + 1);
     if (!DvmdbIdentity::isUuidV7(project_id)
         || !DvmdbIdentity::isUuidV7(branch_uuid)) {
-        this->revision_network_overview->network_status->setText(
-            tr("Cannot identify the selected HEAD in the personal database."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "Cannot identify the selected HEAD in the personal database."), {}});
         return;
     }
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
@@ -3325,8 +3331,8 @@ void ProjectsWidget::refreshNetworkSummary()
         (const QList<PersonalWorkingCopyInfo> &drafts, const QString &error) {
         if (this->network_read_epoch != epoch) { client->deleteLater(); return; }
         if (!error.isEmpty()) {
-            this->revision_network_overview->network_status->setText(
-                tr("Unable to read saved personal working copies: %1").arg(error));
+            this->revision_network_overview->setStatus(
+                {QT_TRANSLATE_NOOP("ProjectsWidget", "Unable to read saved personal working copies: %1"), {error}});
             client->deleteLater(); return;
         }
         QString draft_id;
@@ -3337,9 +3343,9 @@ void ProjectsWidget::refreshNetworkSummary()
             draft_id = draft.id;
         }
         if (matches > 1) {
-            this->revision_network_overview->network_status->setText(
-                tr("Multiple private working copies exist for this HEAD. "
-                   "Open Personal working copies and choose one; their contents may differ."));
+            this->revision_network_overview->setStatus(
+                {QT_TRANSLATE_NOOP("ProjectsWidget", "Multiple private working copies exist for this HEAD. "
+                   "Open Personal working copies and choose one; their contents may differ."), {}});
             client->deleteLater(); return;
         }
         if (matches == 0) {
@@ -3350,8 +3356,8 @@ void ProjectsWidget::refreshNetworkSummary()
                 // records: a new draft can safely be provisioned for import.
                 this->network_summary_count = 0;
                 this->revision_network_overview->showCounts(QJsonObject{}, 0);
-                this->revision_network_overview->network_status->setText(
-                    tr("No hydraulic network in this unborn HEAD."));
+                this->revision_network_overview->setStatus(
+                    {QT_TRANSLATE_NOOP("ProjectsWidget", "No hydraulic network in this unborn HEAD."), {}});
                 updateButtons();
                 return;
             }
@@ -3365,8 +3371,8 @@ void ProjectsWidget::refreshNetworkSummary()
             client->deleteLater();
             if (this->network_read_epoch != epoch) return;
             if (!summary_error.isEmpty()) {
-                this->revision_network_overview->network_status->setText(
-                    tr("Saved working-copy summary unavailable: %1").arg(summary_error));
+                this->revision_network_overview->setStatus(
+                    {QT_TRANSLATE_NOOP("ProjectsWidget", "Saved working-copy summary unavailable: %1"), {summary_error}});
                 updateButtons();
                 return;
             }
@@ -3389,8 +3395,8 @@ void ProjectsWidget::refreshCommittedNetworkSummary(int epoch, const QString &pr
                                          nullptr, nullptr);
 #endif
     if (endpoint.isEmpty()) {
-        this->revision_network_overview->network_status->setText(
-            tr("A connected DVMDB HTTP endpoint is needed for network statistics."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "A connected DVMDB HTTP endpoint is needed for network statistics."), {}});
         return;
     }
     while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
@@ -3414,9 +3420,9 @@ void ProjectsWidget::refreshCommittedNetworkSummary(int epoch, const QString &pr
         if (this->network_read_epoch != epoch) return;
         const QJsonDocument document = QJsonDocument::fromJson(bytes);
         if (!error.isEmpty() || !document.isObject()) {
-            this->revision_network_overview->network_status->setText(
-                tr("Committed network summary unavailable: %1").arg(
-                    error.isEmpty() ? tr("Invalid response") : error));
+            this->revision_network_overview->setStatus(
+                error.isEmpty() ? RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "Committed network summary unavailable: Invalid response"), {}}
+                                : RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "Committed network summary unavailable: %1"), {error}});
             updateButtons();
             return;
         }
@@ -3430,15 +3436,15 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
                                        : QStringLiteral("committed");
     if (result.value(QStringLiteral("scope")).toString() != scope
         || !result.value(QStringLiteral("networks")).isArray()) {
-        this->revision_network_overview->network_status->setText(
-            tr("Unexpected network summary response."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "Unexpected network summary response."), {}});
         updateButtons();
         return;
     }
     const QJsonArray networks = result.value(QStringLiteral("networks")).toArray();
     if (result.value(QStringLiteral("networkCount")).toInt(-1) != networks.size()) {
-        this->revision_network_overview->network_status->setText(
-            tr("Network count does not match the saved summary."));
+        this->revision_network_overview->setStatus(
+            {QT_TRANSLATE_NOOP("ProjectsWidget", "Network count does not match the saved summary."), {}});
         updateButtons();
         return;
     }
@@ -3450,8 +3456,8 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
         if (!DvmdbIdentity::isUuidV7(this->network_summary_draft_id)
             || this->network_summary_generation.isEmpty()) {
             this->network_summary_count = -1;
-            this->revision_network_overview->network_status->setText(
-                tr("Invalid saved draft identity or generation."));
+            this->revision_network_overview->setStatus(
+                {QT_TRANSLATE_NOOP("ProjectsWidget", "Invalid saved draft identity or generation."), {}});
             updateButtons();
             return;
         }
@@ -3467,8 +3473,8 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
         if (!entry.isObject() || !network.value(QStringLiteral("counts")).isObject()
             || !DvmdbIdentity::isUuidV7(network.value(QStringLiteral("id")).toString())) {
             this->network_summary_count = -1;
-            this->revision_network_overview->network_status->setText(
-                tr("Invalid hydraulic network in summary response."));
+            this->revision_network_overview->setStatus(
+                {QT_TRANSLATE_NOOP("ProjectsWidget", "Invalid hydraulic network in summary response."), {}});
             updateButtons();
             return;
         }
@@ -3481,24 +3487,27 @@ void ProjectsWidget::displayNetworkSummary(const QJsonObject &result, bool worki
     for (const QString &key : keys) sum.insert(key, totals.value(key));
     this->revision_network_overview->showCounts(sum, all_entities);
     if (networks.isEmpty()) {
-        this->revision_network_overview->network_status->setText(working_copy
-            ? tr("No hydraulic network in this saved working copy.")
+        this->revision_network_overview->setStatus(working_copy
+            ? RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "No hydraulic network in this saved working copy."), {}}
             : (this->selection_kind == SelectionKind::Head
-                ? tr("No committed hydraulic network. Private draft contents may differ.")
-                : tr("No hydraulic network in this committed revision.")));
+                ? RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "No committed hydraulic network. Private draft contents may differ."), {}}
+                : RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "No hydraulic network in this committed revision."), {}}));
     } else {
         if (networks.size() == 1)
             this->network_summary_id = networks.first().toObject()
                 .value(QStringLiteral("id")).toString();
-        const QString heading = networks.size() == 1
-            ? tr("Network: %1").arg(networks.first().toObject()
-                .value(QStringLiteral("title")).toString().trimmed())
-            : tr("%1 hydraulic networks").arg(networks.size());
-        this->revision_network_overview->network_status->setText(heading + (working_copy
-            ? tr("\nSaved private working copy · generation %1")
-                  .arg(result.value(QStringLiteral("generation")).toString())
-            : (this->selection_kind == SelectionKind::Head
-                ? tr("\nCommitted base only; no private draft was found.") : QString())));
+        using Message = RevisionNetworkOverview::Message;
+        const Message heading = networks.size() == 1
+            ? Message{QT_TRANSLATE_NOOP("ProjectsWidget", "Network: %1"),
+                {networks.first().toObject().value(QStringLiteral("title")).toString().trimmed()}}
+            : Message{QT_TRANSLATE_NOOP("ProjectsWidget", "%1 hydraulic networks"), {QString::number(networks.size())}};
+        Message detail;
+        if (working_copy)
+            detail = {QT_TRANSLATE_NOOP("ProjectsWidget", "\nSaved private working copy · generation %1"),
+                      {result.value(QStringLiteral("generation")).toString()}};
+        else if (this->selection_kind == SelectionKind::Head)
+            detail = {QT_TRANSLATE_NOOP("ProjectsWidget", "\nCommitted base only; no private draft was found."), {}};
+        this->revision_network_overview->setStatus(heading, detail);
     }
     if (!working_copy) {
         const ProjectPreviewData *project = currentProject();
@@ -3631,8 +3640,8 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
 #endif
     this->head_network_import_active = true;
     updateButtons();
-    this->revision_network_overview->network_status->setText(
-        tr("Importing hydraulic network into saved private HEAD…"));
+    this->revision_network_overview->setStatus(
+        {QT_TRANSLATE_NOOP("ProjectsWidget", "Importing hydraulic network into saved private HEAD…"), {}});
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
     const std::shared_ptr<NetworkHydraulic> imported =
         std::make_shared<NetworkHydraulic>(std::move(network));
@@ -3642,8 +3651,8 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
             this->head_network_import_active = false;
             if (this->network_read_epoch == epoch
                 && this->selection_kind == SelectionKind::Head)
-                this->revision_network_overview->network_status->setText(
-                    tr("Network import was not confirmed: %1").arg(error));
+                this->revision_network_overview->setStatus(
+                    {QT_TRANSLATE_NOOP("ProjectsWidget", "Network import was not confirmed: %1"), {error}});
             updateButtons();
         };
     const std::function<void(const PersonalWorkingCopyInfo &, const QString &)> use_draft =
@@ -3687,9 +3696,8 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
                                         && this->selection_kind == SelectionKind::Head) {
                                         refreshNetworkSummary();
                                         if (!release_error.isEmpty())
-                                            this->revision_network_overview->network_status->setText(
-                                                tr("Network saved to draft %1, but lease release is unconfirmed: %2")
-                                                    .arg(saved.id, release_error));
+                                            this->revision_network_overview->setStatus(
+                                                {QT_TRANSLATE_NOOP("ProjectsWidget", "Network saved to draft %1, but lease release is unconfirmed: %2"), {saved.id, release_error}});
                                     }
                                     updateButtons();
                                 });
@@ -3760,9 +3768,9 @@ void ProjectsWidget::exportInspectedNetwork()
         if (epoch != this->network_read_epoch || this->selection_kind != SelectionKind::Head)
             return;
         if (!error.isEmpty() || saved_generation != generation) {
-            this->revision_network_overview->network_status->setText(error.isEmpty()
-                ? tr("HEAD changed since its network summary. Refresh before exporting.")
-                : tr("Saved HEAD export failed: %1").arg(error));
+            this->revision_network_overview->setStatus(error.isEmpty()
+                ? RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "HEAD changed since its network summary. Refresh before exporting."), {}}
+                : RevisionNetworkOverview::Message{QT_TRANSLATE_NOOP("ProjectsWidget", "Saved HEAD export failed: %1"), {error}});
             this->network_summary_count = -1;
             updateButtons();
             return;

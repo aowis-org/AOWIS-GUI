@@ -194,6 +194,7 @@ private:
     void updateInspectorTabs();
     void refreshRevisionInspectorLanguage();
     void refreshCommitLabels();
+    void refreshNetworkActionText();
     QString displayed_commit_state;
     void activateInspectorRelation(const QString &key);
     void deleteSelection();

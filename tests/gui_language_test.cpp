@@ -11,6 +11,7 @@
 #include <QTemporaryDir>
 #include <QTextCursor>
 #include <QTabWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 
 class LanguageLabel final : public QLabel
@@ -59,6 +60,9 @@ int main(int argc, char **argv)
     const char *const descriptions[] = {"Description", "Description", "الوصف", "Beschreibung", "Descripción"};
     const char *const imports[] = {"Import network…", "Importer un réseau…", "استيراد شبكة…",
                                    "Netz importieren…", "Importar red…"};
+    RevisionNetworkOverview network;
+    layout.addWidget(&network);
+    const QString title = QStringLiteral("Main %2");
     QTabWidget tabs;
     RevisionInspectorOverview details;
     RevisionInspectorBranch branch_page(details.name);
@@ -115,6 +119,26 @@ int main(int argc, char **argv)
             || !matches(code, "details tab selected", tabs.currentWidget() == &details, true)
             || !matches(code, "branch name", branch_page.name->text(), QStringLiteral("main / north")))
             return 8;
+        if (step == 1)
+        {
+            if (!matches(code, "loading summary", network.network_status->text(), QStringLiteral("Vérification du réseau…")))
+                return 9;
+            QTimer::singleShot(0, &network, [&network, title] {
+                network.showCounts(QJsonObject{{QStringLiteral("pipes"), 3}}, 3);
+                network.setStatus({"Network: %1", {title}},
+                                  {"\nSaved private working copy · generation %1", {QStringLiteral("42")}});
+            });
+            app.processEvents();
+        }
+        const QString summary = QCoreApplication::translate("ProjectsWidget", "Network: %1").arg(title)
+            + QCoreApplication::translate("ProjectsWidget", "\nSaved private working copy · generation %1")
+                .arg(QStringLiteral("42"));
+        const QString total = QCoreApplication::translate("ProjectsWidget", "Total hydraulic entities: %1")
+            .arg(numeric_locale.toString(3));
+        if (!matches(code, "saved network summary", network.network_status->text(), summary)
+            || !matches(code, "pipe count", network.counts.at(1)->text(), numeric_locale.toString(3))
+            || !matches(code, "network total", network.other_counts->text(), total))
+            return 9;
         QSettings persisted(guiConfigurationFilePath(), QSettings::IniFormat);
         if (!matches(code, "persisted language", persisted.value(QStringLiteral("interface/language")).toString(), code))
             return 4;

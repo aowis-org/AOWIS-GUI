@@ -597,6 +597,186 @@ You can continue editing afterward. Your HEAD remains writable, and changes are 
       <source>Parent · %1</source>
       <translation>المراجعة الأم · %1</translation>
     </message>
+    <message>
+      <source>Checking network…</source>
+      <translation>جارٍ فحص الشبكة…</translation>
+    </message>
+    <message>
+      <source>Network contents are not persisted for this preview.</source>
+      <translation>لا تُحفظ بيانات الشبكة في هذه المعاينة.</translation>
+    </message>
+    <message>
+      <source>No personal database selected. Only the committed base can be summarized.</source>
+      <translation>لم تُحدَّد قاعدة بيانات شخصية. يمكن عرض ملخّص المراجعة الأساسية المسجّلة فقط.</translation>
+    </message>
+    <message>
+      <source>Cannot identify the selected HEAD in the personal database.</source>
+      <translation>تعذّر تحديد HEAD المختار في قاعدة البيانات الشخصية.</translation>
+    </message>
+    <message>
+      <source>Unable to read saved personal working copies: %1</source>
+      <translation>تعذّرت قراءة نسخ العمل الشخصية المحفوظة: %1</translation>
+    </message>
+    <message>
+      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
+      <translation>توجد عدة نسخ عمل خاصة لهذا الرأس. افتح نسخ العمل الشخصية واختر إحداها، فقد تختلف محتوياتها.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this unborn HEAD.</source>
+      <translation>لا توجد شبكة هيدروليكية في هذا الرأس الذي لم تُسجَّل له مراجعة بعد.</translation>
+    </message>
+    <message>
+      <source>Saved working-copy summary unavailable: %1</source>
+      <translation>ملخّص نسخة العمل المحفوظة غير متاح: %1</translation>
+    </message>
+    <message>
+      <source>A connected DVMDB HTTP endpoint is needed for network statistics.</source>
+      <translation>تتطلب إحصاءات الشبكة اتصال HTTP بقاعدة DVMDB.</translation>
+    </message>
+    <message>
+      <source>Committed network summary unavailable: Invalid response</source>
+      <translation>ملخّص شبكة المراجعة غير متاح: استجابة غير صالحة</translation>
+    </message>
+    <message>
+      <source>Committed network summary unavailable: %1</source>
+      <translation>ملخّص شبكة المراجعة غير متاح: %1</translation>
+    </message>
+    <message>
+      <source>Unexpected network summary response.</source>
+      <translation>استجابة غير متوقعة لطلب ملخّص الشبكة.</translation>
+    </message>
+    <message>
+      <source>Network count does not match the saved summary.</source>
+      <translation>عدد الشبكات لا يطابق الملخّص المحفوظ.</translation>
+    </message>
+    <message>
+      <source>Invalid saved draft identity or generation.</source>
+      <translation>معرّف المسودة المحفوظة أو رقم جيلها غير صالح.</translation>
+    </message>
+    <message>
+      <source>Invalid hydraulic network in summary response.</source>
+      <translation>يحتوي الملخّص المستلَم على شبكة هيدروليكية غير صالحة.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this saved working copy.</source>
+      <translation>لا توجد شبكة هيدروليكية في نسخة العمل المحفوظة هذه.</translation>
+    </message>
+    <message>
+      <source>No committed hydraulic network. Private draft contents may differ.</source>
+      <translation>لا تحتوي المراجعة الأساسية على شبكة هيدروليكية. قد يختلف محتوى المسودة الخاصة.</translation>
+    </message>
+    <message>
+      <source>No hydraulic network in this committed revision.</source>
+      <translation>لا توجد شبكة هيدروليكية في هذه المراجعة المسجّلة.</translation>
+    </message>
+    <message>
+      <source>Network: %1</source>
+      <translation>الشبكة: %1</translation>
+    </message>
+    <message>
+      <source>%1 hydraulic networks</source>
+      <translation>عدد الشبكات الهيدروليكية: %1</translation>
+    </message>
+    <message>
+      <source>
+Saved private working copy · generation %1</source>
+      <translation>
+نسخة العمل الخاصة المحفوظة · الجيل %1</translation>
+    </message>
+    <message>
+      <source>
+Committed base only; no private draft was found.</source>
+      <translation>
+تُعرض المراجعة الأساسية فقط. لم يُعثر على مسودة خاصة.</translation>
+    </message>
+    <message>
+      <source>Importing hydraulic network into saved private HEAD…</source>
+      <translation>جارٍ استيراد الشبكة الهيدروليكية إلى HEAD الخاص المحفوظ…</translation>
+    </message>
+    <message>
+      <source>Network import was not confirmed: %1</source>
+      <translation>لم يُؤكَّد استيراد الشبكة: %1</translation>
+    </message>
+    <message>
+      <source>Network saved to draft %1, but lease release is unconfirmed: %2</source>
+      <translation>حُفظت الشبكة في المسودة %1. لم يُؤكَّد تحرير إذن الكتابة: %2</translation>
+    </message>
+    <message>
+      <source>HEAD changed since its network summary. Refresh before exporting.</source>
+      <translation>تغيّر HEAD منذ عرض ملخّص الشبكة. حدّث الملخّص قبل التصدير.</translation>
+    </message>
+    <message>
+      <source>Saved HEAD export failed: %1</source>
+      <translation>فشل تصدير HEAD المحفوظ: %1</translation>
+    </message>
+    <message>
+      <source>Hydraulic network</source>
+      <translation>الشبكة الهيدروليكية</translation>
+    </message>
+    <message>
+      <source>Junctions</source>
+      <translation>عقد التوصيل</translation>
+    </message>
+    <message>
+      <source>Pipes</source>
+      <translation>الأنابيب</translation>
+    </message>
+    <message>
+      <source>Reservoirs</source>
+      <translation>الخزانات ثابتة المنسوب</translation>
+    </message>
+    <message>
+      <source>Tanks</source>
+      <translation>الخزانات متغيرة المنسوب</translation>
+    </message>
+    <message>
+      <source>Pumps</source>
+      <translation>المضخات</translation>
+    </message>
+    <message>
+      <source>Valves</source>
+      <translation>الصمامات</translation>
+    </message>
+    <message>
+      <source>Total hydraulic entities: %1</source>
+      <translation>إجمالي العناصر الهيدروليكية: %1</translation>
+    </message>
+    <message>
+      <source>Export network…</source>
+      <translation>تصدير الشبكة…</translation>
+    </message>
+    <message>
+      <source>Delete unborn HEAD and branch…</source>
+      <translation>حذف HEAD الذي لم تُسجَّل له مراجعة وفرعه…</translation>
+    </message>
+    <message>
+      <source>Delete HEAD working changes…</source>
+      <translation>حذف تغييرات العمل في HEAD…</translation>
+    </message>
+    <message>
+      <source>Delete revision and later history…</source>
+      <translation>حذف المراجعة والسجل اللاحق…</translation>
+    </message>
+    <message>
+      <source>Discard this HEAD's saved private working copy; immutable revisions remain unchanged.</source>
+      <translation>تجاهل نسخة العمل الخاصة المحفوظة لهذا الرأس. تُحفَظ المراجعات الثابتة.</translation>
+    </message>
+    <message>
+      <source>Import an EPANET project into this empty unborn private HEAD</source>
+      <translation>استيراد مشروع EPANET إلى هذا الرأس الخاص الفارغ الذي لم تُسجَّل له مراجعة</translation>
+    </message>
+    <message>
+      <source>Import requires an empty unborn HEAD and an available personal DVMDB. Existing network contents are never overwritten.</source>
+      <translation>يتطلب الاستيراد رأسًا فارغًا بلا مراجعة أولية وقاعدة DVMDB شخصية متاحة. يُحفَظ محتوى الشبكات الموجودة.</translation>
+    </message>
+    <message>
+      <source>Export the selected saved private working-copy generation, not the editor's current model</source>
+      <translation>تصدير الجيل المحفوظ المحدد من نسخة العمل الخاصة</translation>
+    </message>
+    <message>
+      <source>Export only the selected immutable revision's hydraulic network</source>
+      <translation>تصدير الشبكة الهيدروليكية للمراجعة الثابتة المحددة فقط</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
