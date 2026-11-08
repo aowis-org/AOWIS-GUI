@@ -150,6 +150,7 @@ private:
     void populateServerTree();
     void populateProjectTree();
     void populateRevisionTree();
+    void refreshRevisionTreeLanguage();
     bool isBranchHead(const QString &revision_id) const;
     void rebuildGraph();
     void updateInspector();

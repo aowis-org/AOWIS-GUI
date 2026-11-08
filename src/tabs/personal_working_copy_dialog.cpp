@@ -3,6 +3,7 @@
 #include "projects/personal_edit_queue.h"
 
 #include <QDialogButtonBox>
+#include <QEvent>
 #include <QLabel>
 #include <QMessageBox>
 #include <QInputDialog>
@@ -37,6 +38,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         : tr("Project: %1\nBranch: %2\nPinned base: %3")
             .arg(this->project_id, this->branch_name,
                  this->head.isEmpty() ? tr("No commits yet") : this->head), this);
+    this->context_label = context;
     context->setWordWrap(true);
     context->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(context);
@@ -45,6 +47,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     {
         QLabel *different = new QLabel(tr("Selected database and personal DVMDB are different repositories. "
             "Checkout the selected branch before creating its private draft."), this);
+        this->repository_warning_label = different;
         different->setWordWrap(true);
         layout->addWidget(different);
     }
@@ -68,6 +71,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
              "in Distribution Monitor. Supported Distribution Editor transactions can "
              "be saved through an explicitly opened fenced private session. "
              "Local Commit and uncaptured model operations are not yet supported."), this);
+    this->scope_label = scope;
     scope->setWordWrap(true);
     layout->addWidget(scope);
     QHBoxLayout *actions = new QHBoxLayout();
@@ -109,6 +113,7 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         this->drafts->hide();
     }
     QDialogButtonBox *close = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    this->close_buttons = close;
     connect(close, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(close);
     connect(this->refresh_button, &QPushButton::clicked, this,
@@ -145,6 +150,92 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     {
         refresh();
     }
+}
+
+void PersonalWorkingCopyDialog::changeEvent(QEvent *event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && this->edit_button != nullptr)
+        refreshStaticText();
+}
+
+void PersonalWorkingCopyDialog::refreshDraftDetailsText()
+{
+    if (!this->active_draft.has_value())
+        return;
+    const PersonalWorkingCopyInfo &draft = *this->active_draft;
+    QString text = tr("Draft UUIDv7: %1\nSession: %2\nBase revision: %3\n"
+                      "Generation: %4\nSaved changes: %5\n"
+                      "Loaded candidate records: %6")
+        .arg(draft.id, draft.session_id,
+             draft.base_revision.isEmpty() ? tr("Unborn") : draft.base_revision,
+             draft.generation, draft.dirty ? tr("Yes") : tr("None"),
+             QString::number(draft.changes.size()));
+    if (this->preview_network.has_value() && this->preview_draft_id == draft.id
+        && this->preview_generation == draft.generation)
+    {
+        const NetworkHydraulic &network = *this->preview_network;
+        text += tr("\n\nVerified hydraulic network: %1\nNetwork UUIDv7: %2\n"
+                   "Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6")
+            .arg(network.id, network.uuid.toString(QUuid::WithoutBraces),
+                 QString::number(network.nodes_junctions.size()),
+                 QString::number(network.links_pipes.size()),
+                 QString::number(network.nodes_reservoirs.size()),
+                 QString::number(network.nodes_tanks.size()));
+    }
+    this->details->setText(text);
+}
+
+void PersonalWorkingCopyDialog::refreshStaticText()
+{
+    setWindowTitle(this->direct_edit ? tr("Open hydraulic network in editor")
+                                     : tr("Personal working copies"));
+    if (this->context_label != nullptr)
+        this->context_label->setText(this->direct_edit
+            ? tr("Project: %1\nBranch: %2").arg(this->project_name, this->branch_name)
+            : tr("Project: %1\nBranch: %2\nPinned base: %3")
+                .arg(this->project_id, this->branch_name,
+                     this->head.isEmpty() ? tr("No commits yet") : this->head));
+    if (this->repository_warning_label != nullptr)
+        this->repository_warning_label->setText(tr("Selected database and personal DVMDB are different repositories. "
+            "Checkout the selected branch before creating its private draft."));
+    if (this->scope_label != nullptr)
+        this->scope_label->setText(this->direct_edit
+            ? tr("Opening the project's working network. Supported changes will be "
+                 "autosaved to a private DVMDB draft. This does not create a commit.")
+            : tr("Checkout and first-network initialization change only your personal DVMDB "
+                 "draft, never the committed branch. Verified networks can be viewed "
+                 "in Distribution Monitor. Supported Distribution Editor transactions can "
+                 "be saved through an explicitly opened fenced private session. "
+                 "Local Commit and uncaptured model operations are not yet supported."));
+    this->refresh_button->setText(tr("Refresh drafts"));
+    this->checkout_button->setText(tr("Checkout branch privately"));
+    this->create_button->setText(tr("Create draft at HEAD"));
+    this->reopen_button->setText(tr("Reopen selected draft"));
+    this->initialize_button->setText(tr("Initialize empty network"));
+    this->view_button->setText(tr("View in Distribution Monitor"));
+    this->edit_button->setText(tr("Edit in Distribution Editor"));
+    if (this->close_buttons != nullptr)
+    {
+        QPushButton *close = this->close_buttons->button(QDialogButtonBox::Close);
+        if (close != nullptr)
+            close->setText(tr("Close"));
+    }
+    for (int index = 0; index < this->drafts->count(); ++index)
+    {
+        QListWidgetItem *item = this->drafts->item(index);
+        item->setText(tr("%1 · generation %2%3")
+            .arg(item->data(Qt::UserRole).toString(),
+                 item->data(Qt::UserRole + 1).toString(),
+                 item->data(Qt::UserRole + 2).toBool() ? tr(" · modified") : QString()));
+    }
+    if (this->draft_list_empty_notice)
+        this->details->setText(tr("No private draft for this branch. "
+            "Create one only after this project and branch exist in the personal DVMDB."));
+    else if (this->active_draft.has_value())
+        refreshDraftDetailsText();
+    // Preserve an in-flight status/error verbatim: it may contain a server
+    // response or user-relevant failure detail and must not be overwritten.
 }
 
 void PersonalWorkingCopyDialog::setOperationStatus(const QString &message)
@@ -211,10 +302,13 @@ void PersonalWorkingCopyDialog::refresh()
                 tr("%1 · generation %2%3").arg(draft.id, draft.generation,
                     draft.dirty ? tr(" · modified") : QString()), this->drafts);
             item->setData(Qt::UserRole, draft.id);
+            item->setData(Qt::UserRole + 1, draft.generation);
+            item->setData(Qt::UserRole + 2, draft.dirty);
         }
         setOperationStatus(tr("%1 saved draft(s) for this branch in your personal DVMDB.")
                               .arg(this->drafts->count()));
-        if (!this->drafts->count())
+        this->draft_list_empty_notice = !this->drafts->count();
+        if (this->draft_list_empty_notice)
             this->details->setText(tr("No private draft for this branch. "
                 "Create one only after this project and branch exist in the personal DVMDB."));
         this->reopen_button->setEnabled(false);
@@ -306,6 +400,7 @@ void PersonalWorkingCopyDialog::inspectDraft()
 void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
 {
     this->active_draft = draft;
+    this->draft_list_empty_notice = false;
     this->preview_network.reset();
     this->preview_draft_id.clear();
     this->preview_generation.clear();
@@ -322,6 +417,8 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         found = new QListWidgetItem(this->drafts);
         found->setData(Qt::UserRole, draft.id);
     }
+    found->setData(Qt::UserRole + 1, draft.generation);
+    found->setData(Qt::UserRole + 2, draft.dirty);
     found->setText(tr("%1 · generation %2%3").arg(draft.id, draft.generation,
         draft.dirty ? tr(" · modified") : QString()));
     {
@@ -330,13 +427,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
     }
     setBusy(false);
     setOperationStatus(tr("Personal draft record loaded successfully."));
-    this->details->setText(tr("Draft UUIDv7: %1\nSession: %2\nBase revision: %3\n"
-                              "Generation: %4\nSaved changes: %5\n"
-                              "Loaded candidate records: %6")
-        .arg(draft.id, draft.session_id,
-             draft.base_revision.isEmpty() ? tr("Unborn") : draft.base_revision,
-             draft.generation, draft.dirty ? tr("Yes") : tr("None"),
-             QString::number(draft.changes.size())));
+    refreshDraftDetailsText();
     // A committed draft is rebased onto its new immutable base revision and
     // its candidateChanges become empty. Discover the entire saved candidate,
     // not just changes, or opening the HEAD after Commit loses its network.
@@ -411,14 +502,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             this->preview_draft_id = draft.id;
             this->preview_generation = generation;
             setBusy(false);
-            this->details->setText(this->details->text() +
-                tr("\n\nVerified hydraulic network: %1\nNetwork UUIDv7: %2\n"
-                   "Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6")
-                .arg(network.id, network.uuid.toString(QUuid::WithoutBraces),
-                     QString::number(network.nodes_junctions.size()),
-                     QString::number(network.links_pipes.size()),
-                     QString::number(network.nodes_reservoirs.size()),
-                     QString::number(network.nodes_tanks.size())));
+            refreshDraftDetailsText();
             setOperationStatus(tr("Hydraulic model verified and ready for private editing."));
             if (this->direct_edit && this->confirm_before_editing)
             {

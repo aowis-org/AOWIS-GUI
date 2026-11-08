@@ -3,6 +3,9 @@
 #include "network/hydraulic_data.h"
 
 #include <QAbstractItemView>
+#include <QCoreApplication>
+#include <QEvent>
+#include <QScrollBar>
 #include <QBrush>
 #include <QColor>
 #include <QFontMetrics>
@@ -25,16 +28,16 @@ QString severityText(HydraulicSimulationDiagnosticSeverity severity)
     switch (severity)
     {
     case HydraulicSimulationDiagnosticSeverity::Information:
-        return QStringLiteral("Info");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Info");
     case HydraulicSimulationDiagnosticSeverity::Warning:
-        return QStringLiteral("Warning");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Warning");
     case HydraulicSimulationDiagnosticSeverity::Error:
-        return QStringLiteral("Error");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Error");
     case HydraulicSimulationDiagnosticSeverity::Fatal:
-        return QStringLiteral("Fatal");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Fatal");
     }
 
-    return QStringLiteral("Unknown");
+    return QCoreApplication::translate("SimulationDiagnosticsWidget", "Unknown");
 }
 
 QColor severityColor(HydraulicSimulationDiagnosticSeverity severity)
@@ -110,14 +113,14 @@ QString resultValidityText(HydraulicSimulationResultValidity validity)
     switch (validity)
     {
     case HydraulicSimulationResultValidity::Valid:
-        return QStringLiteral("Valid");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Valid");
     case HydraulicSimulationResultValidity::Partial:
-        return QStringLiteral("Partial");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Partial");
     case HydraulicSimulationResultValidity::Invalid:
-        return QStringLiteral("Invalid");
+        return QCoreApplication::translate("SimulationDiagnosticsWidget", "Invalid");
     }
 
-    return QStringLiteral("Invalid");
+    return QCoreApplication::translate("SimulationDiagnosticsWidget", "Invalid");
 }
 
 QString resultValidityColor(HydraulicSimulationResultValidity validity)
@@ -270,6 +273,19 @@ SimulationDiagnosticsWidget::SimulationDiagnosticsWidget(HydraulicData *hydrauli
     refresh();
 }
 
+void SimulationDiagnosticsWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange || this->list_diagnostics == nullptr
+        || this->text_details == nullptr)
+        return;
+    const int list_scroll = this->list_diagnostics->verticalScrollBar()->value();
+    const int detail_scroll = this->text_details->verticalScrollBar()->value();
+    refresh(); // Presentation-only, from the already-loaded simulation result.
+    this->list_diagnostics->verticalScrollBar()->setValue(list_scroll);
+    this->text_details->verticalScrollBar()->setValue(detail_scroll);
+}
+
 void SimulationDiagnosticsWidget::refresh()
 {
     const int previous_diagnostic_index = this->list_diagnostics->currentRow();
@@ -306,7 +322,7 @@ void SimulationDiagnosticsWidget::refresh()
         }
 
         this->label_result_validity->setText(
-            QStringLiteral("<b>Status:</b> <span style=\"color:#808080; font-weight:600;\">OUTDATED</span>"
+            tr("<b>Status:</b> <span style=\"color:#808080; font-weight:600;\">OUTDATED</span>"
                            " &nbsp;·&nbsp; Network edited since this simulation"
                            "<br>"
                            "<b>Errors:</b> <span style=\"color:#d00000; font-weight:600;\">%1</span>"
@@ -319,7 +335,7 @@ void SimulationDiagnosticsWidget::refresh()
     else
     {
         this->label_result_validity->setText(
-            QStringLiteral("<b>Result validity:</b> <span style=\"color:%1; font-weight:600;\">%2</span>"
+            tr("<b>Result validity:</b> <span style=\"color:%1; font-weight:600;\">%2</span>"
                            " &nbsp;·&nbsp; <b>Errors:</b> <span style=\"color:#d00000; font-weight:600;\">%3</span>"
                            " &nbsp;·&nbsp; <b>Warnings:</b> <span style=\"color:#c77800; font-weight:600;\">%4</span>")
                 .arg(resultValidityColor(result_timeline->validity), resultValidityText(result_timeline->validity))
@@ -360,12 +376,12 @@ void SimulationDiagnosticsWidget::refresh()
         // click through to an entity for.
         const QColor success_color(60, 150, 90);
         QListWidgetItem *item = new QListWidgetItem(
-            QStringLiteral("No issues · Simulation completed successfully"), this->list_diagnostics);
+            tr("No issues · Simulation completed successfully"), this->list_diagnostics);
         item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
         item->setForeground(QBrush(success_color));
         item->setIcon(severityIndicatorIcon(success_color));
 
-        this->text_details->setHtml(QStringLiteral(
+        this->text_details->setHtml(tr(
             "<p style=\"color:%1; font-weight:600; font-size:14px;\">"
             "Simulation completed successfully</p>"
             "<p>No errors or warnings were reported for this run.</p>")
@@ -390,30 +406,30 @@ void SimulationDiagnosticsWidget::showDiagnosticDetails(int diagnostic_index)
     QString html;
     if (this->hydraulic_data->simulationDiagnosticEntityStale(diagnostic.entity.uuid))
     {
-        html += QStringLiteral("<p style=\"color:#808080; font-weight:600;\">"
+        html += tr("<p style=\"color:#808080; font-weight:600;\">"
                                "Outdated diagnostic — this entity has been edited since this simulation."
                                "</p>");
     }
     html += QStringLiteral("<h3>%1</h3>").arg(diagnostic.message.toHtmlEscaped());
     html += QStringLiteral("<table cellspacing=\"5\">");
-    html += QStringLiteral("<tr><td><b>Severity</b></td><td>%1</td></tr>").arg(severityText(diagnostic.severity).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Stage</b></td><td>%1</td></tr>").arg(enumText(diagnostic.stage).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Operation</b></td><td>%1</td></tr>").arg(enumText(diagnostic.operation).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Property</b></td><td>%1</td></tr>").arg(enumText(diagnostic.property).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Object type</b></td><td>%1</td></tr>").arg(enumText(diagnostic.entity.type).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Object ID</b></td><td>%1</td></tr>").arg(diagnostic.entity.id.toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Object UUID</b></td><td>%1</td></tr>").arg(diagnostic.entity.uuid.toString(QUuid::WithoutBraces).toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Backend</b></td><td>%1</td></tr>").arg(diagnostic.backend_name.toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Backend operation</b></td><td>%1</td></tr>").arg(diagnostic.backend_operation.toHtmlEscaped());
-    html += QStringLiteral("<tr><td><b>Backend code</b></td><td>%1</td></tr>").arg(diagnostic.backend_error_code);
+    html += tr("<tr><td><b>Severity</b></td><td>%1</td></tr>").arg(severityText(diagnostic.severity).toHtmlEscaped());
+    html += tr("<tr><td><b>Stage</b></td><td>%1</td></tr>").arg(enumText(diagnostic.stage).toHtmlEscaped());
+    html += tr("<tr><td><b>Operation</b></td><td>%1</td></tr>").arg(enumText(diagnostic.operation).toHtmlEscaped());
+    html += tr("<tr><td><b>Property</b></td><td>%1</td></tr>").arg(enumText(diagnostic.property).toHtmlEscaped());
+    html += tr("<tr><td><b>Object type</b></td><td>%1</td></tr>").arg(enumText(diagnostic.entity.type).toHtmlEscaped());
+    html += tr("<tr><td><b>Object ID</b></td><td>%1</td></tr>").arg(diagnostic.entity.id.toHtmlEscaped());
+    html += tr("<tr><td><b>Object UUID</b></td><td>%1</td></tr>").arg(diagnostic.entity.uuid.toString(QUuid::WithoutBraces).toHtmlEscaped());
+    html += tr("<tr><td><b>Backend</b></td><td>%1</td></tr>").arg(diagnostic.backend_name.toHtmlEscaped());
+    html += tr("<tr><td><b>Backend operation</b></td><td>%1</td></tr>").arg(diagnostic.backend_operation.toHtmlEscaped());
+    html += tr("<tr><td><b>Backend code</b></td><td>%1</td></tr>").arg(diagnostic.backend_error_code);
     html += QStringLiteral("</table>");
 
     if (!diagnostic.message_backend.isEmpty())
-        html += QStringLiteral("<p><b>Backend message</b><br>%1</p>").arg(diagnostic.message_backend.toHtmlEscaped());
+        html += tr("<p><b>Backend message</b><br>%1</p>").arg(diagnostic.message_backend.toHtmlEscaped());
 
     if (!diagnostic.details.isEmpty())
     {
-        html += QStringLiteral("<p><b>Details</b><ul>");
+        html += tr("<p><b>Details</b><ul>");
         for (const QString &detail : diagnostic.details)
             html += QStringLiteral("<li>%1</li>").arg(detail.toHtmlEscaped());
         html += QStringLiteral("</ul></p>");

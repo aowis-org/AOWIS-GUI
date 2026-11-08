@@ -548,6 +548,9 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this->inspector_subtitle->setText(tr("Project: %1").arg(currentProject() ? currentProject()->name : QString()));
             this->branch_creation->validate(currentProject(), this->creation_project_id, sourceBranchForRevision);
         }
+        if (this->graph != nullptr)
+            this->graph->retranslateCaptions();
+        refreshRevisionTreeLanguage();
         refreshRevisionInspectorLanguage();
         if (this->selection_kind == SelectionKind::Project && this->inspector_tabs != nullptr)
         {
@@ -1837,7 +1840,7 @@ void ProjectsWidget::populateRevisionTree()
             ? revision.title.trimmed() : revision.message.simplified();
         return title.isEmpty() ? tr("Revision without commit message") : title;
     };
-    const auto labelRevision = [project](QTreeWidgetItem *item,
+    const auto labelRevision = [this, project](QTreeWidgetItem *item,
                                          const ProjectPreviewRevision &revision)
     {
         // The tree displays titles only: identities remain in Qt::UserRole so
@@ -1851,7 +1854,7 @@ void ProjectsWidget::populateRevisionTree()
             QFont label_font = item->font(0);
             label_font.setBold(true);
             item->setFont(0, label_font);
-            details.append(QObject::tr("Editable head: %1").arg(head_branches.join(QStringLiteral(", "))));
+            details.append(tr("Editable head: %1").arg(head_branches.join(QStringLiteral(", "))));
         }
         if (!revision.description.isEmpty()) details.append(revision.description);
         item->setToolTip(0, details.join(QLatin1Char('\n')));
@@ -1906,6 +1909,40 @@ void ProjectsWidget::populateRevisionTree()
     this->revision_tree->expandAll();
 }
 
+void ProjectsWidget::refreshRevisionTreeLanguage()
+{
+    const ProjectPreviewData *project = currentProject();
+    if (project == nullptr || this->revision_tree == nullptr)
+        return;
+    const QSignalBlocker block(this->revision_tree);
+    QHash<QString, const ProjectPreviewRevision *> revisions;
+    for (const ProjectPreviewRevision &revision : project->revisions)
+        revisions.insert(revision.id, &revision);
+    for (QTreeWidgetItemIterator it(this->revision_tree); *it; ++it)
+    {
+        QTreeWidgetItem *item = *it;
+        const QString key = item->data(0, role_key).toString();
+        if (!key.startsWith(QStringLiteral("r:")))
+            continue;
+        const ProjectPreviewRevision *revision = revisions.value(key.mid(2), nullptr);
+        if (revision == nullptr)
+            continue;
+        const QString title = revision->message.trimmed().isEmpty()
+            ? revision->title.trimmed() : revision->message.simplified();
+        item->setText(0, title.isEmpty() ? tr("Revision without commit message") : title);
+        QStringList heads;
+        for (const ProjectPreviewBranch &branch : project->branches)
+            if (branch.head == revision->id)
+                heads.append(branch.name);
+        QStringList details;
+        if (!heads.isEmpty())
+            details.append(tr("Editable head: %1").arg(heads.join(QStringLiteral(", "))));
+        if (!revision->description.isEmpty())
+            details.append(revision->description);
+        item->setToolTip(0, details.join(QLatin1Char('\n')));
+    }
+}
+
 void ProjectsWidget::rebuildGraph()
 {
     QVector<ProjectGraphNode> nodes;
@@ -1929,6 +1966,8 @@ void ProjectsWidget::rebuildGraph()
             project_node.kind = ProjectGraphNode::Kind::Project;
             project_node.id = project_node_id;
             project_node.title = project.name;
+            project_node.caption_kind = ProjectGraphNode::CaptionKind::Project;
+            project_node.caption_branch_count = project.branches.size();
             project_node.branch = tr("PROJECT · %n branch(es)", nullptr, project.branches.size());
             // A partial catalogue can omit a branch HEAD revision. Keep the
             // source visible without inventing a revision card for that ref.
@@ -1939,6 +1978,7 @@ void ProjectsWidget::rebuildGraph()
             for (const ProjectPreviewBranch &branch : project.branches)
                 if (!branch.head.isEmpty() && !loaded_revisions.contains(branch.head))
                     ++missing_heads;
+            project_node.caption_missing_heads = missing_heads;
             if (missing_heads > 0)
                 project_node.branch += tr(" · %n HEAD(s) not loaded", nullptr, missing_heads);
             project_node.container_id = server_node_id;
@@ -1970,12 +2010,17 @@ void ProjectsWidget::rebuildGraph()
                 node.id = preview ? revision.id : project.id + QStringLiteral("|") + revision.id;
                 node.title = revision.message.trimmed().isEmpty()
                     ? revision.title : revision.message.simplified();
+                node.caption_kind = ProjectGraphNode::CaptionKind::Revision;
                 if (!revision.branch.isEmpty())
+                {
+                    node.caption_branch_names = {revision.branch};
                     node.branch = tr("Branch: %1").arg(revision.branch);
+                }
                 else
                 {
                     QStringList names = reachable_branch_names.value(revision.id);
                     names.sort(Qt::CaseInsensitive);
+                    node.caption_branch_names = names;
                     if (names.size() == 1)
                         node.branch = tr("Branch: %1").arg(names.first());
                     else if (!names.isEmpty())
@@ -2005,6 +2050,8 @@ void ProjectsWidget::rebuildGraph()
                 head.kind = ProjectGraphNode::Kind::Branch; // Graph HEAD node.
                 head.id = QStringLiteral("group:branch:") + branch.id;
                 head.title = tr("HEAD");
+                head.caption_kind = ProjectGraphNode::CaptionKind::Head;
+                head.caption_branch_names = {branch.name};
                 head.branch = tr("Branch: %1").arg(branch.name);
                 head.project_group_id = project_node_id;
                 if (!branch.head.isEmpty() && loaded_revisions.contains(branch.head))
@@ -2026,6 +2073,10 @@ void ProjectsWidget::rebuildGraph()
         server_node.pending_server = source.pending;
         server_node.id = server_node_id;
         server_node.title = source.name;
+        server_node.caption_kind = source.connection_type == QStringLiteral("local")
+            ? ProjectGraphNode::CaptionKind::LocalServer
+            : source.pending ? ProjectGraphNode::CaptionKind::PendingServer
+                             : ProjectGraphNode::CaptionKind::RestServer;
         server_node.branch = source.connection_type == QStringLiteral("local")
             ? tr("LOCAL DATABASE") : source.pending ? tr("PENDING VERIFICATION") : tr("REST SERVER");
         nodes.append(server_node);

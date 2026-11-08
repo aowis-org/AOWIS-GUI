@@ -7,11 +7,16 @@ class HydraulicData;
 class QLabel;
 class QListWidget;
 class QTextBrowser;
+class QEvent;
 
 class SimulationDiagnosticsWidget : public QWidget
 {
+    Q_OBJECT
 public:
     explicit SimulationDiagnosticsWidget(HydraulicData *hydraulic_data, QWidget *parent = nullptr);
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
     void refresh();

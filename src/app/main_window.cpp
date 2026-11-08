@@ -87,9 +87,9 @@ MainWindow::MainWindow(QWidget *parent)
                                                 this->main_navigation);
 
     #ifdef AOWIS_STANDALONE
-    setWindowTitle("AOWIS Controller [Standalone]");
+    setWindowTitle(tr("AOWIS Controller [Standalone]"));
     #else
-    setWindowTitle("AOWIS Controller");
+    setWindowTitle(tr("AOWIS Controller"));
     #endif
     
     #ifdef Q_OS_LINUX
@@ -493,6 +493,7 @@ MainWindow::MainWindow(QWidget *parent)
         this->personal_edit_active = false;
         refreshHistoryDock();
         this->personal_edit_blocked = false;
+        this->personal_edit_closing = false;
         this->personal_edit_stop_button->hide();
         this->personal_edit_stop_button->setText(tr("Stop private editing"));
         if (this->network_open_pending)
@@ -706,6 +707,7 @@ MainWindow::MainWindow(QWidget *parent)
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_active = true;
         this->personal_edit_blocked = false;
+        this->personal_edit_closing = false;
         this->personal_edit_stop_button->setEnabled(false);
         this->personal_edit_stop_button->setText(tr("Opening private draft…"));
         this->personal_edit_stop_button->show();
@@ -1093,9 +1095,35 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
     QWidget::keyPressEvent(event);
 }
 
+void MainWindow::refreshPersonalEditButtonText()
+{
+    if (this->personal_edit_stop_button == nullptr)
+        return;
+    if (!this->personal_edit_active)
+        this->personal_edit_stop_button->setText(tr("Stop private editing"));
+    else if (this->personal_edit_closing)
+        this->personal_edit_stop_button->setText(tr("Closing private draft…"));
+    else if (this->personal_edit_blocked)
+        this->personal_edit_stop_button->setText(tr("Close blocked private draft"));
+    else if (this->personal_edit_session == nullptr || !this->personal_edit_session->isReady())
+        this->personal_edit_stop_button->setText(tr("Opening private draft…"));
+    else
+        this->personal_edit_stop_button->setText(tr("Stop private editing (%1 pending)")
+            .arg(this->personal_edit_session->pendingCount()));
+}
+
 void MainWindow::changeEvent(QEvent *event)
 {
     QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+    {
+#ifdef AOWIS_STANDALONE
+        setWindowTitle(tr("AOWIS Controller [Standalone]"));
+#else
+        setWindowTitle(tr("AOWIS Controller"));
+#endif
+        refreshPersonalEditButtonText();
+    }
 
 #ifndef Q_OS_WASM
     if (event->type() == QEvent::WindowStateChange)
@@ -1575,6 +1603,7 @@ void MainWindow::stopPersonalDraftEditing()
     if (!this->personal_edit_active) return;
     this->hydraulic_data->setLogicalEditCaptureEnabled(false);
     this->personal_edit_guard->stop();
+    this->personal_edit_closing = true;
     this->personal_edit_stop_button->setEnabled(false);
     this->personal_edit_stop_button->setText(tr("Closing private draft…"));
     // Other editing views must not remain active with an unbound writer.

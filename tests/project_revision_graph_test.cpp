@@ -12,6 +12,8 @@
 #include <QMouseEvent>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QTranslator>
+#include <cstring>
 #include <QWheelEvent>
 #include <QVBoxLayout>
 
@@ -27,6 +29,19 @@ bool require(bool condition, const char *reason)
         std::fprintf(stderr, "project_revision_graph: %s\n", reason);
     return condition;
 }
+
+class SyntheticProjectTranslator final : public QTranslator
+{
+public:
+    QString translate(const char *context, const char *source, const char *, int n) const override
+    {
+        if (std::strcmp(context, "ProjectsWidget") != 0)
+            return {};
+        QString text = QString::fromUtf8(source);
+        text.replace(QStringLiteral("%n"), QString::number(n));
+        return QStringLiteral("TEST: ") + text;
+    }
+};
 
 void click(QWidget &widget, const QPointF &position)
 {
@@ -993,6 +1008,60 @@ int main(int argc, char **argv)
     if (!require(std::abs(stable_camera.zoomFactor() - manual_zoom) > 0.1
                      && std::abs(stable_camera.zoomFactor() - first_catalogue_zoom) < 0.01,
                  "explicit Fit graph did not restore the catalogue framing")) return 1;
+
+    // Language changes must only translate graph presentation. No movement,
+    // selection reset, camera fit, or database/catalogue re-fetch is permitted.
+    ProjectRevisionGraph localized_graph;
+    localized_graph.resize(800, 480);
+    localized_graph.show();
+    ProjectGraphNode locale_project;
+    locale_project.kind = ProjectGraphNode::Kind::Project;
+    locale_project.id = QStringLiteral("group:project:localization");
+    locale_project.title = QStringLiteral("Untranslated project identity");
+    locale_project.caption_kind = ProjectGraphNode::CaptionKind::Project;
+    locale_project.caption_branch_count = 2;
+    locale_project.position = QPointF(-250.0, 0.0);
+    ProjectGraphNode locale_head;
+    locale_head.kind = ProjectGraphNode::Kind::Branch;
+    locale_head.id = QStringLiteral("group:branch:localization");
+    locale_head.title = QStringLiteral("HEAD");
+    locale_head.branch = QStringLiteral("Branch: main");
+    locale_head.caption_kind = ProjectGraphNode::CaptionKind::Head;
+    locale_head.caption_branch_names = {QStringLiteral("main")};
+    locale_head.position = QPointF(250.0, 0.0);
+    localized_graph.setNodes({locale_project, locale_head});
+    localized_graph.setSelection(locale_head.id);
+    waitFor(110);
+    const QPointF project_center = localized_graph.nodeViewportPosition(locale_project.id);
+    const QPointF head_center = localized_graph.nodeViewportPosition(locale_head.id);
+    const double original_zoom = localized_graph.zoomFactor();
+    SyntheticProjectTranslator synthetic_translator;
+    if (!require(QCoreApplication::installTranslator(&synthetic_translator),
+                 "could not install synthetic graph translator")) return 1;
+    for (int cycle = 0; cycle < 3; ++cycle)
+    {
+        localized_graph.retranslateCaptions();
+        if (!require(localized_graph.nodeBranchCaption(locale_project.id)
+                         == QStringLiteral("TEST: PROJECT · 2 branch(es)"),
+                     "graph project caption was not updated in place")
+            || !require(localized_graph.nodeBranchCaption(locale_head.id)
+                         == QStringLiteral("TEST: Branch: main"),
+                        "graph HEAD caption was not updated in place")
+            || !require(localized_graph.nodeViewportPosition(locale_project.id) == project_center
+                        && localized_graph.nodeViewportPosition(locale_head.id) == head_center
+                        && localized_graph.zoomFactor() == original_zoom
+                        && localized_graph.selectionId() == locale_head.id,
+                        "graph language change altered selection, layout, or camera")) return 1;
+    }
+    QCoreApplication::removeTranslator(&synthetic_translator);
+    localized_graph.retranslateCaptions();
+    if (!require(localized_graph.nodeBranchCaption(locale_project.id)
+                    == QStringLiteral("PROJECT · 2 branch(es)")
+                 && localized_graph.nodeBranchCaption(locale_head.id)
+                    == QStringLiteral("Branch: main")
+                 && localized_graph.nodeViewportPosition(locale_project.id) == project_center
+                 && localized_graph.zoomFactor() == original_zoom,
+                 "graph did not restore English without altering geometry")) return 1;
 
     std::puts("Project revision graph navigation and hierarchy tests passed");
     return 0;

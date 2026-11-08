@@ -30,9 +30,12 @@ strings are translated before passing them to the renderer; do not import any
 GUI `LanguageManager`, `MapModel`, hydraulic model, or unit-profile dependency
 into the renderer. The `translations/` directory contains separate `aowis_render_*.ts` and
 `aowis_gui_*.ts` Qt Linguist sources. Both corresponding QM resources are
-embedded for native and WebAssembly builds. After editing a TS file in Qt
-Linguist, rebuild its adjacent QM using `lrelease file.ts -qm file.qm` and
-commit both files.
+embedded for native and WebAssembly builds. The GUI CMake build regenerates adjacent `.qm` catalogues from changed `.ts`
+files when Qt LinguistTools (`lrelease`) is installed. The compiled `.qm` files
+are Qt resources used at runtime on Linux and WebAssembly. If the host Qt kit
+lacks `lrelease`, CMake warns and leaves the last shipped `.qm` in place; install
+LinguistTools and rebuild before testing new translation entries. Always
+commit both `.ts` and regenerated `.qm` files when preparing a release.
 
 ## Runtime language-change contract
 
@@ -88,3 +91,49 @@ This does **not** replace manual native/WebAssembly testing of
 Arabic shaping/fallback fonts and complete RTL interactions. Full-language
 translations, unit-independent locale formatting and UI-wide lazy refresh
 belong to the GUI multilingual phase.
+
+## Persistent GUI presentation
+
+The GUI language selector does not reconstruct the main window. Existing
+widgets respond to Qt's language-change event, and stateful controls refresh
+their presentation from model-independent source labels:
+
+- `MainWindow` recalculates its personal-draft editing action label using the
+  live session state and pending-count (no session close or undo mutation).
+- `ProjectsWidget` calls `ProjectRevisionGraph::retranslateCaptions()` to
+  update both canonical and visible graph node captions **without rerunning
+  DAG layout, changing the camera, collapsing history, or fetching a database**.
+  The revision tree updates existing item titles and tooltips in place.
+- Open working-copy and simulation-results dialogs update their static
+  labels, tabs and controls without closing; the working-copy dialog's
+  verified network summary is regenerated from retained data without HTTP.
+  Simulation summary rows refresh from the loaded timeline; the current tab,
+  selected summary row and expansion state are retained. Diagnostics retain
+  their selected index and scroll position.
+- Map size sliders translate their tooltip descriptions from stable English
+  source keys on `LanguageChange`; changing language never changes slider
+  numeric values. Headloss and water-quality tooltips are refreshed without
+  changing checked simulation options.
+
+The translator loader rolls back any partially installed new catalogue if a
+translator cannot be installed. Arabic sets Qt's RTL layout direction, but
+custom HUD/toolbar mirroring and clipping still require runtime acceptance.
+User-entered text and external DVMDB/backend messages must not be translated
+by guessing at their contents; the UI localizes only its own presentation.
+
+### Tests and residual coverage
+
+`aowis-gui-language` exercises new non-English catalogue contexts alongside
+existing persistent settings, inspector state and History dock tests.
+`aowis-project-revision-graph` verifies repeated synthetic translation and
+English restoration without moving the graph camera or selection. These are
+headless tests: native Linux and WebAssembly manual verification is still
+required, particularly for Arabic text shaping and the custom bgfx HUD.
+
+This does **not** yet assert complete live-retranslation coverage of every
+AOWIS screen. Some transient network-operation status/error messages remain
+as displayed until superseded by the next operation (to avoid hiding backend
+error details), and not all feature modules have complete translated catalogues.
+The acceptance target remains full in-place switching without restart or
+lost model/editor state; any untranslated application-owned text is a coverage
+gap, not an acceptable restart workaround.

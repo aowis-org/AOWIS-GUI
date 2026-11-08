@@ -10,6 +10,8 @@ class QTabWidget;
 class QTextBrowser;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QLabel;
+class QEvent;
 class SimulationDiagnosticsWidget;
 
 class SimulationStatisticsDialog : public QDialog
@@ -22,10 +24,15 @@ public:
     void showEpanetLogTab();
     void showDiagnosticsTab();
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
+    void retranslateView();
     HydraulicData *hydraulic_data = nullptr;
     SimulationDiagnosticsWidget *widget_diagnostics = nullptr;
     QTreeWidget *tree_summary = nullptr;
+    QLabel *summary_hint = nullptr;
     QTableWidget *table_timeline = nullptr;
     QTabWidget *tabs = nullptr;
     QTextBrowser *text_epanet_log = nullptr;

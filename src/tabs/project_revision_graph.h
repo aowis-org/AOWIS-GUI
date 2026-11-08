@@ -32,6 +32,13 @@ struct ProjectGraphNode
     QString id;
     QString title;
     QString branch;
+    // Text-only language refresh must never rerun the layout, drop expanded
+    // revision paths or move the camera. These are language-neutral inputs.
+    enum class CaptionKind { Custom, Project, Revision, Head, LocalServer, PendingServer, RestServer };
+    CaptionKind caption_kind = CaptionKind::Custom;
+    QStringList caption_branch_names;
+    int caption_branch_count = 0;
+    int caption_missing_heads = 0;
     QString display_id;
     QStringList parents;
     QStringList tags;
@@ -72,6 +79,7 @@ class ProjectRevisionGraph final : public QWidget
 public:
     explicit ProjectRevisionGraph(QWidget *parent = nullptr);
     void setNodes(const QVector<ProjectGraphNode> &nodes);
+    void retranslateCaptions();
     void setSelection(const QString &revision_id);
     void fitGraph();
     void setTopDown(bool top_down);

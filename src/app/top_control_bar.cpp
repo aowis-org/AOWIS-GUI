@@ -729,7 +729,7 @@ void TopControlBar::showSimulationSettings()
 
     if (this->combo_headloss_formula != nullptr)
     {
-        connect(this->combo_headloss_formula, &QComboBox::currentIndexChanged,
+    connect(this->combo_headloss_formula, &QComboBox::currentIndexChanged,
                 this->dialog_simulation_settings,
                 [headloss_formula](int index)
         {
@@ -751,6 +751,14 @@ void TopControlBar::showSimulationSettings()
         hint->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "These settings are used for the next simulation run.")));
         static_cast<QLabel *>(form_layout->labelForField(quality_analysis))->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water quality analyses")));
         static_cast<QLabel *>(form_layout->labelForField(headloss_formula))->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Headloss formula")));
+        const char *const formula_descriptions[] = {
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Hazen-Williams headloss formula.<br><br>Requires pipe roughness coefficient C."),
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Darcy-Weisbach headloss formula.<br><br>Requires an absolute pipe roughness ε value."),
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Chezy-Manning headloss formula.<br><br>Requires Manning roughness coefficient n."),
+        };
+        for (int index = 0; index < headloss_formula->count() && index < 3; ++index)
+            headloss_formula->setItemData(index,
+                QCoreApplication::translate("TopControlBar", formula_descriptions[index]), Qt::ToolTipRole);
     });
     QDialogButtonBox *button_box = new QDialogButtonBox(
         QDialogButtonBox::Close,
@@ -996,6 +1004,20 @@ void TopControlBar::addQualityHeadlossControls()
         true,
         QStringLiteral("Source tracing: percent of water originating from one node"));
 
+    const std::function<void()> refresh_quality_tooltips = [this]
+    {
+        const char *const descriptions[] = {
+            QT_TRANSLATE_NOOP("TopControlBar", "One dissolved constituent concentration, e.g. chlorine"),
+            QT_TRANSLATE_NOOP("TopControlBar", "Water age"),
+            QT_TRANSLATE_NOOP("TopControlBar", "Source tracing: percent of water originating from one node"),
+        };
+        for (int index = 0; index < this->combo_quality_analysis->count() && index < 3; ++index)
+            this->combo_quality_analysis->setItemToolTip(index,
+                QCoreApplication::translate("TopControlBar", descriptions[index]));
+    };
+    connect(this, &TopControlBar::languageChanged, this->combo_quality_analysis, refresh_quality_tooltips);
+    refresh_quality_tooltips();
+
     this->combo_headloss_formula = new QComboBox(this->content);
     this->combo_headloss_formula->setFixedSize(190, 30);
     this->combo_headloss_formula->addItem(
@@ -1003,22 +1025,37 @@ void TopControlBar::addQualityHeadlossControls()
         static_cast<int>(HeadlossFormula::HazenWilliams));
     this->combo_headloss_formula->setItemData(
         this->combo_headloss_formula->count() - 1,
-        QStringLiteral("Run simulation with the Hazen-Williams headloss formula.<br><br>Requires pipe roughness coefficient C."),
+        tr("Run simulation with the Hazen-Williams headloss formula.<br><br>Requires pipe roughness coefficient C."),
         Qt::ToolTipRole);
     this->combo_headloss_formula->addItem(
         QStringLiteral("Darcy-Weisbach"),
         static_cast<int>(HeadlossFormula::DarcyWeisbach));
     this->combo_headloss_formula->setItemData(
         this->combo_headloss_formula->count() - 1,
-        QStringLiteral("Run simulation with the Darcy-Weisbach headloss formula.<br><br>Requires an absolute pipe roughness ε value."),
+        tr("Run simulation with the Darcy-Weisbach headloss formula.<br><br>Requires an absolute pipe roughness ε value."),
         Qt::ToolTipRole);
     this->combo_headloss_formula->addItem(
         QStringLiteral("Chezy-Manning"),
         static_cast<int>(HeadlossFormula::ChezyManning));
     this->combo_headloss_formula->setItemData(
         this->combo_headloss_formula->count() - 1,
-        QStringLiteral("Run simulation with the Chezy-Manning headloss formula.<br><br>Requires Manning roughness coefficient n."),
+        tr("Run simulation with the Chezy-Manning headloss formula.<br><br>Requires Manning roughness coefficient n."),
         Qt::ToolTipRole);
+
+    const std::function<void()> refresh_headloss_tooltips = [this]
+    {
+        const char *const descriptions[] = {
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Hazen-Williams headloss formula.<br><br>Requires pipe roughness coefficient C."),
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Darcy-Weisbach headloss formula.<br><br>Requires an absolute pipe roughness ε value."),
+            QT_TRANSLATE_NOOP("TopControlBar", "Run simulation with the Chezy-Manning headloss formula.<br><br>Requires Manning roughness coefficient n."),
+        };
+        for (int index = 0; index < this->combo_headloss_formula->count() && index < 3; ++index)
+            this->combo_headloss_formula->setItemData(index,
+                QCoreApplication::translate("TopControlBar", descriptions[index]), Qt::ToolTipRole);
+    };
+    connect(this, &TopControlBar::languageChanged, this->combo_headloss_formula, refresh_headloss_tooltips);
+    refresh_headloss_tooltips();
+
 
     connect(this->combo_headloss_formula, &QComboBox::currentIndexChanged,
             this, [this](int index)

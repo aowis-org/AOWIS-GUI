@@ -9,6 +9,8 @@
 #include <functional>
 
 class QLabel;
+class QDialogButtonBox;
+class QEvent;
 class QListWidget;
 class QPushButton;
 
@@ -16,6 +18,7 @@ class QPushButton;
 // Editing and Commit are intentionally not presented as available yet.
 class PersonalWorkingCopyDialog final : public QDialog
 {
+    Q_OBJECT
 public:
     PersonalWorkingCopyDialog(const QString &project_id, const QString &branch_id,
                               const QString &branch_name, const QString &head,
@@ -33,7 +36,12 @@ public:
     bool selectedEditRequested() const;
     QString targetRepositoryId() const;
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
+    void refreshStaticText();
+    void refreshDraftDetailsText();
     void setOperationStatus(const QString &message);
     void reportFailure(const QString &message);
     void refresh();
@@ -60,6 +68,10 @@ private:
     QString source_repository_id;
     QString source_endpoint;
     QString project_name;
+    QLabel *context_label = nullptr;
+    QLabel *repository_warning_label = nullptr;
+    QLabel *scope_label = nullptr;
+    QDialogButtonBox *close_buttons = nullptr;
     QLabel *status = nullptr;
     QLabel *details = nullptr;
     QListWidget *drafts = nullptr;
@@ -81,6 +93,7 @@ private:
     bool direct_edit = false;
     std::function<void(const QString &, bool)> on_status;
     bool busy = false;
+    bool draft_list_empty_notice = false;
     // Direct edit pulls newer source commits at most once per dialog.
     bool source_pull_attempted = false;
     // A modified draft on an older base is opened only after confirmation.

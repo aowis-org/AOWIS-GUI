@@ -124,6 +124,7 @@ private:
     
     void restoreOpenedNetworkSelection();
     void stopPersonalDraftEditing();
+    void refreshPersonalEditButtonText();
     void blockPersonalDraftEditing(const QString &reason);
     void checkPersonalDraftModel();
     void synchronizePersonalHistoryEditMode();
@@ -134,6 +135,7 @@ private:
     QTimer *personal_edit_guard = nullptr;
     bool personal_edit_active = false;
     bool personal_edit_blocked = false;
+    bool personal_edit_closing = false;
     bool network_open_pending = false;
     bool network_confirmation_visible = false;
     QString opened_project_name;

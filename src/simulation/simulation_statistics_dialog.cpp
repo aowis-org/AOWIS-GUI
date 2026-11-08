@@ -9,6 +9,8 @@
 #include <cmath>
 #include <QAbstractItemView>
 #include <QFont>
+#include <QEvent>
+#include <QScrollBar>
 #include <QFontDatabase>
 #include <QHeaderView>
 #include <QLabel>
@@ -240,6 +242,7 @@ SimulationStatisticsDialog::SimulationStatisticsDialog(HydraulicData *hydraulic_
     QLabel *hint = new QLabel(
         tr("Summary values show the worst hydraulic value across the complete timeline."),
         summary_page);
+    this->summary_hint = hint;
     hint->setWordWrap(true);
 
     QVBoxLayout *summary_layout = new QVBoxLayout(summary_page);
@@ -269,6 +272,61 @@ SimulationStatisticsDialog::SimulationStatisticsDialog(HydraulicData *hydraulic_
             this, &SimulationStatisticsDialog::syncCurrentResultSelection);
 
     refresh();
+}
+
+void SimulationStatisticsDialog::changeEvent(QEvent *event)
+{
+    QDialog::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && this->summary_hint != nullptr
+        && this->widget_diagnostics != nullptr
+        && this->tabs->indexOf(this->widget_diagnostics) >= 0)
+        retranslateView();
+}
+
+void SimulationStatisticsDialog::retranslateView()
+{
+    setWindowTitle(tr("Simulation Results"));
+    this->tree_summary->setHeaderLabels({tr("Statistic"), tr("Value"), tr("Occurred at")});
+    this->summary_hint->setText(tr("Summary values show the worst hydraulic value across the complete timeline."));
+    this->tabs->setTabText(this->tabs->indexOf(this->widget_diagnostics), tr("Diagnostics"));
+    this->tabs->setTabText(this->tabs->indexOf(this->summary_hint->parentWidget()), tr("Summary"));
+    this->tabs->setTabText(this->tabs->indexOf(this->table_timeline), tr("By timestep"));
+    this->tabs->setTabText(this->tabs->indexOf(this->text_epanet_log), tr("EPANET Log"));
+    this->text_epanet_log->setPlaceholderText(tr("No EPANET log is available for the current simulation."));
+    this->table_timeline->setHorizontalHeaderLabels({
+        tr("Elapsed"), tr("Iterations"), tr("Relative\nerror"),
+        tr("Max head\nerror [m]"), tr("Max flow\nchange [m³/h]"),
+        tr("Deficient\nnodes"), tr("Demand\nreduction [%]"), tr("Leakage\nloss [%]")});
+    refreshTimelineUnits();
+    // Summary strings are derived from the already-loaded timeline. Recompute
+    // only that presentation, restoring expansion, selection and scroll state.
+    QVector<bool> expanded;
+    int selected_group = -1;
+    int selected_child = -1;
+    QTreeWidgetItem *selected = this->tree_summary->currentItem();
+    for (int index = 0; index < this->tree_summary->topLevelItemCount(); ++index)
+    {
+        QTreeWidgetItem *group = this->tree_summary->topLevelItem(index);
+        expanded.append(group->isExpanded());
+        if (selected == group || (selected != nullptr && selected->parent() == group))
+        {
+            selected_group = index;
+            if (selected != group)
+                selected_child = group->indexOfChild(selected);
+        }
+    }
+    const int scroll_position = this->tree_summary->verticalScrollBar()->value();
+    const QSignalBlocker block(this->tree_summary);
+    refreshSummary();
+    for (int index = 0; index < expanded.size() && index < this->tree_summary->topLevelItemCount(); ++index)
+        this->tree_summary->topLevelItem(index)->setExpanded(expanded.at(index));
+    if (selected_group >= 0 && selected_group < this->tree_summary->topLevelItemCount())
+    {
+        QTreeWidgetItem *group = this->tree_summary->topLevelItem(selected_group);
+        this->tree_summary->setCurrentItem(selected_child < 0 ? group : group->child(selected_child));
+    }
+    this->tree_summary->verticalScrollBar()->setValue(scroll_position);
+    // Neither the timeline data nor the current timestep selection is reset.
 }
 
 void SimulationStatisticsDialog::setEpanetLog(const QString &epanet_log)

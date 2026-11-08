@@ -173,6 +173,14 @@ void ComboCheckboxes::setItemText(int index, const QString &text)
     updateSummaryText();
 }
 
+void ComboCheckboxes::setItemToolTip(int index, const QString &tooltip)
+{
+    if (!hasValidIndex(index))
+        return;
+    if (this->items.at(index).check_box != nullptr)
+        this->items.at(index).check_box->setToolTip(tooltip);
+}
+
 QVariant ComboCheckboxes::itemData(int index) const
 {
     if (!hasValidIndex(index))

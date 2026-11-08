@@ -26,6 +26,7 @@
 #include <QColor>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
+#include <QEvent>
 #include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -87,6 +88,13 @@ public:
     }
 
 protected:
+    void changeEvent(QEvent *event) override
+    {
+        QSlider::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            updateToolTip();
+    }
+
     void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() == Qt::RightButton)
@@ -113,8 +121,9 @@ private:
 
     void updateToolTip()
     {
-        setToolTip(QStringLiteral("%1\nCurrent: %2%3\nRange: %4%3 to %5%3\nDefault: %6%3\nRight-click to reset.")
-                       .arg(this->description)
+        setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
+            "%1\nCurrent: %2%3\nRange: %4%3 to %5%3\nDefault: %6%3\nRight-click to reset.")
+                       .arg(QCoreApplication::translate("MapMonitorMenuWidget", this->description.toUtf8().constData()))
                        .arg(displayValue(value()))
                        .arg(this->unit_suffix)
                        .arg(displayValue(minimum()))
@@ -182,6 +191,13 @@ public:
     }
 
 protected:
+    void changeEvent(QEvent *event) override
+    {
+        QSlider::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            updateToolTip();
+    }
+
     void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() == Qt::RightButton)
@@ -219,12 +235,12 @@ private:
     {
         const int raw_size = junctionSizeRaw();
         const QString current = raw_size == 0
-            ? QStringLiteral("Off")
+            ? QCoreApplication::translate("MapMonitorMenuWidget", "Off")
             : QStringLiteral("%1%2").arg(displayValue(raw_size), this->unit_suffix);
-        setToolTip(QStringLiteral(
+        setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
             "%1\nThe far-left detent is Off; crossing it snaps between Off and the minimum useful size.\n"
             "Current: %2\nActive range: %3%5 to %4%5\nDefault: %6%5\nRight-click to reset.")
-            .arg(this->description)
+            .arg(QCoreApplication::translate("MapMonitorMenuWidget", this->description.toUtf8().constData()))
             .arg(current)
             .arg(displayValue(this->active_minimum))
             .arg(displayValue(this->active_maximum))
@@ -268,6 +284,13 @@ public:
     }
 
 protected:
+    void changeEvent(QEvent *event) override
+    {
+        QSlider::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            updateToolTip();
+    }
+
     void mousePressEvent(QMouseEvent *event) override
     {
         if (event->button() == Qt::RightButton)
@@ -298,9 +321,9 @@ private:
     {
         const int size_px = arrowSizePx();
         const QString current = size_px == 0
-            ? QStringLiteral("Off")
+            ? QCoreApplication::translate("MapMonitorMenuWidget", "Off")
             : QStringLiteral("%1 px").arg(size_px);
-        setToolTip(QStringLiteral(
+        setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
             "Controls the flow-direction arrow size for the current simulation timestep.\n"
             "The far-left detent is Off; moving one step right snaps directly to the minimum useful size.\n"
             "Current: %1\nActive range: 6 px to 24 px\nDefault: 10 px\nRight-click to reset.")
@@ -1851,17 +1874,21 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
     combo_node_size_unit->addItem(QStringLiteral("px"),
         static_cast<int>(NetworkSymbologySizeUnit::Pixels));
     combo_node_size_unit->setCurrentIndex(1);
-    combo_node_size_unit->setToolTip(QStringLiteral(
-        "Meters keep a true world-space junction size. Pixels keep a stable visual size while preserving 3D perspective."));
+    LiveUiText::bind(combo_node_size_unit, [combo_node_size_unit] {
+        combo_node_size_unit->setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
+            "Meters keep a true world-space junction size. Pixels keep a stable visual size while preserving 3D perspective."));
+    });
     JunctionSizeSlider *slider_node_size = new JunctionSizeSlider(4, 64,
         NetworkSymbologyDefaultNodeSizePx,
-        QStringLiteral("Sets the junction marker/orb diameter in screen pixels."),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets the junction marker/orb diameter in screen pixels.")),
         QStringLiteral(" px"), this);
     QCheckBox *check_node_decluttering = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Declutter Overlapping Nodes"), this);
     check_node_decluttering->setChecked(true);
-    check_node_decluttering->setToolTip(QStringLiteral(
-        "Separates exact or near-exact node coordinates by at least 1 m for rendering and picking. "
-        "Disable this to render nodes at their exact geographic positions."));
+    LiveUiText::bind(check_node_decluttering, [check_node_decluttering] {
+        check_node_decluttering->setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
+            "Separates exact or near-exact node coordinates by at least 1 m for rendering and picking. "
+            "Disable this to render nodes at their exact geographic positions."));
+    });
     connect(check_node_decluttering, &QCheckBox::toggled, this,
         &MapMonitorMenuWidget::signalNodeDeclutteringChanged);
     connect(slider_node_size, &QSlider::valueChanged, this,
@@ -1902,7 +1929,7 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
                 qRound(NetworkSymbologyMaximumNodeSizeM * 10.0),
                 qRound(NetworkSymbologyDefaultNodeSizeM * 10.0),
                 junctions_visible ? qRound(this->node_size_m * 10.0) : 0,
-                QStringLiteral("Sets the true world-space junction diameter."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets the true world-space junction diameter.")),
                 QStringLiteral(" m"), 0.1, 1);
         }
         else
@@ -1910,7 +1937,7 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
             slider_node_size->setConfiguration(4, 64,
                 NetworkSymbologyDefaultNodeSizePx,
                 junctions_visible ? this->node_size_px : 0,
-                QStringLiteral("Sets the junction marker/orb diameter in screen pixels."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets the junction marker/orb diameter in screen pixels.")),
                 QStringLiteral(" px"));
         }
         emit signalNodeSizeUnitChanged(unit);
@@ -1924,11 +1951,12 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
     combo_link_thickness_unit->addItem(QStringLiteral("px"),
         static_cast<int>(NetworkSymbologySizeUnit::Pixels));
     combo_link_thickness_unit->setCurrentIndex(1);
-    combo_link_thickness_unit->setToolTip(QStringLiteral(
-        "Meters keep a true world-space pipe thickness. Pixels keep a constant screen-space thickness."));
+    LiveUiText::bind(combo_link_thickness_unit, [combo_link_thickness_unit] {
+        combo_link_thickness_unit->setToolTip(QCoreApplication::translate("MapMonitorMenuWidget", "Meters keep a true world-space pipe thickness. Pixels keep a constant screen-space thickness."));
+    });
     SymbologySlider *slider_link_thickness = new SymbologySlider(1, 24,
         NetworkSymbologyDefaultLinkThicknessPx,
-        QStringLiteral("Sets rendered pipe thickness and keeps pipe hit detection aligned with it."),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets rendered pipe thickness and keeps pipe hit detection aligned with it.")),
         QStringLiteral(" px"), this);
     connect(slider_link_thickness, &QSlider::valueChanged, this,
         [this](int raw_value)
@@ -1960,14 +1988,14 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
                 qRound(NetworkSymbologyMaximumLinkThicknessM * 100.0),
                 qRound(NetworkSymbologyDefaultLinkThicknessM * 100.0),
                 qRound(this->link_thickness_m * 100.0),
-                QStringLiteral("Sets the true world-space pipe thickness."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets the true world-space pipe thickness.")),
                 QStringLiteral(" m"), 0.01, 2);
         }
         else
         {
             slider_link_thickness->setConfiguration(1, 24,
                 NetworkSymbologyDefaultLinkThicknessPx, this->link_thickness_px,
-                QStringLiteral("Sets rendered pipe thickness and keeps pipe hit detection aligned with it."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets rendered pipe thickness and keeps pipe hit detection aligned with it.")),
                 QStringLiteral(" px"));
         }
         emit signalLinkThicknessUnitChanged(unit);
@@ -1988,12 +2016,14 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         static_cast<int>(HeatmapRadiusUnit::Meters));
     combo_heatmap_radius_unit->addItem(QStringLiteral("px"),
         static_cast<int>(HeatmapRadiusUnit::Pixels));
-    combo_heatmap_radius_unit->setToolTip(QStringLiteral(
-        "Meters keep the heatmap radius geographic as the map zoom changes. "
-        "Pixels keep a constant on-screen radius."));
+    LiveUiText::bind(combo_heatmap_radius_unit, [combo_heatmap_radius_unit] {
+        combo_heatmap_radius_unit->setToolTip(QCoreApplication::translate("MapMonitorMenuWidget",
+            "Meters keep the heatmap radius geographic as the map zoom changes. "
+            "Pixels keep a constant on-screen radius."));
+    });
 
     SymbologySlider *slider_heatmap_radius = new SymbologySlider(10, 1000, 400,
-        QStringLiteral("Sets each heatmap point's geographic influence radius. It remains consistent in meters across zoom levels."),
+        QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets each heatmap point's geographic influence radius. It remains consistent in meters across zoom levels.")),
         QStringLiteral(" m"), this);
     connect(slider_heatmap_radius, &QSlider::valueChanged, this,
         [this](int radius)
@@ -2016,13 +2046,13 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
         if (unit == HeatmapRadiusUnit::Pixels)
         {
             slider_heatmap_radius->setConfiguration(5, 250, 50, this->heatmap_radius_px,
-                QStringLiteral("Sets each heatmap point's on-screen influence radius. It remains constant in pixels across zoom levels."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets each heatmap point's on-screen influence radius. It remains constant in pixels across zoom levels.")),
                 QStringLiteral(" px"));
         }
         else
         {
             slider_heatmap_radius->setConfiguration(10, 1000, 400, this->heatmap_radius_m,
-                QStringLiteral("Sets each heatmap point's geographic influence radius. It remains consistent in meters across zoom levels."),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets each heatmap point's geographic influence radius. It remains consistent in meters across zoom levels.")),
                 QStringLiteral(" m"));
         }
         emit signalHeatmapRadiusUnitChanged(unit);
@@ -2030,12 +2060,12 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
 
     QLabel *label_heatmap_solid_center = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Solid Center [%]"), nullptr);
     QSlider *slider_heatmap_solid_center = new SymbologySlider(0, 100, 70,
-        QStringLiteral("Sets how much of the heatmap radius keeps full local opacity before fading to transparency."), QStringLiteral(" %"), this);
+        QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Sets how much of the heatmap radius keeps full local opacity before fading to transparency.")), QStringLiteral(" %"), this);
     connect(slider_heatmap_solid_center, &QSlider::valueChanged, this, &MapMonitorMenuWidget::signalHeatmapSolidCenterChanged);
 
     QLabel *label_heatmap_opacity = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Opacity [%]"), nullptr);
     QSlider *slider_heatmap_opacity = new SymbologySlider(0, 100, 75,
-        QStringLiteral("Controls the opacity of the complete heatmap layer."), QStringLiteral(" %"), this);
+        QString::fromUtf8(QT_TRANSLATE_NOOP("MapMonitorMenuWidget", "Controls the opacity of the complete heatmap layer.")), QStringLiteral(" %"), this);
     connect(slider_heatmap_opacity, &QSlider::valueChanged, this, &MapMonitorMenuWidget::signalHeatmapOpacityChanged);
 
     vbox->addWidget(label_node_section);

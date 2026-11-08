@@ -83,9 +83,17 @@ bool GuiLanguage::activate(const QString &code)
                 if (!next[index]->load(QStringLiteral(":/i18n/aowis_%1_%2.qm").arg(domains[index], code)))
                     return false;
             }
+            std::size_t installed = 0;
             for (const std::unique_ptr<QTranslator> &catalogue : next)
+            {
                 if (!QCoreApplication::installTranslator(catalogue.get()))
+                {
+                    for (std::size_t index = 0; index < installed; ++index)
+                        QCoreApplication::removeTranslator(next[index].get());
                     return false;
+                }
+                ++installed;
+            }
         }
         for (const std::unique_ptr<QTranslator> &catalogue : this->translators)
             if (catalogue)

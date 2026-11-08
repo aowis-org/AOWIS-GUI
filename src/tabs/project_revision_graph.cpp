@@ -12,6 +12,7 @@
 
 #include <QApplication>
 #include <QGuiApplication>
+#include <QCoreApplication>
 #include <QByteArray>
 #include <string_view>
 #include <QFocusEvent>
@@ -523,6 +524,61 @@ void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes)
         clampCamera();
         requestGraphRedraw();
     }
+}
+
+void ProjectRevisionGraph::retranslateCaptions()
+{
+    // Update presentation text in BOTH the canonical and displayed lists.
+    // No setNodes(), DAG placement, filtering or camera adjustment.
+    const std::function<void(ProjectGraphNode &)> translate = [](ProjectGraphNode &node)
+    {
+        const QStringList &names = node.caption_branch_names;
+        switch (node.caption_kind)
+        {
+            case ProjectGraphNode::CaptionKind::Project:
+                node.branch = QCoreApplication::translate("ProjectsWidget", "PROJECT · %n branch(es)",
+                    nullptr, node.caption_branch_count);
+                if (node.caption_missing_heads > 0)
+                    node.branch += QCoreApplication::translate("ProjectsWidget", " · %n HEAD(s) not loaded",
+                        nullptr, node.caption_missing_heads);
+                break;
+            case ProjectGraphNode::CaptionKind::Revision:
+                if (names.size() == 1)
+                    node.branch = QCoreApplication::translate("ProjectsWidget", "Branch: %1").arg(names.first());
+                else if (names.size() > 1)
+                    node.branch = QCoreApplication::translate("ProjectsWidget", "Branches: %1")
+                        .arg(names.join(QStringLiteral(", ")));
+                else
+                    node.branch = QCoreApplication::translate("ProjectsWidget",
+                        "No branch currently references this revision");
+                break;
+            case ProjectGraphNode::CaptionKind::Head:
+                node.title = QCoreApplication::translate("ProjectsWidget", "HEAD");
+                node.branch = QCoreApplication::translate("ProjectsWidget", "Branch: %1")
+                    .arg(names.value(0));
+                break;
+            case ProjectGraphNode::CaptionKind::LocalServer:
+                node.branch = QCoreApplication::translate("ProjectsWidget", "LOCAL DATABASE");
+                break;
+            case ProjectGraphNode::CaptionKind::PendingServer:
+                node.branch = QCoreApplication::translate("ProjectsWidget", "PENDING VERIFICATION");
+                break;
+            case ProjectGraphNode::CaptionKind::RestServer:
+                node.branch = QCoreApplication::translate("ProjectsWidget", "REST SERVER");
+                break;
+            case ProjectGraphNode::CaptionKind::Custom:
+                break;
+        }
+    };
+    for (ProjectGraphNode &node : this->source_nodes)
+        translate(node);
+    for (ProjectGraphNode &node : this->nodes)
+        translate(node);
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr)
+        this->gpu_view->invalidateScene();
+#endif
+    requestGraphRedraw();
 }
 
 void ProjectRevisionGraph::setTopDown(bool top_down)

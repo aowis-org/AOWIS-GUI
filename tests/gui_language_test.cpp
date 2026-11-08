@@ -139,6 +139,12 @@ int main(int argc, char **argv)
     const QLocale numeric_locale;
     const char *const names[] = {"Language", "Langue", "اللغة", "Sprache", "Idioma"};
     const char *const cancel[] = {"Cancel", "Annuler", "إلغاء", "Abbrechen", "Cancelar"};
+    const char *const draft_close[] = {"Close", "Fermer", "إغلاق", "Schließen", "Cerrar"};
+    const char *const stats_titles[] = {"Simulation Results", "Résultats de simulation", "نتائج المحاكاة",
+                                       "Simulationsergebnisse", "Resultados de simulación"};
+    const char *const edit_actions[] = {"Stop private editing", "Terminer la modification privée", "إنهاء التحرير الخاص",
+                                        "Private Bearbeitung beenden", "Detener edición privada"};
+    const char *const slider_off[] = {"Off", "Désactivé", "إيقاف", "Aus", "Desactivado"};
     for (std::size_t step = 1; step <= GuiLanguages.size(); ++step)
     {
         const std::size_t index = step % GuiLanguages.size();
@@ -148,6 +154,18 @@ int main(int argc, char **argv)
         app.processEvents();
         if (!matches(code, "toolbar label", label.text(), QString::fromUtf8(names[index]))
             || !matches(code, "HUD cancel", QCoreApplication::translate("MapBgfxHud", "Cancel"), QString::fromUtf8(cancel[index]))
+            || !matches(code, "live working-copy dialog catalogue",
+                        QCoreApplication::translate("PersonalWorkingCopyDialog", "Close"),
+                        QString::fromUtf8(draft_close[index]))
+            || !matches(code, "live simulation results catalogue",
+                        QCoreApplication::translate("SimulationStatisticsDialog", "Simulation Results"),
+                        QString::fromUtf8(stats_titles[index]))
+            || !matches(code, "live MainWindow catalogue",
+                        QCoreApplication::translate("MainWindow", "Stop private editing"),
+                        QString::fromUtf8(edit_actions[index]))
+            || !matches(code, "live map slider catalogue",
+                        QCoreApplication::translate("MapMonitorMenuWidget", "Off"),
+                        QString::fromUtf8(slider_off[index]))
             || !matches(code, "active language", language.code(), code)
             || !matches(code, "numeric locale preserved", numeric_locale == QLocale(), true)
             || !matches(code, "layout direction", QApplication::layoutDirection(), QLocale(code).textDirection()))

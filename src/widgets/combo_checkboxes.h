@@ -41,6 +41,7 @@ public:
     
     QString itemText(int index) const;
     void setItemText(int index, const QString &text);
+    void setItemToolTip(int index, const QString &tooltip);
     
     QVariant itemData(int index) const;
     void setItemData(int index, const QVariant &data);
