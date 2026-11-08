@@ -352,6 +352,251 @@ Dieser Server speichert die Netzdaten nicht. Die GUI zeigt eine Vorschau.</trans
       <source>Remove this preview project</source>
       <translation>Dieses Vorschauprojekt entfernen</translation>
     </message>
+    <message>
+      <source>Name / title</source>
+      <translation>Name / Titel</translation>
+    </message>
+    <message>
+      <source>Branch name</source>
+      <translation>Zweigname</translation>
+    </message>
+    <message>
+      <source>Commit message</source>
+      <translation>Commit-Nachricht</translation>
+    </message>
+    <message>
+      <source>Delete entire branch…</source>
+      <translation>Gesamten Zweig löschen…</translation>
+    </message>
+    <message>
+      <source>Why commit a revision?</source>
+      <translation>Warum eine Revision festschreiben?</translation>
+    </message>
+    <message>
+      <source>Personal working copies…</source>
+      <translation>Persönliche Arbeitskopien…</translation>
+    </message>
+    <message>
+      <source>Create or reopen a durable private draft for this exact branch HEAD</source>
+      <translation>Einen dauerhaften privaten Entwurf für genau diesen Zweig-HEAD erstellen oder erneut öffnen</translation>
+    </message>
+    <message>
+      <source>Create a named branch from an explicitly chosen revision</source>
+      <translation>Einen benannten Zweig aus der ausgewählten Revision erstellen</translation>
+    </message>
+    <message>
+      <source>Delete branch…</source>
+      <translation>Zweig löschen…</translation>
+    </message>
+    <message>
+      <source>Delete the selected branch and its unshared branch history</source>
+      <translation>Den ausgewählten Zweig und seinen nicht geteilten Verlauf löschen</translation>
+    </message>
+    <message>
+      <source>Commit HEAD first, then select the finalized revision to create a branch.</source>
+      <translation>Zuerst den HEAD festschreiben, dann die abgeschlossene Revision zum Erstellen eines Zweigs auswählen.</translation>
+    </message>
+    <message>
+      <source>Create a new branch from this immutable revision</source>
+      <translation>Einen neuen Zweig aus dieser unveränderlichen Revision erstellen</translation>
+    </message>
+    <message>
+      <source>Create or reopen a private working copy of this branch HEAD</source>
+      <translation>Eine private Arbeitskopie dieses Zweig-HEADs erstellen oder erneut öffnen</translation>
+    </message>
+    <message>
+      <source>Commit</source>
+      <translation>Commit erstellen</translation>
+    </message>
+    <message>
+      <source>Reconcile Commit</source>
+      <translation>Vorherigen Commit abgleichen</translation>
+    </message>
+    <message>
+      <source>Commit the saved private draft as an immutable revision</source>
+      <translation>Den gespeicherten privaten Entwurf als unveränderliche Revision festschreiben</translation>
+    </message>
+    <message>
+      <source>Recover the previous Commit operation before another Commit is allowed</source>
+      <translation>Das Ergebnis des vorherigen Commits wiederherstellen, bevor ein neuer Commit möglich ist</translation>
+    </message>
+    <message>
+      <source>Status: Writable HEAD</source>
+      <translation>Status: beschreibbarer HEAD</translation>
+    </message>
+    <message>
+      <source>Status: Immutable revision</source>
+      <translation>Status: unveränderliche Revision</translation>
+    </message>
+    <message>
+      <source>Status: Previous Commit pending — reconcile before continuing</source>
+      <translation>Status: vorheriger Commit ausstehend. Vor dem Fortfahren abgleichen.</translation>
+    </message>
+    <message>
+      <source>Status: Commit confirmed — acknowledge result</source>
+      <translation>Status: Commit bestätigt. Ergebnis quittieren.</translation>
+    </message>
+    <message>
+      <source>Status: Commit rejected — acknowledge result</source>
+      <translation>Status: Commit abgelehnt. Ergebnis quittieren.</translation>
+    </message>
+    <message>
+      <source>Status: Local Commit record unreadable — new Commit blocked</source>
+      <translation>Status: lokaler Commit-Eintrag nicht lesbar. Neuer Commit gesperrt.</translation>
+    </message>
+    <message>
+      <source>Ancestry</source>
+      <translation>Abstammung</translation>
+    </message>
+    <message>
+      <source>Writable HEAD</source>
+      <translation>Beschreibbarer HEAD</translation>
+    </message>
+    <message>
+      <source>Immutable revision</source>
+      <translation>Unveränderliche Revision</translation>
+    </message>
+    <message>
+      <source>Writable HEAD · Branch: %1</source>
+      <translation>Beschreibbarer HEAD · Zweig: %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision · commit message is a mutable display annotation</source>
+      <translation>Unveränderliche Revision · die Commit-Nachricht ist eine bearbeitbare Anzeigeanmerkung</translation>
+    </message>
+    <message>
+      <source>Branch: %1</source>
+      <translation>Zweig: %1</translation>
+    </message>
+    <message>
+      <source>No commits yet
+Branch: %1</source>
+      <translation>Noch keine Commits
+Zweig: %1</translation>
+    </message>
+    <message>
+      <source>Head revision: %1
+Branch: %2
+Revision identity: %3</source>
+      <translation>HEAD-Revision: %1
+Zweig: %2
+Revisionskennung: %3</translation>
+    </message>
+    <message>
+      <source>
+Created from branch: %1</source>
+      <translation>
+Erstellt aus Zweig: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision UUIDv7: %1</source>
+      <translation>
+UUIDv7 der ursprünglichen Abzweigrevision: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch UUIDv7: %1</source>
+      <translation>
+Zweig-UUIDv7: %1</translation>
+    </message>
+    <message>
+      <source>Project UUIDv7: %1</source>
+      <translation>Projekt-UUIDv7: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch ID: %1</source>
+      <translation>
+Zweig-ID: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision: %1</source>
+      <translation>
+Ursprüngliche Abzweigrevision: %1</translation>
+    </message>
+    <message>
+      <source>
+No commits yet</source>
+      <translation>
+Noch keine Commits</translation>
+    </message>
+    <message>
+      <source>
+Base revision: %1</source>
+      <translation>
+Basisrevision: %1</translation>
+    </message>
+    <message>
+      <source>
+Revision UUIDv7: %1
+HEAD of: %2
+Parents: %3</source>
+      <translation>
+Revisions-UUIDv7: %1
+HEAD von: %2
+Elternrevisionen: %3</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(keine)</translation>
+    </message>
+    <message>
+      <source>(root)</source>
+      <translation>(Wurzel)</translation>
+    </message>
+    <message>
+      <source>
+Canonical record SHA-256: %1</source>
+      <translation>
+SHA-256 des kanonischen Datensatzes: %1</translation>
+    </message>
+    <message>
+      <source>Revision: %1
+Branch: %2
+Parents: %3
+Author: %4
+Created: %5</source>
+      <translation>Revision: %1
+Zweig: %2
+Elternrevisionen: %3
+Autor: %4
+Erstellt: %5</translation>
+    </message>
+    <message>
+      <source>Committing creates an immutable snapshot of your hydraulic network, preserving its exact state at that point in time.
+
+This allows you to:
+• Return to an earlier version of your network.
+• Compare changes between revisions.
+• Create new branches to explore alternatives without modifying the original.
+
+Each commit requires a short message describing your changes.
+
+You can continue editing afterward. Your HEAD remains writable, and changes are automatically saved to your private working copy.</source>
+      <translation>Ein Commit hält den aktuellen Zustand Ihres hydraulischen Netzes in einer unveränderlichen Revision fest.
+
+Sie können frühere Versionen wieder aufrufen, Änderungen vergleichen und in einem neuen Zweig Alternativen erkunden.
+
+Beschreiben Sie Ihre Änderungen in einer kurzen Commit-Nachricht. Anschließend können Sie den HEAD weiter bearbeiten. Änderungen werden automatisch in Ihrer privaten Arbeitskopie gespeichert.</translation>
+    </message>
+    <message>
+      <source>No commits yet</source>
+      <translation>Noch keine Commits</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD</source>
+      <translation>%1  ·  HEAD</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD</source>
+      <translation>%1 · HEAD</translation>
+    </message>
+    <message>
+      <source>Parent · %1</source>
+      <translation>Elternrevision · %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

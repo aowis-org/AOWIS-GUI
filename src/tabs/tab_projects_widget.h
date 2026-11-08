@@ -192,6 +192,9 @@ private:
     void submitCreation();
     void validateCreation();
     void updateInspectorTabs();
+    void refreshRevisionInspectorLanguage();
+    void refreshCommitLabels();
+    QString displayed_commit_state;
     void activateInspectorRelation(const QString &key);
     void deleteSelection();
     void deleteInspectedBranch();

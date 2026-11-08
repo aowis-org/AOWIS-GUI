@@ -352,6 +352,251 @@ Los datos de la red no se almacenan en este servidor. Esta es una vista previa d
       <source>Remove this preview project</source>
       <translation>Eliminar este proyecto de vista previa</translation>
     </message>
+    <message>
+      <source>Name / title</source>
+      <translation>Nombre / título</translation>
+    </message>
+    <message>
+      <source>Branch name</source>
+      <translation>Nombre de la rama</translation>
+    </message>
+    <message>
+      <source>Commit message</source>
+      <translation>Mensaje de commit</translation>
+    </message>
+    <message>
+      <source>Delete entire branch…</source>
+      <translation>Eliminar toda la rama…</translation>
+    </message>
+    <message>
+      <source>Why commit a revision?</source>
+      <translation>¿Por qué registrar una revisión?</translation>
+    </message>
+    <message>
+      <source>Personal working copies…</source>
+      <translation>Copias de trabajo personales…</translation>
+    </message>
+    <message>
+      <source>Create or reopen a durable private draft for this exact branch HEAD</source>
+      <translation>Crear o reabrir un borrador privado persistente para este HEAD de rama</translation>
+    </message>
+    <message>
+      <source>Create a named branch from an explicitly chosen revision</source>
+      <translation>Crear una rama con nombre a partir de la revisión elegida</translation>
+    </message>
+    <message>
+      <source>Delete branch…</source>
+      <translation>Eliminar rama…</translation>
+    </message>
+    <message>
+      <source>Delete the selected branch and its unshared branch history</source>
+      <translation>Eliminar la rama seleccionada y su historial no compartido</translation>
+    </message>
+    <message>
+      <source>Commit HEAD first, then select the finalized revision to create a branch.</source>
+      <translation>Registre primero el HEAD y seleccione la revisión resultante para crear una rama.</translation>
+    </message>
+    <message>
+      <source>Create a new branch from this immutable revision</source>
+      <translation>Crear una rama a partir de esta revisión inmutable</translation>
+    </message>
+    <message>
+      <source>Create or reopen a private working copy of this branch HEAD</source>
+      <translation>Crear o reabrir una copia de trabajo privada del HEAD de esta rama</translation>
+    </message>
+    <message>
+      <source>Commit</source>
+      <translation>Registrar revisión</translation>
+    </message>
+    <message>
+      <source>Reconcile Commit</source>
+      <translation>Conciliar el commit anterior</translation>
+    </message>
+    <message>
+      <source>Commit the saved private draft as an immutable revision</source>
+      <translation>Registrar el borrador privado guardado como revisión inmutable</translation>
+    </message>
+    <message>
+      <source>Recover the previous Commit operation before another Commit is allowed</source>
+      <translation>Recuperar el resultado del commit anterior antes de registrar otro</translation>
+    </message>
+    <message>
+      <source>Status: Writable HEAD</source>
+      <translation>Estado: HEAD editable</translation>
+    </message>
+    <message>
+      <source>Status: Immutable revision</source>
+      <translation>Estado: revisión inmutable</translation>
+    </message>
+    <message>
+      <source>Status: Previous Commit pending — reconcile before continuing</source>
+      <translation>Estado: commit anterior pendiente. Concilie el resultado antes de continuar.</translation>
+    </message>
+    <message>
+      <source>Status: Commit confirmed — acknowledge result</source>
+      <translation>Estado: commit confirmado. Reconozca el resultado.</translation>
+    </message>
+    <message>
+      <source>Status: Commit rejected — acknowledge result</source>
+      <translation>Estado: commit rechazado. Reconozca el resultado.</translation>
+    </message>
+    <message>
+      <source>Status: Local Commit record unreadable — new Commit blocked</source>
+      <translation>Estado: registro local ilegible. Nuevo commit bloqueado.</translation>
+    </message>
+    <message>
+      <source>Ancestry</source>
+      <translation>Ascendencia</translation>
+    </message>
+    <message>
+      <source>Writable HEAD</source>
+      <translation>HEAD editable</translation>
+    </message>
+    <message>
+      <source>Immutable revision</source>
+      <translation>Revisión inmutable</translation>
+    </message>
+    <message>
+      <source>Writable HEAD · Branch: %1</source>
+      <translation>HEAD editable · Rama: %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision · commit message is a mutable display annotation</source>
+      <translation>Revisión inmutable · el mensaje de commit es una anotación editable</translation>
+    </message>
+    <message>
+      <source>Branch: %1</source>
+      <translation>Rama: %1</translation>
+    </message>
+    <message>
+      <source>No commits yet
+Branch: %1</source>
+      <translation>Aún no hay commits
+Rama: %1</translation>
+    </message>
+    <message>
+      <source>Head revision: %1
+Branch: %2
+Revision identity: %3</source>
+      <translation>Revisión de cabecera: %1
+Rama: %2
+Identidad de la revisión: %3</translation>
+    </message>
+    <message>
+      <source>
+Created from branch: %1</source>
+      <translation>
+Creada a partir de la rama: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision UUIDv7: %1</source>
+      <translation>
+UUIDv7 de la revisión de origen: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch UUIDv7: %1</source>
+      <translation>
+UUIDv7 de la rama: %1</translation>
+    </message>
+    <message>
+      <source>Project UUIDv7: %1</source>
+      <translation>UUIDv7 del proyecto: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch ID: %1</source>
+      <translation>
+ID de rama: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision: %1</source>
+      <translation>
+Revisión de origen: %1</translation>
+    </message>
+    <message>
+      <source>
+No commits yet</source>
+      <translation>
+Aún no hay commits</translation>
+    </message>
+    <message>
+      <source>
+Base revision: %1</source>
+      <translation>
+Revisión base: %1</translation>
+    </message>
+    <message>
+      <source>
+Revision UUIDv7: %1
+HEAD of: %2
+Parents: %3</source>
+      <translation>
+UUIDv7 de la revisión: %1
+HEAD de: %2
+Revisiones padre: %3</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(ninguna)</translation>
+    </message>
+    <message>
+      <source>(root)</source>
+      <translation>(raíz)</translation>
+    </message>
+    <message>
+      <source>
+Canonical record SHA-256: %1</source>
+      <translation>
+SHA-256 del registro canónico: %1</translation>
+    </message>
+    <message>
+      <source>Revision: %1
+Branch: %2
+Parents: %3
+Author: %4
+Created: %5</source>
+      <translation>Revisión: %1
+Rama: %2
+Revisiones padre: %3
+Autor: %4
+Creación: %5</translation>
+    </message>
+    <message>
+      <source>Committing creates an immutable snapshot of your hydraulic network, preserving its exact state at that point in time.
+
+This allows you to:
+• Return to an earlier version of your network.
+• Compare changes between revisions.
+• Create new branches to explore alternatives without modifying the original.
+
+Each commit requires a short message describing your changes.
+
+You can continue editing afterward. Your HEAD remains writable, and changes are automatically saved to your private working copy.</source>
+      <translation>Un commit guarda el estado exacto de la red hidráulica como una revisión inmutable.
+
+Puede volver a una versión anterior, comparar revisiones y crear una rama para explorar alternativas sin modificar el original.
+
+Cada commit requiere un mensaje breve que describa los cambios. Puede seguir editando el HEAD y los cambios se guardarán automáticamente en su copia de trabajo privada.</translation>
+    </message>
+    <message>
+      <source>No commits yet</source>
+      <translation>Aún no hay commits</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD</source>
+      <translation>%1  ·  HEAD</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD</source>
+      <translation>%1 · HEAD</translation>
+    </message>
+    <message>
+      <source>Parent · %1</source>
+      <translation>Revisión padre · %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

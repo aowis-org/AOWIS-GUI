@@ -495,6 +495,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this->project_inspector->refreshLanguage();
         if (this->project_relations != nullptr)
             this->project_relations->refreshLanguage();
+        refreshRevisionInspectorLanguage();
         if (this->selection_kind == SelectionKind::Project && this->inspector_tabs != nullptr)
         {
             const int overview = this->inspector_tabs->indexOf(this->inspector_overview_page);
@@ -2190,6 +2191,80 @@ ProjectsInspectorOverview *ProjectsWidget::activeOverview() const
     return this->database_overview;
 }
 
+void ProjectsWidget::refreshCommitLabels()
+{
+    this->revision_overview->status->setText(this->selection_kind == SelectionKind::Head
+        ? tr("Status: Writable HEAD") : tr("Status: Immutable revision"));
+    this->revision_inspector->commit_head->setText(this->displayed_commit_state.isEmpty()
+        ? tr("Commit") : tr("Reconcile Commit"));
+    this->revision_inspector->commit_head->setToolTip(this->displayed_commit_state.isEmpty()
+        ? tr("Commit the saved private draft as an immutable revision")
+        : tr("Recover the previous Commit operation before another Commit is allowed"));
+    if (!this->displayed_commit_state.isEmpty() && this->selection_kind == SelectionKind::Head) {
+        this->revision_overview->status->setText(this->displayed_commit_state == QStringLiteral("pending")
+            ? tr("Status: Previous Commit pending — reconcile before continuing")
+            : this->displayed_commit_state == QStringLiteral("succeeded")
+                ? tr("Status: Commit confirmed — acknowledge result")
+                : this->displayed_commit_state == QStringLiteral("rejected")
+                    ? tr("Status: Commit rejected — acknowledge result")
+                    : tr("Status: Local Commit record unreadable — new Commit blocked"));
+    }
+}
+
+void ProjectsWidget::refreshRevisionInspectorLanguage()
+{
+    const bool head = this->selection_kind == SelectionKind::Head;
+    const bool branch = this->selection_kind == SelectionKind::Branch;
+    if (this->inspector_tabs == nullptr || (!branch && !head && this->selection_kind != SelectionKind::Revision))
+        return;
+
+    const ProjectsInspectorPresentation view = branch
+        ? ProjectsInspectorPresentations::branch(this->projects, this->selected_id)
+        : head ? ProjectsInspectorPresentations::head(currentBranch(), currentProject())
+               : ProjectsInspectorPresentations::revision(selectedRevision(), currentProject(), inspectedRevisionBranch());
+    if (this->creation_kind == CreationKind::None)
+    {
+        this->inspector_heading->setText(view.heading);
+        this->inspector_subtitle->setText(view.subtitle);
+    }
+    const int overview = this->inspector_tabs->indexOf(this->inspector_overview_page);
+    if (overview >= 0)
+        this->inspector_tabs->setTabText(overview, tr("Overview"));
+    if (branch)
+    {
+        this->branch_relations->refreshLanguage();
+        this->branch_overview->metadata->setText(view.metadata);
+        this->branch_overview->setPreviewExplanation(isPreviewSource()
+            ? tr("Only this demonstration uses in-memory project and revision edits.") : QString());
+        const int revisions = this->inspector_tabs->indexOf(this->branch_relations);
+        if (revisions >= 0)
+            this->inspector_tabs->setTabText(revisions, tr("Revisions"));
+        return;
+    }
+    const int details = this->inspector_tabs->indexOf(this->revision_details_page);
+    const int branch_tab = this->inspector_tabs->indexOf(this->revision_branch_page);
+    const int ancestry = this->inspector_tabs->indexOf(this->revision_relations);
+    if (details >= 0)
+        this->inspector_tabs->setTabText(details, head ? tr("HEAD") : tr("Revision"));
+    if (branch_tab >= 0)
+        this->inspector_tabs->setTabText(branch_tab, tr("Branch"));
+    if (ancestry >= 0)
+    {
+        this->inspector_tabs->setTabText(ancestry, tr("Ancestry"));
+        this->revision_relations->refreshLanguage();
+    }
+    this->revision_inspector->identity_footer->setText(view.metadata);
+    this->revision_inspector->create_branch->setText(tr("Create branch"));
+    this->revision_inspector->create_branch->setToolTip(head
+        ? tr("Commit HEAD first, then select the finalized revision to create a branch.")
+        : tr("Create a new branch from this immutable revision"));
+    this->revision_inspector->head_working_copies->setText(tr("Personal working copies…"));
+    this->revision_inspector->head_working_copies->setToolTip(tr("Create or reopen a private working copy of this branch HEAD"));
+    this->revision_network_overview->state->setText(head ? tr("Writable HEAD") : tr("Immutable revision"));
+    this->revision_network_overview->branch->setText(tr("Branch: %1").arg(this->revision_overview->branch_label->text()));
+    refreshCommitLabels();
+}
+
 void ProjectsWidget::updateInspectorTabs()
 {
     const int old_tab = this->inspector_tabs->currentIndex();
@@ -2468,9 +2543,6 @@ void ProjectsWidget::updateInspector()
                 : view.commit_message);
         this->revision_overview->commit_message->setEnabled(
             !this->source_writer->isBusy());
-        this->revision_overview->status->setText(this->selection_kind == SelectionKind::Head
-            ? tr("Status: Writable HEAD")
-            : tr("Status: Immutable revision"));
     }
     else
     {
@@ -2581,20 +2653,8 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Head && !deletion_unborn_head
             ? tr("Discard this HEAD's saved private working copy; immutable revisions remain unchanged.")
             : QString());
-    this->revision_inspector->commit_head->setText(saved_commit_state.isEmpty()
-        ? tr("Commit") : tr("Reconcile Commit"));
-    this->revision_inspector->commit_head->setToolTip(saved_commit_state.isEmpty()
-        ? tr("Commit the saved private draft as an immutable revision")
-        : tr("Recover the previous Commit operation before another Commit is allowed"));
-    if (!saved_commit_state.isEmpty() && this->selection_kind == SelectionKind::Head) {
-        this->revision_overview->status->setText(saved_commit_state == QStringLiteral("pending")
-            ? tr("Status: Previous Commit pending — reconcile before continuing")
-            : saved_commit_state == QStringLiteral("succeeded")
-                ? tr("Status: Commit confirmed — acknowledge result")
-                : saved_commit_state == QStringLiteral("rejected")
-                    ? tr("Status: Commit rejected — acknowledge result")
-                    : tr("Status: Local Commit record unreadable — new Commit blocked"));
-    }
+    this->displayed_commit_state = saved_commit_state;
+    refreshCommitLabels();
     if (saved_commit_state == QStringLiteral("pending") && project != nullptr
         && this->selection_kind == SelectionKind::Head) {
         const ProjectPreviewBranch *selected_branch = currentBranch();

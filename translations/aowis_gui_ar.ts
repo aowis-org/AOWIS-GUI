@@ -352,6 +352,251 @@ Network data is NOT stored on this server; this is only a GUI preview.</source>
       <source>Remove this preview project</source>
       <translation>إزالة مشروع المعاينة هذا</translation>
     </message>
+    <message>
+      <source>Name / title</source>
+      <translation>الاسم / العنوان</translation>
+    </message>
+    <message>
+      <source>Branch name</source>
+      <translation>اسم الفرع</translation>
+    </message>
+    <message>
+      <source>Commit message</source>
+      <translation>رسالة تسجيل المراجعة</translation>
+    </message>
+    <message>
+      <source>Delete entire branch…</source>
+      <translation>حذف الفرع بالكامل…</translation>
+    </message>
+    <message>
+      <source>Why commit a revision?</source>
+      <translation>لماذا تُسجَّل مراجعة؟</translation>
+    </message>
+    <message>
+      <source>Personal working copies…</source>
+      <translation>نسخ العمل الشخصية…</translation>
+    </message>
+    <message>
+      <source>Create or reopen a durable private draft for this exact branch HEAD</source>
+      <translation>إنشاء مسودة خاصة محفوظة لرأس هذا الفرع أو إعادة فتحها</translation>
+    </message>
+    <message>
+      <source>Create a named branch from an explicitly chosen revision</source>
+      <translation>إنشاء فرع مسمّى من المراجعة المختارة</translation>
+    </message>
+    <message>
+      <source>Delete branch…</source>
+      <translation>حذف الفرع…</translation>
+    </message>
+    <message>
+      <source>Delete the selected branch and its unshared branch history</source>
+      <translation>حذف الفرع المحدد وسجلّه غير المشترك</translation>
+    </message>
+    <message>
+      <source>Commit HEAD first, then select the finalized revision to create a branch.</source>
+      <translation>سجّل HEAD أولاً، ثم اختر المراجعة الناتجة لإنشاء فرع.</translation>
+    </message>
+    <message>
+      <source>Create a new branch from this immutable revision</source>
+      <translation>إنشاء فرع جديد من هذه المراجعة الثابتة</translation>
+    </message>
+    <message>
+      <source>Create or reopen a private working copy of this branch HEAD</source>
+      <translation>إنشاء نسخة عمل خاصة لرأس هذا الفرع أو إعادة فتحها</translation>
+    </message>
+    <message>
+      <source>Commit</source>
+      <translation>تسجيل المراجعة</translation>
+    </message>
+    <message>
+      <source>Reconcile Commit</source>
+      <translation>مطابقة المراجعة السابقة</translation>
+    </message>
+    <message>
+      <source>Commit the saved private draft as an immutable revision</source>
+      <translation>تسجيل المسودة الخاصة المحفوظة كمراجعة ثابتة</translation>
+    </message>
+    <message>
+      <source>Recover the previous Commit operation before another Commit is allowed</source>
+      <translation>استرجاع نتيجة التسجيل السابق قبل تسجيل مراجعة أخرى</translation>
+    </message>
+    <message>
+      <source>Status: Writable HEAD</source>
+      <translation>الحالة: HEAD قابل للتعديل</translation>
+    </message>
+    <message>
+      <source>Status: Immutable revision</source>
+      <translation>الحالة: مراجعة ثابتة</translation>
+    </message>
+    <message>
+      <source>Status: Previous Commit pending — reconcile before continuing</source>
+      <translation>الحالة: التسجيل السابق قيد الانتظار. تحقّق من نتيجته قبل المتابعة.</translation>
+    </message>
+    <message>
+      <source>Status: Commit confirmed — acknowledge result</source>
+      <translation>الحالة: تم تأكيد التسجيل. أقرّ بالنتيجة.</translation>
+    </message>
+    <message>
+      <source>Status: Commit rejected — acknowledge result</source>
+      <translation>الحالة: رُفض التسجيل. أقرّ بالنتيجة.</translation>
+    </message>
+    <message>
+      <source>Status: Local Commit record unreadable — new Commit blocked</source>
+      <translation>الحالة: تعذّرت قراءة سجل المراجعة المحلي. التسجيل الجديد محظور.</translation>
+    </message>
+    <message>
+      <source>Ancestry</source>
+      <translation>السلالة</translation>
+    </message>
+    <message>
+      <source>Writable HEAD</source>
+      <translation>HEAD قابل للتعديل</translation>
+    </message>
+    <message>
+      <source>Immutable revision</source>
+      <translation>مراجعة ثابتة</translation>
+    </message>
+    <message>
+      <source>Writable HEAD · Branch: %1</source>
+      <translation>HEAD قابل للتعديل · الفرع: %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision · commit message is a mutable display annotation</source>
+      <translation>مراجعة ثابتة · رسالة التسجيل ملاحظة قابلة للتعديل</translation>
+    </message>
+    <message>
+      <source>Branch: %1</source>
+      <translation>الفرع: %1</translation>
+    </message>
+    <message>
+      <source>No commits yet
+Branch: %1</source>
+      <translation>لا توجد مراجعات مسجّلة بعد
+الفرع: %1</translation>
+    </message>
+    <message>
+      <source>Head revision: %1
+Branch: %2
+Revision identity: %3</source>
+      <translation>مراجعة الرأس: %1
+الفرع: %2
+هوية المراجعة: %3</translation>
+    </message>
+    <message>
+      <source>
+Created from branch: %1</source>
+      <translation>
+أُنشئ من الفرع: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision UUIDv7: %1</source>
+      <translation>
+معرّف UUIDv7 لمراجعة التفرّع الأصلية: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch UUIDv7: %1</source>
+      <translation>
+معرّف UUIDv7 للفرع: %1</translation>
+    </message>
+    <message>
+      <source>Project UUIDv7: %1</source>
+      <translation>معرّف UUIDv7 للمشروع: %1</translation>
+    </message>
+    <message>
+      <source>
+Branch ID: %1</source>
+      <translation>
+معرّف الفرع: %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision: %1</source>
+      <translation>
+مراجعة التفرّع الأصلية: %1</translation>
+    </message>
+    <message>
+      <source>
+No commits yet</source>
+      <translation>
+لا توجد مراجعات مسجّلة بعد</translation>
+    </message>
+    <message>
+      <source>
+Base revision: %1</source>
+      <translation>
+المراجعة الأساسية: %1</translation>
+    </message>
+    <message>
+      <source>
+Revision UUIDv7: %1
+HEAD of: %2
+Parents: %3</source>
+      <translation>
+معرّف UUIDv7 للمراجعة: %1
+رأس الفروع: %2
+المراجعات الأم: %3</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(لا يوجد)</translation>
+    </message>
+    <message>
+      <source>(root)</source>
+      <translation>(الجذر)</translation>
+    </message>
+    <message>
+      <source>
+Canonical record SHA-256: %1</source>
+      <translation>
+بصمة SHA-256 للسجل المرجعي: %1</translation>
+    </message>
+    <message>
+      <source>Revision: %1
+Branch: %2
+Parents: %3
+Author: %4
+Created: %5</source>
+      <translation>المراجعة: %1
+الفرع: %2
+المراجعات الأم: %3
+المؤلف: %4
+تاريخ الإنشاء: %5</translation>
+    </message>
+    <message>
+      <source>Committing creates an immutable snapshot of your hydraulic network, preserving its exact state at that point in time.
+
+This allows you to:
+• Return to an earlier version of your network.
+• Compare changes between revisions.
+• Create new branches to explore alternatives without modifying the original.
+
+Each commit requires a short message describing your changes.
+
+You can continue editing afterward. Your HEAD remains writable, and changes are automatically saved to your private working copy.</source>
+      <translation>يحفظ التسجيل الحالة الدقيقة لشبكتك الهيدروليكية في مراجعة ثابتة.
+
+يمكنك الرجوع إلى نسخة سابقة، ومقارنة المراجعات، وإنشاء فرع لاستكشاف البدائل مع الحفاظ على الأصل.
+
+يتطلب كل تسجيل رسالة قصيرة تصف التغييرات. ويمكنك بعدها متابعة تحرير HEAD، وتُحفظ التغييرات تلقائيًا في نسخة عملك الخاصة.</translation>
+    </message>
+    <message>
+      <source>No commits yet</source>
+      <translation>لا توجد مراجعات مسجّلة بعد</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD</source>
+      <translation>%1  ·  HEAD</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD</source>
+      <translation>%1 · HEAD</translation>
+    </message>
+    <message>
+      <source>Parent · %1</source>
+      <translation>المراجعة الأم · %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

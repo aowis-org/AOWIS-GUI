@@ -167,6 +167,7 @@ private:
 // ProjectsWidget handles selection routing, never rebuilding another domain's list.
 class ProjectsInspectorRelations : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectsInspectorRelations(const QString &name, QWidget *parent = nullptr)
         : QWidget(parent)
@@ -182,10 +183,11 @@ public:
     QListWidget *list = nullptr;
 
 protected:
-    void addRelation(const QString &text, const QString &key)
+    QListWidgetItem *addRelation(const QString &text, const QString &key)
     {
         QListWidgetItem *item = new QListWidgetItem(text, this->list);
         item->setData(Qt::UserRole, key);
+        return item;
     }
 };
 
@@ -264,6 +266,18 @@ class BranchInspectorRelations final : public ProjectsInspectorRelations
 public:
     explicit BranchInspectorRelations(QWidget *parent = nullptr)
         : ProjectsInspectorRelations(QStringLiteral("projectsBranchRelations"), parent) {}
+    void refreshLanguage()
+    {
+        for (int row = 0; row < this->list->count(); ++row)
+        {
+            QListWidgetItem *item = this->list->item(row);
+            if (!item->data(Qt::UserRole).isValid())
+                item->setText(tr("No commits yet"));
+            else if (item->data(Qt::UserRole + 1).isValid())
+                item->setText(tr("%1  ·  HEAD").arg(item->data(Qt::UserRole + 1).toString()));
+        }
+    }
+
     void populate(const ProjectPreviewData *project, const ProjectPreviewBranch *branch)
     {
         this->list->clear();
@@ -288,10 +302,13 @@ public:
         }
         for (const ProjectPreviewRevision &revision : project->revisions)
             if (reachable.contains(revision.id))
-                addRelation(revision.id == branch->head
-                        ? tr("%1  ·  HEAD").arg(DvmdbIdentity::shortLabel(revision.id))
-                        : DvmdbIdentity::shortLabel(revision.id),
-                    QStringLiteral("r:") + revision.id);
+            {
+                const QString label = DvmdbIdentity::shortLabel(revision.id);
+                QListWidgetItem *item = addRelation(label, QStringLiteral("r:") + revision.id);
+                if (revision.id == branch->head)
+                    item->setData(Qt::UserRole + 1, label);
+            }
+        refreshLanguage();
     }
 };
 
@@ -300,16 +317,29 @@ class RevisionInspectorRelations final : public ProjectsInspectorRelations
 public:
     explicit RevisionInspectorRelations(QWidget *parent = nullptr)
         : ProjectsInspectorRelations(QStringLiteral("projectsRevisionRelations"), parent) {}
+    void refreshLanguage()
+    {
+        for (int row = 0; row < this->list->count(); ++row)
+        {
+            QListWidgetItem *item = this->list->item(row);
+            const bool parent = item->data(Qt::UserRole).toString().startsWith(QStringLiteral("r:"));
+            const QString label = item->data(Qt::UserRole + 1).toString();
+            item->setText(parent ? tr("Parent · %1").arg(label) : tr("%1 · HEAD").arg(label));
+        }
+    }
+
     void populate(const ProjectPreviewData *project, const ProjectPreviewRevision *revision)
     {
         this->list->clear();
         if (revision == nullptr) return;
         for (const QString &parent : revision->parents)
-            addRelation(tr("Parent · %1").arg(DvmdbIdentity::shortLabel(parent)),
-                        QStringLiteral("r:") + parent);
-        if (project == nullptr) return;
-        for (const ProjectPreviewBranch &branch : project->branches)
-            if (branch.head == revision->id)
-                addRelation(tr("%1 · HEAD").arg(branch.name), QStringLiteral("b:") + branch.id);
+            addRelation(QString(), QStringLiteral("r:") + parent)
+                ->setData(Qt::UserRole + 1, DvmdbIdentity::shortLabel(parent));
+        if (project != nullptr)
+            for (const ProjectPreviewBranch &branch : project->branches)
+                if (branch.head == revision->id)
+                    addRelation(QString(), QStringLiteral("b:") + branch.id)
+                        ->setData(Qt::UserRole + 1, branch.name);
+        refreshLanguage();
     }
 };

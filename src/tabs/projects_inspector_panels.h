@@ -30,6 +30,7 @@
 // No controls are shared across different inspector domains.
 class ProjectsInspectorOverview : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectsInspectorOverview(const QString &kind, QWidget *parent = nullptr)
         : QWidget(parent)
@@ -198,6 +199,23 @@ class BranchInspectorOverview final : public ProjectsInspectorOverview
 public:
     explicit BranchInspectorOverview(QWidget *parent = nullptr)
         : ProjectsInspectorOverview(QStringLiteral("Branch"), parent) {}
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        ProjectsInspectorOverview::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    void refreshLanguage()
+    {
+        QFormLayout *form = static_cast<QFormLayout *>(this->fields->layout());
+        static_cast<QLabel *>(form->labelForField(this->name))->setText(tr("Name / title"));
+        static_cast<QLabel *>(form->labelForField(this->tags))->setText(tr("Tags"));
+        static_cast<QLabel *>(form->labelForField(this->description))->setText(tr("Description"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+    }
 };
 // Compact plain-text commit editor. Its viewport shows exactly two font lines;
 // more content scrolls, and a font/style change recalculates the physical height.
@@ -272,16 +290,7 @@ public:
         explanation_font.setBold(true);
         this->commit_explanation_title->setFont(explanation_font);
         column->insertWidget(column->indexOf(this->status), this->commit_explanation_title);
-        this->commit_explanation = new QLabel(
-            tr("Committing creates an immutable snapshot of your hydraulic network, "
-               "preserving its exact state at that point in time.\n\n"
-               "This allows you to:\n"
-               "\u2022 Return to an earlier version of your network.\n"
-               "\u2022 Compare changes between revisions.\n"
-               "\u2022 Create new branches to explore alternatives without modifying the original.\n\n"
-               "Each commit requires a short message describing your changes.\n\n"
-               "You can continue editing afterward. Your HEAD remains writable, and "
-               "changes are automatically saved to your private working copy."), this);
+        this->commit_explanation = new QLabel(this);
         this->commit_explanation->setObjectName(
             QStringLiteral("projectsHeadCommitExplanation"));
         this->commit_explanation->setWordWrap(true);
@@ -293,6 +302,7 @@ public:
         this->commit_explanation_title->hide();
         this->commit_explanation->hide();
         this->metadata->hide();
+        refreshLanguage();
     }
     void setCommitExplanationVisible(bool visible)
     {
@@ -310,6 +320,34 @@ public:
     QLabel *commit_explanation_title = nullptr;
     QLabel *commit_explanation = nullptr;
     QHBoxLayout *primary_actions = nullptr;
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        ProjectsInspectorOverview::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    void refreshLanguage()
+    {
+        QFormLayout *form = static_cast<QFormLayout *>(this->fields->layout());
+        static_cast<QLabel *>(form->labelForField(this->branch_label))->setText(tr("Branch"));
+        static_cast<QLabel *>(form->labelForField(this->commit_message))->setText(tr("Commit message"));
+        static_cast<QLabel *>(form->labelForField(this->tags))->setText(tr("Tags"));
+        static_cast<QLabel *>(form->labelForField(this->description))->setText(tr("Description"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+        this->commit_explanation_title->setText(tr("Why commit a revision?"));
+        this->commit_explanation->setText(tr("Committing creates an immutable snapshot of your hydraulic network, "
+               "preserving its exact state at that point in time.\n\n"
+               "This allows you to:\n"
+               "\u2022 Return to an earlier version of your network.\n"
+               "\u2022 Compare changes between revisions.\n"
+               "\u2022 Create new branches to explore alternatives without modifying the original.\n\n"
+               "Each commit requires a short message describing your changes.\n\n"
+               "You can continue editing afterward. Your HEAD remains writable, and "
+               "changes are automatically saved to your private working copy."));
+    }
 };
 
 // The selected revision/HEAD's network entry point. This is deliberately not
@@ -419,6 +457,7 @@ public:
 // Both HEAD and immutable Revision use this tab to edit the same branch name.
 class RevisionInspectorBranch final : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit RevisionInspectorBranch(QLineEdit *name_edit, QWidget *parent = nullptr)
         : QWidget(parent), name(name_edit)
@@ -426,22 +465,22 @@ public:
         setObjectName(QStringLiteral("projectsRevisionBranchTab"));
         QVBoxLayout *column = new QVBoxLayout(this);
         column->setContentsMargins(0, 12, 0, 4);
-        QFormLayout *form = new QFormLayout();
-        form->setRowWrapPolicy(QFormLayout::WrapAllRows);
-        form->setLabelAlignment(Qt::AlignLeft);
-        form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+        this->form = new QFormLayout();
+        this->form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+        this->form->setLabelAlignment(Qt::AlignLeft);
+        this->form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         this->name->setParent(this);
-        form->addRow(tr("Branch name"), this->name);
+        this->form->addRow(tr("Branch name"), this->name);
         this->tags = new QLineEdit(this);
         this->tags->setObjectName(QStringLiteral("projectsRevisionBranchTags"));
         this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
-        form->addRow(tr("Tags"), this->tags);
+        this->form->addRow(tr("Tags"), this->tags);
         this->description = new QTextEdit(this);
         this->description->setObjectName(QStringLiteral("projectsRevisionBranchDescription"));
         this->description->setMinimumHeight(90);
         this->description->setMaximumHeight(170);
-        form->addRow(tr("Description"), this->description);
-        column->addLayout(form);
+        this->form->addRow(tr("Description"), this->description);
+        column->addLayout(this->form);
         this->delete_branch = new QPushButton(tr("Delete entire branch…"), this);
         this->delete_branch->setObjectName(QStringLiteral("projectsRevisionBranchDelete"));
         column->addWidget(this->delete_branch);
@@ -452,6 +491,25 @@ public:
     QLineEdit *name = nullptr;
     QLineEdit *tags = nullptr;
     QTextEdit *description = nullptr;
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        QWidget::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    QFormLayout *form = nullptr;
+
+    void refreshLanguage()
+    {
+        static_cast<QLabel *>(this->form->labelForField(this->name))->setText(tr("Branch name"));
+        static_cast<QLabel *>(this->form->labelForField(this->tags))->setText(tr("Tags"));
+        static_cast<QLabel *>(this->form->labelForField(this->description))->setText(tr("Description"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+        this->delete_branch->setText(tr("Delete entire branch…"));
+    }
 };
 
 class ProjectsInspectorActionStack final : public QStackedWidget
@@ -477,6 +535,7 @@ public:
 
 class ProjectsInspectorPanel : public QWidget
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectsInspectorPanel(QWidget *parent = nullptr) : QWidget(parent)
     {
@@ -608,6 +667,24 @@ public:
         this->delete_branch->setVisible(!creating && (preview || backed));
         this->delete_branch->setEnabled(!busy && (preview || backed));
         setCreationState(creating, busy, valid);
+    }
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        ProjectsInspectorPanel::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    void refreshLanguage()
+    {
+        this->working_copies->setText(tr("Personal working copies…"));
+        this->working_copies->setToolTip(tr("Create or reopen a durable private draft for this exact branch HEAD"));
+        this->create_branch->setText(tr("Create branch"));
+        this->create_branch->setToolTip(tr("Create a named branch from an explicitly chosen revision"));
+        this->delete_branch->setText(tr("Delete branch…"));
+        this->delete_branch->setToolTip(tr("Delete the selected branch and its unshared branch history"));
     }
 };
 

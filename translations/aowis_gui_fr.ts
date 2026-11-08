@@ -352,6 +352,251 @@ Les données du réseau ne sont pas stockées sur ce serveur. Cet aperçu est lo
       <source>Remove this preview project</source>
       <translation>Supprimer ce projet de démonstration</translation>
     </message>
+    <message>
+      <source>Name / title</source>
+      <translation>Nom / titre</translation>
+    </message>
+    <message>
+      <source>Branch name</source>
+      <translation>Nom de branche</translation>
+    </message>
+    <message>
+      <source>Commit message</source>
+      <translation>Message de commit</translation>
+    </message>
+    <message>
+      <source>Delete entire branch…</source>
+      <translation>Supprimer toute la branche…</translation>
+    </message>
+    <message>
+      <source>Why commit a revision?</source>
+      <translation>Pourquoi enregistrer une révision ?</translation>
+    </message>
+    <message>
+      <source>Personal working copies…</source>
+      <translation>Copies de travail personnelles…</translation>
+    </message>
+    <message>
+      <source>Create or reopen a durable private draft for this exact branch HEAD</source>
+      <translation>Créer ou rouvrir un brouillon privé persistant pour ce HEAD de branche</translation>
+    </message>
+    <message>
+      <source>Create a named branch from an explicitly chosen revision</source>
+      <translation>Créer une branche nommée à partir de la révision choisie</translation>
+    </message>
+    <message>
+      <source>Delete branch…</source>
+      <translation>Supprimer la branche…</translation>
+    </message>
+    <message>
+      <source>Delete the selected branch and its unshared branch history</source>
+      <translation>Supprimer la branche sélectionnée et son historique non partagé</translation>
+    </message>
+    <message>
+      <source>Commit HEAD first, then select the finalized revision to create a branch.</source>
+      <translation>Enregistrez le HEAD, puis sélectionnez la révision créée pour en dériver une branche.</translation>
+    </message>
+    <message>
+      <source>Create a new branch from this immutable revision</source>
+      <translation>Créer une branche à partir de cette révision immuable</translation>
+    </message>
+    <message>
+      <source>Create or reopen a private working copy of this branch HEAD</source>
+      <translation>Créer ou rouvrir une copie de travail privée du HEAD de cette branche</translation>
+    </message>
+    <message>
+      <source>Commit</source>
+      <translation>Enregistrer la révision</translation>
+    </message>
+    <message>
+      <source>Reconcile Commit</source>
+      <translation>Vérifier le commit précédent</translation>
+    </message>
+    <message>
+      <source>Commit the saved private draft as an immutable revision</source>
+      <translation>Enregistrer le brouillon privé sauvegardé comme révision immuable</translation>
+    </message>
+    <message>
+      <source>Recover the previous Commit operation before another Commit is allowed</source>
+      <translation>Récupérer le résultat du commit précédent avant de pouvoir en créer un autre</translation>
+    </message>
+    <message>
+      <source>Status: Writable HEAD</source>
+      <translation>État : HEAD modifiable</translation>
+    </message>
+    <message>
+      <source>Status: Immutable revision</source>
+      <translation>État : révision immuable</translation>
+    </message>
+    <message>
+      <source>Status: Previous Commit pending — reconcile before continuing</source>
+      <translation>État : commit précédent en attente. Vérifiez son résultat avant de continuer.</translation>
+    </message>
+    <message>
+      <source>Status: Commit confirmed — acknowledge result</source>
+      <translation>État : commit confirmé. Validez le résultat.</translation>
+    </message>
+    <message>
+      <source>Status: Commit rejected — acknowledge result</source>
+      <translation>État : commit rejeté. Validez le résultat.</translation>
+    </message>
+    <message>
+      <source>Status: Local Commit record unreadable — new Commit blocked</source>
+      <translation>État : enregistrement local illisible. Nouveau commit bloqué.</translation>
+    </message>
+    <message>
+      <source>Ancestry</source>
+      <translation>Ascendance</translation>
+    </message>
+    <message>
+      <source>Writable HEAD</source>
+      <translation>HEAD modifiable</translation>
+    </message>
+    <message>
+      <source>Immutable revision</source>
+      <translation>Révision immuable</translation>
+    </message>
+    <message>
+      <source>Writable HEAD · Branch: %1</source>
+      <translation>HEAD modifiable · Branche : %1</translation>
+    </message>
+    <message>
+      <source>Immutable revision · commit message is a mutable display annotation</source>
+      <translation>Révision immuable · le message de commit est une annotation modifiable</translation>
+    </message>
+    <message>
+      <source>Branch: %1</source>
+      <translation>Branche : %1</translation>
+    </message>
+    <message>
+      <source>No commits yet
+Branch: %1</source>
+      <translation>Aucune révision enregistrée
+Branche : %1</translation>
+    </message>
+    <message>
+      <source>Head revision: %1
+Branch: %2
+Revision identity: %3</source>
+      <translation>Révision de tête : %1
+Branche : %2
+Identité de révision : %3</translation>
+    </message>
+    <message>
+      <source>
+Created from branch: %1</source>
+      <translation>
+Créée à partir de la branche : %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision UUIDv7: %1</source>
+      <translation>
+UUIDv7 de la révision d’origine : %1</translation>
+    </message>
+    <message>
+      <source>
+Branch UUIDv7: %1</source>
+      <translation>
+UUIDv7 de branche : %1</translation>
+    </message>
+    <message>
+      <source>Project UUIDv7: %1</source>
+      <translation>UUIDv7 du projet : %1</translation>
+    </message>
+    <message>
+      <source>
+Branch ID: %1</source>
+      <translation>
+Identifiant de branche : %1</translation>
+    </message>
+    <message>
+      <source>
+Original fork revision: %1</source>
+      <translation>
+Révision d’origine : %1</translation>
+    </message>
+    <message>
+      <source>
+No commits yet</source>
+      <translation>
+Aucune révision enregistrée</translation>
+    </message>
+    <message>
+      <source>
+Base revision: %1</source>
+      <translation>
+Révision de base : %1</translation>
+    </message>
+    <message>
+      <source>
+Revision UUIDv7: %1
+HEAD of: %2
+Parents: %3</source>
+      <translation>
+UUIDv7 de révision : %1
+HEAD de : %2
+Parents : %3</translation>
+    </message>
+    <message>
+      <source>(none)</source>
+      <translation>(aucun)</translation>
+    </message>
+    <message>
+      <source>(root)</source>
+      <translation>(racine)</translation>
+    </message>
+    <message>
+      <source>
+Canonical record SHA-256: %1</source>
+      <translation>
+SHA-256 de l’enregistrement canonique : %1</translation>
+    </message>
+    <message>
+      <source>Revision: %1
+Branch: %2
+Parents: %3
+Author: %4
+Created: %5</source>
+      <translation>Révision : %1
+Branche : %2
+Parents : %3
+Auteur : %4
+Création : %5</translation>
+    </message>
+    <message>
+      <source>Committing creates an immutable snapshot of your hydraulic network, preserving its exact state at that point in time.
+
+This allows you to:
+• Return to an earlier version of your network.
+• Compare changes between revisions.
+• Create new branches to explore alternatives without modifying the original.
+
+Each commit requires a short message describing your changes.
+
+You can continue editing afterward. Your HEAD remains writable, and changes are automatically saved to your private working copy.</source>
+      <translation>Un commit conserve l’état exact de votre réseau hydraulique dans une révision immuable.
+
+Vous pouvez revenir à une version antérieure, comparer deux révisions et créer une branche pour explorer une autre solution.
+
+Chaque commit demande un court message décrivant vos modifications. Vous pouvez ensuite continuer à modifier le HEAD. Vos changements sont enregistrés automatiquement dans votre copie de travail privée.</translation>
+    </message>
+    <message>
+      <source>No commits yet</source>
+      <translation>Aucune révision enregistrée</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD</source>
+      <translation>%1  ·  HEAD</translation>
+    </message>
+    <message>
+      <source>%1 · HEAD</source>
+      <translation>%1 · HEAD</translation>
+    </message>
+    <message>
+      <source>Parent · %1</source>
+      <translation>Parent · %1</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
