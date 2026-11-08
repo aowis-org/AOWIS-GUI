@@ -286,6 +286,72 @@
       <source>Open network</source>
       <translation>Ouvrir le réseau</translation>
     </message>
+    <message>
+      <source>Project</source>
+      <translation>Projet</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>Nom</translation>
+    </message>
+    <message>
+      <source>hydraulics, approved, scenario</source>
+      <translation>hydraulique, approuvé, scénario</translation>
+    </message>
+    <message>
+      <source>Create a named unborn branch in this project</source>
+      <translation>Créer dans ce projet une branche nommée sans révision initiale</translation>
+    </message>
+    <message>
+      <source>Import network…</source>
+      <translation>Importer un réseau…</translation>
+    </message>
+    <message>
+      <source>Import a network into the selected project</source>
+      <translation>Importer un réseau dans le projet sélectionné</translation>
+    </message>
+    <message>
+      <source>%1  ·  No commits yet</source>
+      <translation>%1  ·  Aucune révision enregistrée</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD %2</source>
+      <translation>%1  ·  HEAD %2</translation>
+    </message>
+    <message>
+      <source>DVMDB project UUIDv7: %1</source>
+      <translation>UUIDv7 du projet DVMDB : %1</translation>
+    </message>
+    <message>
+      <source>Preview project ID: %1</source>
+      <translation>Identifiant du projet de démonstration : %1</translation>
+    </message>
+    <message>
+      <source>
+Repository UUIDv7: %1</source>
+      <translation>
+UUIDv7 du dépôt : %1</translation>
+    </message>
+    <message>
+      <source>
+Source: bundled example (%1)
+Network data is NOT stored on this server; this is only a GUI preview.</source>
+      <translation>
+Source : exemple intégré (%1)
+Les données du réseau ne sont pas stockées sur ce serveur. Cet aperçu est local à l’interface.</translation>
+    </message>
+    <message>
+      <source>Only this demonstration uses in-memory project and revision edits.</source>
+      <translation>Seule cette démonstration conserve les modifications de projets et de révisions en mémoire.</translation>
+    </message>
+    <message>
+      <source>Delete project…</source>
+      <translation>Supprimer le projet…</translation>
+    </message>
+    <message>
+      <source>Remove this preview project</source>
+      <translation>Supprimer ce projet de démonstration</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

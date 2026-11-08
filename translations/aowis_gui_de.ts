@@ -286,6 +286,72 @@
       <source>Open network</source>
       <translation>Netz öffnen</translation>
     </message>
+    <message>
+      <source>Project</source>
+      <translation>Projekt</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>Name</translation>
+    </message>
+    <message>
+      <source>hydraulics, approved, scenario</source>
+      <translation>Hydraulik, genehmigt, Szenario</translation>
+    </message>
+    <message>
+      <source>Create a named unborn branch in this project</source>
+      <translation>In diesem Projekt einen benannten Zweig ohne erste Revision erstellen</translation>
+    </message>
+    <message>
+      <source>Import network…</source>
+      <translation>Netz importieren…</translation>
+    </message>
+    <message>
+      <source>Import a network into the selected project</source>
+      <translation>Ein Netz in das ausgewählte Projekt importieren</translation>
+    </message>
+    <message>
+      <source>%1  ·  No commits yet</source>
+      <translation>%1  ·  Noch keine Commits</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD %2</source>
+      <translation>%1  ·  HEAD %2</translation>
+    </message>
+    <message>
+      <source>DVMDB project UUIDv7: %1</source>
+      <translation>UUIDv7 des DVMDB-Projekts: %1</translation>
+    </message>
+    <message>
+      <source>Preview project ID: %1</source>
+      <translation>ID des Vorschauprojekts: %1</translation>
+    </message>
+    <message>
+      <source>
+Repository UUIDv7: %1</source>
+      <translation>
+UUIDv7 des Repositorys: %1</translation>
+    </message>
+    <message>
+      <source>
+Source: bundled example (%1)
+Network data is NOT stored on this server; this is only a GUI preview.</source>
+      <translation>
+Quelle: mitgeliefertes Beispiel (%1)
+Dieser Server speichert die Netzdaten nicht. Die GUI zeigt eine Vorschau.</translation>
+    </message>
+    <message>
+      <source>Only this demonstration uses in-memory project and revision edits.</source>
+      <translation>Nur diese Demonstration hält Änderungen an Projekten und Revisionen im Arbeitsspeicher.</translation>
+    </message>
+    <message>
+      <source>Delete project…</source>
+      <translation>Projekt löschen…</translation>
+    </message>
+    <message>
+      <source>Remove this preview project</source>
+      <translation>Dieses Vorschauprojekt entfernen</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

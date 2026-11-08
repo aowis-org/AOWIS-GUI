@@ -3,6 +3,7 @@
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
 
+#include <QCoreApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
@@ -213,13 +214,14 @@ public:
 
 class ProjectInspectorRelations final : public ProjectsInspectorRelations
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectInspectorRelations(QWidget *parent = nullptr)
         : ProjectsInspectorRelations(QStringLiteral("projectsProjectRelations"), parent)
     {
-        this->create_branch = new QPushButton(tr("Create branch"), this);
+        this->create_branch = new QPushButton(this);
         this->create_branch->setObjectName(QStringLiteral("projectsInspectorCreateBranch"));
-        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        refreshLanguage();
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
         column->addWidget(this->create_branch, 0, Qt::AlignLeft);
     }
@@ -230,10 +232,30 @@ public:
         this->list->clear();
         if (project == nullptr) return;
         for (const ProjectPreviewBranch &branch : project->branches)
-            addRelation(branch.head.isEmpty()
-                    ? tr("%1  ·  No commits yet").arg(branch.name)
-                    : tr("%1  ·  HEAD %2").arg(branch.name, DvmdbIdentity::shortLabel(branch.head)),
-                QStringLiteral("b:") + branch.id);
+        {
+            QListWidgetItem *item = new QListWidgetItem(this->list);
+            item->setData(Qt::UserRole, QStringLiteral("b:") + branch.id);
+            item->setData(Qt::UserRole + 1, branch.name);
+            item->setData(Qt::UserRole + 2, branch.head);
+            translateRow(item);
+        }
+    }
+
+    void refreshLanguage()
+    {
+        this->create_branch->setText(tr("Create branch"));
+        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        for (int row = 0; row < this->list->count(); ++row)
+            translateRow(this->list->item(row));
+    }
+
+private:
+    static void translateRow(QListWidgetItem *item)
+    {
+        const QString name = item->data(Qt::UserRole + 1).toString();
+        const QString head = item->data(Qt::UserRole + 2).toString();
+        item->setText(head.isEmpty() ? tr("%1  ·  No commits yet").arg(name)
+                                    : tr("%1  ·  HEAD %2").arg(name, DvmdbIdentity::shortLabel(head)));
     }
 };
 

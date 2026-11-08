@@ -286,6 +286,72 @@
       <source>Open network</source>
       <translation>Abrir red</translation>
     </message>
+    <message>
+      <source>Project</source>
+      <translation>Proyecto</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>Nombre</translation>
+    </message>
+    <message>
+      <source>hydraulics, approved, scenario</source>
+      <translation>hidráulica, aprobado, escenario</translation>
+    </message>
+    <message>
+      <source>Create a named unborn branch in this project</source>
+      <translation>Crear en este proyecto una rama con nombre y sin revisión inicial</translation>
+    </message>
+    <message>
+      <source>Import network…</source>
+      <translation>Importar red…</translation>
+    </message>
+    <message>
+      <source>Import a network into the selected project</source>
+      <translation>Importar una red al proyecto seleccionado</translation>
+    </message>
+    <message>
+      <source>%1  ·  No commits yet</source>
+      <translation>%1  ·  Aún no hay commits</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD %2</source>
+      <translation>%1  ·  HEAD %2</translation>
+    </message>
+    <message>
+      <source>DVMDB project UUIDv7: %1</source>
+      <translation>UUIDv7 del proyecto DVMDB: %1</translation>
+    </message>
+    <message>
+      <source>Preview project ID: %1</source>
+      <translation>ID del proyecto de vista previa: %1</translation>
+    </message>
+    <message>
+      <source>
+Repository UUIDv7: %1</source>
+      <translation>
+UUIDv7 del repositorio: %1</translation>
+    </message>
+    <message>
+      <source>
+Source: bundled example (%1)
+Network data is NOT stored on this server; this is only a GUI preview.</source>
+      <translation>
+Origen: ejemplo incluido (%1)
+Los datos de la red no se almacenan en este servidor. Esta es una vista previa de la interfaz.</translation>
+    </message>
+    <message>
+      <source>Only this demonstration uses in-memory project and revision edits.</source>
+      <translation>Solo esta demostración guarda en memoria las modificaciones de proyectos y revisiones.</translation>
+    </message>
+    <message>
+      <source>Delete project…</source>
+      <translation>Eliminar proyecto…</translation>
+    </message>
+    <message>
+      <source>Remove this preview project</source>
+      <translation>Eliminar este proyecto de vista previa</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

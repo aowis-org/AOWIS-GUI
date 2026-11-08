@@ -1,5 +1,6 @@
 #include "config/gui_configuration.h"
 #include "config/gui_language.h"
+#include "tabs/projects_inspector_panels.h"
 
 #include <QApplication>
 #include <QEvent>
@@ -31,6 +32,16 @@ int main(int argc, char **argv)
     GuiLanguage &language = GuiLanguage::instance();
     LanguageLabel label;
     label.show();
+    ProjectInspectorOverview overview;
+    overview.show();
+    overview.name->setText(QStringLiteral("West supply"));
+    overview.name->setSelection(5, 6);
+    overview.description->setPlainText(QStringLiteral("Draft description"));
+    QFormLayout *form = static_cast<QFormLayout *>(overview.fields->layout());
+    const QLabel *description_label = static_cast<QLabel *>(form->labelForField(overview.description));
+    const char *const descriptions[] = {"Description", "Description", "الوصف", "Beschreibung", "Descripción"};
+    const char *const imports[] = {"Import network…", "Importer un réseau…", "استيراد شبكة…",
+                                   "Netz importieren…", "Importar red…"};
     const QLocale numeric_locale;
     const char *const names[] = {"Language", "Langue", "اللغة", "Sprache", "Idioma"};
     const char *const cancel[] = {"Cancel", "Annuler", "إلغاء", "Abbrechen", "Cancelar"};
@@ -46,6 +57,11 @@ int main(int argc, char **argv)
             || language.code() != code || numeric_locale != QLocale()
             || QApplication::layoutDirection() != QLocale(code).textDirection())
             return 3;
+        if (description_label->text() != QString::fromUtf8(descriptions[index])
+            || overview.import_network->text() != QString::fromUtf8(imports[index])
+            || overview.name->selectedText() != QStringLiteral("supply")
+            || overview.description->toPlainText() != QStringLiteral("Draft description"))
+            return 7;
         QSettings persisted(guiConfigurationFilePath(), QSettings::IniFormat);
         if (persisted.value(QStringLiteral("interface/language")).toString() != code)
             return 4;

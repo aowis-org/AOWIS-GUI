@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QFormLayout>
 #include <QGridLayout>
@@ -142,6 +143,7 @@ public:
 };
 class ProjectInspectorOverview final : public ProjectsInspectorOverview
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectInspectorOverview(QWidget *parent = nullptr)
         : ProjectsInspectorOverview(QStringLiteral("Project"), parent)
@@ -155,21 +157,41 @@ public:
         QLayoutItem *old_stretch = column->takeAt(column->count() - 1);
         delete old_stretch;
 
-        this->create_branch = new QPushButton(tr("Create branch"), this);
+        this->create_branch = new QPushButton(this);
         this->create_branch->setObjectName(QStringLiteral("projectsInspectorOverviewCreateBranch"));
-        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
         column->addWidget(this->create_branch, 0, Qt::AlignLeft);
         column->addWidget(this->preview_note);
         column->addStretch(1);
 
-        this->import_network = new QPushButton(tr("Import network…"), this);
+        this->import_network = new QPushButton(this);
         this->import_network->setObjectName(QStringLiteral("projectsInspectorImport"));
-        this->import_network->setToolTip(tr("Import a network into the selected project"));
         column->addWidget(this->import_network, 0, Qt::AlignLeft);
         column->addWidget(this->metadata);
+        refreshLanguage();
     }
     QPushButton *create_branch = nullptr;
     QPushButton *import_network = nullptr;
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        ProjectsInspectorOverview::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+            refreshLanguage();
+    }
+
+private:
+    void refreshLanguage()
+    {
+        QFormLayout *form = static_cast<QFormLayout *>(this->fields->layout());
+        static_cast<QLabel *>(form->labelForField(this->name))->setText(tr("Name"));
+        static_cast<QLabel *>(form->labelForField(this->tags))->setText(tr("Tags"));
+        static_cast<QLabel *>(form->labelForField(this->description))->setText(tr("Description"));
+        this->tags->setPlaceholderText(tr("hydraulics, approved, scenario"));
+        this->create_branch->setText(tr("Create branch"));
+        this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
+        this->import_network->setText(tr("Import network…"));
+        this->import_network->setToolTip(tr("Import a network into the selected project"));
+    }
 };
 class BranchInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -533,6 +555,7 @@ public:
 
 class ProjectInspector final : public ProjectsInspectorPanel
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)
 public:
     explicit ProjectInspector(QWidget *parent = nullptr) : ProjectsInspectorPanel(parent)
     {
@@ -541,6 +564,12 @@ public:
             QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview project"));
     }
     QPushButton *delete_project = nullptr;
+
+    void refreshLanguage()
+    {
+        this->delete_project->setText(tr("Delete project…"));
+        this->delete_project->setToolTip(tr("Remove this preview project"));
+    }
 
     void update(bool creating, bool busy, bool preview, bool valid)
     {

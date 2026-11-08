@@ -286,6 +286,72 @@
       <source>Open network</source>
       <translation>فتح الشبكة</translation>
     </message>
+    <message>
+      <source>Project</source>
+      <translation>مشروع</translation>
+    </message>
+    <message>
+      <source>Name</source>
+      <translation>الاسم</translation>
+    </message>
+    <message>
+      <source>hydraulics, approved, scenario</source>
+      <translation>هيدروليكا، معتمد، سيناريو</translation>
+    </message>
+    <message>
+      <source>Create a named unborn branch in this project</source>
+      <translation>إنشاء فرع مسمّى في هذا المشروع دون مراجعة أولية</translation>
+    </message>
+    <message>
+      <source>Import network…</source>
+      <translation>استيراد شبكة…</translation>
+    </message>
+    <message>
+      <source>Import a network into the selected project</source>
+      <translation>استيراد شبكة إلى المشروع المحدد</translation>
+    </message>
+    <message>
+      <source>%1  ·  No commits yet</source>
+      <translation>%1  ·  لا توجد مراجعات مسجّلة بعد</translation>
+    </message>
+    <message>
+      <source>%1  ·  HEAD %2</source>
+      <translation>%1  ·  HEAD %2</translation>
+    </message>
+    <message>
+      <source>DVMDB project UUIDv7: %1</source>
+      <translation>معرّف UUIDv7 لمشروع DVMDB: %1</translation>
+    </message>
+    <message>
+      <source>Preview project ID: %1</source>
+      <translation>معرّف مشروع المعاينة: %1</translation>
+    </message>
+    <message>
+      <source>
+Repository UUIDv7: %1</source>
+      <translation>
+معرّف UUIDv7 للمستودع: %1</translation>
+    </message>
+    <message>
+      <source>
+Source: bundled example (%1)
+Network data is NOT stored on this server; this is only a GUI preview.</source>
+      <translation>
+المصدر: مثال مضمّن (%1)
+لا تُخزَّن بيانات الشبكة على هذا الخادم. هذه معاينة في الواجهة فقط.</translation>
+    </message>
+    <message>
+      <source>Only this demonstration uses in-memory project and revision edits.</source>
+      <translation>يقتصر حفظ تعديلات المشاريع والمراجعات في الذاكرة على هذا العرض التوضيحي.</translation>
+    </message>
+    <message>
+      <source>Delete project…</source>
+      <translation>حذف المشروع…</translation>
+    </message>
+    <message>
+      <source>Remove this preview project</source>
+      <translation>إزالة مشروع المعاينة هذا</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

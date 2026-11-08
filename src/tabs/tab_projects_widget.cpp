@@ -491,6 +491,25 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         empty_add->setText(tr("Add database"));
         if (this->inspector_dock)
             this->inspector_dock->setWindowTitle(tr("Project Inspector"));
+        if (this->project_inspector != nullptr)
+            this->project_inspector->refreshLanguage();
+        if (this->project_relations != nullptr)
+            this->project_relations->refreshLanguage();
+        if (this->selection_kind == SelectionKind::Project && this->inspector_tabs != nullptr)
+        {
+            const int overview = this->inspector_tabs->indexOf(this->inspector_overview_page);
+            const int branches = this->inspector_tabs->indexOf(this->project_relations);
+            if (overview >= 0)
+                this->inspector_tabs->setTabText(overview, tr("Overview"));
+            if (branches >= 0)
+                this->inspector_tabs->setTabText(branches, tr("Branches"));
+            const ProjectsInspectorPresentation view = ProjectsInspectorPresentations::project(currentProject());
+            this->project_overview->metadata->setText(view.metadata);
+            this->project_overview->setPreviewExplanation(isPreviewSource()
+                ? tr("Only this demonstration uses in-memory project and revision edits.") : QString());
+            if (this->creation_kind == CreationKind::None)
+                this->inspector_heading->setText(view.heading);
+        }
     });
     this->graph_stack->addWidget(empty_page);
     QWidget *no_projects_page = new QWidget(this->graph_stack);
