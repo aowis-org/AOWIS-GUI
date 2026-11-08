@@ -32,6 +32,7 @@ Makefile*
 *build-*
 build/
 *.qm
+!/translations/*.qm
 *.prl
 *.qmlls.ini
 
