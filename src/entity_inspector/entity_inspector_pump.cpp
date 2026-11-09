@@ -142,7 +142,16 @@ void EntityInspectorPump::addGroupPumpInput()
                 return false;
             return this->hydraulic_data->setPumpConstantPowerKw(this->pump_uuid, kilowatts);
         }, AOWIS_QUANTITY("power"), "kW", 0.0, 1000000.0, 1.0, 3, group);
-    this->spin_constant_power->setSpecialValueText("Not configured");
+    LiveUiText::bind(this->spin_constant_power, [this] {
+        // A LanguageChange must not replace a partially typed numeric draft.
+        if (!this->spin_constant_power->hasFocus())
+            this->spin_constant_power->setSpecialValueText(
+                LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Not configured")));
+    });
+    connect(this->spin_constant_power, &QAbstractSpinBox::editingFinished, this, [this] {
+        this->spin_constant_power->setSpecialValueText(
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Not configured")));
+    });
 
     QLabel *label_speed_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Speed"), nullptr);
     this->spin_speed_initial = new UnitNumericSpinBox(
@@ -157,7 +166,15 @@ void EntityInspectorPump::addGroupPumpInput()
             return this->hydraulic_data->setPumpInitialSpeed(this->pump_uuid, speed_ratio);
         }, AOWIS_QUANTITY("pump_speed_ratio"), "1", 0.0, 10.0, 0.05, 2, group,
         [](const QString &) { return QStringLiteral(" ×"); });
-    this->spin_speed_initial->setSpecialValueText("0.00 × (off)");
+    LiveUiText::bind(this->spin_speed_initial, [this] {
+        if (!this->spin_speed_initial->hasFocus())
+            this->spin_speed_initial->setSpecialValueText(
+                LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "0.00 × (off)")));
+    });
+    connect(this->spin_speed_initial, &QAbstractSpinBox::editingFinished, this, [this] {
+        this->spin_speed_initial->setSpecialValueText(
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "0.00 × (off)")));
+    });
 
     QLabel *label_status_initial = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Initial Status"), nullptr);
     this->combo_status_initial = new QComboBox();
@@ -193,14 +210,16 @@ void EntityInspectorPump::addGroupControls()
 
     this->table_controls = new QTableWidget(group);
     this->table_controls->setColumnCount(7);
-    this->table_controls->setHorizontalHeaderLabels({
-        QStringLiteral("Enabled"),
-        QStringLiteral("Trigger"),
-        QStringLiteral("Trigger Node"),
-        QStringLiteral("Threshold / Time"),
-        QStringLiteral("Action"),
-        QStringLiteral("Speed"),
-        QString()});
+    LiveUiText::bind(this->table_controls, [this] {
+        this->table_controls->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Enabled")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Trigger")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Trigger Node")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Threshold / Time")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Action")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Speed")),
+            QString()});
+    });
     this->table_controls->verticalHeader()->setVisible(false);
     // Fixed, modest column widths rather than ResizeToContents: ResizeToContents sizes
     // every column (including the header text itself, even with zero rows) from its
@@ -237,6 +256,7 @@ void EntityInspectorPump::addGroupControls()
     this->label_rule_controls->setWordWrap(true);
     this->label_rule_controls->setVisible(false);
     layout->addWidget(this->label_rule_controls);
+    LiveUiText::bind(this->label_rule_controls, [this] { refreshPumpRuleSummary(); });
 
     layoutConfiguration()->addWidget(group);
     // One subscription for the control table, not one for each cell. Rows are
@@ -492,7 +512,10 @@ void EntityInspectorPump::refreshPumpControls()
 
         QCheckBox *enabled = new QCheckBox(this->table_controls);
         enabled->setChecked(control.enabled);
-        enabled->setToolTip(QStringLiteral("Enable or disable this EPANET control."));
+        LiveUiText::bind(enabled, [enabled] {
+            enabled->setToolTip(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Enable or disable this EPANET control.")));
+        });
         this->table_controls->setCellWidget(row, 0, enabled);
         connect(enabled, &QCheckBox::toggled, this, [this, control_uuid = control.uuid](bool checked)
         {
@@ -503,18 +526,14 @@ void EntityInspectorPump::refreshPumpControls()
         });
 
         QComboBox *trigger_type = new QComboBox(this->table_controls);
-        trigger_type->addItem(
-            QStringLiteral("Below level / pressure"),
-            static_cast<int>(HydraulicControlSimpleType::LowLevel));
-        trigger_type->addItem(
-            QStringLiteral("Above level / pressure"),
-            static_cast<int>(HydraulicControlSimpleType::HighLevel));
-        trigger_type->addItem(
-            QStringLiteral("Elapsed time"),
-            static_cast<int>(HydraulicControlSimpleType::Timer));
-        trigger_type->addItem(
-            QStringLiteral("Time of day"),
-            static_cast<int>(HydraulicControlSimpleType::TimeOfDay));
+        EntityInspectorText::addChoice(trigger_type, QT_TRANSLATE_NOOP("LiveUiText", "Below level / pressure"),
+                                       static_cast<int>(HydraulicControlSimpleType::LowLevel));
+        EntityInspectorText::addChoice(trigger_type, QT_TRANSLATE_NOOP("LiveUiText", "Above level / pressure"),
+                                       static_cast<int>(HydraulicControlSimpleType::HighLevel));
+        EntityInspectorText::addChoice(trigger_type, QT_TRANSLATE_NOOP("LiveUiText", "Elapsed time"),
+                                       static_cast<int>(HydraulicControlSimpleType::Timer));
+        EntityInspectorText::addChoice(trigger_type, QT_TRANSLATE_NOOP("LiveUiText", "Time of day"),
+                                       static_cast<int>(HydraulicControlSimpleType::TimeOfDay));
         constrainComboWidth(trigger_type);
         const int trigger_type_index = trigger_type->findData(
             static_cast<int>(control.type), value_role);
@@ -550,7 +569,8 @@ void EntityInspectorPump::refreshPumpControls()
         if (level_control)
         {
             QComboBox *trigger_node = new QComboBox(this->table_controls);
-            trigger_node->addItem(QStringLiteral("Select node"));
+            EntityInspectorText::addChoice(trigger_node,
+                QT_TRANSLATE_NOOP("LiveUiText", "Select node"));
             trigger_node->setItemData(0, QUuid(), uuid_role);
 
             bool selected_node_present = control.trigger_node_uuid.isNull();
@@ -558,7 +578,8 @@ void EntityInspectorPump::refreshPumpControls()
             {
                 if (!tank.metadata.enabled)
                     continue;
-                trigger_node->addItem(QStringLiteral("Tank: %1").arg(entityName(tank.id, tank.uuid)));
+                EntityInspectorText::addFormattedChoice(trigger_node,
+                    QT_TRANSLATE_NOOP("LiveUiText", "Tank: %1"), entityName(tank.id, tank.uuid));
                 trigger_node->setItemData(trigger_node->count() - 1, tank.uuid, uuid_role);
                 selected_node_present = selected_node_present || tank.uuid == control.trigger_node_uuid;
             }
@@ -566,8 +587,9 @@ void EntityInspectorPump::refreshPumpControls()
             {
                 if (!reservoir.metadata.enabled)
                     continue;
-                trigger_node->addItem(
-                    QStringLiteral("Reservoir: %1").arg(entityName(reservoir.id, reservoir.uuid)));
+                EntityInspectorText::addFormattedChoice(trigger_node,
+                    QT_TRANSLATE_NOOP("LiveUiText", "Reservoir: %1"),
+                    entityName(reservoir.id, reservoir.uuid));
                 trigger_node->setItemData(trigger_node->count() - 1, reservoir.uuid, uuid_role);
                 selected_node_present = selected_node_present || reservoir.uuid == control.trigger_node_uuid;
             }
@@ -575,15 +597,17 @@ void EntityInspectorPump::refreshPumpControls()
             {
                 if (!junction.metadata.enabled)
                     continue;
-                trigger_node->addItem(
-                    QStringLiteral("Junction: %1").arg(entityName(junction.id, junction.uuid)));
+                EntityInspectorText::addFormattedChoice(trigger_node,
+                    QT_TRANSLATE_NOOP("LiveUiText", "Junction: %1"),
+                    entityName(junction.id, junction.uuid));
                 trigger_node->setItemData(trigger_node->count() - 1, junction.uuid, uuid_role);
                 selected_node_present = selected_node_present || junction.uuid == control.trigger_node_uuid;
             }
             if (!control.trigger_node_uuid.isNull() && !selected_node_present)
             {
-                trigger_node->addItem(QStringLiteral("[Missing or disabled] %1").arg(
-                    control.trigger_node_uuid.toString(QUuid::WithoutBraces)));
+                EntityInspectorText::addFormattedChoice(trigger_node,
+                    QT_TRANSLATE_NOOP("LiveUiText", "[Missing or disabled] %1"),
+                    control.trigger_node_uuid.toString(QUuid::WithoutBraces));
                 trigger_node->setItemData(
                     trigger_node->count() - 1, control.trigger_node_uuid, uuid_role);
             }
@@ -731,9 +755,12 @@ void EntityInspectorPump::refreshPumpControls()
         }
 
         QComboBox *action = new QComboBox(this->table_controls);
-        action->addItem(QStringLiteral("Turn on"), static_cast<int>(HydraulicControlActionType::Open));
-        action->addItem(QStringLiteral("Turn off"), static_cast<int>(HydraulicControlActionType::Close));
-        action->addItem(QStringLiteral("Set speed"), static_cast<int>(HydraulicControlActionType::Setting));
+        EntityInspectorText::addChoice(action, QT_TRANSLATE_NOOP("LiveUiText", "Turn on"),
+                                       static_cast<int>(HydraulicControlActionType::Open));
+        EntityInspectorText::addChoice(action, QT_TRANSLATE_NOOP("LiveUiText", "Turn off"),
+                                       static_cast<int>(HydraulicControlActionType::Close));
+        EntityInspectorText::addChoice(action, QT_TRANSLATE_NOOP("LiveUiText", "Set speed"),
+                                       static_cast<int>(HydraulicControlActionType::Setting));
         const int action_index = action->findData(static_cast<int>(control.action), value_role);
         action->setCurrentIndex(action_index >= 0 ? action_index : 0);
         this->table_controls->setCellWidget(row, 4, action);
@@ -794,23 +821,27 @@ void EntityInspectorPump::refreshPumpControls()
 
     this->table_controls->resizeRowsToContents();
 
-    const int rule_count = ruleCountForPump(network, this->pump_uuid);
-    this->label_rule_controls->setVisible(rule_count > 0);
-    if (rule_count > 0)
-    {
-        this->label_rule_controls->setText(
-            QStringLiteral("%1 rule-based control%2 also target%3 this pump. "
-                           "The controls above are the pump's simple EPANET controls.")
-                .arg(rule_count)
-                .arg(rule_count == 1 ? QString() : QStringLiteral("s"))
-                .arg(rule_count == 1 ? QStringLiteral("s") : QString()));
-    }
+    refreshPumpRuleSummary();
+}
+
+void EntityInspectorPump::refreshPumpRuleSummary()
+{
+    if (!this->hydraulic_data || !this->label_rule_controls)
+        return;
+    const int count = ruleCountForPump(this->hydraulic_data->networkHydraulic(), this->pump_uuid);
+    this->label_rule_controls->setVisible(count > 0);
+    if (count > 0)
+        this->label_rule_controls->setText(QCoreApplication::translate(
+            "EntityInspectorPump",
+            "%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.",
+            nullptr, count));
 }
 
 void EntityInspectorPump::populateSpeedPatternCombo(const QUuid &pattern_uuid)
 {
     this->combo_speed_pattern->clear();
-    this->combo_speed_pattern->addItem("Fixed speed");
+    EntityInspectorText::addChoice(this->combo_speed_pattern,
+        QT_TRANSLATE_NOOP("LiveUiText", "Fixed speed"));
     this->combo_speed_pattern->setItemData(
         this->combo_speed_pattern->count() - 1, QUuid(), uuid_role);
 
@@ -828,9 +859,9 @@ void EntityInspectorPump::populateSpeedPatternCombo(const QUuid &pattern_uuid)
 
     if (!pattern_uuid.isNull() && !selected_pattern_exists)
     {
-        this->combo_speed_pattern->addItem(
-            QStringLiteral("[Missing Pattern] %1").arg(
-                pattern_uuid.toString(QUuid::WithoutBraces)));
+        EntityInspectorText::addFormattedChoice(this->combo_speed_pattern,
+            QT_TRANSLATE_NOOP("LiveUiText", "[Missing Pattern] %1"),
+            pattern_uuid.toString(QUuid::WithoutBraces));
         this->combo_speed_pattern->setItemData(
             this->combo_speed_pattern->count() - 1, pattern_uuid, uuid_role);
     }
@@ -851,8 +882,9 @@ void EntityInspectorPump::populateEfficiencyInputCombo(const HydraulicLinkPump &
 {
     this->combo_efficiency_curve->clear();
     EntityInspectorText::addChoice(this->combo_efficiency_curve, QT_TRANSLATE_NOOP("LiveUiText", "Global"), static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Global));
-    this->combo_efficiency_curve->addItem(
-        QStringLiteral("Constant (%1%)").arg(pump.constant_efficiency_percent, 0, 'f', 1),
+    EntityInspectorText::addFormattedChoice(this->combo_efficiency_curve,
+        QT_TRANSLATE_NOOP("LiveUiText", "Constant (%1%)"),
+        QString::number(pump.constant_efficiency_percent, 'f', 1),
         static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Constant));
 
     bool selected_curve_exists = pump.efficiency_curve_uuid.isNull();
@@ -872,9 +904,9 @@ void EntityInspectorPump::populateEfficiencyInputCombo(const HydraulicLinkPump &
     if (pump.efficiency_input_type == HydraulicLinkPumpEfficiencyInputType::Curve &&
         !pump.efficiency_curve_uuid.isNull() && !selected_curve_exists)
     {
-        this->combo_efficiency_curve->addItem(
-            QStringLiteral("[Missing Curve] %1").arg(
-                pump.efficiency_curve_uuid.toString(QUuid::WithoutBraces)),
+        EntityInspectorText::addFormattedChoice(this->combo_efficiency_curve,
+            QT_TRANSLATE_NOOP("LiveUiText", "[Missing Curve] %1"),
+            pump.efficiency_curve_uuid.toString(QUuid::WithoutBraces),
             static_cast<int>(HydraulicLinkPumpEfficiencyInputType::Curve));
         this->combo_efficiency_curve->setItemData(
             this->combo_efficiency_curve->count() - 1,
@@ -923,9 +955,9 @@ void EntityInspectorPump::populatePricePatternCombo(const HydraulicLinkPump &pum
     if (pump.energy_price_input_type == HydraulicLinkPumpEnergyPriceInputType::Pattern &&
         !pump.price_pattern_uuid.isNull() && !selected_pattern_exists)
     {
-        this->combo_price_pattern->addItem(
-            QStringLiteral("[Missing Pattern] %1").arg(
-                pump.price_pattern_uuid.toString(QUuid::WithoutBraces)),
+        EntityInspectorText::addFormattedChoice(this->combo_price_pattern,
+            QT_TRANSLATE_NOOP("LiveUiText", "[Missing Pattern] %1"),
+            pump.price_pattern_uuid.toString(QUuid::WithoutBraces),
             static_cast<int>(HydraulicLinkPumpEnergyPriceInputType::Pattern));
         this->combo_price_pattern->setItemData(
             this->combo_price_pattern->count() - 1, pump.price_pattern_uuid, uuid_role);

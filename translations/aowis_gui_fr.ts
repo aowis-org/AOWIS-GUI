@@ -2858,7 +2858,42 @@ Cliquer pour choisir les couleurs</translation>
       <source>Manning Roughness n</source>
       <translation>Rugosité de Manning n</translation>
     </message>
-  </context>
+  
+    <message><source>Not configured</source><translation>Non configuré</translation></message>
+    <message><source>0.00 × (off)</source><translation>0,00 × (arrêt)</translation></message>
+    <message><source>Trigger</source><translation>Déclencheur</translation></message>
+    <message><source>Trigger Node</source><translation>Nœud déclencheur</translation></message>
+    <message><source>Threshold / Time</source><translation>Seuil / Heure</translation></message>
+    <message><source>Enable or disable this EPANET control.</source><translation>Activer ou désactiver cette commande EPANET.</translation></message>
+    <message><source>Select node</source><translation>Sélectionner un nœud</translation></message>
+    <message><source>Tank: %1</source><translation>Réservoir : %1</translation></message>
+    <message><source>Reservoir: %1</source><translation>Réserve : %1</translation></message>
+    <message><source>Junction: %1</source><translation>Jonction : %1</translation></message>
+    <message><source>[Missing or disabled] %1</source><translation>[Absent ou désactivé] %1</translation></message>
+    <message><source>Turn on</source><translation>Activer</translation></message>
+    <message><source>Turn off</source><translation>Désactiver</translation></message>
+    <message><source>Set speed</source><translation>Définir la vitesse</translation></message>
+    <message><source>Fixed speed</source><translation>Vitesse fixe</translation></message>
+    <message><source>[Missing Pattern] %1</source><translation>[Motif manquant] %1</translation></message>
+    <message><source>Constant (%1%)</source><translation>Constante (%1 %)</translation></message>
+    <message><source>[Missing Curve] %1</source><translation>[Courbe manquante] %1</translation></message>
+    <message><source>Calculated from the endpoint and intermediate vertex coordinates.</source><translation>Calculée à partir des coordonnées des extrémités et des sommets intermédiaires.</translation></message>
+    <message><source>Pipe materials are defined by the network material library.</source><translation>Les matériaux de conduite sont définis dans la bibliothèque de matériaux du réseau.</translation></message>
+    <message><source>Explicit uses the pipe roughness values below. Material + installation age uses the newest applicable age row in the selected material library entry.</source><translation>« Explicite » utilise les rugosités ci-dessous. « Matériau + âge » utilise la dernière plage d’âge applicable du matériau sélectionné.</translation></message>
+    <message><source>Pipe roughness coefficient C</source><translation>Coefficient de rugosité C</translation></message>
+    <message><source>Absolute pipe roughness ε in the selected display unit</source><translation>Rugosité absolue ε dans l’unité d’affichage sélectionnée</translation></message>
+    <message><source>Manning roughness coefficient n</source><translation>Coefficient de rugosité de Manning n</translation></message>
+    <message><source>Dimensionless minor loss coefficient K&lt;br&gt;for local losses from bends, fittings,&lt;br&gt;entrances, exits, etc.&lt;br&gt;&lt;br&gt;Default is 0 for no additional minor losses.</source><translation>Coefficient de pertes singulières K sans dimension&lt;br&gt;pour les coudes, raccords,&lt;br&gt;entrées, sorties, etc.&lt;br&gt;&lt;br&gt;Valeur par défaut : 0 (aucune perte supplémentaire).</translation></message>
+    <message><source>Coefficient dimensions depend on bulk reaction order; the profile changes the inverse-time unit while retaining canonical concentration (mg/L).</source><translation>Les dimensions du coefficient dépendent de l’ordre de réaction volumique ; le profil modifie l’unité de temps inverse et conserve la concentration de référence (mg/L).</translation></message>
+    <message><source>First-order wall reaction: length/time (m/day or ft/day). Zero-order wall reaction: mass/area/time (mg/m²/day or compatible unit).</source><translation>Réaction pariétale d’ordre 1 : longueur/temps (m/jour ou pi/jour). Ordre 0 : masse/surface/temps (mg/m²/jour ou unité compatible).</translation></message>
+    <message><source>Unsupported wall reaction order: expected 0 or 1.</source><translation>Ordre de réaction pariétale non pris en charge : 0 ou 1 attendu.</translation></message>
+    <message><source>&lt;br&gt;&lt;br&gt;Currently derived from the selected material and installation age.</source><translation>&lt;br&gt;&lt;br&gt;Actuellement calculée à partir du matériau et de l’âge d’installation sélectionnés.</translation></message>
+    <message><source>Pipe roughness coefficient C&lt;br&gt;Used by the &lt;b&gt;Hazen-Williams&lt;/b&gt; formula.</source><translation>Coefficient de rugosité C&lt;br&gt;Utilisé par la formule &lt;b&gt;Hazen-Williams&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Hazen-Williams&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the pipe roughness coefficient C.</source><translation>Choisissez &lt;b&gt;Hazen-Williams&lt;/b&gt; dans la barre de simulation&lt;br&gt;pour modifier le coefficient de rugosité C.</translation></message>
+    <message><source>Absolute pipe roughness ε in the selected unit&lt;br&gt;Used by the &lt;b&gt;Darcy-Weisbach&lt;/b&gt; formula.</source><translation>Rugosité absolue ε dans l’unité sélectionnée&lt;br&gt;Utilisée par la formule de &lt;b&gt;Darcy-Weisbach&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the absolute pipe roughness ε.</source><translation>Choisissez &lt;b&gt;Darcy-Weisbach&lt;/b&gt; dans la barre de simulation&lt;br&gt;pour modifier la rugosité absolue ε.</translation></message>
+    <message><source>Manning roughness coefficient n&lt;br&gt;Used by the &lt;b&gt;Chezy-Manning&lt;/b&gt; formula.</source><translation>Coefficient de rugosité de Manning n&lt;br&gt;Utilisé par la formule de &lt;b&gt;Chezy-Manning&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>Choisissez &lt;b&gt;Chezy-Manning&lt;/b&gt; dans la barre de simulation&lt;br&gt;pour modifier le coefficient de Manning n.</translation></message></context>
   <context>
     <name>HistoryDock</name>
     <message>
@@ -4391,5 +4426,9 @@ Demande de base totale : %1</numerusform>
     <message><source>pump</source><translation>pompes</translation></message>
     <message><source>unknown vertical datum</source><translation>référentiel vertical inconnu</translation></message>
     <message><source>valve</source><translation>vannes</translation></message>
+  </context>
+  <context>
+    <name>EntityInspectorPump</name>
+    <message numerus="yes"><source>%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.</source><translation><numerusform>%n commande basée sur des règles cible également cette pompe. Les commandes ci-dessus sont les commandes EPANET simples de cette pompe.</numerusform><numerusform>%n commandes basées sur des règles ciblent également cette pompe. Les commandes ci-dessus sont les commandes EPANET simples de cette pompe.</numerusform></translation></message>
   </context>
 </TS>

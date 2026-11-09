@@ -81,6 +81,19 @@ int main(int argc, char **argv)
     entity_choices.addItem(QStringLiteral("Open"), QStringLiteral("user-pattern-id"));
     entity_choices.setCurrentIndex(1);
     entity_layout.addWidget(&entity_choices);
+    // Pump control rows retain UUIDs and enum values separately from their
+    // localized captions. Repeated translation must not emit model-edit signals.
+    QComboBox pump_control_choices;
+    EntityInspectorText::addChoice(&pump_control_choices, "Turn on", 4);
+    EntityInspectorText::addFormattedChoice(&pump_control_choices, "Tank: %1",
+                                            QStringLiteral("North tank"), 7);
+    EntityInspectorText::addFormattedChoice(&pump_control_choices, "[Missing Curve] %1",
+                                            QStringLiteral("123e4567"), 9);
+    pump_control_choices.setCurrentIndex(1);
+    entity_layout.addWidget(&pump_control_choices);
+    int pump_selection_changes = 0;
+    QObject::connect(&pump_control_choices, &QComboBox::currentIndexChanged,
+                     [&pump_selection_changes](int) { ++pump_selection_changes; });
     int entity_selection_changes = 0;
     QObject::connect(&entity_choices, &QComboBox::currentIndexChanged,
                      [&entity_selection_changes](int) { ++entity_selection_changes; });
@@ -336,6 +349,30 @@ int main(int argc, char **argv)
         for (int row = 0; row < history_rows->count(); ++row)
             if (!matches(code, "live History row", history_rows->item(row)->text(), fresh_rows->item(row)->text()))
                 return 10;
+        const QString translated_tank = QCoreApplication::translate("LiveUiText", "Tank: %1")
+            .arg(QStringLiteral("North tank"));
+        const QString translated_missing = QCoreApplication::translate("LiveUiText", "[Missing Curve] %1")
+            .arg(QStringLiteral("123e4567"));
+        const QString translated_rules = QCoreApplication::translate(
+            "EntityInspectorPump",
+            "%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.",
+            nullptr, 3);
+        if (!matches(code, "pump formatted node", pump_control_choices.itemText(1), translated_tank)
+            || !matches(code, "pump missing curve", pump_control_choices.itemText(2), translated_missing)
+            || !matches(code, "pump enum identity", pump_control_choices.itemData(1).toInt(), 7)
+            || !matches(code, "pump selection retained", pump_control_choices.currentIndex(), 1)
+            || !matches(code, "pump selection notifications", pump_selection_changes, 0)
+            || !matches(code, "pump formatted raw label", pump_control_choices.itemText(1).contains(QStringLiteral("North tank")), true)
+            || !matches(code, "pump plural count", translated_rules.contains(QStringLiteral("%n")), false)
+            || !matches(code, "pump plural translated", translated_rules.contains(QStringLiteral("EPANET")), true))
+            return 16;
+        if (index > 0 && (translated_tank == QStringLiteral("Tank: North tank")
+            || QCoreApplication::translate("LiveUiText", "Pipe materials are defined by the network material library.")
+                == QStringLiteral("Pipe materials are defined by the network material library.")))
+        {
+            qCritical() << code << "pump/pipe catalogue entry missing";
+            return 16;
+        }
         const char *const closed[] = {"Closed", "Fermé", "مغلق", "Geschlossen", "Cerrado"};
         if (!matches(code, "hidden inspector enum", entity_choices.currentText(), QString::fromUtf8(closed[index]))
             || !matches(code, "inspector enum identity", entity_choices.currentData().toInt(), 2)

@@ -35,6 +35,7 @@ inline void setCaption(QLabel *label, const char *source)
 inline void addChoice(QComboBox *combo, const char *source, const QVariant &value = {})
 {
     constexpr int source_role = Qt::UserRole + 7341;
+    constexpr int argument_role = Qt::UserRole + 7342;
     combo->addItem(LiveUiText::translate(source), value);
     combo->setItemData(combo->count() - 1, QByteArray(source), source_role);
     if (combo->property("aowisTranslatedChoices").toBool())
@@ -46,8 +47,26 @@ inline void addChoice(QComboBox *combo, const char *source, const QVariant &valu
         {
             const QByteArray key = combo->itemData(row, source_role).toByteArray();
             if (!key.isEmpty())
-                combo->setItemText(row, LiveUiText::translate(key.constData()));
+            {
+                QString text = LiveUiText::translate(key.constData());
+                const QVariant argument = combo->itemData(row, argument_role);
+                if (argument.isValid())
+                    text = text.arg(argument.toString());
+                combo->setItemText(row, text);
+            }
         }
     });
+}
+
+// Format-only choices retain a language-neutral interpolation argument as item
+// data. No model selection or currentIndexChanged signal is involved in refresh.
+inline void addFormattedChoice(QComboBox *combo, const char *source,
+                               const QString &argument, const QVariant &value = {})
+{
+    constexpr int argument_role = Qt::UserRole + 7342;
+    addChoice(combo, source, value);
+    const int index = combo->count() - 1;
+    combo->setItemData(index, argument, argument_role);
+    combo->setItemText(index, LiveUiText::translate(source).arg(argument));
 }
 }

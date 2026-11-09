@@ -93,7 +93,10 @@ void EntityInspectorPipe::addGroupGeometry()
     this->spin_length_calculated = geometry_editor(1);
     this->spin_length_calculated->setReadOnly(true);
     this->spin_length_calculated->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    this->spin_length_calculated->setToolTip("Calculated from the endpoint and intermediate vertex coordinates.");
+    LiveUiText::bind(this->spin_length_calculated, [this] {
+        this->spin_length_calculated->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Calculated from the endpoint and intermediate vertex coordinates.")));
+    });
 
     this->check_length_measured = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Override with measured length"), nullptr);
 
@@ -149,16 +152,20 @@ void EntityInspectorPipe::addGroupRoughness()
     QLabel *label_material = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Material"), nullptr);
     this->combo_material = new QComboBox();
     this->combo_material->setEditable(false);
-    this->combo_material->setToolTip(
-        "Pipe materials are defined by the network material library.");
+    LiveUiText::bind(this->combo_material, [this] {
+        this->combo_material->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Pipe materials are defined by the network material library.")));
+    });
 
     QLabel *label_roughness_mode = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Source"), nullptr);
     this->combo_roughness_mode = new QComboBox();
     EntityInspectorText::addChoice(this->combo_roughness_mode, QT_TRANSLATE_NOOP("LiveUiText", "Explicit"), static_cast<int>(HydraulicPipeRoughnessMode::Explicit));
     EntityInspectorText::addChoice(this->combo_roughness_mode, QT_TRANSLATE_NOOP("LiveUiText", "Material + age"), static_cast<int>(HydraulicPipeRoughnessMode::MaterialLibrary));
-    this->combo_roughness_mode->setToolTip(
-        "Explicit uses the pipe roughness values below. Material + installation age "
-        "uses the newest applicable age row in the selected material library entry.");
+    LiveUiText::bind(this->combo_roughness_mode, [this] {
+        this->combo_roughness_mode->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Explicit uses the pipe roughness values below. Material + installation age "
+                          "uses the newest applicable age row in the selected material library entry.")));
+    });
 
     // Roughness coefficients are independent quantities. Only absolute
     // Darcy-Weisbach roughness has a length dimension; H-W, C-M, and the
@@ -210,22 +217,28 @@ void EntityInspectorPipe::addGroupRoughness()
     QLabel *label_roughness_hw = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Hazen-Williams"), nullptr);
     label_roughness_hw->setWordWrap(true);
     this->spin_roughness_hw = roughness_editor(0);
-    this->spin_roughness_hw->setToolTip("Pipe roughness coefficient C");
+    this->spin_roughness_hw->setProperty("aowisTooltipSource", QByteArray(
+        QT_TRANSLATE_NOOP("LiveUiText", "Pipe roughness coefficient C")));
 
     QLabel *label_roughness_dw = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Darcy-Weisbach"), nullptr);
     label_roughness_dw->setWordWrap(true);
     this->spin_roughness_dw = roughness_editor(1);
-    this->spin_roughness_dw->setToolTip("Absolute pipe roughness ε in the selected display unit");
+    this->spin_roughness_dw->setProperty("aowisTooltipSource", QByteArray(
+        QT_TRANSLATE_NOOP("LiveUiText", "Absolute pipe roughness ε in the selected display unit")));
 
     QLabel *label_roughness_cm = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Roughness<br>Chezy-Manning"), nullptr);
     label_roughness_cm->setWordWrap(true);
     this->spin_roughness_cm = roughness_editor(2);
-    this->spin_roughness_cm->setToolTip("Manning roughness coefficient n");
+    this->spin_roughness_cm->setProperty("aowisTooltipSource", QByteArray(
+        QT_TRANSLATE_NOOP("LiveUiText", "Manning roughness coefficient n")));
 
     QLabel *label_loss_coefficient = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Loss Coefficient"), nullptr);
     label_loss_coefficient->setWordWrap(true);
     this->spin_loss_coefficient = roughness_editor(3);
-    this->spin_loss_coefficient->setToolTip(QStringLiteral("Dimensionless minor loss coefficient K<br>for local losses from bends, fittings,<br>entrances, exits, etc.<br><br>Default is 0 for no additional minor losses."));
+    LiveUiText::bind(this->spin_loss_coefficient, [this] {
+        this->spin_loss_coefficient->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Dimensionless minor loss coefficient K<br>for local losses from bends, fittings,<br>entrances, exits, etc.<br><br>Default is 0 for no additional minor losses.")));
+    });
 
     grid->addWidget(label_material, 0, 0);
     grid->addWidget(this->combo_material, 0, 1);
@@ -260,6 +273,9 @@ void EntityInspectorPipe::addGroupRoughness()
         }
     });
     layoutConfiguration()->addWidget(group);
+    // The existing numeric editors are retained. Only tooltip presentation
+    // changes on LanguageChange; no derived roughness is recalculated or saved.
+    LiveUiText::bind(this->spin_roughness_hw, [this] { refreshRoughnessTooltips(); });
     // Collapsed group children remain hidden: changing the unit profile then
     // costs no roughness conversions until the group becomes visible again.
     new UnitAwareView(this->spin_roughness_hw, UnitProfileManager::instance().presentation(),
@@ -377,9 +393,11 @@ void EntityInspectorPipe::addGroupQuality()
             return pipe ? UnitBulkReactionDisplay::suffix(pipe->bulk_reaction.order, inverse_time)
                         : QString();
         });
-    this->spin_bulk_reaction->setToolTip(
-        "Coefficient dimensions depend on bulk reaction order; the profile changes the "
-        "inverse-time unit while retaining canonical concentration (mg/L).");
+    LiveUiText::bind(this->spin_bulk_reaction, [this] {
+        this->spin_bulk_reaction->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Coefficient dimensions depend on bulk reaction order; the profile changes the "
+                          "inverse-time unit while retaining canonical concentration (mg/L).")));
+    });
 
     QLabel *label_wall = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Wall Reaction Coefficient"), nullptr);
     label_wall->setWordWrap(true);
@@ -411,9 +429,7 @@ void EntityInspectorPipe::addGroupQuality()
         0.001, 12, this->stack_wall_reaction);
     this->stack_wall_reaction->addWidget(this->spin_wall_reaction);
     this->stack_wall_reaction->addWidget(this->spin_wall_reaction_zero);
-    this->stack_wall_reaction->setToolTip(
-        "First-order wall reaction: length/time (m/day or ft/day). "
-        "Zero-order wall reaction: mass/area/time (mg/m²/day or selected compatible unit).");
+    LiveUiText::bind(this->stack_wall_reaction, [this] { refreshWallReactionTooltip(); });
 
     grid->addWidget(this->check_override_bulk, row++, 0, 1, 2);
     grid->addWidget(label_bulk, row, 0);
@@ -468,11 +484,42 @@ void EntityInspectorPipe::refreshPipeQuality()
         static_cast<UnitNumericSpinBox *>(this->spin_wall_reaction)->refreshUnits(context);
     if (zero_order)
         static_cast<UnitNumericSpinBox *>(this->spin_wall_reaction_zero)->refreshUnits(context);
-    this->stack_wall_reaction->setToolTip(first_order || zero_order
-        ? QStringLiteral("First-order wall reaction: length/time (m/day or ft/day). "
-                         "Zero-order wall reaction: mass/area/time (mg/m²/day or compatible unit).")
-        : QStringLiteral("Unsupported wall reaction order: expected 0 or 1."));
+    refreshWallReactionTooltip();
     updateQualityUi();
+}
+
+void EntityInspectorPipe::refreshWallReactionTooltip()
+{
+    if (!this->stack_wall_reaction || !this->hydraulic_data)
+        return;
+    const std::optional<HydraulicLinkPipe> pipe = this->hydraulic_data->pipe(this->pipe_uuid);
+    const bool supported = pipe && (pipe->wall_reaction.order == 0.0 ||
+                                    pipe->wall_reaction.order == 1.0);
+    this->stack_wall_reaction->setToolTip(supported
+        ? LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "First-order wall reaction: length/time (m/day or ft/day). "
+                          "Zero-order wall reaction: mass/area/time (mg/m²/day or compatible unit)."))
+        : LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Unsupported wall reaction order: expected 0 or 1.")));
+}
+
+void EntityInspectorPipe::refreshRoughnessTooltips()
+{
+    if (!this->hydraulic_data)
+        return;
+    const std::optional<HydraulicLinkPipe> pipe = this->hydraulic_data->pipe(this->pipe_uuid);
+    const QString suffix = pipe && pipe->roughness_mode != HydraulicPipeRoughnessMode::Explicit
+        ? LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "<br><br>Currently derived from the selected material and installation age."))
+        : QString();
+    const QList<QWidget *> controls = {
+        this->spin_roughness_hw, this->spin_roughness_dw, this->spin_roughness_cm};
+    for (QWidget *control : controls)
+    {
+        const QByteArray source = control->property("aowisTooltipSource").toByteArray();
+        if (!source.isEmpty())
+            control->setToolTip(LiveUiText::translate(source.constData()) + suffix);
+    }
 }
 
 void EntityInspectorPipe::updateQualityUi()
@@ -554,22 +601,14 @@ void EntityInspectorPipe::onHeadlossFormulaChanged(HeadlossFormulas formulas)
     this->spin_roughness_dw->setDisabled(!use_dw || !explicit_mode);
     this->spin_roughness_cm->setDisabled(!use_cm || !explicit_mode);
 
-    const QString derived_suffix = explicit_mode
-        ? QString()
-        : QStringLiteral("<br><br>Currently derived from the selected material and installation age.");
-    this->spin_roughness_hw->setToolTip(
-        (use_hw
-            ? QStringLiteral("Pipe roughness coefficient C<br>Used by the <b>Hazen-Williams</b> formula.")
-            : QStringLiteral("Select <b>Hazen-Williams</b> in the simulation toolbar dropdown<br>to edit the pipe roughness coefficient C."))
-        + derived_suffix);
-    this->spin_roughness_dw->setToolTip(
-        (use_dw
-            ? QStringLiteral("Absolute pipe roughness ε in the selected unit<br>Used by the <b>Darcy-Weisbach</b> formula.")
-            : QStringLiteral("Select <b>Darcy-Weisbach</b> in the simulation toolbar dropdown<br>to edit the absolute pipe roughness ε."))
-        + derived_suffix);
-    this->spin_roughness_cm->setToolTip(
-        (use_cm
-            ? QStringLiteral("Manning roughness coefficient n<br>Used by the <b>Chezy-Manning</b> formula.")
-            : QStringLiteral("Select <b>Chezy-Manning</b> in the simulation toolbar dropdown<br>to edit the Manning roughness coefficient n."))
-        + derived_suffix);
+    this->spin_roughness_hw->setProperty("aowisTooltipSource", QByteArray(use_hw
+        ? QT_TRANSLATE_NOOP("LiveUiText", "Pipe roughness coefficient C<br>Used by the <b>Hazen-Williams</b> formula.")
+        : QT_TRANSLATE_NOOP("LiveUiText", "Select <b>Hazen-Williams</b> in the simulation toolbar dropdown<br>to edit the pipe roughness coefficient C.")));
+    this->spin_roughness_dw->setProperty("aowisTooltipSource", QByteArray(use_dw
+        ? QT_TRANSLATE_NOOP("LiveUiText", "Absolute pipe roughness ε in the selected unit<br>Used by the <b>Darcy-Weisbach</b> formula.")
+        : QT_TRANSLATE_NOOP("LiveUiText", "Select <b>Darcy-Weisbach</b> in the simulation toolbar dropdown<br>to edit the absolute pipe roughness ε.")));
+    this->spin_roughness_cm->setProperty("aowisTooltipSource", QByteArray(use_cm
+        ? QT_TRANSLATE_NOOP("LiveUiText", "Manning roughness coefficient n<br>Used by the <b>Chezy-Manning</b> formula.")
+        : QT_TRANSLATE_NOOP("LiveUiText", "Select <b>Chezy-Manning</b> in the simulation toolbar dropdown<br>to edit the Manning roughness coefficient n.")));
+    refreshRoughnessTooltips();
 }

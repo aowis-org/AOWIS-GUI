@@ -60,6 +60,8 @@ private:
     QStackedWidget *stack_wall_reaction = nullptr;
     void refreshPipeQuality();
     void updateQualityUi();
+    void refreshWallReactionTooltip();
+    void refreshRoughnessTooltips();
 
     void refreshPipe();
     void refreshPipeGeometry();

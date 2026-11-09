@@ -37,6 +37,7 @@ private:
     void refreshPumpEnergyPrice();
     void refreshPumpControls();
     void refreshPumpControlUnits();
+    void refreshPumpRuleSummary();
     QUuid firstPumpControlTriggerNodeUuid() const;
     bool updatePumpSimpleControl(
         const QUuid &control_uuid,

@@ -2858,7 +2858,42 @@ Click to choose colors</source>
       <source>Manning Roughness n</source>
       <translation>معامل خشونة مانينغ n</translation>
     </message>
-  </context>
+  
+    <message><source>Not configured</source><translation>غير مُهيأ</translation></message>
+    <message><source>0.00 × (off)</source><translation>0.00 × (متوقف)</translation></message>
+    <message><source>Trigger</source><translation>المُشغِّل</translation></message>
+    <message><source>Trigger Node</source><translation>عقدة التشغيل</translation></message>
+    <message><source>Threshold / Time</source><translation>الحد / الوقت</translation></message>
+    <message><source>Enable or disable this EPANET control.</source><translation>تفعيل أو تعطيل عنصر التحكم EPANET هذا.</translation></message>
+    <message><source>Select node</source><translation>اختر عقدة</translation></message>
+    <message><source>Tank: %1</source><translation>خزان: %1</translation></message>
+    <message><source>Reservoir: %1</source><translation>مخزن: %1</translation></message>
+    <message><source>Junction: %1</source><translation>وصلة: %1</translation></message>
+    <message><source>[Missing or disabled] %1</source><translation>[مفقود أو معطّل] %1</translation></message>
+    <message><source>Turn on</source><translation>تشغيل</translation></message>
+    <message><source>Turn off</source><translation>إيقاف</translation></message>
+    <message><source>Set speed</source><translation>ضبط السرعة</translation></message>
+    <message><source>Fixed speed</source><translation>سرعة ثابتة</translation></message>
+    <message><source>[Missing Pattern] %1</source><translation>[نمط مفقود] %1</translation></message>
+    <message><source>Constant (%1%)</source><translation>ثابتة (%1٪)</translation></message>
+    <message><source>[Missing Curve] %1</source><translation>[منحنى مفقود] %1</translation></message>
+    <message><source>Calculated from the endpoint and intermediate vertex coordinates.</source><translation>يُحسب من إحداثيات طرفي الأنبوب والنقاط الوسيطة.</translation></message>
+    <message><source>Pipe materials are defined by the network material library.</source><translation>تُحدَّد مواد الأنابيب في مكتبة مواد الشبكة.</translation></message>
+    <message><source>Explicit uses the pipe roughness values below. Material + installation age uses the newest applicable age row in the selected material library entry.</source><translation>يستخدم «صريح» قيم خشونة الأنبوب أدناه. ويستخدم «المادة + العمر» أحدث صف عمر مناسب في مكتبة المواد المختارة.</translation></message>
+    <message><source>Pipe roughness coefficient C</source><translation>معامل خشونة الأنبوب C</translation></message>
+    <message><source>Absolute pipe roughness ε in the selected display unit</source><translation>الخشونة المطلقة للأنبوب ε بوحدة العرض المختارة</translation></message>
+    <message><source>Manning roughness coefficient n</source><translation>معامل خشونة مانينغ n</translation></message>
+    <message><source>Dimensionless minor loss coefficient K&lt;br&gt;for local losses from bends, fittings,&lt;br&gt;entrances, exits, etc.&lt;br&gt;&lt;br&gt;Default is 0 for no additional minor losses.</source><translation>معامل الفقد الموضعي K بلا أبعاد&lt;br&gt;للانحناءات والوصلات&lt;br&gt;والمداخل والمخارج وغيرها.&lt;br&gt;&lt;br&gt;القيمة الافتراضية 0 دون فقد إضافي.</translation></message>
+    <message><source>Coefficient dimensions depend on bulk reaction order; the profile changes the inverse-time unit while retaining canonical concentration (mg/L).</source><translation>تعتمد أبعاد المعامل على رتبة التفاعل الحجمي؛ يغيّر الملف وحدة الزمن العكسي مع الإبقاء على التركيز المرجعي (mg/L).</translation></message>
+    <message><source>First-order wall reaction: length/time (m/day or ft/day). Zero-order wall reaction: mass/area/time (mg/m²/day or compatible unit).</source><translation>تفاعل الجدار من الرتبة الأولى: طول/زمن (m/day أو ft/day). الرتبة الصفرية: كتلة/مساحة/زمن (mg/m²/day أو وحدة متوافقة).</translation></message>
+    <message><source>Unsupported wall reaction order: expected 0 or 1.</source><translation>رتبة تفاعل الجدار غير مدعومة: المتوقع 0 أو 1.</translation></message>
+    <message><source>&lt;br&gt;&lt;br&gt;Currently derived from the selected material and installation age.</source><translation>&lt;br&gt;&lt;br&gt;محسوبة حاليًا من المادة المختارة وعمر التركيب.</translation></message>
+    <message><source>Pipe roughness coefficient C&lt;br&gt;Used by the &lt;b&gt;Hazen-Williams&lt;/b&gt; formula.</source><translation>معامل خشونة الأنبوب C&lt;br&gt;تستخدمه معادلة &lt;b&gt;هازن-ويليامز&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Hazen-Williams&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the pipe roughness coefficient C.</source><translation>اختر &lt;b&gt;هازن-ويليامز&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل معامل خشونة الأنبوب C.</translation></message>
+    <message><source>Absolute pipe roughness ε in the selected unit&lt;br&gt;Used by the &lt;b&gt;Darcy-Weisbach&lt;/b&gt; formula.</source><translation>الخشونة المطلقة للأنبوب ε بالوحدة المختارة&lt;br&gt;تستخدمها معادلة &lt;b&gt;دارسي-وايزباخ&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the absolute pipe roughness ε.</source><translation>اختر &lt;b&gt;دارسي-وايزباخ&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل الخشونة المطلقة للأنبوب ε.</translation></message>
+    <message><source>Manning roughness coefficient n&lt;br&gt;Used by the &lt;b&gt;Chezy-Manning&lt;/b&gt; formula.</source><translation>معامل خشونة مانينغ n&lt;br&gt;تستخدمه معادلة &lt;b&gt;شيزي-مانينغ&lt;/b&gt;.</translation></message>
+    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>اختر &lt;b&gt;شيزي-مانينغ&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل معامل خشونة مانينغ n.</translation></message></context>
   <context>
     <name>HistoryDock</name>
     <message>
@@ -4399,5 +4434,9 @@ Total base demand: %1</source><translation>
     <message><source>pump</source><translation>المضخات</translation></message>
     <message><source>unknown vertical datum</source><translation>مرجع رأسي غير معروف</translation></message>
     <message><source>valve</source><translation>الصمامات</translation></message>
+  </context>
+  <context>
+    <name>EntityInspectorPump</name>
+    <message numerus="yes"><source>%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.</source><translation><numerusform>لا توجد قواعد (%n) تتحكم بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدتان أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قواعد أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أو قواعد أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform></translation></message>
   </context>
 </TS>

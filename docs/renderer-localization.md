@@ -232,3 +232,29 @@ and retained terrain/UUID presentation through all five languages. A direct
 GUI integration test for an open inspector with an in-flight DEM request and
 live confirmation dialog is still required before declaring comprehensive
 runtime-localization acceptance.
+
+## Hydraulic Entity Inspector: Pipe and Pump input presentations
+
+The Pump Inspector keeps its EPANET simple-control table and per-row editor
+widgets intact when switching languages. Its headers, enabled-control tooltip,
+trigger/action options, trigger-node type prefixes, missing-reference labels,
+fixed-speed/efficiency choice labels and rule-count summary are display-only
+translations. The node's UUID remains stored separately from its translated
+caption; the rule count uses Qt plural forms, including Arabic's six forms.
+The shared `EntityInspectorText::addFormattedChoice()` helper stores the
+untranslated interpolation value independently of the choice's numeric/UUID
+identity and uses a signal blocker when refreshing existing combo-box rows.
+
+Pipe geometry, material, roughness formula and chemical-reaction tooltips are
+translated from the current configuration, not from cached English display
+strings. A language change refreshes those tooltips without deriving new
+material coefficients, changing headloss settings, refreshing numeric editors
+or emitting hydraulic edit transactions. The active editing mode and canonical
+pipe roughness values remain unchanged.
+
+`aowis-gui-language` now verifies real catalogue strings and formatted pump
+choices through EN/FR/AR/DE/ES/EN while preserving combo selection and raw
+entity identifiers. **Still required before full localization acceptance:**
+a full instantiated Pipe/Pump Inspector test, numeric editor suffix review,
+manual Arabic RTL/HUD checks, and Linux/WebAssembly runtime confirmation. The
+no-restart acceptance criterion is unchanged.
