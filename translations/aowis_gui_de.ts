@@ -2893,7 +2893,71 @@ Zum Auswählen der Farben klicken</translation>
     <message><source>Absolute pipe roughness ε in the selected unit&lt;br&gt;Used by the &lt;b&gt;Darcy-Weisbach&lt;/b&gt; formula.</source><translation>Absolute Rohrrauheit ε in der gewählten Einheit&lt;br&gt;Wird von der &lt;b&gt;Darcy-Weisbach&lt;/b&gt;-Formel verwendet.</translation></message>
     <message><source>Select &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the absolute pipe roughness ε.</source><translation>Wählen Sie &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in der Simulationsleiste,&lt;br&gt;um die absolute Rohrrauheit ε zu bearbeiten.</translation></message>
     <message><source>Manning roughness coefficient n&lt;br&gt;Used by the &lt;b&gt;Chezy-Manning&lt;/b&gt; formula.</source><translation>Manning-Rauheitsbeiwert n&lt;br&gt;Wird von der &lt;b&gt;Chezy-Manning&lt;/b&gt;-Formel verwendet.</translation></message>
-    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>Wählen Sie &lt;b&gt;Chezy-Manning&lt;/b&gt; in der Simulationsleiste,&lt;br&gt;um den Manning-Rauheitsbeiwert n zu bearbeiten.</translation></message></context>
+    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>Wählen Sie &lt;b&gt;Chezy-Manning&lt;/b&gt; in der Simulationsleiste,&lt;br&gt;um den Manning-Rauheitsbeiwert n zu bearbeiten.</translation></message>    <message>
+      <source>PRV: Pressure Reducing Valve</source>
+      <translation>PRV: Druckminderventil</translation>
+    </message>
+    <message>
+      <source>PSV: Pressure Sustaining Valve</source>
+      <translation>PSV: Druckhalteventil</translation>
+    </message>
+    <message>
+      <source>FCV: Flow Control Valve</source>
+      <translation>FCV: Durchflussregelventil</translation>
+    </message>
+    <message>
+      <source>PBV: Pressure Breaker Valve</source>
+      <translation>PBV: Druckabbauventil</translation>
+    </message>
+    <message>
+      <source>TCV: Throttle Control Valve</source>
+      <translation>TCV: Drosselventil</translation>
+    </message>
+    <message>
+      <source>GPV: General Purpose Valve</source>
+      <translation>GPV: Allgemeines Ventil</translation>
+    </message>
+    <message>
+      <source>PCV: Positional Control Valve</source>
+      <translation>PCV: Stellungsregelventil</translation>
+    </message>
+    <message>
+      <source>Select curve...</source>
+      <translation>Kurve auswählen...</translation>
+    </message>
+    <message>
+      <source>Target downstream pressure head for the pressure reducing valve.</source>
+      <translation>Ziel-Druckhöhe hinter dem Druckminderventil.</translation>
+    </message>
+    <message>
+      <source>Target upstream pressure head for the pressure sustaining valve.</source>
+      <translation>Ziel-Druckhöhe vor dem Druckhalteventil.</translation>
+    </message>
+    <message>
+      <source>Fixed pressure drop across the pressure breaker valve.</source>
+      <translation>Fester Druckabfall über dem Druckabbauventil.</translation>
+    </message>
+    <message>
+      <source>Target flow through the flow control valve.</source>
+      <translation>Soll-Durchfluss durch das Durchflussregelventil.</translation>
+    </message>
+    <message>
+      <source>Throttle setting expressed as a dimensionless loss coefficient.</source>
+      <translation>Drosseleinstellung als dimensionsloser Verlustbeiwert.</translation>
+    </message>
+    <message>
+      <source>Head-loss curve used by the general purpose valve.</source>
+      <translation>Druckverlustkurve des allgemeinen Ventils.</translation>
+    </message>
+    <message>
+      <source>Valve opening position as a percentage or fraction.&lt;br&gt;PCV support requires EPANET 2.3 or newer.</source>
+      <translation>Ventilöffnung als Prozentwert oder Anteil.&lt;br&gt;PCV benötigt EPANET 2.3 oder neuer.</translation>
+    </message>
+    <message>
+      <source>Optional valve-characteristic curve used by the positional control valve.</source>
+      <translation>Optionale Ventilkennlinie für das Stellungsregelventil.</translation>
+    </message>
+  </context>
   <context>
     <name>HistoryDock</name>
     <message>

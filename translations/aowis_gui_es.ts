@@ -2893,7 +2893,71 @@ Pulse para elegir colores</translation>
     <message><source>Absolute pipe roughness ε in the selected unit&lt;br&gt;Used by the &lt;b&gt;Darcy-Weisbach&lt;/b&gt; formula.</source><translation>Rugosidad absoluta ε en la unidad seleccionada&lt;br&gt;Usada por la fórmula de &lt;b&gt;Darcy-Weisbach&lt;/b&gt;.</translation></message>
     <message><source>Select &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the absolute pipe roughness ε.</source><translation>Seleccione &lt;b&gt;Darcy-Weisbach&lt;/b&gt; en la barra de simulación&lt;br&gt;para modificar la rugosidad absoluta ε.</translation></message>
     <message><source>Manning roughness coefficient n&lt;br&gt;Used by the &lt;b&gt;Chezy-Manning&lt;/b&gt; formula.</source><translation>Coeficiente de rugosidad de Manning n&lt;br&gt;Usado por la fórmula de &lt;b&gt;Chezy-Manning&lt;/b&gt;.</translation></message>
-    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>Seleccione &lt;b&gt;Chezy-Manning&lt;/b&gt; en la barra de simulación&lt;br&gt;para modificar el coeficiente de Manning n.</translation></message></context>
+    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>Seleccione &lt;b&gt;Chezy-Manning&lt;/b&gt; en la barra de simulación&lt;br&gt;para modificar el coeficiente de Manning n.</translation></message>    <message>
+      <source>PRV: Pressure Reducing Valve</source>
+      <translation>PRV: Válvula reductora de presión</translation>
+    </message>
+    <message>
+      <source>PSV: Pressure Sustaining Valve</source>
+      <translation>PSV: Válvula sostenedora de presión</translation>
+    </message>
+    <message>
+      <source>FCV: Flow Control Valve</source>
+      <translation>FCV: Válvula de control de caudal</translation>
+    </message>
+    <message>
+      <source>PBV: Pressure Breaker Valve</source>
+      <translation>PBV: Válvula reductora de presión diferencial</translation>
+    </message>
+    <message>
+      <source>TCV: Throttle Control Valve</source>
+      <translation>TCV: Válvula de estrangulamiento</translation>
+    </message>
+    <message>
+      <source>GPV: General Purpose Valve</source>
+      <translation>GPV: Válvula de propósito general</translation>
+    </message>
+    <message>
+      <source>PCV: Positional Control Valve</source>
+      <translation>PCV: Válvula de control de posición</translation>
+    </message>
+    <message>
+      <source>Select curve...</source>
+      <translation>Seleccionar curva...</translation>
+    </message>
+    <message>
+      <source>Target downstream pressure head for the pressure reducing valve.</source>
+      <translation>Altura de presión objetivo aguas abajo de la válvula reductora.</translation>
+    </message>
+    <message>
+      <source>Target upstream pressure head for the pressure sustaining valve.</source>
+      <translation>Altura de presión objetivo aguas arriba de la válvula sostenedora.</translation>
+    </message>
+    <message>
+      <source>Fixed pressure drop across the pressure breaker valve.</source>
+      <translation>Caída de presión fija a través de la válvula.</translation>
+    </message>
+    <message>
+      <source>Target flow through the flow control valve.</source>
+      <translation>Caudal objetivo a través de la válvula de control.</translation>
+    </message>
+    <message>
+      <source>Throttle setting expressed as a dimensionless loss coefficient.</source>
+      <translation>Ajuste de estrangulamiento expresado como coeficiente de pérdida adimensional.</translation>
+    </message>
+    <message>
+      <source>Head-loss curve used by the general purpose valve.</source>
+      <translation>Curva de pérdida de carga utilizada por la válvula de propósito general.</translation>
+    </message>
+    <message>
+      <source>Valve opening position as a percentage or fraction.&lt;br&gt;PCV support requires EPANET 2.3 or newer.</source>
+      <translation>Posición de apertura de la válvula como porcentaje o fracción.&lt;br&gt;PCV requiere EPANET 2.3 o posterior.</translation>
+    </message>
+    <message>
+      <source>Optional valve-characteristic curve used by the positional control valve.</source>
+      <translation>Curva característica opcional de la válvula de control de posición.</translation>
+    </message>
+  </context>
   <context>
     <name>HistoryDock</name>
     <message>

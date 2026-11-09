@@ -17,6 +17,7 @@
 #include <QTextCursor>
 #include <QTabWidget>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 
 class LanguageLabel final : public QLabel
@@ -91,6 +92,29 @@ int main(int argc, char **argv)
                                             QStringLiteral("123e4567"), 9);
     pump_control_choices.setCurrentIndex(1);
     entity_layout.addWidget(&pump_control_choices);
+    // Retained Valve Inspector configuration controls must change presentation
+    // without changing enum/UUID identities or triggering hydraulic edits.
+    QComboBox valve_type_choices;
+    EntityInspectorText::addChoice(&valve_type_choices,
+        QT_TRANSLATE_NOOP("LiveUiText", "PRV: Pressure Reducing Valve"), 101);
+    EntityInspectorText::addChoice(&valve_type_choices,
+        QT_TRANSLATE_NOOP("LiveUiText", "FCV: Flow Control Valve"), 102);
+    valve_type_choices.setCurrentIndex(1);
+    entity_layout.addWidget(&valve_type_choices);
+    QComboBox valve_curve_choices;
+    const QString missing_valve_curve = QStringLiteral("123e4567-e89b-12d3-a456-426614174001");
+    EntityInspectorText::addChoice(&valve_curve_choices,
+        QT_TRANSLATE_NOOP("LiveUiText", "Select curve..."), QUuid());
+    EntityInspectorText::addFormattedChoice(&valve_curve_choices,
+        QT_TRANSLATE_NOOP("LiveUiText", "[Missing Curve] %1"), missing_valve_curve,
+        missing_valve_curve);
+    valve_curve_choices.setCurrentIndex(1);
+    entity_layout.addWidget(&valve_curve_choices);
+    int valve_selection_changes = 0;
+    QObject::connect(&valve_type_choices, &QComboBox::currentIndexChanged,
+        [&valve_selection_changes](int) { ++valve_selection_changes; });
+    QObject::connect(&valve_curve_choices, &QComboBox::currentIndexChanged,
+        [&valve_selection_changes](int) { ++valve_selection_changes; });
     int pump_selection_changes = 0;
     QObject::connect(&pump_control_choices, &QComboBox::currentIndexChanged,
                      [&pump_selection_changes](int) { ++pump_selection_changes; });
@@ -237,6 +261,28 @@ int main(int argc, char **argv)
                         QCoreApplication::translate("HydraulicLibrariesWidget", "Add hydraulic library item"),
                         QString::fromUtf8(library_dialog_titles[index])))
             return 12;
+        const char *const valve_prv_names[] = {
+            "PRV: Pressure Reducing Valve", "PRV : réducteur de pression",
+            "PRV: صمام تخفيض الضغط", "PRV: Druckminderventil",
+            "PRV: Válvula reductora de presión"
+        };
+        const char *const valve_curve_prompts[] = {
+            "Select curve...", "Sélectionner une courbe...", "اختر منحنى...",
+            "Kurve auswählen...", "Seleccionar curva..."
+        };
+        const QString missing_curve_label = QCoreApplication::translate(
+            "LiveUiText", "[Missing Curve] %1").arg(missing_valve_curve);
+        if (!matches(code, "live valve type choice", valve_type_choices.itemText(0),
+                     QString::fromUtf8(valve_prv_names[index]))
+            || !matches(code, "live valve curve prompt", valve_curve_choices.itemText(0),
+                        QString::fromUtf8(valve_curve_prompts[index]))
+            || !matches(code, "live missing-curve caption", valve_curve_choices.itemText(1),
+                        missing_curve_label)
+            || !matches(code, "valve type selection", valve_type_choices.currentData().toInt(), 102)
+            || !matches(code, "valve curve UUID", valve_curve_choices.currentData().toString(),
+                        missing_valve_curve)
+            || !matches(code, "no valve selection events", valve_selection_changes, 0))
+            return 16;
         const char *const control_categories[] = {"Rule controls", "Règles de commande",
             "قواعد التحكم", "Steuerregeln", "Reglas de control"};
         const char *const control_dialog_titles[] = {"Hydraulic rule control",

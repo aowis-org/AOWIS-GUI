@@ -258,3 +258,25 @@ entity identifiers. **Still required before full localization acceptance:**
 a full instantiated Pipe/Pump Inspector test, numeric editor suffix review,
 manual Arabic RTL/HUD checks, and Linux/WebAssembly runtime confirmation. The
 no-restart acceptance criterion is unchanged.
+
+## Hydraulic Entity Inspector: Valve configuration presentation
+
+Valve type names (PRV, PSV, FCV, PBV, TCV, GPV and PCV) are translated
+`LiveUiText` combo choices. Their numeric type values remain in `Qt::UserRole`;
+changing the language updates the existing item captions with signals blocked,
+without changing which valve type is selected or emitting a model edit.
+
+The curve selector distinguishes an application-owned **Select curve** prompt
+and a missing-curve caption from user-defined curve names. A missing curve's
+UUID is retained separately from the localized caption, even when the list is
+repopulated after a hydraulic model change. Existing curve names are never
+translated. The active valve setting tooltip is updated by
+`refreshValveSettingTooltips()` on `LanguageChange`, rather than by re-running
+`onValveTypeChanged()`. This is critical: changing hydraulic types can cancel
+pending numeric drafts, while language changes must leave them intact.
+
+`aowis-gui-language` verifies live valve-type/curve-choice captions using all
+five actual installed catalogues, plus stable enum values, retained UUIDs and
+zero selection-change signals. An instantiated live Valve Inspector test (and
+full Arabic RTL/native/WebAssembly acceptance) remains necessary before
+claiming complete localization coverage across the editor.

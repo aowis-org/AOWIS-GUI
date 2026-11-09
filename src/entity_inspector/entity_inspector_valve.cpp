@@ -51,34 +51,27 @@ void EntityInspectorValve::addGroupValveConfiguration()
     
     QLabel *label_valve_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Valve Type"), nullptr);
     this->combo_valve_type = new QComboBox();
-    this->combo_valve_type->addItem(
-        "PRV: Pressure Reducing Valve",
-        static_cast<int>(HydraulicLinkValveType::PRV)
-        );
-    this->combo_valve_type->addItem(
-        "PSV: Pressure Sustaining Valve",
-        static_cast<int>(HydraulicLinkValveType::PSV)
-        );
-    this->combo_valve_type->addItem(
-        "FCV: Flow Control Valve",
-        static_cast<int>(HydraulicLinkValveType::FCV)
-        );
-    this->combo_valve_type->addItem(
-        "PBV: Pressure Breaker Valve",
-        static_cast<int>(HydraulicLinkValveType::PBV)
-        );
-    this->combo_valve_type->addItem(
-        "TCV: Throttle Control Valve",
-        static_cast<int>(HydraulicLinkValveType::TCV)
-        );
-    this->combo_valve_type->addItem(
-        "GPV: General Purpose Valve",
-        static_cast<int>(HydraulicLinkValveType::GPV)
-        );
-    this->combo_valve_type->addItem(
-        "PCV: Positional Control Valve",
-        static_cast<int>(HydraulicLinkValveType::PCV)
-        );
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "PRV: Pressure Reducing Valve"),
+        static_cast<int>(HydraulicLinkValveType::PRV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "PSV: Pressure Sustaining Valve"),
+        static_cast<int>(HydraulicLinkValveType::PSV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "FCV: Flow Control Valve"),
+        static_cast<int>(HydraulicLinkValveType::FCV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "PBV: Pressure Breaker Valve"),
+        static_cast<int>(HydraulicLinkValveType::PBV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "TCV: Throttle Control Valve"),
+        static_cast<int>(HydraulicLinkValveType::TCV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "GPV: General Purpose Valve"),
+        static_cast<int>(HydraulicLinkValveType::GPV));
+    EntityInspectorText::addChoice(this->combo_valve_type,
+        QT_TRANSLATE_NOOP("LiveUiText", "PCV: Positional Control Valve"),
+        static_cast<int>(HydraulicLinkValveType::PCV));
     constrainComboWidth(this->combo_valve_type);
     
     this->label_setting = new QLabel();
@@ -155,7 +148,8 @@ void EntityInspectorValve::addGroupValveConfiguration()
     EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Curve"));
     this->combo_setting_curve = new QComboBox();
     constrainComboWidth(this->combo_setting_curve);
-    this->combo_setting_curve->addItem("Select curve...");
+    EntityInspectorText::addChoice(this->combo_setting_curve,
+        QT_TRANSLATE_NOOP("LiveUiText", "Select curve..."), QUuid());
     this->label_setting_curve->hide();
     this->combo_setting_curve->hide();
     
@@ -211,6 +205,10 @@ void EntityInspectorValve::addGroupValveConfiguration()
     grid->addWidget(this->spin_loss_coeff, 6, 1);
     
     layoutConfiguration()->addWidget(group);
+    // The active type's tooltip is presentation only. Do not call
+    // onValveTypeChanged() from LanguageChange: that cancels numeric drafts
+    // when switching between hydraulic setting types.
+    LiveUiText::bind(this->combo_valve_type, [this] { refreshValveSettingTooltips(); });
     // The diameter is hidden when the configuration group is collapsed. One
     // subscription refreshes all active valve measurements when shown.
     new UnitAwareView(this->spin_diameter, UnitProfileManager::instance().presentation(),
@@ -299,7 +297,8 @@ void EntityInspectorValve::populateSettingCurveCombo(
     HydraulicLinkValveType type, const QUuid &curve_uuid)
 {
     this->combo_setting_curve->clear();
-    this->combo_setting_curve->addItem("Select curve...");
+    EntityInspectorText::addChoice(this->combo_setting_curve,
+        QT_TRANSLATE_NOOP("LiveUiText", "Select curve..."), QUuid());
     this->combo_setting_curve->setItemData(0, QUuid(), uuid_role);
 
     bool selected_curve_exists = curve_uuid.isNull();
@@ -332,9 +331,9 @@ void EntityInspectorValve::populateSettingCurveCombo(
 
     if (!curve_uuid.isNull() && !selected_curve_exists)
     {
-        this->combo_setting_curve->addItem(
-            QStringLiteral("[Missing Curve] %1").arg(
-                curve_uuid.toString(QUuid::WithoutBraces)));
+        EntityInspectorText::addFormattedChoice(this->combo_setting_curve,
+            QT_TRANSLATE_NOOP("LiveUiText", "[Missing Curve] %1"),
+            curve_uuid.toString(QUuid::WithoutBraces));
         this->combo_setting_curve->setItemData(
             this->combo_setting_curve->count() - 1, curve_uuid, uuid_role);
     }
@@ -371,32 +370,22 @@ void EntityInspectorValve::onValveTypeChanged(HydraulicLinkValveType type)
     case HydraulicLinkValveType::PRV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
-        this->spin_setting_pressure->setToolTip(
-            "Target downstream pressure head for the pressure reducing valve.");
         break;
     case HydraulicLinkValveType::PSV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
-        this->spin_setting_pressure->setToolTip(
-            "Target upstream pressure head for the pressure sustaining valve.");
         break;
     case HydraulicLinkValveType::PBV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Pressure Drop"));
         this->stack_setting->setCurrentWidget(this->spin_setting_pressure);
-        this->spin_setting_pressure->setToolTip(
-            "Fixed pressure drop across the pressure breaker valve.");
         break;
     case HydraulicLinkValveType::FCV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Flow Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_flow);
-        this->spin_setting_flow->setToolTip(
-            "Target flow through the flow control valve.");
         break;
     case HydraulicLinkValveType::TCV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Loss Coefficient"));
         this->stack_setting->setCurrentWidget(this->spin_setting_loss);
-        this->spin_setting_loss->setToolTip(
-            "Throttle setting expressed as a dimensionless loss coefficient.");
         break;
     case HydraulicLinkValveType::GPV:
         this->label_setting->hide();
@@ -404,20 +393,54 @@ void EntityInspectorValve::onValveTypeChanged(HydraulicLinkValveType type)
         EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Head Loss Curve"));
         this->label_setting_curve->show();
         this->combo_setting_curve->show();
-        this->combo_setting_curve->setToolTip(
-            "Head-loss curve used by the general purpose valve.");
         break;
     case HydraulicLinkValveType::PCV:
         EntityInspectorText::setCaption(this->label_setting, QT_TRANSLATE_NOOP("LiveUiText", "Position Setting"));
         this->stack_setting->setCurrentWidget(this->spin_setting_position);
-        this->spin_setting_position->setToolTip(
-            "Valve opening position as a percentage or fraction."
-            "<br>PCV support requires EPANET 2.3 or newer.");
         EntityInspectorText::setCaption(this->label_setting_curve, QT_TRANSLATE_NOOP("LiveUiText", "Characteristic Curve"));
         this->label_setting_curve->show();
         this->combo_setting_curve->show();
-        this->combo_setting_curve->setToolTip(
-            "Optional valve-characteristic curve used by the positional control valve.");
+        break;
+    }
+    refreshValveSettingTooltips();
+}
+
+void EntityInspectorValve::refreshValveSettingTooltips()
+{
+    if (!this->displayed_setting_type_.has_value())
+        return;
+
+    switch (*this->displayed_setting_type_)
+    {
+    case HydraulicLinkValveType::PRV:
+        this->spin_setting_pressure->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Target downstream pressure head for the pressure reducing valve.")));
+        break;
+    case HydraulicLinkValveType::PSV:
+        this->spin_setting_pressure->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Target upstream pressure head for the pressure sustaining valve.")));
+        break;
+    case HydraulicLinkValveType::PBV:
+        this->spin_setting_pressure->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Fixed pressure drop across the pressure breaker valve.")));
+        break;
+    case HydraulicLinkValveType::FCV:
+        this->spin_setting_flow->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Target flow through the flow control valve.")));
+        break;
+    case HydraulicLinkValveType::TCV:
+        this->spin_setting_loss->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Throttle setting expressed as a dimensionless loss coefficient.")));
+        break;
+    case HydraulicLinkValveType::GPV:
+        this->combo_setting_curve->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Head-loss curve used by the general purpose valve.")));
+        break;
+    case HydraulicLinkValveType::PCV:
+        this->spin_setting_position->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Valve opening position as a percentage or fraction.<br>PCV support requires EPANET 2.3 or newer.")));
+        this->combo_setting_curve->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP(
+            "LiveUiText", "Optional valve-characteristic curve used by the positional control valve.")));
         break;
     }
 }

@@ -2893,7 +2893,71 @@ Click to choose colors</source>
     <message><source>Absolute pipe roughness ε in the selected unit&lt;br&gt;Used by the &lt;b&gt;Darcy-Weisbach&lt;/b&gt; formula.</source><translation>الخشونة المطلقة للأنبوب ε بالوحدة المختارة&lt;br&gt;تستخدمها معادلة &lt;b&gt;دارسي-وايزباخ&lt;/b&gt;.</translation></message>
     <message><source>Select &lt;b&gt;Darcy-Weisbach&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the absolute pipe roughness ε.</source><translation>اختر &lt;b&gt;دارسي-وايزباخ&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل الخشونة المطلقة للأنبوب ε.</translation></message>
     <message><source>Manning roughness coefficient n&lt;br&gt;Used by the &lt;b&gt;Chezy-Manning&lt;/b&gt; formula.</source><translation>معامل خشونة مانينغ n&lt;br&gt;تستخدمه معادلة &lt;b&gt;شيزي-مانينغ&lt;/b&gt;.</translation></message>
-    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>اختر &lt;b&gt;شيزي-مانينغ&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل معامل خشونة مانينغ n.</translation></message></context>
+    <message><source>Select &lt;b&gt;Chezy-Manning&lt;/b&gt; in the simulation toolbar dropdown&lt;br&gt;to edit the Manning roughness coefficient n.</source><translation>اختر &lt;b&gt;شيزي-مانينغ&lt;/b&gt; من شريط أدوات المحاكاة&lt;br&gt;لتعديل معامل خشونة مانينغ n.</translation></message>    <message>
+      <source>PRV: Pressure Reducing Valve</source>
+      <translation>PRV: صمام تخفيض الضغط</translation>
+    </message>
+    <message>
+      <source>PSV: Pressure Sustaining Valve</source>
+      <translation>PSV: صمام تثبيت الضغط</translation>
+    </message>
+    <message>
+      <source>FCV: Flow Control Valve</source>
+      <translation>FCV: صمام التحكم في التدفق</translation>
+    </message>
+    <message>
+      <source>PBV: Pressure Breaker Valve</source>
+      <translation>PBV: صمام خفض فرق الضغط</translation>
+    </message>
+    <message>
+      <source>TCV: Throttle Control Valve</source>
+      <translation>TCV: صمام الخنق</translation>
+    </message>
+    <message>
+      <source>GPV: General Purpose Valve</source>
+      <translation>GPV: صمام متعدد الأغراض</translation>
+    </message>
+    <message>
+      <source>PCV: Positional Control Valve</source>
+      <translation>PCV: صمام التحكم بالموضع</translation>
+    </message>
+    <message>
+      <source>Select curve...</source>
+      <translation>اختر منحنى...</translation>
+    </message>
+    <message>
+      <source>Target downstream pressure head for the pressure reducing valve.</source>
+      <translation>ارتفاع الضغط المستهدف بعد صمام تخفيض الضغط.</translation>
+    </message>
+    <message>
+      <source>Target upstream pressure head for the pressure sustaining valve.</source>
+      <translation>ارتفاع الضغط المستهدف قبل صمام تثبيت الضغط.</translation>
+    </message>
+    <message>
+      <source>Fixed pressure drop across the pressure breaker valve.</source>
+      <translation>انخفاض الضغط الثابت عبر صمام خفض فرق الضغط.</translation>
+    </message>
+    <message>
+      <source>Target flow through the flow control valve.</source>
+      <translation>معدل التدفق المستهدف عبر صمام التحكم.</translation>
+    </message>
+    <message>
+      <source>Throttle setting expressed as a dimensionless loss coefficient.</source>
+      <translation>إعداد الخنق معبّر عنه بمعامل فقد دون أبعاد.</translation>
+    </message>
+    <message>
+      <source>Head-loss curve used by the general purpose valve.</source>
+      <translation>منحنى فقد ارتفاع الضغط الذي يستخدمه الصمام متعدد الأغراض.</translation>
+    </message>
+    <message>
+      <source>Valve opening position as a percentage or fraction.&lt;br&gt;PCV support requires EPANET 2.3 or newer.</source>
+      <translation>موضع فتح الصمام كنسبة مئوية أو كسر.&lt;br&gt;يتطلب دعم PCV إصدار EPANET 2.3 أو أحدث.</translation>
+    </message>
+    <message>
+      <source>Optional valve-characteristic curve used by the positional control valve.</source>
+      <translation>منحنى خصائص اختياري لصمام التحكم بالموضع.</translation>
+    </message>
+  </context>
   <context>
     <name>HistoryDock</name>
     <message>

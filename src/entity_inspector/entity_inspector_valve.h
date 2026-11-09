@@ -42,6 +42,7 @@ private:
     void refreshValveMeasurements();
     void populateSettingCurveCombo(HydraulicLinkValveType type, const QUuid &curve_uuid);
     void onValveTypeChanged(HydraulicLinkValveType type);
+    void refreshValveSettingTooltips();
 
     HydraulicData *hydraulic_data = nullptr;
     QUuid valve_uuid;
