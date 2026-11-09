@@ -844,6 +844,25 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-project-source-writer-live-dvmdb PROPERTIES
         LABELS "aowis;integration;http;destructive" SKIP_RETURN_CODE 77 TIMEOUT 90)
 
+    # Real TopControlBarContent geometry and editor-state regression through
+    # live Qt translator/RTL changes. No GPU or hydraulic server required.
+    add_executable(aowis-top-control-bar-language-tests
+        tests/top_control_bar_language_test.cpp
+        src/app/top_control_bar_content.h
+        src/config/gui_language.cpp
+        src/config/gui_configuration.cpp
+        translations/translations.qrc)
+    target_include_directories(aowis-top-control-bar-language-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-top-control-bar-language-tests PRIVATE Qt6::Widgets)
+    if(TARGET aowis-gui-compiled-translations)
+        add_dependencies(aowis-top-control-bar-language-tests aowis-gui-compiled-translations)
+    endif()
+    add_test(NAME aowis-top-control-bar-language
+        COMMAND aowis-top-control-bar-language-tests)
+    set_tests_properties(aowis-top-control-bar-language PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 20)
+
     add_executable(aowis-gui-language-tests
         tests/gui_language_test.cpp
         src/app/history_dock.cpp

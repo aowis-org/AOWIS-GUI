@@ -116,10 +116,34 @@ their presentation from model-independent source labels:
   changing checked simulation options.
 
 The translator loader rolls back any partially installed new catalogue if a
-translator cannot be installed. Arabic sets Qt's RTL layout direction, but
-custom HUD/toolbar mirroring and clipping still require runtime acceptance.
+translator cannot be installed. Arabic sets Qt's RTL layout direction. The
+custom `TopControlBarContent` widget places its three groups in mirrored
+physical positions on `LayoutDirectionChange` as well as on layout and
+language changes. This uses the *same* QWidget and existing children; it
+neither clears edit controls nor recreates the toolbar. bgfx HUD mirroring,
+Arabic text shaping and clipping still require platform acceptance.
 User-entered text and external DVMDB/backend messages must not be translated
 by guessing at their contents; the UI localizes only its own presentation.
+
+### Top toolbar RTL and live-switch acceptance
+
+`TopControlBarContent` has manually positioned left, centre and right
+`QHBoxLayout` groups; automatic Qt layout mirroring cannot reposition those
+groups. Its `placeGroups()` now mirrors physical anchors in RTL (Arabic) and
+returns to ordinary LTR positioning immediately when another language is
+selected, preserving each group's widget identity and internal data. Existing
+center-overlap avoidance is applied using the physical leading/trailing
+positions in either direction; no toolbar or child widget is reconstructed.
+
+The headless `aowis-top-control-bar-language` integration test instantiates
+**the actual content widget** and the real `GuiLanguage` manager with compiled
+catalogues. It checks EN → FR → AR → DE → ES → EN → AR → EN, RTL/LTR
+anchors and non-overlap, live label translations, retained QLineEdit draft and
+cursor selection, retained combo enum identity, and no edit/selection signals.
+It is an actual Qt widget test (not a geometry mock), but does not exercise
+the complete MainWindow or hydraulic Entity Inspector. Those end-to-end native
+and WebAssembly acceptance tests remain necessary, particularly while a draft
+is open in a real editor and with a map/HUD on screen.
 
 ### Tests and residual coverage
 
