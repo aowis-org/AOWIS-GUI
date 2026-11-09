@@ -23,3 +23,6 @@
 [submodule "external/AOWIS-GUI-Render"]
 	path = external/AOWIS-GUI-Render
 	url = https://github.com/aowis-org/AOWIS-GUI-Render.git
+[submodule "external/AOWIS-NETWORK"]
+	path = external/AOWIS-NETWORK
+	url = https://github.com/aowis-org/AOWIS-NETWORK.git

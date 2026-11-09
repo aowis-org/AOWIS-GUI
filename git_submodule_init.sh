@@ -3,11 +3,12 @@ set -euo pipefail
 
 # Initialize every pinned submodule revision.
 #
-# Usage: ./git_submodule_init.sh [--shader-tools | --render]
+# Usage: ./git_submodule_init.sh [--shader-tools | --render | --network]
 #
 #   --shader-tools  also check out the bgfx shader-compiler sources
 #                   (only for regenerating AOWIS-GUI-Render shaders).
 #   --render        initialize just the pinned AOWIS-GUI-Render submodule.
+#   --network       initialize just the pinned AOWIS-NETWORK submodule.
 #
 # bx, bimg and bgfx are fetched shallow (only the pinned commit) and checked
 # out sparse (only what Render/cmake/aowis_bgfx.cmake builds), see
@@ -17,19 +18,28 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 sparse_option=""
+network_path=external/AOWIS-NETWORK
 render_only=false
+network_only=false
 case "${1:-}" in
     '') ;;
     --shader-tools) sparse_option="--shader-tools" ;;
     --render) render_only=true ;;
+    --network) network_only=true ;;
     *)
-        printf 'Usage: %s [--shader-tools | --render]\n' "$0" >&2
+        printf 'Usage: %s [--shader-tools | --render | --network]\n' "$0" >&2
         exit 2
         ;;
 esac
 if [[ $# -gt 1 ]]; then
-    printf 'Usage: %s [--shader-tools | --render]\n' "$0" >&2
+    printf 'Usage: %s [--shader-tools | --render | --network]\n' "$0" >&2
     exit 2
+fi
+
+if "$network_only"; then
+    git submodule sync -- "$network_path"
+    git submodule update --init --recursive --checkout -- "$network_path"
+    exit 0
 fi
 
 render_path=external/AOWIS-GUI-Render
@@ -65,6 +75,7 @@ done
 git submodule sync --recursive
 git submodule update --init --recursive -- \
     "$render_path" \
+    "$network_path" \
     external/GeographicLib \
     external/AOWIS-SERVER-MODEL \
     external/AOWIS-SERVER-EPANET

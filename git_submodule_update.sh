@@ -6,14 +6,15 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 usage() {
     cat <<'HELP'
-Usage: ./git_submodule_update.sh [--model | --epanet | --render | --epanet-deps | --geographiclib | --bgfx | --all | --help]
+Usage: ./git_submodule_update.sh [--model | --epanet | --render | --network | --epanet-deps | --geographiclib | --bgfx | --all | --help]
 
-  (no option)  Update AOWIS-owned direct submodules (MODEL, EPANET, Render)
+  (no option)  Update AOWIS-owned direct submodules (MODEL, EPANET, Render, NETWORK)
                to their tracked remote branches. Do not recurse into EPANET's
                third-party submodules or update GeographicLib/bgfx.
   --model      Update only AOWIS-SERVER-MODEL.
   --epanet     Update only AOWIS-SERVER-EPANET, not its nested dependencies.
   --render     Update only AOWIS-GUI-Render, not its nested dependencies.
+  --network    Update only AOWIS-NETWORK and initialize its pinned dependencies.
   --epanet-deps
                Update AOWIS-SERVER-EPANET, then check out its nested third-party
                submodules at the exact versions pinned by EPANET (not remote tip).
@@ -37,6 +38,7 @@ HELP
 
 model_path="external/AOWIS-SERVER-MODEL"
 epanet_path="external/AOWIS-SERVER-EPANET"
+network_path="external/AOWIS-NETWORK"
 render_path="external/AOWIS-GUI-Render"
 
 # Deliberate release pin: a new GeographicLib version requires an explicit
@@ -136,6 +138,13 @@ update_render() {
     "${PWD}/tools/verify_render_checkout.sh" "$render_path"
 }
 
+update_network() {
+    git submodule sync -- "$network_path"
+    git submodule update --init --remote --checkout -- "$network_path"
+    git -C "$network_path" submodule sync --recursive
+    git -C "$network_path" submodule update --init --recursive --checkout
+}
+
 update_epanet_deps() {
     update_epanet
     # Explicitly synchronize third-party dependencies to EPANET's recorded
@@ -147,6 +156,7 @@ update_standard() {
     update_model
     update_epanet
     update_render
+    update_network
 }
 
 update_bgfx() {
@@ -173,6 +183,10 @@ case "${1:-}" in
     --render)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
         update_render
+        ;;
+    --network)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_network
         ;;
     --epanet-deps)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
