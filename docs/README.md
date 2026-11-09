@@ -1,8 +1,8 @@
 # AOWIS GUI documentation
 
-These guides describe the **current GUI source** (7 November 2026). They keep
-implemented behaviour apart from end-to-end acceptance, and describe the
-product as it is, not its development history.
+These guides describe the current AOWIS-GUI product. They distinguish
+implemented behaviour and automated checks from platform-level release
+acceptance; historical test evidence is dated where appropriate.
 
 ## Projects, DVMDB and editing
 
@@ -50,7 +50,7 @@ these guides describe how the GUI hosts it.
 | [Rendering architecture](rendering-architecture.md) | Maps, Projects graph and diagnostic windows on one bgfx device: view IDs, frames, ownership, depth, input loss |
 | [Maps workspace](map-workspace-architecture.md) | One shared map across five modes, controllers, diagnostics counters and acceptance |
 | [Map host guide](../src/map/bgfx/README.md) | `MapBgfxSurface`, input, editor overlay, 3D Editor icons and their measurement |
-| [Map HUD localization](renderer-localization.md) | Translation contexts, GUI/Render split, live HUD text refresh |
+| [Interface localization](renderer-localization.md) | Five languages, live Qt switching, GUI/Render ownership, RTL HUD layout and verification |
 | [Projects graph layout](project-graph-layout.md) | Cards, ancestry, picking, GPU fallback and BVH culling |
 | [Projects graph performance](project-graph-performance.md) | CPU benchmark method, scaling results and limits |
 

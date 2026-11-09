@@ -1,9 +1,9 @@
 # GUI implementation and verification status
 
-**Source basis:** GUI/DVMDB product audit of 5 November 2026; renderer
-section updated to the 7 November 2026 GUI and Render sources. The verification evidence below states which later builds were
-actually reported, rather than treating the existence of test source as a
-successful test run. This is **not** a release sign-off.
+**Source basis:** GUI source snapshot of 9 November 2026. Earlier History and
+DVMDB rows retain their original dated evidence and limitations. The GUI/Render
+localization evidence below records the actual user-reported November 9 build
+and test runs. Successful builds are not a blanket release sign-off.
 
 ## Implemented in this GUI snapshot
 
@@ -43,7 +43,7 @@ requirement to redesign Undo/Redo.
 
 ## Focused GUI regression commands
 
-Run from a configured `AOWIS-SERVER-GUI` build tree:
+Run from a configured `AOWIS-GUI` build tree:
 
 ```bash
 cmake --build build-linux-tests \
@@ -68,6 +68,26 @@ ctest --test-dir build-linux-tests --output-on-failure \
 See the [remaining History acceptance](history-roadmap.md) and
 [upcoming GUI–DVMDB capabilities](dvmdb-integration-roadmap.md).
 
+## Localization and RTL verification (9 November 2026)
+
+| Evidence | Reported result | What it does not prove |
+| --- | --- | --- |
+| AOWIS-GUI-Render `./compile_linux_tests.sh` on the RTL integration | **48/48** tests passed, including `aowis-render-bgfx-hud` | Visual Arabic font fallback and browser GPU interaction |
+| AOWIS-GUI `./compile_linux_tests.sh` after integrating the Render gitlink | **79/79** tests passed | All on-screen strings in every possible live state |
+| `python3 tools/audit_gui_localization.py --check-all --require-all-contexts` | **1,728** detected keys, **0** missing, **0** unverified ordinary `tr()` contexts, **0** suspicious simple literal setters; **1,942** GUI catalogue entries per language | Strings constructed outside recognized patterns or actual UI retranslation |
+| Desktop and WebAssembly builds after integration | User reports both appear to work | Exhaustive RTL visual checks, fonts and small-viewport interactions remain separate |
+
+The integrated Render commit is `a3920cb` and the GUI integration commit is
+`4d5091d`, both pushed to their respective `main` branches. GUI pins the
+Render submodule revision. The Mobile Qt Quick HUD is independent and was not
+part of this integration.
+
+The localization implementation roadmap is complete at the source and build
+level. Release qualification should still exercise real Arabic/LTR switches
+with a stationary map, open HUD legend, editor drafts, dialogs and Projects
+selection on native Linux and WebAssembly. See
+[Interface localization](renderer-localization.md) for the runtime contract.
+
 ## Renderer implementation and reported verification
 
 See [Rendering architecture](rendering-architecture.md),
@@ -76,8 +96,8 @@ See [Rendering architecture](rendering-architecture.md),
 
 | Area | Current source state | Evidence reported | Acceptance still required |
 | --- | --- | --- | --- |
-| Render library | Complete map engine: 2D and globe drawing, imagery and terrain streaming, terrain pipeline, HUD, labels, picking, REST client (`AOWIS::RenderMapRest`), host-context mode for Qt Quick | Standalone build-gated suite run by the user during the extraction; no count recorded here for the latest Render revision | Fresh `./compile_linux_tests.sh` in Render on the pinned revision |
-| GUI integration | `MapBgfxSurface` hosts `MapBgfxMapView`; GUI keeps transports, settings, network snapshot and symbology, editor overlay | User reported **77/77** GUI tests after the REST client and provider catalog moved to Render (7 November 2026) | Re-run after every Render gitlink update |
+| Render library | Complete map engine: 2D and globe drawing, imagery and terrain streaming, terrain pipeline, HUD, labels, picking, REST client (`AOWIS::RenderMapRest`), host-context mode for Qt Quick | **48/48** Render tests passed with RTL HUD integration (9 November 2026) | Native/browser visual font and interaction qualification |
+| GUI integration | `MapBgfxSurface` hosts `MapBgfxMapView`; GUI keeps transports, settings, network snapshot and symbology, editor overlay | **79/79** GUI tests passed after the RTL Render gitlink update (9 November 2026) | Re-run after each future Render gitlink update |
 | Globe and terrain | Quadtree, DEM meshes, sparse updates, sky, heatmap, network on the globe, all in Render | Recording-bgfx mock tests and boundary checks; earlier native smoke checks | OpenGL/Vulkan terrain LOD and skirts, partial DEM updates, wireframe, caps, sky and heatmap |
 | Device and native windows | One device, client retirement, swapchain registry, Qt native-surface adapter in Render | Focused lifecycle tests; three-map and Projects handoff observed natively on Vulkan and OpenGL 4.3 | X11/Wayland resize and reparent, shutdown and recreation, Windows, WebAssembly |
 | AOWIS-GUI-Mobile | Same engine in Qt Quick's EGL context (`HostContext`) | Linux and Android builds in progress | Android device acceptance |
@@ -126,4 +146,6 @@ not in those two windows.
 
 A real GPU screenshot/interactive check is required for terrain depth; the
 headless mocks verify descriptor configuration, not actual z-buffer contents.
-No Windows, WebAssembly or Mobile GPU acceptance is implied.
+No Windows or Mobile GPU acceptance is implied by these **Linux GPU**
+commands. Desktop and WebAssembly builds have been reported working, but
+additional Arabic text/layout visual qualification is documented separately.

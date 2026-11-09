@@ -1,4 +1,4 @@
-# AOWIS-SERVER-GUI (*AOWIS Controller*)
+# AOWIS-GUI (*AOWIS Controller*)
 
 [EPANET](https://github.com/OpenWaterAnalytics/EPANET) based Controller for Water Networks.
 
@@ -132,8 +132,8 @@ all test executables before CTest**; tests never start after a failed build.
 Clone the repository with its dependencies, or initialize them after cloning:
 
 ```bash
-git clone https://github.com/aowis-org/AOWIS-SERVER-GUI.git
-cd AOWIS-SERVER-GUI
+git clone https://github.com/aowis-org/AOWIS-GUI.git
+cd AOWIS-GUI
 ./git_submodule_init.sh
 ```
 
