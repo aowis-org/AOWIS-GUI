@@ -4366,5 +4366,30 @@ Gesamter Grundbedarf: %1</numerusform>
       <numerusform>%n Bedarfskategorien
 Gesamter Grundbedarf: %1</numerusform>
     </translation></message>
+    <message><source>%1 m source resolution</source><translation>Quellauflösung: %1 m</translation></message>
+    <message><source>&lt;br&gt;Last result: %1 m%2</source><translation>&lt;br&gt;Letztes Ergebnis: %1 m%2</translation></message>
+    <message><source>Calculated automatically from &lt;i&gt;Terrain Elevation&lt;/i&gt; + &lt;i&gt;Offset&lt;/i&gt;</source><translation>Automatisch berechnet aus &lt;i&gt;Geländehöhe&lt;/i&gt; + &lt;i&gt;Versatz&lt;/i&gt;</translation></message>
+    <message><source>Cancel</source><translation>Abbrechen</translation></message>
+    <message><source>Change Source Trace Origin?</source><translation>Ursprung der Quellverfolgung ändern?</translation></message>
+    <message><source>EPANET defines no %1-specific water-quality input parameters.</source><translation>EPANET definiert keine spezifischen Wasserqualitäts-Eingabeparameter für %1.</translation></message>
+    <message><source>None</source><translation>Keiner</translation></message>
+    <message><source>OK</source><translation>OK</translation></message>
+    <message><source>Open Trace Origin in Inspector</source><translation>Verfolgungsursprung im Inspektor öffnen</translation></message>
+    <message><source>Retrieved %1 m%2.</source><translation>Geländehöhe abgerufen: %1 m%2.</translation></message>
+    <message><source>Retrieving Terrain Elevation...</source><translation>Geländehöhe wird abgerufen…</translation></message>
+    <message><source>Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.</source><translation>Legt diesen Knoten als Ursprung der Quellverfolgung fest. Es kann jeweils nur ein Ursprung konfiguriert werden.</translation></message>
+    <message><source>Source Trace currently uses &lt;b&gt;%1&lt;/b&gt; as its origin.&lt;br&gt;&lt;br&gt;Replace it with &lt;b&gt;%2&lt;/b&gt;?</source><translation>Die Quellverfolgung verwendet derzeit &lt;b&gt;%1&lt;/b&gt; als Ursprung.&lt;br&gt;&lt;br&gt;Durch &lt;b&gt;%2&lt;/b&gt; ersetzen?</translation></message>
+    <message><source>Terrain Elevation</source><translation>Geländehöhe</translation></message>
+    <message><source>The terrain elevation could not be retrieved.</source><translation>Die Geländehöhe konnte nicht abgerufen werden.</translation></message>
+    <message><source>This node is already open in the Inspector</source><translation>Dieser Knoten ist bereits im Inspektor geöffnet</translation></message>
+    <message><source>Unknown node (%1)</source><translation>Unbekannter Knoten (%1)</translation></message>
+    <message><source>Use %1</source><translation>%1 verwenden</translation></message>
+    <message><source>Uses the AOWIS terrain subsystem and its shared DEM cache.&lt;br&gt;Accuracy depends on the dataset and local terrain.</source><translation>Verwendet das AOWIS-Geländesystem und seinen gemeinsamen DEM-Cache.&lt;br&gt;Die Genauigkeit hängt vom Datensatz und dem lokalen Gelände ab.</translation></message>
+    <message><source>WGS84 ellipsoid</source><translation>WGS84-Ellipsoid</translation></message>
+    <message><source>local datum</source><translation>lokales Datum</translation></message>
+    <message><source>pipe</source><translation>Rohre</translation></message>
+    <message><source>pump</source><translation>Pumpen</translation></message>
+    <message><source>unknown vertical datum</source><translation>unbekanntes Höhendatum</translation></message>
+    <message><source>valve</source><translation>Ventile</translation></message>
   </context>
 </TS>

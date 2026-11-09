@@ -4366,5 +4366,30 @@ Demanda base total: %1</numerusform>
       <numerusform>%n categorías de demanda
 Demanda base total: %1</numerusform>
     </translation></message>
+    <message><source>%1 m source resolution</source><translation>Resolución de origen: %1 m</translation></message>
+    <message><source>&lt;br&gt;Last result: %1 m%2</source><translation>&lt;br&gt;Último resultado: %1 m%2</translation></message>
+    <message><source>Calculated automatically from &lt;i&gt;Terrain Elevation&lt;/i&gt; + &lt;i&gt;Offset&lt;/i&gt;</source><translation>Calculada automáticamente a partir de la &lt;i&gt;elevación del terreno&lt;/i&gt; + el &lt;i&gt;desplazamiento&lt;/i&gt;</translation></message>
+    <message><source>Cancel</source><translation>Cancelar</translation></message>
+    <message><source>Change Source Trace Origin?</source><translation>¿Cambiar el origen del trazado de fuente?</translation></message>
+    <message><source>EPANET defines no %1-specific water-quality input parameters.</source><translation>EPANET no define parámetros de calidad del agua específicos para %1.</translation></message>
+    <message><source>None</source><translation>Ninguno</translation></message>
+    <message><source>OK</source><translation>Aceptar</translation></message>
+    <message><source>Open Trace Origin in Inspector</source><translation>Abrir origen del trazado en el inspector</translation></message>
+    <message><source>Retrieved %1 m%2.</source><translation>Elevación obtenida: %1 m%2.</translation></message>
+    <message><source>Retrieving Terrain Elevation...</source><translation>Obteniendo elevación del terreno…</translation></message>
+    <message><source>Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.</source><translation>Establece este nodo como origen del trazado de fuente. Solo puede configurarse un origen a la vez.</translation></message>
+    <message><source>Source Trace currently uses &lt;b&gt;%1&lt;/b&gt; as its origin.&lt;br&gt;&lt;br&gt;Replace it with &lt;b&gt;%2&lt;/b&gt;?</source><translation>El trazado de fuente utiliza actualmente &lt;b&gt;%1&lt;/b&gt; como origen.&lt;br&gt;&lt;br&gt;¿Reemplazarlo por &lt;b&gt;%2&lt;/b&gt;?</translation></message>
+    <message><source>Terrain Elevation</source><translation>Elevación del terreno</translation></message>
+    <message><source>The terrain elevation could not be retrieved.</source><translation>No se pudo obtener la elevación del terreno.</translation></message>
+    <message><source>This node is already open in the Inspector</source><translation>Este nodo ya está abierto en el inspector</translation></message>
+    <message><source>Unknown node (%1)</source><translation>Nodo desconocido (%1)</translation></message>
+    <message><source>Use %1</source><translation>Usar %1</translation></message>
+    <message><source>Uses the AOWIS terrain subsystem and its shared DEM cache.&lt;br&gt;Accuracy depends on the dataset and local terrain.</source><translation>Utiliza el subsistema de terreno AOWIS y su caché DEM compartida.&lt;br&gt;La precisión depende del conjunto de datos y del terreno local.</translation></message>
+    <message><source>WGS84 ellipsoid</source><translation>elipsoide WGS84</translation></message>
+    <message><source>local datum</source><translation>datum local</translation></message>
+    <message><source>pipe</source><translation>tuberías</translation></message>
+    <message><source>pump</source><translation>bombas</translation></message>
+    <message><source>unknown vertical datum</source><translation>datum vertical desconocido</translation></message>
+    <message><source>valve</source><translation>válvulas</translation></message>
   </context>
 </TS>

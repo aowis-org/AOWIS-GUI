@@ -47,11 +47,11 @@ QString terrainDatumDisplayName(const QString &datum_id)
     if (datum_id == QStringLiteral("egm96"))
         return QStringLiteral("EGM96");
     if (datum_id == QStringLiteral("wgs84-ellipsoid"))
-        return QStringLiteral("WGS84 ellipsoid");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "WGS84 ellipsoid"));
     if (datum_id == QStringLiteral("local"))
-        return QStringLiteral("local datum");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "local datum"));
     if (datum_id.isEmpty() || datum_id == QStringLiteral("unknown"))
-        return QStringLiteral("unknown vertical datum");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "unknown vertical datum"));
     return datum_id;
 }
 
@@ -469,6 +469,12 @@ EntityInspectorWidget::EntityInspectorWidget(HydraulicData *hydraulic_data, QWid
         refreshSimulationErrors();
         refreshSimulationWarnings();
         refreshDemandSummary();
+    });
+    // Presentation-only refresh on every LanguageChange. Do not reconstruct the
+    // inspector, reload a hydraulic model, or touch in-progress numeric edits.
+    LiveUiText::bind(this, [this] {
+        refreshTerrainElevationPresentation();
+        refreshSourceTraceInputs();
     });
     connect(this->tabs, &QTabWidget::currentChanged, this, &EntityInspectorWidget::signalCurrentTabChanged);
     
@@ -2157,11 +2163,10 @@ void EntityInspectorWidget::addGroupElevation()
         static_cast<int>(HydraulicNodeElevationInputType::AbsoluteElevation));
     EntityInspectorText::addChoice(this->combo_elevation_input_type, QT_TRANSLATE_NOOP("LiveUiText", "Terrain Elevation + Offset"), static_cast<int>(HydraulicNodeElevationInputType::TerrainElevationAndOffset));
     
-    this->button_terrain_elevation = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Retrieve Terrain Elevation"), nullptr);
-    this->button_terrain_elevation->setToolTip(
-        "Uses the AOWIS terrain subsystem and its shared DEM cache.<br>"
-        "Accuracy depends on the dataset and local terrain."
-        );
+    this->button_terrain_elevation = new QPushButton();
+    LiveUiText::bind(this->button_terrain_elevation, [this] {
+        refreshTerrainElevationPresentation();
+    });
     this->label_terrain_elevation_status = new QLabel();
     this->label_terrain_elevation_status->setWordWrap(true);
     this->label_terrain_elevation_status->hide();
@@ -2246,6 +2251,20 @@ void EntityInspectorWidget::addGroupElevation()
     this->label_elevation_value = LiveUiText::caption<QLabel>(value_label_text, nullptr);
     this->label_elevation_value->setWordWrap(true);
     this->spin_elevation_value = node_editor(2);
+    LiveUiText::bind(this->spin_elevation_value, [this] {
+        if (this->combo_elevation_input_type != nullptr
+            && this->combo_elevation_input_type->currentData().toInt()
+                == static_cast<int>(HydraulicNodeElevationInputType::TerrainElevationAndOffset))
+        {
+            this->spin_elevation_value->setToolTip(inspectorText(QT_TRANSLATE_NOOP(
+                "EntityInspectorPresentation",
+                "Calculated automatically from <i>Terrain Elevation</i> + <i>Offset</i>")));
+        }
+        else
+        {
+            this->spin_elevation_value->setToolTip(QString());
+        }
+    });
 
     grid->addWidget(this->combo_elevation_input_type, 0, 0, 1, 2);
     grid->addWidget(this->button_terrain_elevation, 1, 0, 1, 2);
@@ -2391,7 +2410,8 @@ void EntityInspectorWidget::updateElevationModeUi()
     if (uses_terrain)
     {
         this->spin_elevation_value->setToolTip(
-            "Calculated automatically from <i>Terrain Elevation</i> + <i>Offset</i>");
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "Calculated automatically from <i>Terrain Elevation</i> + <i>Offset</i>")));
         updateCalculatedElevation();
     }
     else
@@ -2444,6 +2464,7 @@ void EntityInspectorWidget::requestTerrainElevation()
 
     this->terrain_elevation_request_entity_uuid = this->entity_uuid;
     this->terrain_elevation_request_coordinate = node->coordinate_wgs84;
+    this->terrain_result_available = false;
     if (this->label_terrain_elevation_status)
         this->label_terrain_elevation_status->clear();
     setTerrainElevationRequestActive(true);
@@ -2532,34 +2553,13 @@ void EntityInspectorWidget::handleTerrainElevationResponse(const QByteArray &dat
         return;
     }
 
-    QStringList metadata;
-    if (!dataset.isEmpty())
-        metadata.append(dataset);
-    metadata.append(terrainDatumDisplayName(vertical_datum));
-    if (std::isfinite(nominal_resolution_m) && nominal_resolution_m > 0.0)
-    {
-        metadata.append(QStringLiteral("%1 m source resolution")
-                            .arg(nominal_resolution_m, 0, 'f',
-                                 nominal_resolution_m < 10.0 ? 1 : 0));
-    }
-
-    const QString metadata_suffix = metadata.isEmpty()
-        ? QString()
-        : QStringLiteral(" (%1)").arg(metadata.join(QStringLiteral(", ")));
-    this->button_terrain_elevation->setToolTip(
-        QStringLiteral(
-            "Uses the AOWIS terrain subsystem and its shared DEM cache.<br>"
-            "Accuracy depends on the dataset and local terrain.<br>"
-            "Last result: %1 m%2")
-            .arg(elevation_m, 0, 'f', 3)
-            .arg(metadata_suffix));
-    if (this->label_terrain_elevation_status)
-    {
-        this->label_terrain_elevation_status->setText(
-            QStringLiteral("Retrieved %1 m%2.")
-                .arg(elevation_m, 0, 'f', 3)
-                .arg(metadata_suffix));
-    }
+    // Retain raw result metadata, not pretranslated text, so language changes
+    // can reformat the tooltip and status without requesting the DEM again.
+    this->terrain_result_available = true;
+    this->terrain_result_elevation_m = elevation_m;
+    this->terrain_result_dataset = dataset;
+    this->terrain_result_vertical_datum = vertical_datum;
+    this->terrain_result_resolution_m = nominal_resolution_m;
     setTerrainElevationRequestActive(false);
 }
 
@@ -2567,6 +2567,7 @@ void EntityInspectorWidget::handleTerrainElevationError(const QString &error)
 {
     if (this->label_terrain_elevation_status)
         this->label_terrain_elevation_status->clear();
+    this->terrain_result_available = false;
 
     setTerrainElevationRequestActive(false);
     showTerrainElevationErrorMessage(error);
@@ -2582,12 +2583,18 @@ void EntityInspectorWidget::showTerrainElevationErrorMessage(const QString &erro
         parent_window = this;
 
     QMessageBox *message_box = new QMessageBox(
-        QMessageBox::Warning,
-        "Terrain Elevation",
-        "The terrain elevation could not be retrieved.",
-        QMessageBox::Ok,
-        parent_window);
+        QMessageBox::Warning, QString(), QString(), QMessageBox::NoButton, parent_window);
     message_box->setInformativeText(error);
+    QPushButton *button_ok = message_box->addButton(QString(), QMessageBox::AcceptRole);
+    LiveUiText::bind(message_box, [message_box] {
+        message_box->setWindowTitle(inspectorText(QT_TRANSLATE_NOOP(
+            "EntityInspectorPresentation", "Terrain Elevation")));
+        message_box->setText(inspectorText(QT_TRANSLATE_NOOP(
+            "EntityInspectorPresentation", "The terrain elevation could not be retrieved.")));
+    });
+    LiveUiText::bind(button_ok, [button_ok] {
+        button_ok->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "OK")));
+    });
     message_box->setAttribute(Qt::WA_DeleteOnClose);
 
 #ifdef Q_OS_WASM
@@ -2623,15 +2630,52 @@ void EntityInspectorWidget::showTerrainElevationErrorMessage(const QString &erro
 #endif
 }
 
+void EntityInspectorWidget::refreshTerrainElevationPresentation()
+{
+    if (this->button_terrain_elevation == nullptr)
+        return;
+
+    this->button_terrain_elevation->setText(this->terrain_elevation_request_active
+        ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Retrieving Terrain Elevation..."))
+        : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Retrieve Terrain Elevation")));
+    QString tooltip = inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+        "Uses the AOWIS terrain subsystem and its shared DEM cache.<br>Accuracy depends on the dataset and local terrain."));
+    if (this->terrain_result_available)
+    {
+        QStringList metadata;
+        if (!this->terrain_result_dataset.isEmpty())
+            metadata.append(this->terrain_result_dataset);
+        metadata.append(terrainDatumDisplayName(this->terrain_result_vertical_datum));
+        if (std::isfinite(this->terrain_result_resolution_m)
+            && this->terrain_result_resolution_m > 0.0)
+        {
+            metadata.append(inspectorText(QT_TRANSLATE_NOOP(
+                "EntityInspectorPresentation", "%1 m source resolution"))
+                .arg(this->terrain_result_resolution_m, 0, 'f',
+                     this->terrain_result_resolution_m < 10.0 ? 1 : 0));
+        }
+        const QString suffix = metadata.isEmpty() ? QString()
+            : QStringLiteral(" (%1)").arg(metadata.join(QStringLiteral(", ")));
+        const QString altitude = QString::number(this->terrain_result_elevation_m, 'f', 3);
+        tooltip += inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+            "<br>Last result: %1 m%2")).arg(altitude, suffix);
+        if (this->label_terrain_elevation_status != nullptr)
+        {
+            this->label_terrain_elevation_status->setText(inspectorText(QT_TRANSLATE_NOOP(
+                "EntityInspectorPresentation", "Retrieved %1 m%2.")).arg(altitude, suffix));
+        }
+    }
+    this->button_terrain_elevation->setToolTip(tooltip);
+}
+
 void EntityInspectorWidget::setTerrainElevationRequestActive(bool active)
 {
     this->terrain_elevation_request_active = active;
 
-    if (!this->button_terrain_elevation)
+    if (this->button_terrain_elevation == nullptr)
         return;
 
-    this->button_terrain_elevation->setText(
-        active ? "Retrieving Terrain Elevation..." : "Retrieve Terrain Elevation");
+    refreshTerrainElevationPresentation();
     updateElevationModeUi();
 }
 
@@ -3458,11 +3502,16 @@ void EntityInspectorWidget::addGroupNodeQualityInputs()
     this->label_source_trace_origin_value->setTextInteractionFlags(Qt::TextSelectableByMouse);
     this->button_source_trace_origin_inspect = new QPushButton(QIcon(":/icon/target.png"), "");
     this->button_source_trace_origin_inspect->setIconSize(QSize(20, 20));
-    this->button_source_trace_origin_inspect->setToolTip("Open Trace Origin in Inspector");
+    LiveUiText::bind(this->button_source_trace_origin_inspect, [this] {
+        refreshSourceTraceInputs();
+    });
     this->button_source_trace_origin_inspect->setMaximumWidth(35);
     this->check_source_trace_origin_current_node = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Use This Node as Trace Origin"), nullptr);
-    this->check_source_trace_origin_current_node->setToolTip(
-        "Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.");
+    LiveUiText::bind(this->check_source_trace_origin_current_node, [this] {
+        this->check_source_trace_origin_current_node->setToolTip(inspectorText(QT_TRANSLATE_NOOP(
+            "EntityInspectorPresentation",
+            "Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.")));
+    });
 
     grid_source_trace->addWidget(label_source_trace_origin, 0, 0);
     grid_source_trace->addWidget(this->label_source_trace_origin_value, 0, 1);
@@ -3545,16 +3594,18 @@ void EntityInspectorWidget::addGroupNodeQualityInputs()
 QString EntityInspectorWidget::sourceTraceNodeDisplayName(const QUuid &uuid) const
 {
     if (this->hydraulic_data == nullptr || uuid.isNull())
-        return QStringLiteral("None");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "None"));
 
     const std::optional<InfrastructureEntity> entity_type = this->hydraulic_data->nodeEntityType(uuid);
     if (!entity_type.has_value())
-        return QStringLiteral("Unknown node (%1)").arg(uuid.toString(QUuid::WithoutBraces));
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Unknown node (%1)"))
+            .arg(uuid.toString(QUuid::WithoutBraces));
 
     const std::optional<HydraulicNodeCommonData> node =
         this->hydraulic_data->nodeCommonData(entity_type.value(), uuid);
     if (!node.has_value())
-        return QStringLiteral("Unknown node (%1)").arg(uuid.toString(QUuid::WithoutBraces));
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Unknown node (%1)"))
+            .arg(uuid.toString(QUuid::WithoutBraces));
 
     const QString node_identifier = node->id.isEmpty()
         ? uuid.toString(QUuid::WithoutBraces)
@@ -3584,8 +3635,10 @@ void EntityInspectorWidget::refreshSourceTraceInputs()
         trace_origin_exists && !current_node_is_origin);
     this->button_source_trace_origin_inspect->setToolTip(
         current_node_is_origin
-            ? QStringLiteral("This node is already open in the Inspector")
-            : QStringLiteral("Open Trace Origin in Inspector"));
+            ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "This node is already open in the Inspector"))
+            : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "Open Trace Origin in Inspector")));
 
     const QSignalBlocker blocker(this->check_source_trace_origin_current_node);
     this->check_source_trace_origin_current_node->setChecked(current_node_is_origin);
@@ -3610,25 +3663,37 @@ void EntityInspectorWidget::requestUseCurrentNodeAsSourceTraceOrigin()
     if (this->source_trace_origin_message_box)
         this->source_trace_origin_message_box->close();
 
-    const QString existing_origin_name = sourceTraceNodeDisplayName(existing_origin_uuid);
-    const QString new_origin_name = sourceTraceNodeDisplayName(this->entity_uuid);
-
     QWidget *parent_window = this->window();
     if (parent_window == nullptr)
         parent_window = this;
 
     QMessageBox *message_box = new QMessageBox(
-        QMessageBox::Question,
-        QStringLiteral("Change Source Trace Origin?"),
-        QStringLiteral("Source Trace currently uses <b>%1</b> as its origin.<br><br>Replace it with <b>%2</b>?")
-            .arg(existing_origin_name.toHtmlEscaped(), new_origin_name.toHtmlEscaped()),
-        QMessageBox::NoButton,
-        parent_window);
+        QMessageBox::Question, QString(), QString(), QMessageBox::NoButton, parent_window);
     message_box->setTextFormat(Qt::RichText);
-    QPushButton *button_use_node = message_box->addButton(
-        QStringLiteral("Use %1").arg(new_origin_name), QMessageBox::AcceptRole);
-    message_box->addButton(QMessageBox::Cancel);
+    QPushButton *button_use_node = message_box->addButton(QString(), QMessageBox::AcceptRole);
+    QPushButton *button_cancel = message_box->addButton(QString(), QMessageBox::RejectRole);
     message_box->setDefaultButton(button_use_node);
+    QPointer<EntityInspectorWidget> guarded_inspector = this;
+    LiveUiText::bind(message_box, [guarded_inspector, message_box, existing_origin_uuid] {
+        if (!guarded_inspector)
+            return;
+        message_box->setWindowTitle(inspectorText(QT_TRANSLATE_NOOP(
+            "EntityInspectorPresentation", "Change Source Trace Origin?")));
+        message_box->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+            "Source Trace currently uses <b>%1</b> as its origin.<br><br>Replace it with <b>%2</b>?"))
+            .arg(guarded_inspector->sourceTraceNodeDisplayName(existing_origin_uuid).toHtmlEscaped(),
+                 guarded_inspector->sourceTraceNodeDisplayName(guarded_inspector->entity_uuid).toHtmlEscaped()));
+    });
+    LiveUiText::bind(button_use_node, [guarded_inspector, button_use_node] {
+        if (!guarded_inspector)
+            return;
+        button_use_node->setText(inspectorText(QT_TRANSLATE_NOOP(
+            "EntityInspectorPresentation", "Use %1"))
+            .arg(guarded_inspector->sourceTraceNodeDisplayName(guarded_inspector->entity_uuid)));
+    });
+    LiveUiText::bind(button_cancel, [button_cancel] {
+        button_cancel->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Cancel")));
+    });
     message_box->setAttribute(Qt::WA_DeleteOnClose);
 
 #ifdef Q_OS_WASM
@@ -3680,9 +3745,18 @@ void EntityInspectorWidget::addGroupNoEntitySpecificQualityInputs(const QString 
 {
     GroupBoxCollapsible *group = EntityInspectorText::group(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Inputs"));
     QGridLayout *grid = new QGridLayout(group);
-    QLabel *label = new QLabel(
-        QStringLiteral("EPANET defines no %1-specific water-quality input parameters.")
-            .arg(entity_name));
+    QLabel *label = new QLabel();
+    LiveUiText::bind(label, [label, entity_name] {
+        QString type = entity_name;
+        if (entity_name == QStringLiteral("pipe"))
+            type = inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "pipe"));
+        else if (entity_name == QStringLiteral("pump"))
+            type = inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "pump"));
+        else if (entity_name == QStringLiteral("valve"))
+            type = inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "valve"));
+        label->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+            "EPANET defines no %1-specific water-quality input parameters.")).arg(type));
+    });
     label->setWordWrap(true);
     grid->addWidget(label, 0, 0);
     layoutQuality()->addWidget(group);

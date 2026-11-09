@@ -4374,5 +4374,30 @@ Total base demand: %1</source><translation>
       <numerusform>%n فئة طلب
 إجمالي الطلب الأساسي: %1</numerusform>
     </translation></message>
+    <message><source>%1 m source resolution</source><translation>دقة بيانات المصدر: %1 م</translation></message>
+    <message><source>&lt;br&gt;Last result: %1 m%2</source><translation>&lt;br&gt;النتيجة الأخيرة: %1 م%2</translation></message>
+    <message><source>Calculated automatically from &lt;i&gt;Terrain Elevation&lt;/i&gt; + &lt;i&gt;Offset&lt;/i&gt;</source><translation>تُحسب تلقائيًا من &lt;i&gt;ارتفاع التضاريس&lt;/i&gt; + &lt;i&gt;الإزاحة&lt;/i&gt;</translation></message>
+    <message><source>Cancel</source><translation>إلغاء</translation></message>
+    <message><source>Change Source Trace Origin?</source><translation>تغيير أصل تتبّع المصدر؟</translation></message>
+    <message><source>EPANET defines no %1-specific water-quality input parameters.</source><translation>لا يعرّف EPANET معلمات جودة مياه خاصة بـ %1.</translation></message>
+    <message><source>None</source><translation>لا شيء</translation></message>
+    <message><source>OK</source><translation>موافق</translation></message>
+    <message><source>Open Trace Origin in Inspector</source><translation>فتح أصل التتبّع في المفتش</translation></message>
+    <message><source>Retrieved %1 m%2.</source><translation>تم استرجاع الارتفاع: %1 م%2.</translation></message>
+    <message><source>Retrieving Terrain Elevation...</source><translation>جارٍ استرجاع ارتفاع التضاريس…</translation></message>
+    <message><source>Sets this node as the Source Trace origin. Only one trace origin can be configured at a time.</source><translation>يعيّن هذه العقدة أصلًا لتتبّع المصدر. يمكن ضبط أصل واحد فقط في كل مرة.</translation></message>
+    <message><source>Source Trace currently uses &lt;b&gt;%1&lt;/b&gt; as its origin.&lt;br&gt;&lt;br&gt;Replace it with &lt;b&gt;%2&lt;/b&gt;?</source><translation>يستخدم تتبّع المصدر حاليًا &lt;b&gt;%1&lt;/b&gt; أصلًا له.&lt;br&gt;&lt;br&gt;هل تريد استبداله بـ &lt;b&gt;%2&lt;/b&gt;؟</translation></message>
+    <message><source>Terrain Elevation</source><translation>ارتفاع التضاريس</translation></message>
+    <message><source>The terrain elevation could not be retrieved.</source><translation>تعذّر استرجاع ارتفاع التضاريس.</translation></message>
+    <message><source>This node is already open in the Inspector</source><translation>هذه العقدة مفتوحة بالفعل في المفتش</translation></message>
+    <message><source>Unknown node (%1)</source><translation>عقدة غير معروفة (%1)</translation></message>
+    <message><source>Use %1</source><translation>استخدام %1</translation></message>
+    <message><source>Uses the AOWIS terrain subsystem and its shared DEM cache.&lt;br&gt;Accuracy depends on the dataset and local terrain.</source><translation>يستخدم نظام تضاريس AOWIS وذاكرة التخزين المؤقت المشتركة لنموذج الارتفاع الرقمي.&lt;br&gt;تعتمد الدقة على مجموعة البيانات والتضاريس المحلية.</translation></message>
+    <message><source>WGS84 ellipsoid</source><translation>مجسّم WGS84 الإهليلجي</translation></message>
+    <message><source>local datum</source><translation>المرجع المحلي</translation></message>
+    <message><source>pipe</source><translation>الأنابيب</translation></message>
+    <message><source>pump</source><translation>المضخات</translation></message>
+    <message><source>unknown vertical datum</source><translation>مرجع رأسي غير معروف</translation></message>
+    <message><source>valve</source><translation>الصمامات</translation></message>
   </context>
 </TS>

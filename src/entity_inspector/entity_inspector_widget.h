@@ -211,6 +211,7 @@ private:
     void locateHydraulicEndpoint(const QUuid &node_uuid);
     void inspectHydraulicEndpoint(const QUuid &node_uuid);
     void refreshHydraulicNodeElevation();
+    void refreshTerrainElevationPresentation();
     void scheduleDemandsRefresh();
     void refreshDemands(bool presentation_only = false);
     void refreshDemandSummary();
@@ -257,6 +258,11 @@ private:
     QUuid terrain_elevation_request_entity_uuid;
     CoordinateWGS84 terrain_elevation_request_coordinate;
     bool terrain_elevation_request_active = false;
+    bool terrain_result_available = false;
+    double terrain_result_elevation_m = 0.0;
+    QString terrain_result_dataset;
+    QString terrain_result_vertical_datum;
+    double terrain_result_resolution_m = -1.0;
 
     QHash<int, SimulationRowWidgets> simulation_rows;
     QDoubleSpinBox *spin_quality_initial_chemical = nullptr;

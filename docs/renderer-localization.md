@@ -207,3 +207,28 @@ refresh in place. The `aowis-gui-language` test verifies representative
 compiled-catalogue simulation strings and a retained two-demand summary
 across all five languages. This is not yet an integration test that creates a
 fully populated live Inspector or a final Arabic RTL acceptance test.
+
+## Hydraulic Entity Inspector: terrain and Source Trace presentation
+
+The terrain lookup button, its in-progress label, the last returned elevation,
+DEM metadata (dataset, source resolution, vertical datum) and calculation
+help text now refresh from the **retained raw lookup result** on Qt
+`LanguageChange`. Changing language does not request terrain data again,
+change the canonical elevation, reset an active request, or commit an edit.
+An already-open terrain-error dialog retranslates its application-owned title,
+summary and action caption; free-form service-provided error details remain
+untouched.
+
+Source Trace's current-origin display, missing-node fallback, action tooltips
+and confirmation dialog use `EntityInspectorPresentation`. The confirmation
+stays open during a language switch and dynamically regenerates the node
+names and button text; its accept/cancel roles and the source-origin UUID do
+not change. The no-entity-specific water-quality descriptions also update in
+place. Source-type combo entries were already backed by `LiveUiText` and keep
+their original enum values and current selection.
+
+The `aowis-gui-language` test covers the newly compiled catalogue entries
+and retained terrain/UUID presentation through all five languages. A direct
+GUI integration test for an open inspector with an in-flight DEM request and
+live confirmation dialog is still required before declaring comprehensive
+runtime-localization acceptance.

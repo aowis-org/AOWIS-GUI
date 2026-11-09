@@ -119,6 +119,24 @@ int main(int argc, char **argv)
             nullptr, inspector_demand_count).arg(inspector_base_demand));
     });
     layout.addWidget(&inspector_demand_summary);
+    // Presentation-only terrain result and Source Trace labels share the real
+    // EntityInspectorPresentation catalogue. Changing languages must not
+    // replace retained values or emit editing signals.
+    QLabel inspector_terrain_result;
+    const QString inspector_terrain_value = QStringLiteral("143.250");
+    LiveUiText::bind(&inspector_terrain_result, [&inspector_terrain_result, &inspector_terrain_value] {
+        inspector_terrain_result.setText(QCoreApplication::translate(
+            "EntityInspectorPresentation", "Retrieved %1 m%2.")
+            .arg(inspector_terrain_value, QString()));
+    });
+    layout.addWidget(&inspector_terrain_result);
+    QLabel inspector_source_trace;
+    const QString inspector_source_uuid = QStringLiteral("123e4567-e89b-12d3-a456-426614174000");
+    LiveUiText::bind(&inspector_source_trace, [&inspector_source_trace, &inspector_source_uuid] {
+        inspector_source_trace.setText(QCoreApplication::translate(
+            "EntityInspectorPresentation", "Unknown node (%1)").arg(inspector_source_uuid));
+    });
+    layout.addWidget(&inspector_source_trace);
     HistoryDock history;
     layout.addWidget(&history);
     HistoryDockContext context;
@@ -234,6 +252,31 @@ int main(int argc, char **argv)
         const QString translated_demand_summary = QCoreApplication::translate(
             "EntityInspectorPresentation", "%n demand categories\nTotal base demand: %1",
             nullptr, inspector_demand_count).arg(inspector_base_demand);
+        const char *const terrain_results[] = {
+            "Retrieved 143.250 m.", "Altitude récupérée : 143.250 m.",
+            "تم استرجاع الارتفاع: 143.250 م.", "Geländehöhe abgerufen: 143.250 m.",
+            "Elevación obtenida: 143.250 m."
+        };
+        const char *const unknown_nodes[] = {
+            "Unknown node (%1)", "Nœud inconnu (%1)",
+            "عقدة غير معروفة (%1)", "Unbekannter Knoten (%1)",
+            "Nodo desconocido (%1)"
+        };
+        const char *const trace_dialogs[] = {
+            "Change Source Trace Origin?", "Changer l’origine du traçage de source ?",
+            "تغيير أصل تتبّع المصدر؟", "Ursprung der Quellverfolgung ändern?",
+            "¿Cambiar el origen del trazado de fuente?"
+        };
+        if (!matches(code, "live inspector terrain result", inspector_terrain_result.text(),
+                     QString::fromUtf8(terrain_results[index]))
+            || !matches(code, "live inspector source trace", inspector_source_trace.text(),
+                        QString::fromUtf8(unknown_nodes[index]).arg(inspector_source_uuid))
+            || !matches(code, "source trace dialog catalogue",
+                        QCoreApplication::translate("EntityInspectorPresentation", "Change Source Trace Origin?"),
+                        QString::fromUtf8(trace_dialogs[index]))
+            || !matches(code, "terrain retained numeric value", inspector_terrain_result.text().contains(inspector_terrain_value), true)
+            || !matches(code, "trace retained UUID", inspector_source_trace.text().contains(inspector_source_uuid), true))
+            return 15;
         if (!matches(code, "live inspector simulation status", inspector_simulation_status.text(),
                      QString::fromUtf8(inspector_simulation_messages[index]))
             || !matches(code, "live inspector demand summary", inspector_demand_summary.text(),
