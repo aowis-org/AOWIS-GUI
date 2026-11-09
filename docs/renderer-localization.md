@@ -280,3 +280,26 @@ five actual installed catalogues, plus stable enum values, retained UUIDs and
 zero selection-change signals. An instantiated live Valve Inspector test (and
 full Arabic RTL/native/WebAssembly acceptance) remains necessary before
 claiming complete localization coverage across the editor.
+
+## Hydraulic Entity Inspector: Tank geometry and volume curves
+
+The Tank Inspector's geometry-mode choices already use `LiveUiText`. Its
+volume-curve selector now separates UI-owned **Select curve** and **Missing
+curve** captions from user-defined curve names and stored UUIDs. A language
+change refreshes only those two caption kinds on the existing combo-box rows
+with signals blocked; it neither repopulates the curve list nor emits an edit.
+The current selection and the curve-signature cache are left intact.
+
+Geometry-dependent editable/derived tooltips retain an untranslated source key
+on each numeric editor. `LanguageChange` translates that key in place and
+never calls the geometry-mode change handler, re-derives geometry, refreshes
+canonical-unit editors or changes the draft being typed. The two water-quality
+tooltips (mixing compartment fraction and bulk-reaction coefficient units) use
+similar live text bindings. Tank volume computations remain unchanged and
+independent of GUI language.
+
+`aowis-gui-language` tests the real compiled EN/FR/AR/DE/ES catalogues with
+retained tank curve UUIDs, a user-defined curve name, an existing selected
+missing-curve row, and an unmodified numeric editor. A fully instantiated Tank
+Inspector integration test and Arabic RTL/native/WebAssembly manual acceptance
+are still required before claiming comprehensive localization coverage.

@@ -4503,4 +4503,23 @@ Total base demand: %1</source><translation>
     <name>EntityInspectorPump</name>
     <message numerus="yes"><source>%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.</source><translation><numerusform>لا توجد قواعد (%n) تتحكم بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدتان أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قواعد أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform><numerusform>تتحكم %n قاعدة أو قواعد أيضًا بهذه المضخة. العناصر أعلاه هي عناصر التحكم EPANET البسيطة للمضخة.</numerusform></translation></message>
   </context>
+  <context>
+    <name>EntityInspectorTank</name>
+    <message><source>[Select Curve]</source><translation>[اختيار منحنى]</translation></message>
+    <message><source>[Missing Curve] %1</source><translation>[منحنى مفقود] %1</translation></message>
+    <message><source>Stored cylindrical tank diameter.</source><translation>القطر المخزَّن للخزان الأسطواني.</translation></message>
+    <message><source>A positive value is the explicit volume at minimum level. Zero lets EPANET derive it from area × minimum level.</source><translation>تحدد القيمة الموجبة الحجم عند المنسوب الأدنى. وتتيح القيمة صفر لـ EPANET حسابه من المساحة × المنسوب الأدنى.</translation></message>
+    <message><source>Stored uniform cross-sectional tank area.</source><translation>مساحة المقطع العرضي المنتظم المخزَّنة للخزان.</translation></message>
+    <message><source>A positive value is the explicit volume at minimum level. Zero derives geometry from maximum volume and maximum level.</source><translation>تحدد القيمة الموجبة الحجم عند المنسوب الأدنى. وتُشتق الهندسة عند القيمة صفر من الحجم الأقصى والمنسوب الأقصى.</translation></message>
+    <message><source>Stored tank volume at the maximum water level.</source><translation>حجم الخزان المخزَّن عند أقصى منسوب للمياه.</translation></message>
+    <message><source>Calculated from the cylindrical diameter.</source><translation>محسوب من القطر الأسطواني.</translation></message>
+    <message><source>Calculated using EPANET minimum-volume semantics and the maximum level.</source><translation>محسوب وفق قواعد الحجم الأدنى في EPANET والمنسوب الأقصى.</translation></message>
+    <message><source>Equivalent cylindrical diameter calculated from the stored area.</source><translation>القطر الأسطواني المكافئ المحسوب من المساحة المخزَّنة.</translation></message>
+    <message><source>Calculated from the minimum/maximum volumes and levels.</source><translation>محسوب من الأحجام والمناسيب الدنيا والعليا.</translation></message>
+    <message><source>Equivalent cylindrical diameter calculated from the derived area.</source><translation>القطر الأسطواني المكافئ المحسوب من المساحة المشتقة.</translation></message>
+    <message><source>Interpolated from the selected volume curve at the minimum level.</source><translation>مستوفى من منحنى الحجم المحدد عند المنسوب الأدنى.</translation></message>
+    <message><source>Interpolated from the selected volume curve at the maximum level.</source><translation>مستوفى من منحنى الحجم المحدد عند المنسوب الأقصى.</translation></message>
+    <message><source>Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.</source><translation>جزء حجم الخزان المخصص لحجرة المدخل/المخرج في نموذج الحجرتين.</translation></message>
+    <message><source>Coefficient units depend on reaction order; concentration remains in canonical mg/L. The unit profile changes only the time basis.</source><translation>تعتمد وحدات المعامل على رتبة التفاعل؛ ويبقى التركيز بوحدة mg/L القياسية. ولا يغيّر ملف الوحدات إلا أساس الزمن.</translation></message>
+  </context>
 </TS>

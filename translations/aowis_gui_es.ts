@@ -4495,4 +4495,23 @@ Demanda base total: %1</numerusform>
     <name>EntityInspectorPump</name>
     <message numerus="yes"><source>%n rule-based control also targets this pump. The controls above are the pump's simple EPANET controls.</source><translation><numerusform>%n control basado en reglas también actúa sobre esta bomba. Los controles anteriores son los controles EPANET simples de la bomba.</numerusform><numerusform>%n controles basados en reglas también actúan sobre esta bomba. Los controles anteriores son los controles EPANET simples de la bomba.</numerusform></translation></message>
   </context>
+  <context>
+    <name>EntityInspectorTank</name>
+    <message><source>[Select Curve]</source><translation>[Seleccionar curva]</translation></message>
+    <message><source>[Missing Curve] %1</source><translation>[Curva ausente] %1</translation></message>
+    <message><source>Stored cylindrical tank diameter.</source><translation>Diámetro almacenado del tanque cilíndrico.</translation></message>
+    <message><source>A positive value is the explicit volume at minimum level. Zero lets EPANET derive it from area × minimum level.</source><translation>Un valor positivo define el volumen al nivel mínimo. Un valor cero permite a EPANET derivarlo del área × nivel mínimo.</translation></message>
+    <message><source>Stored uniform cross-sectional tank area.</source><translation>Área de sección transversal uniforme almacenada del tanque.</translation></message>
+    <message><source>A positive value is the explicit volume at minimum level. Zero derives geometry from maximum volume and maximum level.</source><translation>Un valor positivo define el volumen al nivel mínimo. Un valor cero deriva la geometría del volumen máximo y el nivel máximo.</translation></message>
+    <message><source>Stored tank volume at the maximum water level.</source><translation>Volumen almacenado del tanque al nivel máximo de agua.</translation></message>
+    <message><source>Calculated from the cylindrical diameter.</source><translation>Calculado a partir del diámetro cilíndrico.</translation></message>
+    <message><source>Calculated using EPANET minimum-volume semantics and the maximum level.</source><translation>Calculado según la semántica de volumen mínimo de EPANET y el nivel máximo.</translation></message>
+    <message><source>Equivalent cylindrical diameter calculated from the stored area.</source><translation>Diámetro cilíndrico equivalente calculado a partir del área almacenada.</translation></message>
+    <message><source>Calculated from the minimum/maximum volumes and levels.</source><translation>Calculado a partir de los volúmenes y niveles mínimos/máximos.</translation></message>
+    <message><source>Equivalent cylindrical diameter calculated from the derived area.</source><translation>Diámetro cilíndrico equivalente calculado a partir del área derivada.</translation></message>
+    <message><source>Interpolated from the selected volume curve at the minimum level.</source><translation>Interpolado de la curva de volumen seleccionada al nivel mínimo.</translation></message>
+    <message><source>Interpolated from the selected volume curve at the maximum level.</source><translation>Interpolado de la curva de volumen seleccionada al nivel máximo.</translation></message>
+    <message><source>Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.</source><translation>Fracción del volumen del tanque asignada al compartimento de entrada/salida del modelo de dos compartimentos.</translation></message>
+    <message><source>Coefficient units depend on reaction order; concentration remains in canonical mg/L. The unit profile changes only the time basis.</source><translation>Las unidades del coeficiente dependen del orden de reacción; la concentración permanece en mg/L canónicos. El perfil de unidades solo cambia la base temporal.</translation></message>
+  </context>
 </TS>

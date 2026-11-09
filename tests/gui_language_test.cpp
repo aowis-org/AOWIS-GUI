@@ -2,6 +2,7 @@
 #include "settings/keyboard_shortcuts_settings_widget.h"
 #include "config/gui_configuration.h"
 #include "entity_inspector/entity_inspector_text.h"
+#include "entity_inspector/tank_inspector_presentation.h"
 #include "config/gui_language.h"
 #include "tabs/projects_inspector_panels.h"
 
@@ -9,6 +10,7 @@
 #include <QListWidget>
 #include <QTreeWidget>
 #include <QDebug>
+#include <QDoubleSpinBox>
 #include <QEvent>
 #include <QLabel>
 #include <QLocale>
@@ -110,6 +112,36 @@ int main(int argc, char **argv)
         missing_valve_curve);
     valve_curve_choices.setCurrentIndex(1);
     entity_layout.addWidget(&valve_curve_choices);
+    // Tank curve selectors must translate their UI-owned placeholder without
+    // modifying network-owned curve IDs/names or the selected UUID. In-place
+    // tooltip refresh must not trigger a numeric edit or replace a typed value.
+    QComboBox tank_curve_choices;
+    const QUuid tank_named_curve_uuid(QStringLiteral("{123e4567-e89b-12d3-a456-426614174031}"));
+    const QUuid tank_missing_curve_uuid(QStringLiteral("{123e4567-e89b-12d3-a456-426614174032}"));
+    const QString tank_named_curve = QStringLiteral("North capacity curve");
+    tank_curve_choices.addItem(TankInspectorPresentation::selectCurveText(), QUuid());
+    tank_curve_choices.setItemData(0, TankInspectorPresentation::SelectCurve,
+                                   TankInspectorPresentation::curve_text_role);
+    tank_curve_choices.addItem(tank_named_curve, tank_named_curve_uuid);
+    tank_curve_choices.addItem(TankInspectorPresentation::missingCurveText(tank_missing_curve_uuid),
+                               tank_missing_curve_uuid);
+    tank_curve_choices.setItemData(2, TankInspectorPresentation::MissingCurve,
+                                   TankInspectorPresentation::curve_text_role);
+    TankInspectorPresentation::bindCurveChoices(&tank_curve_choices);
+    tank_curve_choices.setCurrentIndex(2);
+    entity_layout.addWidget(&tank_curve_choices);
+    QDoubleSpinBox tank_diameter_editor;
+    tank_diameter_editor.setDecimals(3);
+    tank_diameter_editor.setValue(17.125);
+    TankInspectorPresentation::setSpinTooltip(&tank_diameter_editor,
+        "Stored cylindrical tank diameter.");
+    entity_layout.addWidget(&tank_diameter_editor);
+    int tank_edit_signals = 0;
+    int tank_selection_signals = 0;
+    QObject::connect(&tank_diameter_editor, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+        [&tank_edit_signals](double) { ++tank_edit_signals; });
+    QObject::connect(&tank_curve_choices, &QComboBox::currentIndexChanged,
+        [&tank_selection_signals](int) { ++tank_selection_signals; });
     int valve_selection_changes = 0;
     QObject::connect(&valve_type_choices, &QComboBox::currentIndexChanged,
         [&valve_selection_changes](int) { ++valve_selection_changes; });
@@ -412,6 +444,67 @@ int main(int argc, char **argv)
             || !matches(code, "pump plural count", translated_rules.contains(QStringLiteral("%n")), false)
             || !matches(code, "pump plural translated", translated_rules.contains(QStringLiteral("EPANET")), true))
             return 16;
+        const char *const tank_select_labels[] = {
+            "[Select Curve]", "[Sélectionner une courbe]", "[اختيار منحنى]",
+            "[Kurve auswählen]", "[Seleccionar curva]"
+        };
+        const char *const tank_stored_diameter_tips[] = {
+            "Stored cylindrical tank diameter.", "Diamètre du réservoir cylindrique enregistré.",
+            "القطر المخزَّن للخزان الأسطواني.",
+            "Gespeicherter Durchmesser des zylindrischen Behälters.",
+            "Diámetro almacenado del tanque cilíndrico."
+        };
+        const char *const tank_missing_labels[] = {
+            "[Missing Curve] %1", "[Courbe manquante] %1", "[منحنى مفقود] %1",
+            "[Fehlende Kurve] %1", "[Curva ausente] %1"
+        };
+        const QString expected_missing_tank_curve = QString::fromUtf8(tank_missing_labels[index])
+            .arg(tank_missing_curve_uuid.toString(QUuid::WithoutBraces));
+        if (!matches(code, "live tank select curve", tank_curve_choices.itemText(0),
+                     QString::fromUtf8(tank_select_labels[index]))
+            || !matches(code, "live tank missing curve", tank_curve_choices.itemText(2),
+                        expected_missing_tank_curve)
+            || !matches(code, "tank user curve name retained", tank_curve_choices.itemText(1),
+                        tank_named_curve)
+            || !matches(code, "tank selected curve UUID retained", tank_curve_choices.currentData().toUuid(),
+                        tank_missing_curve_uuid)
+            || !matches(code, "tank user curve UUID retained", tank_curve_choices.itemData(1).toUuid(),
+                        tank_named_curve_uuid)
+            || !matches(code, "tank selection unchanged", tank_curve_choices.currentIndex(), 2)
+            || !matches(code, "tank selection signals", tank_selection_signals, 0)
+            || !matches(code, "tank numeric editor unchanged", tank_diameter_editor.value(), 17.125)
+            || !matches(code, "tank edit signals", tank_edit_signals, 0)
+            || !matches(code, "tank editable tooltip", tank_diameter_editor.toolTip(),
+                        QString::fromUtf8(tank_stored_diameter_tips[index])))
+            return 18;
+        if (index == 2)
+        {
+            // Switching geometry modes changes which tooltip key is retained.
+            // Updating the key while Arabic is active must not commit a value.
+            TankInspectorPresentation::setSpinTooltip(&tank_diameter_editor,
+                "Interpolated from the selected volume curve at the maximum level.");
+            if (!matches(code, "tank derived tooltip after mode change",
+                    tank_diameter_editor.toolTip(), QCoreApplication::translate(
+                        "EntityInspectorTank",
+                        "Interpolated from the selected volume curve at the maximum level.")))
+                return 18;
+            TankInspectorPresentation::setSpinTooltip(&tank_diameter_editor,
+                "Stored cylindrical tank diameter.");
+            if (!matches(code, "tank editable tooltip restored",
+                    tank_diameter_editor.toolTip(),
+                    QString::fromUtf8(tank_stored_diameter_tips[index])))
+                return 18;
+        }
+        if (index > 0 && (QCoreApplication::translate("EntityInspectorTank",
+                "Interpolated from the selected volume curve at the maximum level.")
+                == QStringLiteral("Interpolated from the selected volume curve at the maximum level.")
+            || QCoreApplication::translate("EntityInspectorTank",
+                "Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.")
+                == QStringLiteral("Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.")))
+        {
+            qCritical() << code << "tank translation catalogue entry missing";
+            return 18;
+        }
         if (index > 0 && (translated_tank == QStringLiteral("Tank: North tank")
             || QCoreApplication::translate("LiveUiText", "Pipe materials are defined by the network material library.")
                 == QStringLiteral("Pipe materials are defined by the network material library.")))

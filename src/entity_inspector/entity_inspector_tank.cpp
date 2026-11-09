@@ -1,4 +1,5 @@
 #include "entity_inspector/entity_inspector_text.h"
+#include "entity_inspector/tank_inspector_presentation.h"
 #include <aowis/model/units/quantity.h>
 #include "entity_inspector/entity_inspector_tank.h"
 
@@ -172,6 +173,7 @@ void EntityInspectorTank::addGroupGeometry()
     this->label_volume_curve = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Volume Curve"), nullptr);
     this->combo_volume_curve = new QComboBox();
     constrainComboWidth(this->combo_volume_curve);
+    TankInspectorPresentation::bindCurveChoices(this->combo_volume_curve);
 
     grid->addWidget(label_level_initial, 0, 0);
     grid->addWidget(this->spin_level_initial, 0, 1);
@@ -276,7 +278,10 @@ void EntityInspectorTank::populateVolumeCurveCombo(const QUuid &volume_curve_uui
     if (this->combo_volume_curve->property("aowisVolumeCurveSignature").toString() != signature)
     {
         this->combo_volume_curve->clear();
-        this->combo_volume_curve->addItem("[Select Curve]");
+        this->combo_volume_curve->addItem(TankInspectorPresentation::selectCurveText());
+        this->combo_volume_curve->setItemData(
+            this->combo_volume_curve->count() - 1,
+            TankInspectorPresentation::SelectCurve, TankInspectorPresentation::curve_text_role);
         this->combo_volume_curve->setItemData(
             this->combo_volume_curve->count() - 1, QUuid(), volume_curve_uuid_role);
 
@@ -296,8 +301,10 @@ void EntityInspectorTank::populateVolumeCurveCombo(const QUuid &volume_curve_uui
         if (!volume_curve_uuid.isNull() && !selected_curve_exists)
         {
             this->combo_volume_curve->addItem(
-                QStringLiteral("[Missing Curve] %1").arg(
-                    volume_curve_uuid.toString(QUuid::WithoutBraces)));
+                TankInspectorPresentation::missingCurveText(volume_curve_uuid));
+            this->combo_volume_curve->setItemData(
+                this->combo_volume_curve->count() - 1,
+                TankInspectorPresentation::MissingCurve, TankInspectorPresentation::curve_text_role);
             this->combo_volume_curve->setItemData(
                 this->combo_volume_curve->count() - 1,
                 volume_curve_uuid, volume_curve_uuid_role);
@@ -348,20 +355,20 @@ void EntityInspectorTank::updateGeometryModeUi(
 
     if (is_cylindrical)
     {
-        setSpinEditable(this->spin_diameter, "Stored cylindrical tank diameter.");
+        setSpinEditable(this->spin_diameter, QT_TRANSLATE_NOOP("EntityInspectorTank", "Stored cylindrical tank diameter."));
         setSpinDerived(this->spin_area, std::nullopt);
         setSpinEditable(this->spin_volume_minimum,
-                        "A positive value is the explicit volume at minimum level. "
-                        "Zero lets EPANET derive it from area × minimum level.");
+                        QT_TRANSLATE_NOOP("EntityInspectorTank", "A positive value is the explicit volume at minimum level. "
+                        "Zero lets EPANET derive it from area × minimum level."));
         setSpinDerived(this->spin_volume_maximum, std::nullopt);
     }
     else if (is_uniform_area)
     {
         setSpinDerived(this->spin_diameter, std::nullopt);
-        setSpinEditable(this->spin_area, "Stored uniform cross-sectional tank area.");
+        setSpinEditable(this->spin_area, QT_TRANSLATE_NOOP("EntityInspectorTank", "Stored uniform cross-sectional tank area."));
         setSpinEditable(this->spin_volume_minimum,
-                        "A positive value is the explicit volume at minimum level. "
-                        "Zero lets EPANET derive it from area × minimum level.");
+                        QT_TRANSLATE_NOOP("EntityInspectorTank", "A positive value is the explicit volume at minimum level. "
+                        "Zero lets EPANET derive it from area × minimum level."));
         setSpinDerived(this->spin_volume_maximum, std::nullopt);
     }
     else if (is_maximum_volume)
@@ -369,9 +376,9 @@ void EntityInspectorTank::updateGeometryModeUi(
         setSpinDerived(this->spin_diameter, std::nullopt);
         setSpinDerived(this->spin_area, std::nullopt);
         setSpinEditable(this->spin_volume_minimum,
-                        "A positive value is the explicit volume at minimum level. "
-                        "Zero derives geometry from maximum volume and maximum level.");
-        setSpinEditable(this->spin_volume_maximum, "Stored tank volume at the maximum water level.");
+                        QT_TRANSLATE_NOOP("EntityInspectorTank", "A positive value is the explicit volume at minimum level. "
+                        "Zero derives geometry from maximum volume and maximum level."));
+        setSpinEditable(this->spin_volume_maximum, QT_TRANSLATE_NOOP("EntityInspectorTank", "Stored tank volume at the maximum water level."));
     }
     else if (is_volume_curve)
     {
@@ -402,9 +409,9 @@ void EntityInspectorTank::updateDerivedGeometry(const HydraulicNodeTank &tank)
             if (qIsFinite(derived_volume_m3))
                 maximum_volume_m3 = derived_volume_m3;
         }
-        setSpinDerived(this->spin_area, area_m2, "Calculated from the cylindrical diameter.");
+        setSpinDerived(this->spin_area, area_m2, QT_TRANSLATE_NOOP("EntityInspectorTank", "Calculated from the cylindrical diameter."));
         setSpinDerived(this->spin_volume_maximum, maximum_volume_m3,
-                       "Calculated using EPANET minimum-volume semantics and the maximum level.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Calculated using EPANET minimum-volume semantics and the maximum level."));
         break;
     }
     case HydraulicNodeTankGeometryInputType::UniformArea:
@@ -423,9 +430,9 @@ void EntityInspectorTank::updateDerivedGeometry(const HydraulicNodeTank &tank)
                 maximum_volume_m3 = derived_volume_m3;
         }
         setSpinDerived(this->spin_diameter, diameter_m,
-                       "Equivalent cylindrical diameter calculated from the stored area.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Equivalent cylindrical diameter calculated from the stored area."));
         setSpinDerived(this->spin_volume_maximum, maximum_volume_m3,
-                       "Calculated using EPANET minimum-volume semantics and the maximum level.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Calculated using EPANET minimum-volume semantics and the maximum level."));
         break;
     }
     case HydraulicNodeTankGeometryInputType::VolumeAtMaximumLevel:
@@ -453,10 +460,10 @@ void EntityInspectorTank::updateDerivedGeometry(const HydraulicNodeTank &tank)
                 area_m2 = derived_area_m2;
         }
         setSpinDerived(this->spin_area, area_m2,
-                       "Calculated from the minimum/maximum volumes and levels.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Calculated from the minimum/maximum volumes and levels."));
         setSpinDerived(this->spin_diameter,
                        area_m2.has_value() ? equivalentDiameter(area_m2.value()) : std::nullopt,
-                       "Equivalent cylindrical diameter calculated from the derived area.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Equivalent cylindrical diameter calculated from the derived area."));
         break;
     }
     case HydraulicNodeTankGeometryInputType::VolumeCurve:
@@ -466,9 +473,9 @@ void EntityInspectorTank::updateDerivedGeometry(const HydraulicNodeTank &tank)
         const std::optional<double> maximum_volume_m3 =
             volumeCurveVolumeAtLevel(tank.volume_curve_uuid, tank.water_level_maximum_m);
         setSpinDerived(this->spin_volume_minimum, minimum_volume_m3,
-                       "Interpolated from the selected volume curve at the minimum level.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Interpolated from the selected volume curve at the minimum level."));
         setSpinDerived(this->spin_volume_maximum, maximum_volume_m3,
-                       "Interpolated from the selected volume curve at the maximum level.");
+                       QT_TRANSLATE_NOOP("EntityInspectorTank", "Interpolated from the selected volume curve at the maximum level."));
         break;
     }
     }
@@ -535,22 +542,22 @@ std::optional<double> EntityInspectorTank::volumeCurveVolumeAtLevel(
     return std::nullopt;
 }
 
-void EntityInspectorTank::setSpinEditable(QDoubleSpinBox *spin, const QString &tooltip)
+void EntityInspectorTank::setSpinEditable(QDoubleSpinBox *spin, const char *tooltip)
 {
     spin->setReadOnly(false);
     spin->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     spin->setSpecialValueText(QString());
-    spin->setToolTip(tooltip);
+    TankInspectorPresentation::setSpinTooltip(spin, tooltip);
     static_cast<UnitNumericSpinBox *>(spin)->refreshUnits(
         UnitProfileManager::instance().presentation());
 }
 
 void EntityInspectorTank::setSpinDerived(
-    QDoubleSpinBox *spin, const std::optional<double> &value, const QString &tooltip)
+    QDoubleSpinBox *spin, const std::optional<double> &value, const char *tooltip)
 {
     spin->setReadOnly(true);
     spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
-    spin->setToolTip(tooltip);
+    TankInspectorPresentation::setSpinTooltip(spin, tooltip);
     static_cast<UnitNumericSpinBox *>(spin)->refreshDerived(
         UnitProfileManager::instance().presentation(), value);
 }
@@ -592,8 +599,10 @@ void EntityInspectorTank::addGroupQuality()
             return this->hydraulic_data->setTankQualityMixingFraction(this->tank_uuid, fraction);
         }, AOWIS_QUANTITY("mixing_fraction"), "1", 0.0, 1.0, 0.05, 4, group_mixing,
         [](const QString &) { return QString(); });
-    this->spin_quality_mixing_fraction->setToolTip(
-        "Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.");
+    LiveUiText::bind(this->spin_quality_mixing_fraction, [this] {
+        this->spin_quality_mixing_fraction->setToolTip(tr(
+            "Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model."));
+    });
 
     grid_mixing->addWidget(label_mixing_model, mixing_row, 0);
     grid_mixing->addWidget(this->combo_quality_mixing, mixing_row++, 1);
@@ -628,9 +637,11 @@ void EntityInspectorTank::addGroupQuality()
             return tank ? UnitBulkReactionDisplay::suffix(tank->bulk_reaction.order, inverse_time)
                         : QString();
         });
-    this->spin_quality_bulk_reaction_coefficient->setToolTip(
-        "Coefficient units depend on reaction order; concentration remains in canonical mg/L. "
-        "The unit profile changes only the time basis.");
+    LiveUiText::bind(this->spin_quality_bulk_reaction_coefficient, [this] {
+        this->spin_quality_bulk_reaction_coefficient->setToolTip(tr(
+            "Coefficient units depend on reaction order; concentration remains in canonical mg/L. "
+            "The unit profile changes only the time basis."));
+    });
 
     grid_reactions->addWidget(this->check_quality_override_bulk_reaction, reaction_row++, 0, 1, 2);
     grid_reactions->addWidget(label_bulk_coefficient, reaction_row, 0);

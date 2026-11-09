@@ -31,9 +31,9 @@ private:
     void updateGeometryModeUi(HydraulicNodeTankGeometryInputType geometry_input_type);
     void updateDerivedGeometry(const HydraulicNodeTank &tank);
     std::optional<double> volumeCurveVolumeAtLevel(const QUuid &curve_uuid, double water_level_m) const;
-    void setSpinEditable(QDoubleSpinBox *spin, const QString &tooltip = QString());
+    void setSpinEditable(QDoubleSpinBox *spin, const char *tooltip = nullptr);
     void setSpinDerived(QDoubleSpinBox *spin, const std::optional<double> &value,
-                        const QString &tooltip = QString());
+                        const char *tooltip = nullptr);
     HydraulicNodeTankGeometryInputType tankGeometryInputType() const;
 
     HydraulicData *hydraulic_data = nullptr;
