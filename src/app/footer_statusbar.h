@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QWidget>
+#include <QEvent>
 #include <QStatusBar>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -38,7 +39,12 @@ signals:
     // setKeyboardTracking(false) in the constructor.
     void zoomEdited(double zoom);
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
+    void refreshLocalizedText();
+    void refreshCoordinateText();
     // Height is a datum-dependent observation; keep it missing until supplied.
     void refreshAltitudeDisplay();
     // The map setters above arrive every frame while the camera moves (from
@@ -63,6 +69,8 @@ private:
     QLabel *label_map_coords_lon;
     QLabel *label_map_coords_height;
     std::optional<double> coordinate_altitude_m;
+    std::optional<CoordinateWGS84> current_wgs84;
+    std::optional<CoordinateUTM> current_utm;
     
     QLabel *label_map_coords_utm_easting;
     QLabel *label_map_coords_utm_northing;

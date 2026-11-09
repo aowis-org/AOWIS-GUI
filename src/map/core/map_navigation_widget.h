@@ -2,6 +2,7 @@
 #define MAP_NAVIGATION_WIDGET_H
 
 #include <QObject>
+#include <QEvent>
 #include <QWidget>
 #include <QGridLayout>
 
@@ -44,15 +45,21 @@ public:
     // shortcuts or a matching visible-on-page button.
     static bool triggerButtonShortcut(QWidget *root, const QKeyEvent *event);
     
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
     CanvasMode mode;
     QGridLayout *grid;
     MapWidget *map;
     QWidget *keyboard_focus_target;
     
+    QLabel *label_map_opacity = nullptr;
+    QLabel *label_labels_title = nullptr;
     QComboBox *combo_provider = nullptr;
     QShortcut *provider_shortcuts[4] = {nullptr, nullptr, nullptr, nullptr};
     void refreshProviderChoices();
+    void refreshLocalizedText();
     bool triggerProviderShortcut(const QKeySequence &pressed);
     
     QCheckBox *check_3d_icons = nullptr;

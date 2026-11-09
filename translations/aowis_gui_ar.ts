@@ -4522,4 +4522,84 @@ Total base demand: %1</source><translation>
     <message><source>Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.</source><translation>جزء حجم الخزان المخصص لحجرة المدخل/المخرج في نموذج الحجرتين.</translation></message>
     <message><source>Coefficient units depend on reaction order; concentration remains in canonical mg/L. The unit profile changes only the time basis.</source><translation>تعتمد وحدات المعامل على رتبة التفاعل؛ ويبقى التركيز بوحدة mg/L القياسية. ولا يغيّر ملف الوحدات إلا أساس الزمن.</translation></message>
   </context>
+
+  <context>
+    <name>FooterStatusBar</name>
+    <message><source>%1 E: %2 m</source><translation>%1 شرقًا: %2 م</translation></message>
+    <message><source>AOWIS Map Server</source><translation>خادم خرائط AOWIS</translation></message>
+    <message><source>AOWIS Server</source><translation>خادم AOWIS</translation></message>
+    <message><source>Current map zoom level. Type a value or use the arrows/scroll to change it.</source><translation>مستوى تكبير الخريطة الحالي. أدخل قيمة أو استخدم الأسهم أو عجلة الفأرة لتغييره.</translation></message>
+    <message><source>Height: </source><translation>الارتفاع: </translation></message>
+    <message><source>Lon: %1</source><translation>خط الطول: %1</translation></message>
+    <message><source>N: %1 m</source><translation>شمالًا: %1 م</translation></message>
+    <message><source>Terrain elevation at the map pointer, when a DEM sample is available. Uses the terrain dataset's vertical datum; unavailable data is shown as —.</source><translation>ارتفاع التضاريس عند مؤشر الخريطة عند توفر عينة من نموذج الارتفاع الرقمي. يُستخدم المرجع الرأسي لبيانات التضاريس، وتُعرض البيانات غير المتاحة بعلامة —.</translation></message>
+    <message><source>WGS 84 Lat: %1</source><translation>WGS 84 خط العرض: %1</translation></message>
+    <message><source>Zoom: </source><translation>تكبير: </translation></message>
+    <message><source>[AOWIS Controller Standalone Build]</source><translation>[إصدار وحدة تحكم AOWIS المستقل]</translation></message>
+  </context>
+  <context>
+    <name>MapNavigationWidget</name>
+    <message><source>%1
+Keyboard shortcut: %2</source><translation>%1
+اختصار لوحة المفاتيح: %2</translation></message>
+    <message><source>Edit %1 shortcut (%2)…</source><translation>تعديل اختصار %1 (%2)…</translation></message>
+    <message><source>Icon Size</source><translation>حجم الرموز</translation></message>
+    <message><source>Icon Size [%]</source><translation>حجم الرموز [%]</translation></message>
+    <message><source>Labels</source><translation>التسميات</translation></message>
+    <message><source>Link IDs</source><translation>معرّفات الوصلات</translation></message>
+    <message><source>Link Values</source><translation>قيم الوصلات</translation></message>
+    <message><source>Map provider %1</source><translation>مزود الخرائط %1</translation></message>
+    <message><source>Meters keep a true world-space icon size. Pixels keep a compact visual size while preserving 3D perspective.</source><translation>تحافظ الأمتار على الحجم الحقيقي للرموز في العالم، بينما تحافظ البكسلات على حجم عرض صغير مع مراعاة المنظور ثلاثي الأبعاد.</translation></message>
+    <message><source>Node IDs</source><translation>معرّفات العقد</translation></message>
+    <message><source>Node Values</source><translation>قيم العقد</translation></message>
+    <message><source>Opacity</source><translation>الشفافية</translation></message>
+    <message><source>Scales 3D entity icons as in the Distribution Editor.</source><translation>يضبط حجم رموز العناصر ثلاثية الأبعاد كما في محرر شبكة التوزيع.</translation></message>
+    <message><source>Scales entity icons and 3D entity models.</source><translation>يضبط حجم رموز العناصر والنماذج ثلاثية الأبعاد.</translation></message>
+    <message><source>Select a map layer advertised by the server.
+Keyboard shortcuts:
+%1
+Right-click to edit shortcuts.</source><translation>اختر طبقة خرائط يوفرها الخادم.
+اختصارات لوحة المفاتيح:
+%1
+انقر بزر الفأرة الأيمن لتعديل الاختصارات.</translation></message>
+    <message><source>Sets the reservoir, tank, pump and valve icon size at the 3D focus depth or directly on the 2D map.</source><translation>يضبط حجم رموز الخزانات والمضخات والصمامات عند عمق التركيز ثلاثي الأبعاد أو مباشرة على الخريطة ثنائية الأبعاد.</translation></message>
+    <message><source>Sets the reservoir, tank, pump and valve icon size.</source><translation>يضبط حجم رموز الخزانات والمضخات والصمامات.</translation></message>
+    <message><source>Sets the true world-space reservoir, tank, pump and valve icon size.</source><translation>يضبط الحجم الحقيقي لرموز الخزانات والمضخات والصمامات في العالم.</translation></message>
+    <message><source>World-space icon sizes are stored in metres and displayed in %1. Pixels retain their independent screen-space sizing.</source><translation>تُخزّن أحجام الرموز في الإحداثيات الحقيقية بالأمتار وتُعرض بوحدة %1. وتحافظ البكسلات على حجمها المستقل على الشاشة.</translation></message>
+    <message><source>Write the ID of every junction, tank, reservoir and demand point next to it (where there is room; zoom in for more).</source><translation>يعرض معرّف كل وصلة وخزان ونقطة طلب بجوارها عند توفر مساحة (كبّر لرؤية المزيد).</translation></message>
+    <message><source>Write the ID of every pipe, pump and valve at its middle (where there is room; zoom in for more).</source><translation>يعرض معرّف كل أنبوب ومضخة وصمام في الوسط عند توفر مساحة (كبّر لرؤية المزيد).</translation></message>
+    <message><source>Write the value of the link metric the map is coloured by (legend unit).</source><translation>يعرض قيمة مقياس الوصلات المستخدم لتلوين الخريطة (بوحدة وسيلة الإيضاح).</translation></message>
+    <message><source>Write the value of the node metric the map is coloured by (legend unit).</source><translation>يعرض قيمة مقياس العقد المستخدم لتلوين الخريطة (بوحدة وسيلة الإيضاح).</translation></message>
+  </context>
+  <context>
+    <name>MapSymbologySlider</name>
+    <message><source>%1
+Current: %2%3
+Range: %4%3 to %5%3
+Default: %6%3
+Right-click to reset.</source><translation>%1
+الحالي: %2%3
+النطاق: %4%3 إلى %5%3
+الافتراضي: %6%3
+انقر بزر الفأرة الأيمن لإعادة الضبط.</translation></message>
+  </context>
+  <context>
+    <name>MapSettingsWidget</name>
+    <message><source>Cannot edit providers until the server catalog has loaded. Check the map server connection and click Reload.</source><translation>لا يمكن تعديل مزودي الخرائط قبل تحميل قائمة الخادم. تحقق من الاتصال بخادم الخرائط وانقر إعادة التحميل.</translation></message>
+    <message><source>Connection preferences saved. Restart AOWIS to use them.</source><translation>حُفظت إعدادات الاتصال. أعد تشغيل AOWIS لتطبيقها.</translation></message>
+    <message><source>Enter a provider name and tile URL, and check its zoom limits.</source><translation>أدخل اسم مزود الخرائط وعنوان بلاطات الخريطة وتحقق من حدود التكبير.</translation></message>
+    <message><source>Enter an XYZ tile URL template such as https://tiles.example.org/{z}/{x}/{y}.png</source><translation>أدخل قالب عنوان URL لبلاطات XYZ مثل https://tiles.example.org/{z}/{x}/{y}.png</translation></message>
+    <message><source>Enter the new provider's tile URL. Changes save when the row is complete.</source><translation>أدخل عنوان بلاطات المزود الجديد. تُحفظ التغييرات بعد اكتمال الصف.</translation></message>
+    <message><source>Failed to save map control settings.</source><translation>تعذر حفظ إعدادات التحكم في الخريطة.</translation></message>
+    <message><source>Failed to save map performance settings.</source><translation>تعذر حفظ إعدادات أداء الخريطة.</translation></message>
+    <message><source>Failed to save map server settings.</source><translation>تعذر حفظ إعدادات خادم الخرائط.</translation></message>
+    <message><source>New map provider</source><translation>مزود خرائط جديد</translation></message>
+    <message><source>None (enlarge available tiles)</source><translation>لا شيء (تكبير البلاطات المتاحة)</translation></message>
+    <message><source>Provider UUID: %1</source><translation>معرّف UUID للمزود: %1</translation></message>
+    <message><source>Provider changes saved.</source><translation>حُفظت تغييرات مزودي الخرائط.</translation></message>
+    <message><source>Provider edits affect the server; per-user fallback persistence is supported in native GUI builds.</source><translation>تؤثر تعديلات مزودي الخرائط في الخادم؛ وحفظ خيارات البديل لكل مستخدم متاح في إصدارات الواجهة الأصلية.</translation></message>
+    <message><source>Saved.</source><translation>تم الحفظ.</translation></message>
+    <message><source>Server provider editing requires a REST map server.</source><translation>يتطلب تعديل مزودي الخرائط على الخادم خادم خرائط REST.</translation></message>
+    <message><source>Updating map providers...</source><translation>جارٍ تحديث مزودي الخرائط…</translation></message>
+  </context>
 </TS>

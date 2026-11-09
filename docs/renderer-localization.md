@@ -345,3 +345,40 @@ signals. It deliberately tests both visible and hidden inspector text.
 Run with `ctest --test-dir build-linux-tests --output-on-failure -R
 '^aowis-entity-inspector-live-language$'`. This is a native Linux, offscreen
 test; it does not establish full WebAssembly or renderer HUD acceptance.
+
+## Map controls, footer and provider settings
+
+The native footer, map navigation sidebar, icon-size tooltip and map-provider
+settings are GUI-owned presentation surfaces. They use the stable
+`FooterStatusBar`, `MapNavigationWidget`, `MapSymbologySlider` and
+`MapSettingsWidget` contexts in the GUI catalogues. Qt `LanguageChange` updates
+these existing widgets in place, without reinitializing the map, resetting
+symbology sliders, changing checkbox state, or saving settings.
+
+The footer retains its last displayed WGS84/UTM samples so a language change
+updates coordinate captions even while the map is stationary. The zoom spin box
+keeps an uncommitted typed value untouched; its translated prefix may be
+applied when editing finishes. Coordinate values and unit profiles are not
+translated or converted. The navigation sidebar updates its provider shortcut
+hints and icon-size slider description without calling view-mode handlers,
+which can emit hydraulic-display change signals.
+
+Map-provider settings retain text being edited in the table, existing fallback
+selections, provider IDs and pending saves. Only localized caption text,
+format hints and locally generated status messages are regenerated. Server
+error payloads are retained verbatim. Provider display names, URLs and UUIDs
+are data, not translation keys. The table itself is never reconstructed merely
+because the language changed.
+
+### Coverage inventory
+
+`python3 tools/audit_gui_localization.py` reports missing explicitly marked
+translation keys and suspicious hardcoded UI literal setters. Use
+`--details` to inspect file locations; add `--check-context FooterStatusBar`
+(or another named context) to fail if that context has missing catalogue keys.
+The scanner is conservative: it cannot understand every dynamic string or
+infer translation ownership for every use of `tr()`. It is **not** a proof of
+application-wide completeness. Qt `lupdate`/`lrelease`, runtime switching,
+and native plus WebAssembly layout acceptance are still required. New GUI
+strings must be supplied in all four translated catalogues; completed TS
+entries alone do not prove that persistent UI updates on `LanguageChange`.

@@ -8,6 +8,7 @@
 #include "config/unit_aware_view.h"
 #include "config/unit_profile_manager.h"
 
+#include <QEvent>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMenu>
@@ -66,14 +67,14 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         syncIconSizeSliderForViewMode(view_mode);
     });
 
-    QLabel *label_slider_map_visibility = new QLabel("Opacity");
+    this->label_map_opacity = new QLabel(tr("Opacity"), this);
     QSlider *slider_map_visibility = new QSlider(Qt::Horizontal);
     this->slider_map_opacity = slider_map_visibility;
     slider_map_visibility->setRange(0, 100);
     connect(slider_map_visibility, &QSlider::valueChanged, this, &MapNavigationWidget::signalSlideOpacityChanged);
 
     this->label_icon_size = new QLabel(
-        this->mode == CanvasMode::Monitor ? QStringLiteral("Icon Size") : QStringLiteral("Icon Size [%]"));
+        this->mode == CanvasMode::Monitor ? tr("Icon Size") : tr("Icon Size [%]"));
     if (this->mode == CanvasMode::Monitor)
     {
         this->combo_icon_size_unit = new QComboBox(this);
@@ -82,13 +83,13 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         this->combo_icon_size_unit->addItem(QStringLiteral("px"),
             static_cast<int>(NetworkSymbologySizeUnit::Pixels));
         this->combo_icon_size_unit->setCurrentIndex(1);
-        this->combo_icon_size_unit->setToolTip(QStringLiteral(
+        this->combo_icon_size_unit->setToolTip(tr(
             "Meters keep a true world-space icon size. Pixels keep a compact visual size while preserving 3D perspective."));
         this->slider_icon_size = new MapSymbologySlider(
             NetworkSymbologyMinimumIconSizePx,
             NetworkSymbologyMaximumIconSizePx,
             NetworkSymbologyDefaultIconSizePx,
-            QStringLiteral("Sets the reservoir, tank, pump and valve icon size."),
+            tr("Sets the reservoir, tank, pump and valve icon size."),
             QStringLiteral(" px"), this);
         connect(this->slider_icon_size, &QSlider::valueChanged, this, [this](int raw_value)
         {
@@ -126,7 +127,7 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
     else
     {
         this->slider_icon_size = new QSlider(Qt::Horizontal);
-        this->slider_icon_size->setToolTip("Scales entity icons and 3D entity models.");
+        this->slider_icon_size->setToolTip(tr("Scales entity icons and 3D entity models."));
         connect(this->slider_icon_size, &QSlider::valueChanged, this, [this](int size_percent)
         {
             if (this->map->model()->viewMode() == MapViewMode::Globe)
@@ -157,9 +158,9 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
             const GuiShortcutId shortcut_id = ProviderShortcutIds[index];
             const QString provider_name = mapProviderCatalog().provider(
                 MapProviderCatalog::builtinId(index + 1)) == nullptr
-                ? QStringLiteral("Map provider %1").arg(index + 1)
+                ? tr("Map provider %1").arg(index + 1)
                 : mapProviderCatalog().provider(MapProviderCatalog::builtinId(index + 1))->name;
-            const QString action_text = QStringLiteral("Edit %1 shortcut (%2)…").arg(
+            const QString action_text = tr("Edit %1 shortcut (%2)…").arg(
                 provider_name, guiShortcutPresentation(shortcut_id));
 #ifdef Q_OS_WASM
             menu->addAction(action_text, [shortcut_id]
@@ -187,7 +188,7 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
     connect(this->map->model(), &MapModel::providerIdChanged,
             this, [this](const QString &) {refreshProviderChoices();});
     refreshProviderChoices();
-    this->grid->addWidget(label_slider_map_visibility, 1, 0, 1, 3);
+    this->grid->addWidget(this->label_map_opacity, 1, 0, 1, 3);
     this->grid->addWidget(slider_map_visibility, 2, 0, 1, 3);
     const int icon_label_row = this->check_3d_icons != nullptr ? 4 : 3;
     const int icon_slider_row = icon_label_row + 1;
@@ -231,15 +232,15 @@ QWidget *MapNavigationWidget::createLabelControls()
     QWidget *box = new QWidget(this);
     QGridLayout *box_grid = new QGridLayout(box);
     box_grid->setContentsMargins(0, 0, 0, 0);
-    QLabel *title = new QLabel(QStringLiteral("Labels"), box);
-    box_grid->addWidget(title, 0, 0, 1, 2);
+    this->label_labels_title = new QLabel(tr("Labels"), box);
+    box_grid->addWidget(this->label_labels_title, 0, 0, 1, 2);
 
-    this->check_label_node_ids = new QCheckBox(QStringLiteral("Node IDs"), box);
-    this->check_label_node_ids->setToolTip(QStringLiteral(
+    this->check_label_node_ids = new QCheckBox(tr("Node IDs"), box);
+    this->check_label_node_ids->setToolTip(tr(
         "Write the ID of every junction, tank, reservoir and demand point next to it "
         "(where there is room; zoom in for more)."));
-    this->check_label_link_ids = new QCheckBox(QStringLiteral("Link IDs"), box);
-    this->check_label_link_ids->setToolTip(QStringLiteral(
+    this->check_label_link_ids = new QCheckBox(tr("Link IDs"), box);
+    this->check_label_link_ids->setToolTip(tr(
         "Write the ID of every pipe, pump and valve at its middle "
         "(where there is room; zoom in for more)."));
     box_grid->addWidget(this->check_label_node_ids, 1, 0);
@@ -255,11 +256,11 @@ QWidget *MapNavigationWidget::createLabelControls()
 
     if (this->mode == CanvasMode::Monitor)
     {
-        this->check_label_node_values = new QCheckBox(QStringLiteral("Node Values"), box);
-        this->check_label_node_values->setToolTip(QStringLiteral(
+        this->check_label_node_values = new QCheckBox(tr("Node Values"), box);
+        this->check_label_node_values->setToolTip(tr(
             "Write the value of the node metric the map is coloured by (legend unit)."));
-        this->check_label_link_values = new QCheckBox(QStringLiteral("Link Values"), box);
-        this->check_label_link_values->setToolTip(QStringLiteral(
+        this->check_label_link_values = new QCheckBox(tr("Link Values"), box);
+        this->check_label_link_values->setToolTip(tr(
             "Write the value of the link metric the map is coloured by (legend unit)."));
         box_grid->addWidget(this->check_label_node_values, 2, 0);
         box_grid->addWidget(this->check_label_link_values, 2, 1);
@@ -273,6 +274,58 @@ QWidget *MapNavigationWidget::createLabelControls()
         });
     }
     return box;
+}
+
+void MapNavigationWidget::refreshLocalizedText()
+{
+    this->label_map_opacity->setText(tr("Opacity"));
+    this->label_labels_title->setText(tr("Labels"));
+    this->check_label_node_ids->setText(tr("Node IDs"));
+    this->check_label_node_ids->setToolTip(tr(
+        "Write the ID of every junction, tank, reservoir and demand point next to it "
+        "(where there is room; zoom in for more)."));
+    this->check_label_link_ids->setText(tr("Link IDs"));
+    this->check_label_link_ids->setToolTip(tr(
+        "Write the ID of every pipe, pump and valve at its middle "
+        "(where there is room; zoom in for more)."));
+    if (this->check_label_node_values != nullptr)
+    {
+        this->check_label_node_values->setText(tr("Node Values"));
+        this->check_label_node_values->setToolTip(tr(
+            "Write the value of the node metric the map is coloured by (legend unit)."));
+    }
+    if (this->check_label_link_values != nullptr)
+    {
+        this->check_label_link_values->setText(tr("Link Values"));
+        this->check_label_link_values->setToolTip(tr(
+            "Write the value of the link metric the map is coloured by (legend unit)."));
+    }
+    const bool globe = this->map->model()->viewMode() == MapViewMode::Globe;
+    this->label_icon_size->setText(this->mode != CanvasMode::Monitor || globe
+        ? tr("Icon Size [%]") : tr("Icon Size"));
+    if (this->mode == CanvasMode::Monitor)
+    {
+        this->combo_icon_size_unit->setToolTip(tr(
+            "Meters keep a true world-space icon size. Pixels keep a compact visual size while preserving 3D perspective."));
+        this->refreshIconSizeUnitPresentation();
+        MapSymbologySlider *slider = static_cast<MapSymbologySlider *>(this->slider_icon_size);
+        if (globe)
+            slider->setDescription(tr("Scales 3D entity icons as in the Distribution Editor."));
+        else if (this->icon_size_2d_unit == NetworkSymbologySizeUnit::Meters)
+            slider->setDescription(tr("Sets the true world-space reservoir, tank, pump and valve icon size."));
+        else
+            slider->setDescription(tr("Sets the reservoir, tank, pump and valve icon size at the 3D focus depth or directly on the 2D map."));
+    }
+    else
+        this->slider_icon_size->setToolTip(tr("Scales entity icons and 3D entity models."));
+    this->refreshShortcutPresentation();
+}
+
+void MapNavigationWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange && this->label_labels_title != nullptr)
+        this->refreshLocalizedText();
 }
 
 MapLabelSettings MapNavigationWidget::labelSettings() const
@@ -300,7 +353,7 @@ void MapNavigationWidget::refreshIconSizeUnitPresentation()
             UnitProfileManager::instance().presentation());
     // The enum remains Meters: the selected profile changes only the label.
     this->combo_icon_size_unit->setItemText(0, display.unit);
-    this->combo_icon_size_unit->setToolTip(QStringLiteral(
+    this->combo_icon_size_unit->setToolTip(tr(
         "World-space icon sizes are stored in metres and displayed in %1. "
         "Pixels retain their independent screen-space sizing.").arg(display.unit));
 
@@ -335,7 +388,7 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
     {
         if (this->label_icon_size != nullptr)
             this->label_icon_size->setText(is_3d
-                ? QStringLiteral("Icon Size [%]") : QStringLiteral("Icon Size"));
+                ? tr("Icon Size [%]") : tr("Icon Size"));
         if (this->combo_icon_size_unit != nullptr)
             this->combo_icon_size_unit->setVisible(!is_3d);
         MapSymbologySlider *symbology_slider =
@@ -347,7 +400,7 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
             this->icon_size_3d_percent = qBound(50, this->icon_size_3d_percent, 600);
             symbology_slider->setConfiguration(
                 50, 600, 100, this->icon_size_3d_percent,
-                QStringLiteral("Scales 3D entity icons as in the Distribution Editor."),
+                tr("Scales 3D entity icons as in the Distribution Editor."),
                 QStringLiteral(" %"));
             emit signalIconSizeChanged(this->icon_size_3d_percent);
             return;
@@ -365,7 +418,7 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
                 qRound(NetworkSymbologyMaximumIconSizeM),
                 qRound(NetworkSymbologyDefaultIconSizeM),
                 remembered_value,
-                QStringLiteral("Sets the true world-space reservoir, tank, pump and valve icon size."),
+                tr("Sets the true world-space reservoir, tank, pump and valve icon size."),
                 QStringLiteral(" ") + display.unit,
                 display.metres_to_display, display.decimals);
         }
@@ -376,7 +429,7 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
                 NetworkSymbologyMaximumIconSizePx,
                 NetworkSymbologyDefaultIconSizePx,
                 remembered_value,
-                QStringLiteral("Sets the reservoir, tank, pump and valve icon size at the 3D focus depth or directly on the 2D map."),
+                tr("Sets the reservoir, tank, pump and valve icon size at the 3D focus depth or directly on the 2D map."),
                 QStringLiteral(" px"));
         }
 
@@ -443,11 +496,11 @@ void MapNavigationWidget::refreshShortcutPresentation()
         const QString name = this->combo_provider->itemText(combo_index);
         const QString hotkey = guiShortcutPresentation(shortcut_id);
         this->combo_provider->setItemData(combo_index,
-            QStringLiteral("%1\nKeyboard shortcut: %2").arg(name, hotkey), Qt::ToolTipRole);
+            tr("%1\nKeyboard shortcut: %2").arg(name, hotkey), Qt::ToolTipRole);
         shortcuts.append(QStringLiteral("%1: %2").arg(hotkey, name));
     }
 
-    this->combo_provider->setToolTip(QStringLiteral("Select a map layer advertised by the server."
+    this->combo_provider->setToolTip(tr("Select a map layer advertised by the server."
         "\nKeyboard shortcuts:\n%1\nRight-click to edit shortcuts.").arg(
         shortcuts.join(QLatin1Char('\n'))));
 }

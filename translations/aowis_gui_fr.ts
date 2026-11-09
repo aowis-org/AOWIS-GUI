@@ -4514,4 +4514,84 @@ Demande de base totale : %1</numerusform>
     <message><source>Fraction of tank volume assigned to the inlet/outlet compartment for the two-compartment model.</source><translation>Fraction du volume du réservoir attribuée au compartiment entrée/sortie du modèle à deux compartiments.</translation></message>
     <message><source>Coefficient units depend on reaction order; concentration remains in canonical mg/L. The unit profile changes only the time basis.</source><translation>Les unités du coefficient dépendent de l’ordre de réaction ; la concentration reste en mg/L canoniques. Le profil d’unités ne modifie que la base de temps.</translation></message>
   </context>
+
+  <context>
+    <name>FooterStatusBar</name>
+    <message><source>%1 E: %2 m</source><translation>%1 E : %2 m</translation></message>
+    <message><source>AOWIS Map Server</source><translation>Serveur cartographique AOWIS</translation></message>
+    <message><source>AOWIS Server</source><translation>Serveur AOWIS</translation></message>
+    <message><source>Current map zoom level. Type a value or use the arrows/scroll to change it.</source><translation>Niveau de zoom actuel de la carte. Saisissez une valeur ou utilisez les flèches ou la molette pour le modifier.</translation></message>
+    <message><source>Height: </source><translation>Altitude : </translation></message>
+    <message><source>Lon: %1</source><translation>Lon. : %1</translation></message>
+    <message><source>N: %1 m</source><translation>N : %1 m</translation></message>
+    <message><source>Terrain elevation at the map pointer, when a DEM sample is available. Uses the terrain dataset's vertical datum; unavailable data is shown as —.</source><translation>Altitude du terrain sous le pointeur, si un échantillon MNT est disponible. Utilise le référentiel vertical du jeu de données ; les valeurs indisponibles sont représentées par —.</translation></message>
+    <message><source>WGS 84 Lat: %1</source><translation>WGS 84 Lat. : %1</translation></message>
+    <message><source>Zoom: </source><translation>Zoom : </translation></message>
+    <message><source>[AOWIS Controller Standalone Build]</source><translation>[Version autonome du contrôleur AOWIS]</translation></message>
+  </context>
+  <context>
+    <name>MapNavigationWidget</name>
+    <message><source>%1
+Keyboard shortcut: %2</source><translation>%1
+Raccourci clavier : %2</translation></message>
+    <message><source>Edit %1 shortcut (%2)…</source><translation>Modifier le raccourci %1 (%2)…</translation></message>
+    <message><source>Icon Size</source><translation>Taille des icônes</translation></message>
+    <message><source>Icon Size [%]</source><translation>Taille des icônes [%]</translation></message>
+    <message><source>Labels</source><translation>Étiquettes</translation></message>
+    <message><source>Link IDs</source><translation>ID des liens</translation></message>
+    <message><source>Link Values</source><translation>Valeurs des liens</translation></message>
+    <message><source>Map provider %1</source><translation>Fournisseur de carte %1</translation></message>
+    <message><source>Meters keep a true world-space icon size. Pixels keep a compact visual size while preserving 3D perspective.</source><translation>Les mètres maintiennent une taille réelle dans le monde. Les pixels conservent une taille visuelle compacte tout en respectant la perspective 3D.</translation></message>
+    <message><source>Node IDs</source><translation>ID des nœuds</translation></message>
+    <message><source>Node Values</source><translation>Valeurs des nœuds</translation></message>
+    <message><source>Opacity</source><translation>Opacité</translation></message>
+    <message><source>Scales 3D entity icons as in the Distribution Editor.</source><translation>Ajuste les icônes des entités 3D comme dans l’éditeur de distribution.</translation></message>
+    <message><source>Scales entity icons and 3D entity models.</source><translation>Modifie la taille des icônes des entités et des modèles 3D.</translation></message>
+    <message><source>Select a map layer advertised by the server.
+Keyboard shortcuts:
+%1
+Right-click to edit shortcuts.</source><translation>Choisissez une couche proposée par le serveur.
+Raccourcis clavier :
+%1
+Clic droit pour modifier les raccourcis.</translation></message>
+    <message><source>Sets the reservoir, tank, pump and valve icon size at the 3D focus depth or directly on the 2D map.</source><translation>Définit la taille des icônes des réservoirs, cuves, pompes et vannes à la profondeur focale 3D ou directement sur la carte 2D.</translation></message>
+    <message><source>Sets the reservoir, tank, pump and valve icon size.</source><translation>Définit la taille des icônes des réservoirs, cuves, pompes et vannes.</translation></message>
+    <message><source>Sets the true world-space reservoir, tank, pump and valve icon size.</source><translation>Définit la taille réelle des icônes des réservoirs, cuves, pompes et vannes dans le monde.</translation></message>
+    <message><source>World-space icon sizes are stored in metres and displayed in %1. Pixels retain their independent screen-space sizing.</source><translation>Les tailles des icônes en espace réel sont stockées en mètres et affichées en %1. Les pixels conservent une taille indépendante à l’écran.</translation></message>
+    <message><source>Write the ID of every junction, tank, reservoir and demand point next to it (where there is room; zoom in for more).</source><translation>Affiche l’ID de chaque jonction, cuve, réservoir et point de demande à proximité, si la place le permet (zoomez pour en voir plus).</translation></message>
+    <message><source>Write the ID of every pipe, pump and valve at its middle (where there is room; zoom in for more).</source><translation>Affiche l’ID de chaque conduite, pompe et vanne en son milieu, si la place le permet (zoomez pour en voir plus).</translation></message>
+    <message><source>Write the value of the link metric the map is coloured by (legend unit).</source><translation>Affiche la valeur de la métrique des liens utilisée pour colorer la carte (unité de la légende).</translation></message>
+    <message><source>Write the value of the node metric the map is coloured by (legend unit).</source><translation>Affiche la valeur de la métrique des nœuds utilisée pour colorer la carte (unité de la légende).</translation></message>
+  </context>
+  <context>
+    <name>MapSymbologySlider</name>
+    <message><source>%1
+Current: %2%3
+Range: %4%3 to %5%3
+Default: %6%3
+Right-click to reset.</source><translation>%1
+Actuel : %2%3
+Plage : %4%3 à %5%3
+Défaut : %6%3
+Clic droit pour réinitialiser.</translation></message>
+  </context>
+  <context>
+    <name>MapSettingsWidget</name>
+    <message><source>Cannot edit providers until the server catalog has loaded. Check the map server connection and click Reload.</source><translation>Impossible de modifier les fournisseurs avant le chargement du catalogue du serveur. Vérifiez la connexion au serveur cartographique et cliquez sur Recharger.</translation></message>
+    <message><source>Connection preferences saved. Restart AOWIS to use them.</source><translation>Préférences de connexion enregistrées. Redémarrez AOWIS pour les appliquer.</translation></message>
+    <message><source>Enter a provider name and tile URL, and check its zoom limits.</source><translation>Saisissez un nom de fournisseur et une URL de tuiles, puis vérifiez les limites de zoom.</translation></message>
+    <message><source>Enter an XYZ tile URL template such as https://tiles.example.org/{z}/{x}/{y}.png</source><translation>Saisissez un modèle d'URL XYZ, par exemple https://tiles.example.org/{z}/{x}/{y}.png</translation></message>
+    <message><source>Enter the new provider's tile URL. Changes save when the row is complete.</source><translation>Saisissez l'URL des tuiles du nouveau fournisseur. Les changements sont enregistrés une fois la ligne complète.</translation></message>
+    <message><source>Failed to save map control settings.</source><translation>Échec de l'enregistrement des paramètres de contrôle de carte.</translation></message>
+    <message><source>Failed to save map performance settings.</source><translation>Échec de l'enregistrement des paramètres de performance de carte.</translation></message>
+    <message><source>Failed to save map server settings.</source><translation>Échec de l'enregistrement des paramètres du serveur cartographique.</translation></message>
+    <message><source>New map provider</source><translation>Nouveau fournisseur de cartes</translation></message>
+    <message><source>None (enlarge available tiles)</source><translation>Aucun (agrandir les tuiles disponibles)</translation></message>
+    <message><source>Provider UUID: %1</source><translation>UUID du fournisseur : %1</translation></message>
+    <message><source>Provider changes saved.</source><translation>Modifications des fournisseurs enregistrées.</translation></message>
+    <message><source>Provider edits affect the server; per-user fallback persistence is supported in native GUI builds.</source><translation>Les modifications des fournisseurs affectent le serveur ; l'enregistrement individuel des alternatives est disponible dans les versions natives du GUI.</translation></message>
+    <message><source>Saved.</source><translation>Enregistré.</translation></message>
+    <message><source>Server provider editing requires a REST map server.</source><translation>La modification des fournisseurs du serveur nécessite un serveur cartographique REST.</translation></message>
+    <message><source>Updating map providers...</source><translation>Mise à jour des fournisseurs de cartes…</translation></message>
+  </context>
 </TS>

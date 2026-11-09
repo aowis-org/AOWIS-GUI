@@ -1,5 +1,6 @@
 #include "app/footer_statusbar.h"
 
+#include <QEvent>
 #include <QSignalBlocker>
 #include "config/geographic_altitude_presentation.h"
 #include "config/unit_profile_manager.h"
@@ -26,8 +27,8 @@ FooterStatusBar::FooterStatusBar(QWidget *parent)
     this->spin_map_zoom->setRange(1.0, 19.0);
     this->spin_map_zoom->setDecimals(2);
     this->spin_map_zoom->setSingleStep(0.1);
-    this->spin_map_zoom->setPrefix(QStringLiteral("Zoom: "));
-    this->spin_map_zoom->setToolTip(QStringLiteral(
+    this->spin_map_zoom->setPrefix(tr("Zoom: "));
+    this->spin_map_zoom->setToolTip(tr(
         "Current map zoom level. Type a value or use the arrows/scroll to change it."));
     // Only commit on Enter/focus-loss/step-buttons, not on every keystroke
     // -- otherwise typing "15" would briefly jump to zoom 1 first.
@@ -36,7 +37,7 @@ FooterStatusBar::FooterStatusBar(QWidget *parent)
     this->label_map_coords_lat->setMinimumWidth(135);
     this->label_map_coords_lon->setMinimumWidth(112);
     this->label_map_coords_height->setMinimumWidth(115);
-    this->label_map_coords_height->setToolTip(QStringLiteral(
+    this->label_map_coords_height->setToolTip(tr(
         "Terrain elevation at the map pointer, when a DEM sample is available. "
         "Uses the terrain dataset's vertical datum; unavailable data is shown as —."));
     
@@ -54,10 +55,10 @@ FooterStatusBar::FooterStatusBar(QWidget *parent)
     this->bar->addPermanentWidget(this->label_indicator_map);
     
     #ifdef AOWIS_STANDALONE
-    this->label_indicator_map->setText("[AOWIS Controller Standalone Build]");
+    this->label_indicator_map->setText(tr("[AOWIS Controller Standalone Build]"));
     #else
-    this->label_indicator_map->setText("AOWIS Map Server");
-    this->label_indicator_server->setText("AOWIS Server");
+    this->label_indicator_map->setText(tr("AOWIS Map Server"));
+    this->label_indicator_server->setText(tr("AOWIS Server"));
     this->bar->addPermanentWidget(this->label_indicator_server);
     #endif
     
@@ -73,6 +74,12 @@ FooterStatusBar::FooterStatusBar(QWidget *parent)
         [this](double value)
     {
         emit zoomEdited(value);
+    });
+
+    connect(this->spin_map_zoom, &QDoubleSpinBox::editingFinished, this, [this]
+    {
+        // Process the edit before altering its visual prefix.
+        QTimer::singleShot(0, this, [this] { this->refreshLocalizedText(); });
     });
 
     this->display_timer = new QTimer(this);
@@ -108,26 +115,17 @@ void FooterStatusBar::applyPendingDisplay()
     {
         const CoordinateWGS84 wgs = this->pending_wgs84.value();
         this->pending_wgs84.reset();
+        this->current_wgs84 = wgs;
         this->coordinate_altitude_m = wgs.altitude_m;
         this->refreshAltitudeDisplay();
-        // 5 decimals are about 1.11 m (depending on location)
-        this->label_map_coords_lat->setText(
-            "WGS 84 Lat: " + QString::number(wgs.latitude_deg, 'f', 5));
-        this->label_map_coords_lon->setText(
-            "Lon: " + QString::number(wgs.longitude_deg, 'f', 5));
+        this->refreshCoordinateText();
     }
     if (this->pending_utm.has_value())
     {
         const CoordinateUTM utm = this->pending_utm.value();
         this->pending_utm.reset();
-        const QString hemisphere = utm.hemisphere_northern ? "N" : "S";
-        const QString crs = utm.isUPS()
-                                ? "UPS " + hemisphere
-                                : "UTM " + QString::number(utm.zone) + hemisphere;
-        this->label_map_coords_utm_easting->setText(
-            crs + " E: " + QString::number(utm.easting_m, 'f', 2) + " m");
-        this->label_map_coords_utm_northing->setText(
-            "N: " + QString::number(utm.northing_m, 'f', 2) + " m");
+        this->current_utm = utm;
+        this->refreshCoordinateText();
     }
 }
 
@@ -155,10 +153,67 @@ void FooterStatusBar::refreshAltitudeDisplay()
     NumericFormatPolicy footer_height_policy;
     footer_height_policy.notation = NumericFormatPolicy::Notation::Fixed;
     footer_height_policy.precision = 2;
-    this->label_map_coords_height->setText(QStringLiteral("Height: ")
+    this->label_map_coords_height->setText(tr("Height: ")
         + GeographicAltitudePresentation::format(
             UnitProfileManager::instance().presentation(), this->coordinate_altitude_m,
             footer_height_policy));
+}
+
+void FooterStatusBar::refreshCoordinateText()
+{
+    // Coordinates are observations, not translated user data. Keep the last
+    // observed values so an idle map updates immediately after LanguageChange.
+    if (this->current_wgs84.has_value())
+    {
+        const CoordinateWGS84 &wgs = *this->current_wgs84;
+        this->label_map_coords_lat->setText(tr("WGS 84 Lat: %1").arg(
+            QString::number(wgs.latitude_deg, 'f', 5)));
+        this->label_map_coords_lon->setText(tr("Lon: %1").arg(
+            QString::number(wgs.longitude_deg, 'f', 5)));
+    }
+    if (this->current_utm.has_value())
+    {
+        const CoordinateUTM &utm = *this->current_utm;
+        const QString hemisphere = utm.hemisphere_northern ? QStringLiteral("N") : QStringLiteral("S");
+        const QString crs = utm.isUPS()
+            ? QStringLiteral("UPS ") + hemisphere
+            : QStringLiteral("UTM ") + QString::number(utm.zone) + hemisphere;
+        this->label_map_coords_utm_easting->setText(tr("%1 E: %2 m").arg(
+            crs, QString::number(utm.easting_m, 'f', 2)));
+        this->label_map_coords_utm_northing->setText(tr("N: %1 m").arg(
+            QString::number(utm.northing_m, 'f', 2)));
+    }
+}
+
+void FooterStatusBar::refreshLocalizedText()
+{
+    // QDoubleSpinBox::setPrefix can reset an uncommitted edit. Do not touch
+    // that editor while it has focus; editingFinished applies the new prefix.
+    if (!this->spin_map_zoom->hasFocus())
+    {
+        const QSignalBlocker blocker(this->spin_map_zoom);
+        this->spin_map_zoom->setPrefix(tr("Zoom: "));
+    }
+    this->spin_map_zoom->setToolTip(tr(
+        "Current map zoom level. Type a value or use the arrows/scroll to change it."));
+    this->label_map_coords_height->setToolTip(tr(
+        "Terrain elevation at the map pointer, when a DEM sample is available. "
+        "Uses the terrain dataset's vertical datum; unavailable data is shown as —."));
+#ifdef AOWIS_STANDALONE
+    this->label_indicator_map->setText(tr("[AOWIS Controller Standalone Build]"));
+#else
+    this->label_indicator_map->setText(tr("AOWIS Map Server"));
+    this->label_indicator_server->setText(tr("AOWIS Server"));
+#endif
+    this->refreshAltitudeDisplay();
+    this->refreshCoordinateText();
+}
+
+void FooterStatusBar::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+        this->refreshLocalizedText();
 }
 
 void FooterStatusBar::clearMapCoordinates()
@@ -167,6 +222,8 @@ void FooterStatusBar::clearMapCoordinates()
     this->pending_wgs84.reset();
     this->pending_utm.reset();
     this->coordinate_altitude_m.reset();
+    this->current_wgs84.reset();
+    this->current_utm.reset();
     this->refreshAltitudeDisplay();
     this->label_map_coords_lat->clear();
     this->label_map_coords_lon->clear();

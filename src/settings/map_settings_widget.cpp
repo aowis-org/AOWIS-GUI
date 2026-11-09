@@ -8,6 +8,9 @@
 #include "widgets/slider_number_control.h"
 
 #include <QApplication>
+#include <QByteArray>
+#include <QEvent>
+#include <QVariant>
 #include <QColor>
 #include <QComboBox>
 #include <QHeaderView>
@@ -314,17 +317,18 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     {
         this->loading_provider_table = true;
         addProviderRow(QUuid::createUuid().toString(QUuid::WithoutBraces),
-                       QStringLiteral("New map provider"),
+                       tr("New map provider"),
                        QString(), 0, 19, true);
         const int added_row = this->provider_table->rowCount() - 1;
+        this->provider_table->item(added_row, 2)->setData(Qt::UserRole + 1, true);
         this->provider_table->item(added_row, 2)->setToolTip(
-            QStringLiteral("Enter an XYZ tile URL template such as "
+            tr("Enter an XYZ tile URL template such as "
                            "https://tiles.example.org/{z}/{x}/{y}.png"));
         this->loading_provider_table = false;
         refreshFallbackChoices();
         this->provider_table->setCurrentCell(added_row, 2);
         this->provider_table->editItem(this->provider_table->item(added_row, 2));
-        this->provider_status->setText(QStringLiteral(
+        this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
             "Enter the new provider's tile URL. Changes save when the row is complete."));
     });
     connect(remove, &QPushButton::clicked, this, [this]
@@ -396,11 +400,12 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
             this->provider_save_in_flight = false;
             this->provider_edits_pending = true;
         }
+        this->provider_status->setProperty("aowisLocalizedSource", QVariant());
         this->provider_status->setText(message);
     });
     connect(&mapProviderCatalog(), &MapProviderCatalog::providersSaved, this, [this]
     {
-        this->provider_status->setText(QStringLiteral("Provider changes saved."));
+        this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Provider changes saved."));
     });
     refreshProviderTable();
     this->provider_table->setEnabled(mapProviderCatalog().serverLoaded());
@@ -408,10 +413,10 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     remove->setEnabled(mapProviderCatalog().serverLoaded());
 #ifdef AOWIS_STANDALONE
     providers_group->setEnabled(false);
-    this->provider_status->setText(QStringLiteral("Server provider editing requires a REST map server."));
+    this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Server provider editing requires a REST map server."));
 #endif
 #ifdef __EMSCRIPTEN__
-    this->provider_status->setText(QStringLiteral(
+    this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
         "Provider edits affect the server; per-user fallback persistence is supported in native GUI builds."));
 #endif
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(providers_group);
@@ -430,7 +435,7 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
     this->provider_table->setItem(row, 0, enabled_item);
     QTableWidgetItem *name_item = new QTableWidgetItem(name);
     name_item->setData(Qt::UserRole, uuid);
-    name_item->setToolTip(QStringLiteral("Provider UUID: %1").arg(uuid));
+    name_item->setToolTip(tr("Provider UUID: %1").arg(uuid));
     this->provider_table->setItem(row, 1, name_item);
     this->provider_table->setItem(row, 2, new QTableWidgetItem(url));
     QSpinBox *minimum = new QSpinBox(this->provider_table);
@@ -442,7 +447,7 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
     maximum->setValue(maximum_zoom);
     this->provider_table->setCellWidget(row, 4, maximum);
     QComboBox *fallback = new QComboBox(this->provider_table);
-    fallback->addItem(QStringLiteral("None (enlarge available tiles)"), QString());
+    fallback->addItem(tr("None (enlarge available tiles)"), QString());
     for (const MapProviderEntry &entry : mapProviderCatalog().providers())
     {
         if (entry.enabled && entry.id != uuid && entry.maximum_zoom > maximum_zoom &&
@@ -524,7 +529,7 @@ void MapSettingsWidget::refreshFallbackChoices()
         const QString wanted = fallback->currentData().toString();
         const QSignalBlocker blocker(fallback);
         fallback->clear();
-        fallback->addItem(QStringLiteral("None (enlarge available tiles)"), QString());
+        fallback->addItem(tr("None (enlarge available tiles)"), QString());
         for (const AvailableProvider &alternative : choices)
         {
             if (alternative.enabled && alternative.id != selected.id &&
@@ -565,7 +570,7 @@ void MapSettingsWidget::saveProviderEdits()
     if (!this->provider_edits_pending || this->provider_save_in_flight) return;
     if (!mapProviderCatalog().serverLoaded())
     {
-        this->provider_status->setText(QStringLiteral(
+        this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
             "Cannot edit providers until the server catalog has loaded. Check the map server connection and click Reload."));
         return;
     }
@@ -588,7 +593,7 @@ void MapSettingsWidget::saveProviderEdits()
         if (entry.name.isEmpty() || entry.url.isEmpty() ||
             entry.minimum_zoom > entry.maximum_zoom)
         {
-            this->provider_status->setText(QStringLiteral(
+            this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
                 "Enter a provider name and tile URL, and check its zoom limits."));
             return;
         }
@@ -596,7 +601,7 @@ void MapSettingsWidget::saveProviderEdits()
     }
     this->provider_edits_pending = false;
     this->provider_save_in_flight = true;
-    this->provider_status->setText(QStringLiteral("Updating map providers..."));
+    this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Updating map providers..."));
     mapProviderCatalog().saveProviders(proposed);
 }
 
@@ -618,9 +623,9 @@ void MapSettingsWidget::saveNavigationSettingsNow()
     configuration.orbit_3d_sensitivity = this->orbit_3d_sensitivity_control->value();
 
     if (saveGuiMapNavigationConfiguration(configuration))
-        showNavigationStatus(QStringLiteral("Saved."), false);
+        showNavigationStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Saved."), false);
     else
-        showNavigationStatus(QStringLiteral("Failed to save map control settings."), true);
+        showNavigationStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Failed to save map control settings."), true);
 }
 
 void MapSettingsWidget::schedulePerformanceSave()
@@ -635,9 +640,9 @@ void MapSettingsWidget::savePerformanceSettingsNow()
         qRound(this->terrain_detail_reduction_control->value());
 
     if (saveGuiMapPerformanceConfiguration(configuration))
-        showPerformanceStatus(QStringLiteral("Saved."), false);
+        showPerformanceStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Saved."), false);
     else
-        showPerformanceStatus(QStringLiteral("Failed to save map performance settings."), true);
+        showPerformanceStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Failed to save map performance settings."), true);
 }
 
 void MapSettingsWidget::saveServerSettings()
@@ -650,18 +655,61 @@ void MapSettingsWidget::saveServerSettings()
     if (saveMapServerClientConfiguration(configuration))
     {
         showServerStatus(
-            QStringLiteral("Connection preferences saved. Restart AOWIS to use them."),
+            QT_TRANSLATE_NOOP("MapSettingsWidget", "Connection preferences saved. Restart AOWIS to use them."),
             false);
     }
     else
     {
-        showServerStatus(QStringLiteral("Failed to save map server settings."), true);
+        showServerStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Failed to save map server settings."), true);
     }
 }
 
-void MapSettingsWidget::showNavigationStatus(const QString &message, bool error)
+void MapSettingsWidget::setProviderStatus(const char *source)
 {
-    this->navigation_status->setText(message);
+    this->provider_status->setProperty("aowisLocalizedSource", QByteArray(source));
+    this->provider_status->setText(tr(source));
+}
+
+void MapSettingsWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange || this->provider_table == nullptr)
+        return;
+
+    // Do not rebuild the table, change its model values, commit cell editors,
+    // or restart a pending provider save. Only refresh presentation fields.
+    const QSignalBlocker table_blocker(this->provider_table);
+    for (int row = 0; row < this->provider_table->rowCount(); ++row)
+    {
+        QTableWidgetItem *name = this->provider_table->item(row, 1);
+        if (name != nullptr)
+            name->setToolTip(tr("Provider UUID: %1").arg(name->data(Qt::UserRole).toString()));
+        QTableWidgetItem *url = this->provider_table->item(row, 2);
+        if (url != nullptr && url->data(Qt::UserRole + 1).toBool())
+            url->setToolTip(tr("Enter an XYZ tile URL template such as "
+                "https://tiles.example.org/{z}/{x}/{y}.png"));
+        QComboBox *fallback = static_cast<QComboBox *>(this->provider_table->cellWidget(row, 5));
+        if (fallback != nullptr && fallback->count() > 0)
+        {
+            const QSignalBlocker blocker(fallback);
+            fallback->setItemText(0, tr("None (enlarge available tiles)"));
+        }
+    }
+    for (QLabel *status : {this->navigation_status, this->performance_status,
+                           this->server_status, this->provider_status})
+    {
+        if (status == nullptr)
+            continue;
+        const QByteArray source = status->property("aowisLocalizedSource").toByteArray();
+        if (!source.isEmpty())
+            status->setText(tr(source.constData()));
+    }
+}
+
+void MapSettingsWidget::showNavigationStatus(const char *message, bool error)
+{
+    this->navigation_status->setProperty("aowisLocalizedSource", QByteArray(message));
+    this->navigation_status->setText(tr(message));
     QPalette palette = this->navigation_status->palette();
     if (error)
     {
@@ -676,9 +724,10 @@ void MapSettingsWidget::showNavigationStatus(const QString &message, bool error)
     this->navigation_status->setPalette(palette);
 }
 
-void MapSettingsWidget::showPerformanceStatus(const QString &message, bool error)
+void MapSettingsWidget::showPerformanceStatus(const char *message, bool error)
 {
-    this->performance_status->setText(message);
+    this->performance_status->setProperty("aowisLocalizedSource", QByteArray(message));
+    this->performance_status->setText(tr(message));
     QPalette palette = this->performance_status->palette();
     if (error)
     {
@@ -693,9 +742,10 @@ void MapSettingsWidget::showPerformanceStatus(const QString &message, bool error
     this->performance_status->setPalette(palette);
 }
 
-void MapSettingsWidget::showServerStatus(const QString &message, bool error)
+void MapSettingsWidget::showServerStatus(const char *message, bool error)
 {
-    this->server_status->setText(message);
+    this->server_status->setProperty("aowisLocalizedSource", QByteArray(message));
+    this->server_status->setText(tr(message));
     QPalette palette = this->server_status->palette();
     if (error)
     {

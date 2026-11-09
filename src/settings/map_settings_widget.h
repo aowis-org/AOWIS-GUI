@@ -2,6 +2,7 @@
 #define MAP_SETTINGS_WIDGET_H
 
 #include <QWidget>
+#include <QEvent>
 #include <QHash>
 #include <QString>
 
@@ -23,7 +24,11 @@ class MapSettingsWidget : public QWidget
 public:
     explicit MapSettingsWidget(QWidget *parent = nullptr);
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private:
+    void setProviderStatus(const char *source);
     // Navigation section.
     SliderNumberControl *scroll_zoom_sensitivity_control = nullptr;
     SliderNumberControl *mouse_3d_pan_sensitivity_control = nullptr;
@@ -65,9 +70,9 @@ private:
     void schedulePerformanceSave();
     void savePerformanceSettingsNow();
     void saveServerSettings();
-    void showNavigationStatus(const QString &message, bool error);
-    void showPerformanceStatus(const QString &message, bool error);
-    void showServerStatus(const QString &message, bool error);
+    void showNavigationStatus(const char *message, bool error);
+    void showPerformanceStatus(const char *message, bool error);
+    void showServerStatus(const char *message, bool error);
 };
 
 #endif // MAP_SETTINGS_WIDGET_H

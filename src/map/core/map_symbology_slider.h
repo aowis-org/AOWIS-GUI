@@ -2,6 +2,7 @@
 #define MAP_SYMBOLOGY_SLIDER_H
 
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QMouseEvent>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -31,6 +32,12 @@ public:
     }
 
     // Update tooltip units without changing any slider value or firing signals.
+    void setDescription(const QString &text)
+    {
+        this->description = text;
+        updateToolTip();
+    }
+
     void setDisplayPresentation(const QString &suffix, double scale, int decimals)
     {
         this->unit_suffix = suffix;
@@ -81,7 +88,7 @@ private:
 
     void updateToolTip()
     {
-        setToolTip(QStringLiteral(
+        setToolTip(QCoreApplication::translate("MapSymbologySlider",
             "%1\nCurrent: %2%3\nRange: %4%3 to %5%3\nDefault: %6%3\nRight-click to reset.")
             .arg(this->description)
             .arg(displayValue(value()))
