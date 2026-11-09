@@ -327,3 +327,21 @@ retained tank curve UUIDs, a user-defined curve name, an existing selected
 missing-curve row, and an unmodified numeric editor. A fully instantiated Tank
 Inspector integration test and Arabic RTL/native/WebAssembly manual acceptance
 are still required before claiming comprehensive localization coverage.
+
+## Real Entity Inspector live-language acceptance
+
+The `aowis-entity-inspector-live-language` CTest launches the actual linked
+GUI executable in a special **test-only** headless mode. This occurs before
+constructing `MainWindow`, a rendering device, or any map/network service.
+It instantiates the production `EntityInspectorTank` with an in-memory
+`HydraulicData` model and real compiled GUI/Render translation catalogues.
+
+Across repeated EN → FR → AR → DE → ES switches (and back to English), it
+checks the same widget objects, retained text draft and selection, tab, curve
+UUID and user-defined name, hydraulic values, translated tooltips and controls,
+RTL/LTR application direction, and **zero** model-edit or selection-change
+signals. It deliberately tests both visible and hidden inspector text.
+
+Run with `ctest --test-dir build-linux-tests --output-on-failure -R
+'^aowis-entity-inspector-live-language$'`. This is a native Linux, offscreen
+test; it does not establish full WebAssembly or renderer HUD acceptance.

@@ -1499,6 +1499,7 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
 
     QLabel *label_name = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Name"), nullptr);
     this->line_name = new QLineEdit();
+    this->line_name->setObjectName(QStringLiteral("entityInspectorName"));
     this->line_name->setText(name);
 
     QLabel *label_model_role = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Model Role"), nullptr);

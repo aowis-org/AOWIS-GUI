@@ -632,6 +632,19 @@ else()
 endif()
 
 if(BUILD_TESTING AND NOT EMSCRIPTEN)
+    # Run the actual linked application in a headless, opt-in acceptance mode.
+    # This exercises production EntityInspectorTank and HydraulicData rather
+    # than a second test-only implementation or an isolated text helper.
+    target_sources(aowis-server-gui PRIVATE
+        tests/entity_inspector_live_language_test.cpp)
+    target_compile_definitions(aowis-server-gui PRIVATE
+        AOWIS_GUI_LOCALIZATION_ACCEPTANCE=1)
+    add_test(NAME aowis-entity-inspector-live-language
+        COMMAND $<TARGET_FILE:aowis-server-gui> --test-live-entity-inspector-language)
+    set_tests_properties(aowis-entity-inspector-live-language PROPERTIES
+        LABELS "aowis;acceptance" ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 30)
+
     # Link the renderer from an executable that contains NO GUI application
     # sources. A static library's Qt resources need explicit registration;
     # this test fails if resource objects aren't brought in by the linker.

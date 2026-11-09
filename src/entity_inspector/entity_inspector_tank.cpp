@@ -107,6 +107,7 @@ void EntityInspectorTank::addGroupGeometry()
 
     QLabel *label_geometry_type = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Geometry Input"), nullptr);
     this->combo_geometry_type = new QComboBox();
+    this->combo_geometry_type->setObjectName(QStringLiteral("entityInspectorTankGeometryType"));
     EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Cylindrical"), static_cast<int>(HydraulicNodeTankGeometryInputType::Cylindrical));
     EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Uniform Area"), static_cast<int>(HydraulicNodeTankGeometryInputType::UniformArea));
     EntityInspectorText::addChoice(this->combo_geometry_type, QT_TRANSLATE_NOOP("LiveUiText", "Maximum Volume"), static_cast<int>(HydraulicNodeTankGeometryInputType::VolumeAtMaximumLevel));
@@ -152,6 +153,7 @@ void EntityInspectorTank::addGroupGeometry()
     this->label_diameter = new QLabel();
     EntityInspectorText::setCaption(this->label_diameter, QT_TRANSLATE_NOOP("LiveUiText", "Diameter"));
     this->spin_diameter = geometry_editor(0);
+    this->spin_diameter->setObjectName(QStringLiteral("entityInspectorTankDiameter"));
     configureTankSpinAppearance(this->spin_diameter);
 
     this->label_area = new QLabel();
@@ -172,6 +174,7 @@ void EntityInspectorTank::addGroupGeometry()
 
     this->label_volume_curve = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Volume Curve"), nullptr);
     this->combo_volume_curve = new QComboBox();
+    this->combo_volume_curve->setObjectName(QStringLiteral("entityInspectorTankVolumeCurve"));
     constrainComboWidth(this->combo_volume_curve);
     TankInspectorPresentation::bindCurveChoices(this->combo_volume_curve);
 
