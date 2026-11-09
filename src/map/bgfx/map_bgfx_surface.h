@@ -253,6 +253,7 @@ private:
     bool mapViewVisible() const override;
     QFont mapViewFont() const override;
     QPalette mapViewPalette() const override;
+    Qt::LayoutDirection mapViewLayoutDirection() const override { return layoutDirection(); }
     void mapViewFocusNavigationInput(Qt::FocusReason reason) override;
     QSize mapViewLogicalSize() const override;
     qreal mapViewDevicePixelRatio() const override;

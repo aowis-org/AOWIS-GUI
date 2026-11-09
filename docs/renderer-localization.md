@@ -47,10 +47,13 @@ commit both `.ts` and regenerated `.qm` files when preparing a release.
    `localizedPresentationRefreshRequested()`. It never reinitializes bgfx,
    reloads map data, resets the camera, or closes a popup. A font change also
    updates the HUD font, rather than merely scheduling a redraw.
-3. `MapMonitorContainer` responds to the signal by refreshing the *display*
-   legend via `refreshBgfxLegend()`, not re-resolving hydraulic symbology.
-   That refresh is skipped in editor/basemap modes, which have no monitor
-   legend; the normal monitor activation path regenerates it when returning.
+3. `MapMonitorContainer` also handles its own `LanguageChange` by
+   refreshing the *display* legend via `refreshHudLegendText()` from retained
+   symbology ranges, independently of the Render callback. No hydraulic
+   symbology re-resolution or data fetch occurs. In editor/basemap modes the
+   monitor legend is not active; normal monitor activation regenerates it.
+   `MapBgfxSurface` requests a frame on language or layout-direction changes
+   even when the camera is stationary, without reinitializing bgfx.
 4. The next actual HUD frame calls `tr()` again, measures the new text,
    rebuilds layout/hitboxes and requests only new text runs from the atlas.
    Globe slider state is regenerated each frame from `fillHudState()`.
@@ -61,9 +64,16 @@ commit both `.ts` and regenerated `.qm` files when preparing a release.
 
 Keep language names/localization in the GUI toolbar, not in GPU/device code.
 Numeric scientific input and Model persistence must stay language independent.
-Qt Arabic shaping/bidirectional text is available in `QPainter` text runs,
-but the HUD's manually placed controls, text clipping and popup geometry
-still require explicit Arabic/RTL usability testing in the multilingual phase.
+Render now takes `MapBgfxSurface::layoutDirection()` through the host
+contract on every HUD frame. RTL anchors the view actions to the right, the
+joystick and zoom controls to the left, the legend bottom-left and globe
+controls bottom-right, and reverses toolbar action order and legend popup
+text/scrollbar alignment. Tooltip lines are bounded to the viewport.
+The controls and their hit regions are rebuilt together, so an already-open
+legend popup survives RTL/LTR switching. Qt `QPainter` provides Arabic
+shaping for cached text runs. Physical Arabic font/fallback and browser-canvas
+acceptance are still necessary; headless geometry tests do not prove glyph
+quality on every system.
 Do **not** mirror map coordinates, network geometry, camera rotation or compass
 semantics when enabling RTL widget layout.
 
@@ -382,3 +392,180 @@ application-wide completeness. Qt `lupdate`/`lrelease`, runtime switching,
 and native plus WebAssembly layout acceptance are still required. New GUI
 strings must be supplied in all four translated catalogues; completed TS
 entries alone do not prove that persistent UI updates on `LanguageChange`.
+
+## Explicit-key coverage and presentation-only refresh
+
+The GUI's `tools/audit_gui_localization.py --check-all` checks that every
+translation key recognized by the source scanner exists in all four GUI
+catalogues. This includes the map-monitor size tooltips, Projects graph and
+revision captions, the top toolbar's headloss descriptions, and the
+`LiveUiText` contexts used by editor controls. Run this audit whenever
+adding or changing translated source strings, then rebuild the `.qm` files
+from the `.ts` files using the configured Qt build.
+
+The top toolbar retains simulation-run **state and warning/error counts**
+separately from the tooltip text. Live switching rebuilds the tooltip from
+that state and retranslates the timeline navigation controls without
+starting or stopping simulations, changing the timepoint or restarting
+playback. Error and warning counts have proper singular/plural presentation.
+
+Demand-point descriptions and meter-tag placeholders, pipe-allocation
+explanations, emitter tooltips and the table filter titles are now updated on
+existing widgets. In particular, table numeric filters update *tooltips only*
+on language changes, never their ranges or in-progress editor contents.
+Open map tile/terrain deletion confirmations and map entity deletion
+confirmations retranslate in place without losing their destructive-button
+connections. Terrain deletion progress and completion text is regenerated
+from retained counts/errors: language changes never schedule a new deletion.
+
+**Audit limitations:** the explicit-key audit does not yet find every literal
+used as an `addAction` argument, a programmatically composed status message,
+or an external/backend message. `--check-all` passing is an important
+catalogue gate, **not** proof that all application-owned strings are already
+localized or that all custom WebAssembly and bgfx UI has completed RTL
+acceptance. Continue the literal-string inventory and actual native/WASM
+language-switch tests before declaring multilingual support complete.
+
+## Persistent map startup status and broader Qt context inventory
+
+`MapMonitorContainer` retains a typed renderer-status reason (`Starting`,
+`Failed`, `Stalled`) and the original backend diagnostics separately from the
+visible label. On `LanguageChange` it only translates the current status; it
+does **not** recreate the renderer, restart the watchdog, discard diagnostics,
+or change the map or editing state. The three messages have a dedicated
+`MapMonitorContainer` translation context.
+
+The four GUI catalogues also cover previously missing MainWindow private
+working-draft/History confirmations and the simulation diagnostics widget's
+rich-text labels. Existing `SimulationDiagnosticsWidget::changeEvent()`
+already refreshes retained simulation results in place while restoring list
+selection and scroll positions; this additional coverage makes that refresh
+actually use the selected language instead of falling back to English.
+
+The source audit now recognizes unqualified `tr()` calls from `MainWindow`,
+`MapMonitorContainer`, and `SimulationDiagnosticsWidget` as well as its
+previously mapped classes; unlike `HistoryDock::tr()` it does not mistake a
+**qualified** call for a method of the surrounding class. It reports counts of
+**unmapped** `tr()` calls separately. These are not necessarily untranslated,
+but `--check-all` cannot claim coverage for them until their owning class and
+Qt translation context have been verified. Remaining large interfaces include
+Projects, private working-copy workflows and simulation management. The
+presence of complete `.ts` catalogs is not equivalent to all strings or
+all live-switch paths being audited.
+
+## Current translation-context coverage and private working copies
+
+`tools/audit_gui_localization.py --check-all` validates source strings for
+**verified** Qt translation contexts. In addition to explicit `QT_TRANSLATE_NOOP`
+and `QCoreApplication::translate`, this includes the `Q_OBJECT`-backed
+`HistoryDock`, `PersonalWorkingCopyDialog`, `ProjectRevisionGraph` and
+`SimulationStatisticsDialog`, plus the Projects inspector helper classes that
+explicitly declare `Q_DECLARE_TR_FUNCTIONS(ProjectsWidget)`. Their C++ file
+locations do not determine their Qt translation context.
+
+The personal working-copy dialog retains the source key for a running progress
+message (and its optional count argument). `LanguageChange` retranslates the
+existing label and forwards the localized presentation text to the status
+subscriber without restarting checkout, HTTP requests, leases or draft writes.
+External/backend errors remain intact. The standard Close button handles its
+own language event after Qt's `QDialogButtonBox` retranslation. The network
+summary and draft selection remain based on retained data, not a refresh call.
+
+**Incomplete inventory remains visible:** `--check-all` does not certify any
+file whose ordinary `tr()` calls have an unverified context. The remaining
+project source reader/writer classes and the personal repository settings
+widget do not declare their own Qt translation context via `Q_OBJECT` or
+`Q_DECLARE_TR_FUNCTIONS`: inherited `tr()` is not automatically translated in
+the C++ subclass's name. Simply inserting translations under guessed class
+names would not work. `SimulationManager` and `ProjectsWidget` also retain
+unmapped ordinary `tr()` calls requiring the next catalogue inventory pass.
+Use `--require-all-contexts` to enforce complete context mapping when that
+backlog has been resolved. This is distinct from the app-wide zero-restart
+acceptance requirement, which also needs native and WebAssembly verification.
+
+## DVMDB project source error contexts
+
+`ProjectSourceReader` and `ProjectSourceWriter` are QObject subclasses without
+`Q_OBJECT`. They explicitly declare `Q_DECLARE_TR_FUNCTIONS` so their
+validation, pagination and DVMDB write error messages resolve under their own
+Qt contexts rather than silently falling back to `QObject`. The writer's
+free-function profile validation uses `QCoreApplication::translate()` with
+its explicit `ProjectSourceWriter` context. The errors are generated when an
+operation fails, in the currently selected language; switching language does
+not restart any in-flight HTTP request or write. Already delivered backend
+error strings are not reinterpreted or retransmitted.
+
+The translation audit maps these two verified contexts, with the four GUI
+TS catalogues containing every detected key. Its remaining unmapped ordinary
+`tr()` calls are in `ProjectsWidget`, `SimulationManager` and the legacy
+`PersonalRepositorySettingsWidget`; they remain on the completion roadmap.
+
+`SimulationManager` owns the translation context declared by its `Q_OBJECT`
+macro. Its import/export prompts and errors now have four-language catalogue
+coverage. Dialogs created after a language change use the currently installed
+translator; an already-open native file picker or message box is not recreated
+by the language change. These ephemeral dialogs still need targeted live
+retranslation acceptance where changing language while a modal is open matters.
+
+The legacy `PersonalRepositorySettingsWidget` also has an explicit Qt
+translation context and a `LanguageChange` refresh path. Captions, button
+labels, form fields and its retained verification status update in place; the
+existing URL/UUID text and an in-flight verification request are preserved.
+Its original verification detail is retained as data, never retransmitted.
+
+At this stage, the remaining unmapped ordinary `tr()` calls in the audit
+are confined to `ProjectsWidget`; translation-key coverage and live-reflow
+of that larger UI remain separate acceptance work.
+
+### Projects workspace translation coverage
+
+`ProjectsWidget` has `Q_OBJECT`, so its unqualified `tr()` calls use the
+`ProjectsWidget` context. The source audit maps the complete widget file to
+that verified context and `--require-all-contexts` rejects unchecked calls.
+Project action/error text, destructive-operation confirmations and demonstration
+captions are translated into French, Arabic, German and Spanish, including
+Qt plural categories for queued draft edits.
+
+The two built-in demonstration projects are not real DVMDB data. On an active
+language change, untouched example names, descriptions, commit messages and
+author captions are retranslated from stable source strings; user-modified
+preview fields are preserved. Existing tree items and graph node titles update
+in place, while the graph retains its selection, zoom, camera and node layout.
+The inspector only replaces sample text still matching its previous generated
+translation, without triggering a project save. User-entered drafts and real
+repository metadata are never translated.
+
+Use `python3 tools/audit_gui_localization.py --check-all --require-all-contexts`
+to enforce the mapped source inventory. Passing this check proves coverage of
+recognized translation calls, **not** exhaustive localization of dynamic
+backend messages or completion of Arabic HUD/WebAssembly usability testing.
+
+### Hydraulic table cell and popup localization
+
+The hydraulic entity tables keep user-entered IDs, names, tags, canonical
+quantities, filter bounds and sort values separate from application-owned
+categorical display strings. A language change repaints existing table cells and
+headers: Yes/No, asset roles, input modes, valve/pump statuses and similar
+categorical values are translated at display time from their original source
+text. The table model is not reset, rows are not rebuilt, and no hydraulic edit
+or server operation is triggered by the language change. Header tooltips also
+use the current translation. Newly created context menus are translated, and
+already open pipe-vertex menus and confirmation dialogs update their captions
+without closing or accepting an operation. These paths work with both native
+Qt menus and the WebAssembly popup implementation.
+
+### Unit-profile menus and zero-restart switching
+
+The toolbar, Settings unit selector and the new-profile source menu share
+`UnitProfileMenu`. Built-in profile descriptions and menu sections use the
+`UnitProfileMenu` Qt catalogue context; custom profile names remain user data.
+Language changes retitle the existing native `QAction` instances without
+rebuilding the menu, modifying the selected profile ID or refreshing numerical
+unit editors. WebAssembly popup buttons receive individual language-change
+bindings, including submenu triggers.
+
+The Settings profile selector refreshes its *display labels* in place. Active
+create/rename/delete workflows preserve their selected source, original UUID
+and unsaved name draft; confirmations update their captions while open. A
+source-level zero-missing-key audit is necessary but is not proof of Arabic
+HUD visual layout or full WebAssembly runtime acceptance.
