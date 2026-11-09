@@ -1,13 +1,16 @@
 #pragma once
 
 #include "config/unit_profile_manager.h"
+#include "config/live_ui_text.h"
 #ifdef Q_OS_WASM
 #include "widgets/wasm_popup_menu.h"
+#include <QPushButton>
 #else
 #include <QAction>
 #include <QMenu>
 #endif
 #include <QObject>
+#include <QCoreApplication>
 
 #include <cstddef>
 #include <functional>
@@ -43,39 +46,81 @@ enum class Group { Canonical, FeaturedMetric, OtherMetric, Imperial, Custom };
 {
     if (!profile.builtin) return profile.name;
     if (profile.id == QStringLiteral("canonical"))
-        return QStringLiteral("AOWIS Canonical — standard AOWIS units");
+        return QCoreApplication::translate("UnitProfileMenu", "AOWIS Canonical — standard AOWIS units");
     if (profile.id == QStringLiteral("CMH"))
-        return QStringLiteral("CMH — cubic meters per hour");
+        return QCoreApplication::translate("UnitProfileMenu", "CMH — cubic meters per hour");
     if (profile.id == QStringLiteral("LPS"))
-        return QStringLiteral("LPS — liters per second");
+        return QCoreApplication::translate("UnitProfileMenu", "LPS — liters per second");
     if (profile.id == QStringLiteral("LPM"))
-        return QStringLiteral("LPM — liters per minute");
+        return QCoreApplication::translate("UnitProfileMenu", "LPM — liters per minute");
     if (profile.id == QStringLiteral("MLD"))
-        return QStringLiteral("MLD — million liters per day");
+        return QCoreApplication::translate("UnitProfileMenu", "MLD — million liters per day");
     if (profile.id == QStringLiteral("CMD"))
-        return QStringLiteral("CMD — cubic meters per day");
+        return QCoreApplication::translate("UnitProfileMenu", "CMD — cubic meters per day");
     if (profile.id == QStringLiteral("CMS"))
-        return QStringLiteral("CMS — cubic meters per second");
+        return QCoreApplication::translate("UnitProfileMenu", "CMS — cubic meters per second");
     if (profile.id == QStringLiteral("CFS"))
-        return QStringLiteral("CFS — cubic feet per second");
+        return QCoreApplication::translate("UnitProfileMenu", "CFS — cubic feet per second");
     if (profile.id == QStringLiteral("GPM"))
-        return QStringLiteral("GPM — US gallons per minute");
+        return QCoreApplication::translate("UnitProfileMenu", "GPM — US gallons per minute");
     if (profile.id == QStringLiteral("MGD"))
-        return QStringLiteral("MGD — million US gallons per day");
+        return QCoreApplication::translate("UnitProfileMenu", "MGD — million US gallons per day");
     if (profile.id == QStringLiteral("IMGD"))
-        return QStringLiteral("IMGD — million Imperial gallons per day");
+        return QCoreApplication::translate("UnitProfileMenu", "IMGD — million Imperial gallons per day");
     if (profile.id == QStringLiteral("AFD"))
-        return QStringLiteral("AFD — acre-feet per day");
+        return QCoreApplication::translate("UnitProfileMenu", "AFD — acre-feet per day");
     // Preserve names of future built-in profiles until they have a description.
     return profile.name;
 }
 
-[[nodiscard]] inline Menu *subMenu(Menu *parent, const QString &title)
+[[nodiscard]] inline Menu *subMenu(Menu *parent, const char *source)
+{
+    const QString title = QCoreApplication::translate("UnitProfileMenu", source);
+#ifdef Q_OS_WASM
+    Menu *submenu = parent->addSubMenu(title);
+    // The custom WebAssembly menu represents submenu triggers as QPushButtons.
+    // Bind the trigger itself so a visible popup also changes language in place.
+    const QList<QPushButton *> triggers = parent->findChildren<QPushButton *>(
+        QString(), Qt::FindDirectChildrenOnly);
+    if (!triggers.isEmpty())
+    {
+        QPushButton *trigger = triggers.last();
+        LiveUiText::bind(trigger, [trigger, source] {
+            trigger->setText(QCoreApplication::translate("UnitProfileMenu", source)
+                             + QStringLiteral("    ›"));
+        });
+    }
+    return submenu;
+#else
+    Menu *submenu = parent->addMenu(title);
+    submenu->menuAction()->setProperty("aowis.unit.menuSource", QString::fromUtf8(source));
+    return submenu;
+#endif
+}
+
+// Retitle existing native actions without clearing the menu, replacing checkable
+// items, disconnecting callbacks or modifying the active unit-profile identity.
+inline void retranslate(Menu *menu, const QVector<UnitProfileManager::Profile> &profiles)
 {
 #ifdef Q_OS_WASM
-    return parent->addSubMenu(title);
+    // WebAssembly profile and submenu buttons have LiveUiText bindings created
+    // by populate(); changing the language does not reconstruct their widgets.
+    (void)menu;
+    (void)profiles;
 #else
-    return parent->addMenu(title);
+    if (menu == nullptr) return;
+    for (QAction *action : menu->actions())
+    {
+        const QVariant index = action->property("aowis.unit.profileIndex");
+        const QVariant source = action->property("aowis.unit.menuSource");
+        if (index.isValid() && index.toInt() >= 0 && index.toInt() < profiles.size())
+            action->setText(label(profiles.at(index.toInt())));
+        else if (source.isValid())
+            action->setText(QCoreApplication::translate("UnitProfileMenu",
+                source.toString().toUtf8().constData()));
+        if (action->menu() != nullptr)
+            retranslate(action->menu(), profiles);
+    }
 #endif
 }
 
@@ -100,10 +145,12 @@ inline void populate(Menu *menu, QObject *owner,
                 const UnitProfileManager::Profile &profile = profiles.at(index);
                 if (group(profile) != wanted) continue;
 #ifdef Q_OS_WASM
-                target->addAction(label(profile), [onSelect, index] { onSelect(index); });
+                QPushButton *action = target->addAction(label(profile), [onSelect, index] { onSelect(index); });
+                LiveUiText::bind(action, [action, profile] { action->setText(label(profile)); });
 #else
                 QAction *action = target->addAction(label(profile));
                 action->setData(index);
+                action->setProperty("aowis.unit.profileIndex", index);
                 if (selectedIndex >= 0) {
                     action->setCheckable(true);
                     action->setChecked(index == selectedIndex);
@@ -117,19 +164,25 @@ inline void populate(Menu *menu, QObject *owner,
     addGroup(Group::Canonical, menu);
     menu->addSeparator();
     addGroup(Group::FeaturedMetric, menu);
-    addGroup(Group::OtherMetric, subMenu(menu, QStringLiteral("Other metric")));
-    addGroup(Group::Imperial, subMenu(menu, QStringLiteral("Imperial / US")));
+    addGroup(Group::OtherMetric, subMenu(menu, QT_TRANSLATE_NOOP("UnitProfileMenu", "Other metric")));
+    addGroup(Group::Imperial, subMenu(menu, QT_TRANSLATE_NOOP("UnitProfileMenu", "Imperial / US")));
 #ifndef Q_OS_WASM
     menu->addSeparator();
 #endif
-    Menu *custom = subMenu(menu, QStringLiteral("Custom"));
+    Menu *custom = subMenu(menu, QT_TRANSLATE_NOOP("UnitProfileMenu", "Custom"));
     addGroup(Group::Custom, custom);
     if (onManage) {
         custom->addSeparator();
 #ifdef Q_OS_WASM
-        custom->addAction(QStringLiteral("Manage Units…"), onManage);
+        QPushButton *action = custom->addAction(
+            QCoreApplication::translate("UnitProfileMenu", "Manage Units…"), onManage);
+        LiveUiText::bind(action, [action] {
+            action->setText(QCoreApplication::translate("UnitProfileMenu", "Manage Units…"));
+        });
 #else
-        QAction *action = custom->addAction(QStringLiteral("Manage Units…"));
+        QAction *action = custom->addAction(
+            QCoreApplication::translate("UnitProfileMenu", "Manage Units…"));
+        action->setProperty("aowis.unit.menuSource", QStringLiteral("Manage Units…"));
         QObject::connect(action, &QAction::triggered, owner, onManage);
 #endif
     }

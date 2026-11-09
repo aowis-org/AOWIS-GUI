@@ -2,6 +2,7 @@
 #include "projects/dvmdb_identity.h"
 #include "projects/model_codec_compatibility.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -33,25 +34,25 @@ QString segment(const QString &part)
 QString validateProfile(const ProjectServerProfile &profile)
 {
     if (profile.pending || !DvmdbIdentity::isUuidV7(profile.id))
-        return QObject::tr("Select a verified database with a UUIDv7 repository identity.");
+        return QCoreApplication::translate("ProjectSourceWriter", "Select a verified database with a UUIDv7 repository identity.");
     if (profile.connection_type == QStringLiteral("local"))
     {
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
         if (!QDir::isAbsolutePath(profile.local_path))
-            return QObject::tr("An absolute embedded DVMDB directory is required.");
+            return QCoreApplication::translate("ProjectSourceWriter", "An absolute embedded DVMDB directory is required.");
         return {};
 #else
-        return QObject::tr("This build does not include embedded DVMDB support.");
+        return QCoreApplication::translate("ProjectSourceWriter", "This build does not include embedded DVMDB support.");
 #endif
     }
     if (profile.connection_type != QStringLiteral("remote"))
-        return QObject::tr("Unsupported database connection type.");
+        return QCoreApplication::translate("ProjectSourceWriter", "Unsupported database connection type.");
     if (profile.auth_mode != QStringLiteral("None") && !profile.auth_mode.isEmpty())
-        return QObject::tr("DVMDB REST authentication is not implemented; select 'None'.");
+        return QCoreApplication::translate("ProjectSourceWriter", "DVMDB REST authentication is not implemented; select 'None'.");
     const QUrl url(profile.endpoint);
     if (!url.isValid() || (url.scheme() != QStringLiteral("http") && url.scheme() != QStringLiteral("https"))
         || url.host().isEmpty() || !url.userInfo().isEmpty() || url.hasQuery() || url.hasFragment())
-        return QObject::tr("Invalid REST database endpoint.");
+        return QCoreApplication::translate("ProjectSourceWriter", "Invalid REST database endpoint.");
     return {};
 }
 

@@ -428,7 +428,7 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
     this->renderer_status->setAttribute(Qt::WA_TranslucentBackground);
     this->renderer_status->setAttribute(Qt::WA_TransparentForMouseEvents);
     this->map_stack_layout->addWidget(this->renderer_status);
-    showRendererStatus(tr("Starting map renderer\u2026"));
+    showRendererStatus(RendererStatusKind::Starting);
     // bgfx is the only map renderer.
     {
         // Do not promote until bgfx has actually produced a frame; until then
@@ -786,12 +786,11 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
 #ifndef Q_OS_WASM
             this->map->setOrbitPointerLockWindow(nullptr);
 #endif
-            showRendererStatus(
-                tr("The bgfx map renderer could not start:\n%1").arg(reason));
+            showRendererStatus(RendererStatusKind::Failed, reason);
             surface->hide();
         });
         surface->show();
-        showRendererStatus(tr("Starting map renderer\u2026"));
+        showRendererStatus(RendererStatusKind::Starting);
         // Startup watchdog: a renderer that neither presents a frame nor
         // fails must not leave an endless "Starting..." behind. Report
         // where it stands instead (also in the log / browser console).
@@ -801,8 +800,7 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
                 return;
             const QString diagnostics = surface->startupDiagnostics();
             qWarning().noquote() << "bgfx map did not start within 10 s:" << diagnostics;
-            showRendererStatus(tr("The bgfx map renderer has not presented a frame "
-                                  "after 10 s.\n%1").arg(diagnostics));
+            showRendererStatus(RendererStatusKind::Stalled, diagnostics);
         });
     }
 
@@ -1213,9 +1211,44 @@ void MapMonitorContainer::updateNetworkHover(
     setNetworkHovered(false);
 }
 
-void MapMonitorContainer::showRendererStatus(const QString &text)
+void MapMonitorContainer::changeEvent(QEvent *event)
 {
-    this->renderer_status->setText(text);
+    QWidget::changeEvent(event);
+    if (event->type() != QEvent::LanguageChange)
+        return;
+
+    if (this->renderer_status != nullptr)
+        refreshRendererStatusText();
+    // The legend is GUI presentation data. Recreate only its translated
+    // captions from retained ranges, independently of whether the Render
+    // view is currently presenting frames or its host callback has fired.
+    // In editor/basemap modes this is intentionally a no-op.
+    refreshHudLegendText();
+}
+
+void MapMonitorContainer::refreshRendererStatusText()
+{
+    switch (this->renderer_status_kind)
+    {
+    case RendererStatusKind::Starting:
+        this->renderer_status->setText(tr("Starting map renderer…"));
+        break;
+    case RendererStatusKind::Failed:
+        this->renderer_status->setText(
+            tr("The bgfx map renderer could not start:\n%1").arg(this->renderer_status_details));
+        break;
+    case RendererStatusKind::Stalled:
+        this->renderer_status->setText(tr("The bgfx map renderer has not presented a frame "
+                                          "after 10 s.\n%1").arg(this->renderer_status_details));
+        break;
+    }
+}
+
+void MapMonitorContainer::showRendererStatus(RendererStatusKind kind, const QString &details)
+{
+    this->renderer_status_kind = kind;
+    this->renderer_status_details = details;
+    refreshRendererStatusText();
     this->renderer_status->show();
     this->map_stack_layout->setCurrentWidget(this->renderer_status);
     this->renderer_status->raise();

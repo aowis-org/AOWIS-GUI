@@ -3,6 +3,7 @@
 #include "projects/model_codec_compatibility.h"
 
 #include <QCoreApplication>
+#include <QTranslator>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHostAddress>
@@ -18,6 +19,25 @@
 
 namespace
 {
+class SourceContextTranslator final : public QTranslator
+{
+public:
+    bool isEmpty() const override { return false; }
+    QString translate(const char *context, const char *source_text,
+                      const char *disambiguation = nullptr, int n = -1) const override
+    {
+        Q_UNUSED(disambiguation)
+        Q_UNUSED(n)
+        if (QByteArray(context) == "ProjectSourceWriter"
+            && QByteArray(source_text) == "Unsupported database connection type.")
+            return QStringLiteral("translated-source-context");
+        if (QByteArray(context) == "ProjectSourceWriter"
+            && QByteArray(source_text) == "Select a verified database with a UUIDv7 repository identity.")
+            return QStringLiteral("translated-source-context");
+        return QString();
+    }
+};
+
 bool require(bool condition, const char *message)
 {
     if (!condition) std::fprintf(stderr, "FAILED: %s\n", message);
@@ -37,6 +57,22 @@ bool waitUntil(QCoreApplication &app, const std::function<bool()> &predicate)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // The writer's free-function validation path must use the same explicit
+    // context as its member-function errors.
+    {
+        SourceContextTranslator synthetic;
+        app.installTranslator(&synthetic);
+        ProjectSourceWriter localized_writer;
+        ProjectServerProfile invalid_profile;
+        QString translated_error;
+        localized_writer.createProject(invalid_profile, QStringLiteral("test"),
+            [&translated_error](const QString &, const QString &error) {
+                translated_error = error;
+            });
+        if (!require(translated_error == QStringLiteral("translated-source-context"),
+                     "writer validation did not use its dedicated translation context")) return 1;
+        app.removeTranslator(&synthetic);
+    }
     QTcpServer server;
     if (!require(server.listen(QHostAddress::LocalHost, 0), "cannot listen on loopback")) return 1;
     QStringList requested_paths;

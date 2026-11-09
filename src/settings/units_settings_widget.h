@@ -31,6 +31,7 @@ private:
     void load();
     void save() const;
     void refreshSelector(int selected);
+    void refreshLanguage();
     void refreshFields();
     void filterFields();
     void createProfile();

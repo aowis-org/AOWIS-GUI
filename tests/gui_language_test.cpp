@@ -251,6 +251,39 @@ int main(int argc, char **argv)
     const char *const edit_actions[] = {"Stop private editing", "Terminer la modification privée", "إنهاء التحرير الخاص",
                                         "Private Bearbeitung beenden", "Detener edición privada"};
     const char *const slider_off[] = {"Off", "Désactivé", "إيقاف", "Aus", "Desactivado"};
+    const char *const open_network[] = {"Open network", "Ouvrir le réseau", "فتح الشبكة",
+                                        "Netz öffnen", "Abrir red"};
+    const char *const map_starting[] = {"Starting map renderer…",
+        "Démarrage du moteur de rendu cartographique…", "جارٍ تشغيل عارض الخريطة…",
+        "Kartenrenderer wird gestartet…", "Iniciando el renderizador del mapa…"};
+    const char *const diagnostic_details[] = {"<p><b>Details</b><ul>",
+        "<p><b>Détails</b><ul>", "<p><b>التفاصيل</b><ul>",
+        "<p><b>Details</b><ul>", "<p><b>Detalles</b><ul>"};
+    const char *const working_copy_progress[] = {
+        "Reading personal DVMDB drafts…",
+        "Lecture des brouillons du DVMDB personnel…",
+        "جارٍ قراءة المسودات من قاعدة DVMDB الشخصية…",
+        "Entwürfe der persönlichen DVMDB werden gelesen…",
+        "Leyendo los borradores de la DVMDB personal…"
+    };
+    const char *const project_commit_actions[] = {
+        "Commit HEAD", "Valider HEAD", "اعتماد HEAD", "HEAD committen", "Confirmar HEAD"
+    };
+    const char *const project_preview_names[] = {
+        "Sample North Network", "Réseau d’exemple Nord", "شبكة الشمال النموذجية",
+        "Beispielnetz Nord", "Red Norte de ejemplo"
+    };
+    const char *const project_delete_actions[] = {
+        "Delete entire branch", "Supprimer toute la branche", "حذف الفرع بالكامل",
+        "Gesamten Branch löschen", "Eliminar toda la rama"
+    };
+    const char *const project_graph_empty[] = {
+        "No revisions to display\nSelect a project or create a branch.",
+        "Aucune révision à afficher\nSélectionnez un projet ou créez une branche.",
+        "لا توجد مراجعات لعرضها\nاختر مشروعًا أو أنشئ فرعًا.",
+        "Keine Revisionen zur Anzeige\nWählen Sie ein Projekt oder erstellen Sie einen Branch.",
+        "No hay revisiones para mostrar\nSeleccione un proyecto o cree una rama."
+    };
     for (std::size_t step = 1; step <= GuiLanguages.size(); ++step)
     {
         const std::size_t index = step % GuiLanguages.size();
@@ -258,6 +291,22 @@ int main(int argc, char **argv)
         if (!matches(code, "select language", language.select(code), true))
             return 2;
         app.processEvents();
+        const char *const unit_menu_titles[] = {
+            "Manage Units…", "Gérer les unités…", "إدارة الوحدات…",
+            "Einheiten verwalten…", "Administrar unidades…"
+        };
+        const char *const builtin_profile_labels[] = {
+            "LPS — liters per second", "LPS — litres par seconde",
+            "LPS — لترات في الثانية", "LPS — Liter pro Sekunde",
+            "LPS — litros por segundo"
+        };
+        if (!matches(code, "unit popup catalogue",
+                     QCoreApplication::translate("UnitProfileMenu", "Manage Units…"),
+                     QString::fromUtf8(unit_menu_titles[index]))
+            || !matches(code, "builtin unit profile catalogue",
+                        QCoreApplication::translate("UnitProfileMenu", "LPS — liters per second"),
+                        QString::fromUtf8(builtin_profile_labels[index])))
+            return 22;
         if (!matches(code, "toolbar label", label.text(), QString::fromUtf8(names[index]))
             || !matches(code, "HUD cancel", QCoreApplication::translate("MapBgfxHud", "Cancel"), QString::fromUtf8(cancel[index]))
             || !matches(code, "live working-copy dialog catalogue",
@@ -272,10 +321,58 @@ int main(int argc, char **argv)
             || !matches(code, "live map slider catalogue",
                         QCoreApplication::translate("MapMonitorMenuWidget", "Off"),
                         QString::fromUtf8(slider_off[index]))
+            || !matches(code, "private-network confirmation catalogue",
+                        QCoreApplication::translate("MainWindow", "Open network"),
+                        QString::fromUtf8(open_network[index]))
+            || !matches(code, "retained renderer startup message",
+                        QCoreApplication::translate("MapMonitorContainer", "Starting map renderer…"),
+                        QString::fromUtf8(map_starting[index]))
+            || !matches(code, "diagnostics rich-text catalogue",
+                        QCoreApplication::translate("SimulationDiagnosticsWidget",
+                                                    "<p><b>Details</b><ul>"),
+                        QString::fromUtf8(diagnostic_details[index]))
             || !matches(code, "active language", language.code(), code)
             || !matches(code, "numeric locale preserved", numeric_locale == QLocale(), true)
             || !matches(code, "layout direction", QApplication::layoutDirection(), QLocale(code).textDirection()))
             return 3;
+        if (!matches(code, "working-copy progress translation",
+                QCoreApplication::translate("PersonalWorkingCopyDialog", "Reading personal DVMDB drafts…"),
+                QString::fromUtf8(working_copy_progress[index]))
+            || !matches(code, "graph empty-state translation",
+                QCoreApplication::translate("ProjectRevisionGraph",
+                    "No revisions to display\nSelect a project or create a branch."),
+                QString::fromUtf8(project_graph_empty[index])))
+            return 19;
+        if (!matches(code, "project HEAD commit catalogue",
+                     QCoreApplication::translate("ProjectsWidget", "Commit HEAD"),
+                     QString::fromUtf8(project_commit_actions[index]))
+            || !matches(code, "preview project language",
+                        QCoreApplication::translate("ProjectsWidget", "Sample North Network"),
+                        QString::fromUtf8(project_preview_names[index]))
+            || !matches(code, "destructive branch confirmation catalogue",
+                        QCoreApplication::translate("ProjectsWidget", "Delete entire branch"),
+                        QString::fromUtf8(project_delete_actions[index])))
+            return 20;
+        const QString pending_edits = QCoreApplication::translate("ProjectsWidget",
+            "%n edit(s) of this draft are queued on this device but not yet saved to DVMDB. "
+            "Open the network for editing so they are saved, stop editing, then commit.",
+            nullptr, 2);
+        if (!matches(code, "project pending edit plural", pending_edits.contains(QStringLiteral("2")), true)
+            || !matches(code, "project plural unresolved", pending_edits.contains(QStringLiteral("%n")), false))
+            return 20;
+        const QString branch_warning = QCoreApplication::translate("ProjectsWidget",
+            "Could not configure this DVMDB as private (HTTP %1: %2). The server may need "
+            "the updated DVMDB build or may already have a conflicting repository role.")
+                .arg(QStringLiteral("409"), QStringLiteral("conflict"));
+        if (!matches(code, "project DVMDB error placeholders",
+                     branch_warning.contains(QStringLiteral("409"))
+                     && branch_warning.contains(QStringLiteral("conflict")), true))
+            return 20;
+        const QString hidden_revisions = QCoreApplication::translate("ProjectRevisionGraph",
+            "+ %n hidden revision(s)\nClick to unfold", nullptr, 2);
+        if (!matches(code, "graph hidden revision count", hidden_revisions.contains(QStringLiteral("2")), true)
+            || !matches(code, "graph hidden revision placeholder", hidden_revisions.contains(QStringLiteral("%n")), false))
+            return 19;
         // Real .qm catalogue coverage complements the synthetic translator
         // test in aowis-hydraulic-libraries-widget. A fresh or already open
         // library page must have localized collection names in all languages.

@@ -1,5 +1,6 @@
 #include "settings/personal_repository_settings_widget.h"
 
+#include <QEvent>
 #include <QFormLayout>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -16,6 +17,7 @@ PersonalRepositorySettingsWidget::PersonalRepositorySettingsWidget(QWidget *pare
     layout->setContentsMargins(18, 18, 18, 18);
 
     QLabel *heading = new QLabel(tr("Personal working repository"), this);
+    heading->setObjectName(QStringLiteral("personalRepositoryHeading"));
     QFont title_font = heading->font();
     title_font.setBold(true);
     heading->setFont(title_font);
@@ -25,6 +27,7 @@ PersonalRepositorySettingsWidget::PersonalRepositorySettingsWidget(QWidget *pare
         "This is separate from the shared and read-only databases in Projects. "
         "Draft editing is disabled until the private repository has been verified. "
         "Configuration and identity verification do not authenticate the server."), this);
+    description->setObjectName(QStringLiteral("personalRepositoryDescription"));
     description->setWordWrap(true);
     layout->addWidget(description);
 
@@ -39,6 +42,8 @@ PersonalRepositorySettingsWidget::PersonalRepositorySettingsWidget(QWidget *pare
             : tr("The private DVMDB path is also configured as a local project source. "
                  "Remove the conflicting source before enabling private editing."), this);
     embedded->setObjectName(QStringLiteral("personalRepositoryStandaloneStatus"));
+    embedded->setProperty("personalRepositoryEmbedded", target.kind == PersonalRepositoryTarget::Kind::Embedded);
+    embedded->setProperty("personalRepositoryPath", target.storage_path);
     embedded->setWordWrap(true);
     layout->addWidget(embedded);
 #else
@@ -46,11 +51,15 @@ PersonalRepositorySettingsWidget::PersonalRepositorySettingsWidget(QWidget *pare
     this->endpoint = new QLineEdit(this);
     this->endpoint->setObjectName(QStringLiteral("personalRepositoryEndpoint"));
     this->endpoint->setPlaceholderText(QStringLiteral("http://127.0.0.1:8755"));
-    form->addRow(tr("Private DVMDB URL:"), this->endpoint);
+    QLabel *endpoint_label = new QLabel(tr("Private DVMDB URL:"), this);
+    endpoint_label->setObjectName(QStringLiteral("personalRepositoryEndpointTitle"));
+    form->addRow(endpoint_label, this->endpoint);
     this->repository_id = new QLineEdit(this);
     this->repository_id->setObjectName(QStringLiteral("personalRepositoryExpectedId"));
     this->repository_id->setPlaceholderText(tr("UUIDv7 from GET /dvmdb/v1/repository"));
-    form->addRow(tr("Expected repository UUID:"), this->repository_id);
+    QLabel *identity_label = new QLabel(tr("Expected repository UUID:"), this);
+    identity_label->setObjectName(QStringLiteral("personalRepositoryExpectedIdTitle"));
+    form->addRow(identity_label, this->repository_id);
     layout->addLayout(form);
 
     QHBoxLayout *actions = new QHBoxLayout();
@@ -79,10 +88,68 @@ PersonalRepositorySettingsWidget::PersonalRepositorySettingsWidget(QWidget *pare
         "Security: a repository UUID and URL are not authentication. "
         "Use an isolated private service; do not expose writable HTTP DVMDB to untrusted users. "
         "Credentials must not be stored in GUI settings."), this);
+    warning->setObjectName(QStringLiteral("personalRepositoryWarning"));
     warning->setWordWrap(true);
     layout->addWidget(warning);
     layout->addStretch();
     restore();
+}
+
+void PersonalRepositorySettingsWidget::changeEvent(QEvent *event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::LanguageChange)
+        refreshLocalizedText();
+}
+
+void PersonalRepositorySettingsWidget::refreshLocalizedText()
+{
+    if (QLabel *heading = findChild<QLabel *>(QStringLiteral("personalRepositoryHeading")))
+        heading->setText(tr("Personal working repository"));
+    if (QLabel *description = findChild<QLabel *>(QStringLiteral("personalRepositoryDescription")))
+        description->setText(tr("This is separate from the shared and read-only databases in Projects. "
+                                "Draft editing is disabled until the private repository has been verified. "
+                                "Configuration and identity verification do not authenticate the server."));
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    if (QLabel *embedded = findChild<QLabel *>(QStringLiteral("personalRepositoryStandaloneStatus")))
+    {
+        embedded->setText(embedded->property("personalRepositoryEmbedded").toBool()
+            ? tr("Dedicated personal DVMDB: %1. "
+                 "It is separate from the navigable Local database. "
+                 "Native identity/role verification and draft checkout are not enabled yet.")
+                  .arg(embedded->property("personalRepositoryPath").toString())
+            : tr("The private DVMDB path is also configured as a local project source. "
+                 "Remove the conflicting source before enabling private editing."));
+    }
+#else
+    if (QLabel *endpoint_label = findChild<QLabel *>(QStringLiteral("personalRepositoryEndpointTitle")))
+        endpoint_label->setText(tr("Private DVMDB URL:"));
+    if (QLabel *identity_label = findChild<QLabel *>(QStringLiteral("personalRepositoryExpectedIdTitle")))
+        identity_label->setText(tr("Expected repository UUID:"));
+    if (this->repository_id != nullptr)
+        this->repository_id->setPlaceholderText(tr("UUIDv7 from GET /dvmdb/v1/repository"));
+    if (this->save_button != nullptr)
+        this->save_button->setText(tr("Save and verify"));
+    if (QPushButton *recheck = findChild<QPushButton *>(QStringLiteral("personalRepositoryRecheck")))
+        recheck->setText(tr("Check again"));
+    if (QPushButton *remove = findChild<QPushButton *>(QStringLiteral("personalRepositoryRemove")))
+        remove->setText(tr("Remove configuration"));
+#endif
+    if (QLabel *warning = findChild<QLabel *>(QStringLiteral("personalRepositoryWarning")))
+        warning->setText(tr("Security: a repository UUID and URL are not authentication. "
+                            "Use an isolated private service; do not expose writable HTTP DVMDB to untrusted users. "
+                            "Credentials must not be stored in GUI settings."));
+    if (this->status != nullptr)
+    {
+        const LocalStatusDetail previous_error = this->local_status_detail;
+        QString detail = this->displayed_status_detail;
+        if (previous_error == LocalStatusDetail::SaveFailed)
+            detail = tr("Could not save the personal repository configuration.");
+        else if (previous_error == LocalStatusDetail::RemoveFailed)
+            detail = tr("Could not remove the personal repository configuration.");
+        updateStatus(this->displayed_status_state, detail);
+        this->local_status_detail = previous_error;
+    }
 }
 
 PersonalRepositoryMonitor::State PersonalRepositorySettingsWidget::verificationState() const
@@ -129,6 +196,7 @@ void PersonalRepositorySettingsWidget::save()
         this->monitor.stop();
         updateStatus(PersonalRepositoryMonitor::State::Unavailable,
                      tr("Could not save the personal repository configuration."));
+        this->local_status_detail = LocalStatusDetail::SaveFailed;
         return;
     }
     verify();
@@ -142,6 +210,7 @@ void PersonalRepositorySettingsWidget::clear()
     {
         updateStatus(PersonalRepositoryMonitor::State::Unavailable,
                      tr("Could not remove the personal repository configuration."));
+        this->local_status_detail = LocalStatusDetail::RemoveFailed;
         return;
     }
     this->monitor.stop();
@@ -173,6 +242,9 @@ void PersonalRepositorySettingsWidget::verify()
 void PersonalRepositorySettingsWidget::updateStatus(
     PersonalRepositoryMonitor::State state, const QString &detail)
 {
+    this->displayed_status_state = state;
+    this->displayed_status_detail = detail;
+    this->local_status_detail = LocalStatusDetail::None;
     QString text;
     switch (state)
     {

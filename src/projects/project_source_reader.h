@@ -2,6 +2,7 @@
 
 #include "config/project_server_profile_storage.h"
 
+#include <QCoreApplication>
 #include <QHash>
 #include <QList>
 #include <QNetworkAccessManager>
@@ -61,6 +62,8 @@ struct SourceSnapshot
 // Results are delivered on the GUI thread only after a complete snapshot.
 class ProjectSourceReader final : public QObject
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectSourceReader)
+
 public:
     using Completion = std::function<void(const SourceSnapshot &, const QString &)>;
 

@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "map/editor/map_canvas_pipes.h"
 #include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_markers.h"
@@ -15,6 +16,7 @@
 #include <QHash>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
 
 #include <algorithm>
 #include <cmath>
@@ -674,6 +676,34 @@ std::optional<CoordinateWGS84> MapCanvasPipes::coordinateAtPosition(
     return coordinates.last();
 }
 
+void MapCanvasPipes::confirmVertexConversion(const QUuid &pipe_uuid, int vertex_index)
+{
+    // The user may change language while this nonblocking dialog is open.
+    // Keep its identity, pending operation and default-safe Cancel action.
+    QMessageBox *dialog = new QMessageBox(this->map_canvas);
+    dialog->setIcon(QMessageBox::Question);
+    QPushButton *convert = dialog->addButton(tr("Convert"), QMessageBox::AcceptRole);
+    QPushButton *cancel = dialog->addButton(tr("Cancel"), QMessageBox::RejectRole);
+    dialog->setDefaultButton(cancel);
+    dialog->setEscapeButton(cancel);
+    LiveUiText::bind(dialog, [dialog, convert, cancel]
+    {
+        dialog->setWindowTitle(QCoreApplication::translate("MapCanvasPipes", "Convert pipe vertex"));
+        dialog->setText(QCoreApplication::translate("MapCanvasPipes",
+            "Do you really want to convert this pipe vertex to a junction?"));
+        convert->setText(QCoreApplication::translate("MapCanvasPipes", "Convert"));
+        cancel->setText(QCoreApplication::translate("MapCanvasPipes", "Cancel"));
+    });
+    connect(dialog, &QMessageBox::finished, this,
+            [this, dialog, convert, pipe_uuid, vertex_index](int)
+    {
+        if (dialog->clickedButton() == convert)
+            emit pipeVertexConversionRequested(pipe_uuid, vertex_index);
+    });
+    connect(dialog, &QMessageBox::finished, dialog, &QObject::deleteLater);
+    dialog->open();
+}
+
 bool MapCanvasPipes::showContextMenuAt(const QPointF &position,
                                        const QPoint &global_position,
                                        const MapCanvasMarkers &markers)
@@ -688,65 +718,49 @@ bool MapCanvasPipes::showContextMenuAt(const QPointF &position,
 #ifdef Q_OS_WASM
         WasmPopupMenu *menu = new WasmPopupMenu(this->map_canvas);
         menu->setDeleteOnClose(true);
-        menu->addAction(QStringLiteral("Move vertex"), [this, pipe_uuid, vertex_index]
+        QPushButton *action_move = menu->addAction(tr("Move vertex"), [this, pipe_uuid, vertex_index]
         {
             emit pipeVertexMoveRequested(pipe_uuid, vertex_index);
         });
-        menu->addAction(QStringLiteral("Delete vertex"), [this, pipe_uuid, vertex_index]
+        QPushButton *action_delete = menu->addAction(tr("Delete vertex"), [this, pipe_uuid, vertex_index]
         {
             emit pipeVertexDeleteRequested(pipe_uuid, vertex_index);
         });
-        menu->addAction(QStringLiteral("Convert to junction"), [this, pipe_uuid, vertex_index]
+        QPushButton *action_convert = menu->addAction(tr("Convert to junction"), [this, pipe_uuid, vertex_index]
         {
-            QMessageBox *message_box = new QMessageBox(
-                QMessageBox::Question, QStringLiteral("Convert pipe vertex"),
-                QStringLiteral("Do you really want to convert this pipe vertex to a junction?"),
-                QMessageBox::Yes | QMessageBox::No, this->map_canvas);
-            message_box->setDefaultButton(QMessageBox::No);
-            connect(message_box, &QMessageBox::finished, this,
-                    [this, pipe_uuid, vertex_index](int result)
-            {
-                if (result == QMessageBox::Yes)
-                    emit pipeVertexConversionRequested(pipe_uuid, vertex_index);
-            });
-            connect(message_box, &QMessageBox::finished,
-                    message_box, &QObject::deleteLater);
-            message_box->open();
+            confirmVertexConversion(pipe_uuid, vertex_index);
+        });
+        LiveUiText::bind(menu, [action_move, action_delete, action_convert]
+        {
+            action_move->setText(QCoreApplication::translate("MapCanvasPipes", "Move vertex"));
+            action_delete->setText(QCoreApplication::translate("MapCanvasPipes", "Delete vertex"));
+            action_convert->setText(QCoreApplication::translate("MapCanvasPipes", "Convert to junction"));
         });
         menu->popup(global_position);
 #else
         QMenu *menu = new QMenu(this->map_canvas);
         menu->setAttribute(Qt::WA_DeleteOnClose);
-        QAction *action_move = menu->addAction("Move vertex");
-        QAction *action_delete = menu->addAction("Delete vertex");
-        QAction *action_convert_to_junction = menu->addAction("Convert to junction");
-
-        connect(action_move, &QAction::triggered, this, [this, pipe_uuid, vertex_index]()
+        QAction *action_move = menu->addAction(tr("Move vertex"));
+        QAction *action_delete = menu->addAction(tr("Delete vertex"));
+        QAction *action_convert = menu->addAction(tr("Convert to junction"));
+        connect(action_move, &QAction::triggered, this, [this, pipe_uuid, vertex_index]
         {
             emit pipeVertexMoveRequested(pipe_uuid, vertex_index);
         });
-        connect(action_delete, &QAction::triggered, this, [this, pipe_uuid, vertex_index]()
+        connect(action_delete, &QAction::triggered, this, [this, pipe_uuid, vertex_index]
         {
             emit pipeVertexDeleteRequested(pipe_uuid, vertex_index);
         });
-        connect(action_convert_to_junction, &QAction::triggered, this,
-                [this, pipe_uuid, vertex_index]()
+        connect(action_convert, &QAction::triggered, this, [this, pipe_uuid, vertex_index]
         {
-            QMessageBox *message_box = new QMessageBox(
-                QMessageBox::Question, "Convert pipe vertex",
-                "Do you really want to convert this pipe vertex to a junction?",
-                QMessageBox::Yes | QMessageBox::No, this->map_canvas);
-            message_box->setDefaultButton(QMessageBox::No);
-            connect(message_box, &QMessageBox::finished, this,
-                    [this, pipe_uuid, vertex_index](int result)
-            {
-                if (result == QMessageBox::Yes)
-                    emit pipeVertexConversionRequested(pipe_uuid, vertex_index);
-            });
-            connect(message_box, &QMessageBox::finished, message_box, &QObject::deleteLater);
-            message_box->open();
+            confirmVertexConversion(pipe_uuid, vertex_index);
         });
-
+        LiveUiText::bind(menu, [action_move, action_delete, action_convert]
+        {
+            action_move->setText(QCoreApplication::translate("MapCanvasPipes", "Move vertex"));
+            action_delete->setText(QCoreApplication::translate("MapCanvasPipes", "Delete vertex"));
+            action_convert->setText(QCoreApplication::translate("MapCanvasPipes", "Convert to junction"));
+        });
         menu->popup(global_position);
 #endif
         return true;

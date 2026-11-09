@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "map/editor/map_canvas_entities.h"
 #include "map/editor/map_canvas_devicelinks.h"
 #include "map/editor/map_canvas_markers.h"
@@ -2158,16 +2159,21 @@ void MapCanvasEntities::showDemandPointAttachmentContextMenu(
     menu->setDeleteOnClose(true);
     if (demand_point->attachment.type == HydraulicDemandPointAttachmentType::Pipe)
     {
-        menu->addAction(QStringLiteral("Move attachment"), [this, demand_point_uuid]
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move attachment")), [this, demand_point_uuid]
         {
             startDemandPointAttachmentMove(demand_point_uuid);
         });
-        menu->addAction(QStringLiteral("Convert to junction"), [this, demand_point_uuid]
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Convert to junction")), [this, demand_point_uuid]
         {
             QMessageBox *message_box = new QMessageBox(
-                QMessageBox::Question, QStringLiteral("Convert demand-point attachment"),
-                QStringLiteral("Do you really want to convert this attachment to a junction?"),
+                QMessageBox::Question, QString(), QString(),
                 QMessageBox::Yes | QMessageBox::No, this->map_canvas);
+            LiveUiText::bind(message_box, [message_box] {
+                message_box->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Convert demand-point attachment")));
+                message_box->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to convert this attachment to a junction?")));
+            });
             message_box->setDefaultButton(QMessageBox::No);
             connect(message_box, &QMessageBox::finished, this,
                     [this, demand_point_uuid](int result)
@@ -2180,11 +2186,11 @@ void MapCanvasEntities::showDemandPointAttachmentContextMenu(
             message_box->open();
         });
     }
-    menu->addAction(QStringLiteral("Reattach"), [this, demand_point_uuid]
+    menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reattach")), [this, demand_point_uuid]
     {
         startDemandPointAttachmentSelection(demand_point_uuid);
     });
-    menu->addAction(QStringLiteral("Detach"), [this, demand_point_uuid]
+    menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Detach")), [this, demand_point_uuid]
     {
         if (this->hydraulic_data)
             this->hydraulic_data->clearDemandPointAttachment(demand_point_uuid);
@@ -2196,8 +2202,8 @@ void MapCanvasEntities::showDemandPointAttachmentContextMenu(
     menu->setAttribute(Qt::WA_DeleteOnClose);
     if (demand_point->attachment.type == HydraulicDemandPointAttachmentType::Pipe)
     {
-        QAction *action_move = menu->addAction("Move attachment");
-        QAction *action_convert = menu->addAction("Convert to junction");
+        QAction *action_move = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move attachment")));
+        QAction *action_convert = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Convert to junction")));
         connect(action_move, &QAction::triggered, this, [this, demand_point_uuid]()
         {
             startDemandPointAttachmentMove(demand_point_uuid);
@@ -2205,9 +2211,14 @@ void MapCanvasEntities::showDemandPointAttachmentContextMenu(
         connect(action_convert, &QAction::triggered, this, [this, demand_point_uuid]()
         {
             QMessageBox *message_box = new QMessageBox(
-                QMessageBox::Question, "Convert demand-point attachment",
-                "Do you really want to convert this attachment to a junction?",
+                QMessageBox::Question, QString(), QString(),
                 QMessageBox::Yes | QMessageBox::No, this->map_canvas);
+            LiveUiText::bind(message_box, [message_box] {
+                message_box->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Convert demand-point attachment")));
+                message_box->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to convert this attachment to a junction?")));
+            });
             message_box->setDefaultButton(QMessageBox::No);
             connect(message_box, &QMessageBox::finished, this,
                     [this, demand_point_uuid](int result)
@@ -2220,8 +2231,8 @@ void MapCanvasEntities::showDemandPointAttachmentContextMenu(
             message_box->open();
         });
     }
-    QAction *action_reattach = menu->addAction("Reattach");
-    QAction *action_detach = menu->addAction("Detach");
+    QAction *action_reattach = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reattach")));
+    QAction *action_detach = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Detach")));
     connect(action_reattach, &QAction::triggered, this, [this, demand_point_uuid]()
     {
         startDemandPointAttachmentSelection(demand_point_uuid);
@@ -2356,11 +2367,11 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
 
     if (multiple_entities_selected)
     {
-        menu->addAction(QStringLiteral("Move this entity"), [this, uuid, pointer_position]
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move this entity")), [this, uuid, pointer_position]
         {
             startMarkerMove(uuid, pointer_position);
         });
-        menu->addAction(QStringLiteral("Move selected entities"),
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move selected entities")),
                         [this, uuid, pointer_position]
         {
             startSelectedMarkerMove(uuid, pointer_position);
@@ -2368,7 +2379,7 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     }
     else
     {
-        menu->addAction(QStringLiteral("Move"), [this, uuid, pointer_position]
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move")), [this, uuid, pointer_position]
         {
             startMarkerMove(uuid, pointer_position);
         });
@@ -2378,8 +2389,8 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     {
         menu->addSeparator();
         menu->addAction(
-            demand_point_attached ? QStringLiteral("Reattach to network")
-                                  : QStringLiteral("Attach to network"),
+            demand_point_attached ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reattach to network"))
+                                  : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Attach to network")),
             [this, uuid]
         {
             startDemandPointAttachmentSelection(uuid);
@@ -2388,16 +2399,21 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
         {
             if (demand_point->attachment.type == HydraulicDemandPointAttachmentType::Pipe)
             {
-                menu->addAction(QStringLiteral("Move attachment"), [this, uuid]
+                menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move attachment")), [this, uuid]
                 {
                     startDemandPointAttachmentMove(uuid);
                 });
-                menu->addAction(QStringLiteral("Convert attachment to junction"), [this, uuid]
+                menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Convert attachment to junction")), [this, uuid]
                 {
                     QMessageBox *message_box = new QMessageBox(
-                        QMessageBox::Question, QStringLiteral("Convert demand-point attachment"),
-                        QStringLiteral("Do you really want to convert this attachment to a junction?"),
+                        QMessageBox::Question, QString(), QString(),
                         QMessageBox::Yes | QMessageBox::No, this->map_canvas);
+                    LiveUiText::bind(message_box, [message_box] {
+                        message_box->setWindowTitle(LiveUiText::translate(
+                            QT_TRANSLATE_NOOP("LiveUiText", "Convert demand-point attachment")));
+                        message_box->setText(LiveUiText::translate(
+                            QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to convert this attachment to a junction?")));
+                    });
                     message_box->setDefaultButton(QMessageBox::No);
                     connect(message_box, &QMessageBox::finished, this, [this, uuid](int result)
                     {
@@ -2409,7 +2425,7 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
                     message_box->open();
                 });
             }
-            menu->addAction(QStringLiteral("Detach from network"), [this, uuid]
+            menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Detach from network")), [this, uuid]
             {
                 if (this->hydraulic_data)
                     this->hydraulic_data->clearDemandPointAttachment(uuid);
@@ -2421,15 +2437,19 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     menu->addSeparator();
     menu->addAction(
         multiple_entities_selected
-            ? QStringLiteral("Delete this entity")
-            : QStringLiteral("Delete"),
+            ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete this entity"))
+            : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete")),
         [this, uuid]
         {
             QMessageBox *box = new QMessageBox(this->map_canvas);
             box->setAttribute(Qt::WA_DeleteOnClose);
             box->setIcon(QMessageBox::Question);
-            box->setWindowTitle(QStringLiteral("Delete entity"));
-            box->setText(QStringLiteral("Do you really want to delete this entity?"));
+            LiveUiText::bind(box, [box] {
+                box->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Delete entity")));
+                box->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete this entity?")));
+            });
             box->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
             box->setDefaultButton(QMessageBox::No);
             connect(box, &QMessageBox::buttonClicked, this,
@@ -2446,13 +2466,18 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
 
     if (multiple_entities_selected)
     {
-        menu->addAction(QStringLiteral("Delete selected entities"), [this]
+        menu->addAction(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")), [this]
         {
             QMessageBox *box = new QMessageBox(this->map_canvas);
             box->setAttribute(Qt::WA_DeleteOnClose);
             box->setIcon(QMessageBox::Question);
-            box->setWindowTitle(QStringLiteral("Delete selected entities"));
-            box->setText(QStringLiteral("Do you really want to delete all selected entities?"));
+            LiveUiText::bind(box, [box] {
+                box->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")));
+                box->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete all selected entities?")));
+            });
             box->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
             box->setDefaultButton(QMessageBox::No);
             connect(box, &QMessageBox::buttonClicked, this,
@@ -2472,8 +2497,8 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
 
     if (multiple_entities_selected)
     {
-        QAction *action_move_this = menu->addAction("Move this entity");
-        QAction *action_move_selected = menu->addAction("Move selected entities");
+        QAction *action_move_this = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move this entity")));
+        QAction *action_move_selected = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move selected entities")));
         connect(action_move_this, &QAction::triggered, this, [this, uuid, pointer_position]()
         {
             startMarkerMove(uuid, pointer_position);
@@ -2486,7 +2511,7 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     }
     else
     {
-        QAction *action_move = menu->addAction("Move");
+        QAction *action_move = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move")));
         connect(action_move, &QAction::triggered, this, [this, uuid, pointer_position]()
         {
             startMarkerMove(uuid, pointer_position);
@@ -2497,7 +2522,7 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     {
         menu->addSeparator();
         QAction *action_attach = menu->addAction(
-            demand_point_attached ? "Reattach to network" : "Attach to network");
+            demand_point_attached ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reattach to network")) : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Attach to network")));
         connect(action_attach, &QAction::triggered, this, [this, uuid]()
         {
             startDemandPointAttachmentSelection(uuid);
@@ -2506,9 +2531,9 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
         {
             if (demand_point->attachment.type == HydraulicDemandPointAttachmentType::Pipe)
             {
-                QAction *action_move_attachment = menu->addAction("Move attachment");
+                QAction *action_move_attachment = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move attachment")));
                 QAction *action_convert_attachment =
-                    menu->addAction("Convert attachment to junction");
+                    menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Convert attachment to junction")));
                 connect(action_move_attachment, &QAction::triggered, this, [this, uuid]()
                 {
                     startDemandPointAttachmentMove(uuid);
@@ -2516,9 +2541,14 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
                 connect(action_convert_attachment, &QAction::triggered, this, [this, uuid]()
                 {
                     QMessageBox *message_box = new QMessageBox(
-                        QMessageBox::Question, "Convert demand-point attachment",
-                        "Do you really want to convert this attachment to a junction?",
+                        QMessageBox::Question, QString(), QString(),
                         QMessageBox::Yes | QMessageBox::No, this->map_canvas);
+                    LiveUiText::bind(message_box, [message_box] {
+                        message_box->setWindowTitle(LiveUiText::translate(
+                            QT_TRANSLATE_NOOP("LiveUiText", "Convert demand-point attachment")));
+                        message_box->setText(LiveUiText::translate(
+                            QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to convert this attachment to a junction?")));
+                    });
                     message_box->setDefaultButton(QMessageBox::No);
                     connect(message_box, &QMessageBox::finished, this, [this, uuid](int result)
                     {
@@ -2530,7 +2560,7 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
                     message_box->open();
                 });
             }
-            QAction *action_detach = menu->addAction("Detach from network");
+            QAction *action_detach = menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Detach from network")));
             connect(action_detach, &QAction::triggered, this, [this, uuid]()
             {
                 if (this->hydraulic_data)
@@ -2543,16 +2573,20 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
     menu->addSeparator();
 
     const QString delete_this_text = multiple_entities_selected
-                                         ? QStringLiteral("Delete this entity")
-                                         : QStringLiteral("Delete");
+                                         ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete this entity"))
+                                         : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete"));
     QAction *action_delete_this = menu->addAction(delete_this_text);
     connect(action_delete_this, &QAction::triggered, this, [this, uuid]()
     {
         QMessageBox *box = new QMessageBox(this->map_canvas);
         box->setAttribute(Qt::WA_DeleteOnClose);
         box->setIcon(QMessageBox::Question);
-        box->setWindowTitle("Delete entity");
-        box->setText("Do you really want to delete this entity?");
+        LiveUiText::bind(box, [box] {
+            box->setWindowTitle(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Delete entity")));
+            box->setText(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete this entity?")));
+        });
         box->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
         box->setDefaultButton(QMessageBox::No);
         connect(box, &QMessageBox::buttonClicked, this, [this, box, uuid](QAbstractButton *button)
@@ -2568,14 +2602,19 @@ void MapCanvasEntities::showMarkerContextMenu(const QUuid &uuid,
 
     if (multiple_entities_selected)
     {
-        QAction *action_delete_selected = menu->addAction("Delete selected entities");
+        QAction *action_delete_selected = menu->addAction(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")));
         connect(action_delete_selected, &QAction::triggered, this, [this]()
         {
             QMessageBox *box = new QMessageBox(this->map_canvas);
             box->setAttribute(Qt::WA_DeleteOnClose);
             box->setIcon(QMessageBox::Question);
-            box->setWindowTitle("Delete selected entities");
-            box->setText("Do you really want to delete all selected entities?");
+            LiveUiText::bind(box, [box] {
+                box->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")));
+                box->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete all selected entities?")));
+            });
             box->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
             box->setDefaultButton(QMessageBox::No);
             connect(box, &QMessageBox::buttonClicked, this,

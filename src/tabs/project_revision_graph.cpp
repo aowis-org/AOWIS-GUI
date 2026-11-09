@@ -581,6 +581,37 @@ void ProjectRevisionGraph::retranslateCaptions()
     requestGraphRedraw();
 }
 
+void ProjectRevisionGraph::refreshNodeTitles(const QHash<QString, QString> &titles)
+{
+    // Presentation-only updates: never call setNodes(), refit or recreate the
+    // graph. Keep canonical and displayed nodes synchronized across filters.
+    if (titles.isEmpty()) return;
+    bool changed = false;
+    for (ProjectGraphNode &node : this->source_nodes)
+    {
+        const QHash<QString, QString>::const_iterator it = titles.constFind(node.id);
+        if (it != titles.cend() && node.title != it.value())
+        {
+            node.title = it.value();
+            changed = true;
+        }
+    }
+    for (ProjectGraphNode &node : this->nodes)
+    {
+        const QHash<QString, QString>::const_iterator it = titles.constFind(node.id);
+        if (it != titles.cend() && node.title != it.value())
+        {
+            node.title = it.value();
+            changed = true;
+        }
+    }
+    if (!changed) return;
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr) this->gpu_view->invalidateScene();
+#endif
+    requestGraphRedraw();
+}
+
 void ProjectRevisionGraph::setTopDown(bool top_down)
 {
     if (this->top_down == top_down)
@@ -721,6 +752,13 @@ QString ProjectRevisionGraph::nodeBranchCaption(const QString &node_id) const
 {
     for (const ProjectGraphNode &node : this->source_nodes)
         if (node.id == node_id) return node.branch;
+    return {};
+}
+
+QString ProjectRevisionGraph::nodeTitle(const QString &node_id) const
+{
+    for (const ProjectGraphNode &node : this->source_nodes)
+        if (node.id == node_id) return node.title;
     return {};
 }
 

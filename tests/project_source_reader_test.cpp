@@ -3,6 +3,7 @@
 #include "projects/dvmdb_identity.h"
 
 #include <QCoreApplication>
+#include <QTranslator>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHostAddress>
@@ -18,6 +19,25 @@
 
 namespace
 {
+class SourceContextTranslator final : public QTranslator
+{
+public:
+    bool isEmpty() const override { return false; }
+    QString translate(const char *context, const char *source_text,
+                      const char *disambiguation = nullptr, int n = -1) const override
+    {
+        Q_UNUSED(disambiguation)
+        Q_UNUSED(n)
+        if (QByteArray(context) == "ProjectSourceReader"
+            && QByteArray(source_text) == "Unsupported database connection type.")
+            return QStringLiteral("translated-source-context");
+        if (QByteArray(context) == "ProjectSourceReader"
+            && QByteArray(source_text) == "Select a verified database with a UUIDv7 repository identity.")
+            return QStringLiteral("translated-source-context");
+        return QString();
+    }
+};
+
 bool require(bool condition, const char *message)
 {
     if (!condition) std::fprintf(stderr, "FAILED: %s\n", message);
@@ -37,6 +57,23 @@ bool waitUntil(QCoreApplication &app, const std::function<bool()> &predicate)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // A QObject subclass without Q_OBJECT must explicitly own its Qt translation
+    // context. Verify the actual reader error, not just the catalogue lookup.
+    {
+        SourceContextTranslator synthetic;
+        app.installTranslator(&synthetic);
+        ProjectSourceReader localized_reader;
+        ProjectServerProfile invalid_profile;
+        invalid_profile.connection_type = QStringLiteral("invalid");
+        QString translated_error;
+        localized_reader.load(invalid_profile,
+            [&translated_error](const SourceSnapshot &, const QString &error) {
+                translated_error = error;
+            });
+        if (!require(translated_error == QStringLiteral("translated-source-context"),
+                     "reader did not use its dedicated translation context")) return 1;
+        app.removeTranslator(&synthetic);
+    }
     QTcpServer server;
     if (!require(server.listen(QHostAddress::LocalHost, 0), "cannot start REST mock")) return 1;
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-000000000900");

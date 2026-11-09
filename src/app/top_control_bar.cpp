@@ -287,8 +287,8 @@ void TopControlBar::updateSimulationStatisticsAvailability()
     this->button_sim_statistics->setEnabled(available);
     this->button_sim_statistics->setToolTip(
         available
-            ? QStringLiteral("Show simulation statistics")
-            : QStringLiteral("Show simulation statistics<br>You need to run a simulation first"));
+            ? tr("Show simulation statistics")
+            : tr("Show simulation statistics<br>You need to run a simulation first"));
 }
 
 void TopControlBar::resetSimulationRunIcon()
@@ -297,6 +297,8 @@ void TopControlBar::resetSimulationRunIcon()
         return;
 
     this->button_sim_start->setIcon(QIcon(QStringLiteral(":/icon/simulation_start.png")));
+    this->simulation_run_state = SimulationRunState::Ready;
+    refreshSimulationRunTooltip();
 }
 
 void TopControlBar::setSimulationRunRunningIcon()
@@ -305,8 +307,8 @@ void TopControlBar::setSimulationRunRunningIcon()
         return;
 
     this->button_sim_start->setIcon(QIcon(QStringLiteral(":/icon/simulation_stop.png")));
-    this->button_sim_start->setToolTip(
-        QStringLiteral("Stop Simulation<br>Simulation running...<br>") + simulationShortcutTooltip());
+    this->simulation_run_state = SimulationRunState::Running;
+    refreshSimulationRunTooltip();
 }
 
 void TopControlBar::setSimulationRunStoppingIcon()
@@ -315,8 +317,8 @@ void TopControlBar::setSimulationRunStoppingIcon()
         return;
 
     this->button_sim_start->setIcon(QIcon(QStringLiteral(":/icon/simulation_stop.png")));
-    this->button_sim_start->setToolTip(
-        QStringLiteral("Stopping Simulation...<br>The current EPANET solver step will finish before cancellation."));
+    this->simulation_run_state = SimulationRunState::Stopping;
+    refreshSimulationRunTooltip();
 }
 
 void TopControlBar::setSimulationRunCancelledIcon()
@@ -325,9 +327,8 @@ void TopControlBar::setSimulationRunCancelledIcon()
         return;
 
     this->button_sim_start->setIcon(QIcon(QStringLiteral(":/icon/simulation_start.png")));
-    this->button_sim_start->setToolTip(
-        QStringLiteral("Run Configured Simulations<br>") + simulationShortcutTooltip()
-            + QStringLiteral("<br><br>Last run: Cancelled"));
+    this->simulation_run_state = SimulationRunState::Cancelled;
+    refreshSimulationRunTooltip();
 }
 
 void TopControlBar::setSimulationRunResultIcon(
@@ -348,41 +349,36 @@ void TopControlBar::setSimulationRunResultIcon(
     }
 
     QString icon_path;
-    QString last_run_status;
     if (!result_timeline.status.success)
     {
         icon_path = QStringLiteral(":/icon/simulation_error.png");
-        last_run_status = QStringLiteral("Failed");
+        this->simulation_run_state = SimulationRunState::Failed;
     }
     else if (error_count > 0)
     {
         icon_path = QStringLiteral(":/icon/simulation_error.png");
-        last_run_status = QStringLiteral("Completed with %1 error%2")
-            .arg(error_count)
-            .arg(error_count == 1 ? QString() : QStringLiteral("s"));
+        this->simulation_run_state = SimulationRunState::Errors;
+        this->simulation_run_error_count = error_count;
     }
     else if (result_timeline.validity != HydraulicSimulationResultValidity::Valid)
     {
         icon_path = QStringLiteral(":/icon/simulation_error.png");
-        last_run_status = QStringLiteral("Invalid result");
+        this->simulation_run_state = SimulationRunState::Invalid;
     }
     else if (warning_count > 0)
     {
         icon_path = QStringLiteral(":/icon/simulation_warning.png");
-        last_run_status = QStringLiteral("Successful with %1 warning%2")
-            .arg(warning_count)
-            .arg(warning_count == 1 ? QString() : QStringLiteral("s"));
+        this->simulation_run_state = SimulationRunState::Warnings;
+        this->simulation_run_warning_count = warning_count;
     }
     else
     {
         icon_path = QStringLiteral(":/icon/simulation_success.png");
-        last_run_status = QStringLiteral("Successful");
+        this->simulation_run_state = SimulationRunState::Successful;
     }
 
     this->button_sim_start->setIcon(QIcon(icon_path));
-    this->button_sim_start->setToolTip(
-        QStringLiteral("Run Configured Simulations<br>") + simulationShortcutTooltip()
-            + QStringLiteral("<br><br>Last run: %1").arg(last_run_status));
+    refreshSimulationRunTooltip();
 }
 
 void TopControlBar::setSimulationResultTimeline(
@@ -507,8 +503,8 @@ void TopControlBar::setSimulationPlaybackActive(bool active)
         style()->standardIcon(playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
     this->button_sim_playback->setToolTip(
         playing
-            ? QStringLiteral("Pause simulation timeline")
-            : QStringLiteral("Play simulation timeline"));
+            ? tr("Pause simulation timeline")
+            : tr("Play simulation timeline"));
 }
 
 void TopControlBar::requestSimulationResultIndex(int result_index)
@@ -866,7 +862,7 @@ void TopControlBar::addFlowUnitCombo()
         UnitProfileManager &manager = UnitProfileManager::instance();
         const QVector<UnitProfileManager::Profile> &profiles = manager.profiles();
         const int active = manager.activeIndex();
-        button->setText(profiles.at(active).name + QStringLiteral("  ▾"));
+        button->setText(UnitProfileMenu::label(profiles.at(active)) + QStringLiteral("  ▾"));
         UnitProfileMenu::populate(menu, this, profiles, active,
                                   [](int index) { (void)UnitProfileManager::instance().select(index); },
                                   [this] { emit signalManageUnitsRequested(); });
@@ -875,6 +871,14 @@ void TopControlBar::addFlowUnitCombo()
         QTimer::singleShot(0, this, refresh);
     });
     refresh();
+    connect(this, &TopControlBar::languageChanged, button, [button, menu] {
+        UnitProfileManager &manager = UnitProfileManager::instance();
+        const QVector<UnitProfileManager::Profile> &profiles = manager.profiles();
+        const int index = manager.activeIndex();
+        if (index >= 0 && index < profiles.size())
+            button->setText(UnitProfileMenu::label(profiles.at(index)) + QStringLiteral("  ▾"));
+        UnitProfileMenu::retranslate(menu, profiles);
+    });
     QLabel *caption = createCaption(tr("Units"), this->content);
     connect(this, &TopControlBar::languageChanged, caption, [caption] { caption->setText(tr("Units")); });
     bar_content->centerLayout()->addWidget(createLabeledControl(caption, button, this->content));
@@ -1017,8 +1021,7 @@ void TopControlBar::addSimulationControls()
     resetSimulationRunIcon();
     this->button_sim_start->setFlat(true);
     configureToolbarIconButton(this->button_sim_start);
-    this->button_sim_start->setToolTip(
-        QStringLiteral("Run Configured Simulations<br>") + simulationShortcutTooltip());
+    refreshSimulationRunTooltip();
 
     QAction *simulation_alternate_action = this->button_sim_start->addAction(
         QString(),
@@ -1057,8 +1060,7 @@ void TopControlBar::addSimulationControls()
             return;
         }
 
-        this->button_sim_start->setToolTip(
-            QStringLiteral("Run Configured Simulations<br>") + simulationShortcutTooltip());
+        refreshSimulationRunTooltip();
     });
 
     connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutCaptureActiveChanged,
@@ -1089,7 +1091,7 @@ void TopControlBar::addSimulationControls()
     this->button_sim_settings->setAutoRaise(true);
     this->button_sim_settings->setIcon(
         QIcon(QStringLiteral(":/icon/settings.png")));
-    this->button_sim_settings->setToolTip(QStringLiteral("Simulation settings"));
+    this->button_sim_settings->setToolTip(tr("Simulation settings"));
     configureStackedToolbarIconButton(this->button_sim_settings);
 
     const int control_height = toolbarIconButtonSize().height();
@@ -1106,7 +1108,7 @@ void TopControlBar::addSimulationControls()
     this->combo_sim_timepoint = new QComboBox(timeline_navigation);
     this->combo_sim_timepoint->setFixedSize(timeline_width, half_height);
     this->combo_sim_timepoint->setToolTip(
-        QStringLiteral("Select simulation time point"));
+        tr("Select simulation time point"));
 
     QWidget *step_buttons = new QWidget(timeline_navigation);
     step_buttons->setFixedSize(timeline_width, half_height);
@@ -1124,7 +1126,7 @@ void TopControlBar::addSimulationControls()
     this->button_sim_step_previous->setIconSize(
         QSize(qMax(1, half_height - 4), qMax(1, half_height - 4)));
     this->button_sim_step_previous->setToolTip(
-        QStringLiteral("Previous simulation time point"));
+        tr("Previous simulation time point"));
 
     this->button_sim_step_next = new QToolButton(step_buttons);
     this->button_sim_step_next->setAutoRaise(true);
@@ -1136,7 +1138,7 @@ void TopControlBar::addSimulationControls()
     this->button_sim_step_next->setIconSize(
         QSize(qMax(1, half_height - 4), qMax(1, half_height - 4)));
     this->button_sim_step_next->setToolTip(
-        QStringLiteral("Next simulation time point"));
+        tr("Next simulation time point"));
 
     step_buttons_layout->addWidget(this->button_sim_step_previous);
     step_buttons_layout->addWidget(this->button_sim_step_next);
@@ -1157,12 +1159,12 @@ void TopControlBar::addSimulationControls()
     this->button_sim_playback->setIconSize(
         QSize(qMax(1, half_height - 4), qMax(1, half_height - 4)));
     this->button_sim_playback->setToolTip(
-        QStringLiteral("Play simulation timeline"));
+        tr("Play simulation timeline"));
 
     this->combo_sim_speed = new QComboBox(playback_stack);
     this->combo_sim_speed->setFixedSize(54, half_height);
     this->combo_sim_speed->setToolTip(
-        QStringLiteral("Simulation playback speed"));
+        tr("Simulation playback speed"));
     this->combo_sim_speed->addItem(QStringLiteral("¼×"), 0.25);
     this->combo_sim_speed->addItem(QStringLiteral("½×"), 0.5);
     this->combo_sim_speed->addItem(QStringLiteral("1×"), 1.0);
@@ -1355,6 +1357,51 @@ void TopControlBar::addViewControls()
     refreshViewText();
 }
 
+void TopControlBar::refreshSimulationRunTooltip()
+{
+    if (this->button_sim_start == nullptr)
+        return;
+
+    if (this->simulation_run_state == SimulationRunState::Running)
+    {
+        this->button_sim_start->setToolTip(
+            tr("Stop Simulation<br>Simulation running...<br>") + simulationShortcutTooltip());
+        return;
+    }
+    if (this->simulation_run_state == SimulationRunState::Stopping)
+    {
+        this->button_sim_start->setToolTip(
+            tr("Stopping Simulation...<br>The current EPANET solver step will finish before cancellation."));
+        return;
+    }
+
+    QString tooltip = tr("Run Configured Simulations<br>") + simulationShortcutTooltip();
+    QString status;
+    switch (this->simulation_run_state)
+    {
+    case SimulationRunState::Ready: break;
+    case SimulationRunState::Running: break;
+    case SimulationRunState::Stopping: break;
+    case SimulationRunState::Cancelled: status = tr("Cancelled"); break;
+    case SimulationRunState::Failed: status = tr("Failed"); break;
+    case SimulationRunState::Errors:
+        status = this->simulation_run_error_count == 1
+            ? tr("Completed with %1 error").arg(this->simulation_run_error_count)
+            : tr("Completed with %n errors", nullptr, this->simulation_run_error_count);
+        break;
+    case SimulationRunState::Invalid: status = tr("Invalid result"); break;
+    case SimulationRunState::Warnings:
+        status = this->simulation_run_warning_count == 1
+            ? tr("Successful with %1 warning").arg(this->simulation_run_warning_count)
+            : tr("Successful with %n warnings", nullptr, this->simulation_run_warning_count);
+        break;
+    case SimulationRunState::Successful: status = tr("Successful"); break;
+    }
+    if (!status.isEmpty())
+        tooltip += tr("<br><br>Last run: %1").arg(status);
+    this->button_sim_start->setToolTip(tooltip);
+}
+
 void TopControlBar::refreshViewText()
 {
     if (!this->language_button)
@@ -1368,6 +1415,22 @@ void TopControlBar::refreshViewText()
         action->setChecked(action->data().toString() == code);
 #endif
     this->export_button->setToolTip(tr("Export EPANET network"));
+    updateSimulationStatisticsAvailability();
+    refreshSimulationRunTooltip();
+    if (this->button_sim_settings != nullptr)
+        this->button_sim_settings->setToolTip(tr("Simulation settings"));
+    if (this->combo_sim_timepoint != nullptr)
+        this->combo_sim_timepoint->setToolTip(tr("Select simulation time point"));
+    if (this->button_sim_step_previous != nullptr)
+        this->button_sim_step_previous->setToolTip(tr("Previous simulation time point"));
+    if (this->button_sim_step_next != nullptr)
+        this->button_sim_step_next->setToolTip(tr("Next simulation time point"));
+    if (this->button_sim_playback != nullptr)
+        this->button_sim_playback->setToolTip(
+            this->simulation_playback_timer != nullptr && this->simulation_playback_timer->isActive()
+                ? tr("Pause simulation timeline") : tr("Play simulation timeline"));
+    if (this->combo_sim_speed != nullptr)
+        this->combo_sim_speed->setToolTip(tr("Simulation playback speed"));
     setFullScreenState(window()->isFullScreen());
 }
 

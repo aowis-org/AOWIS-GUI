@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "entity_inspector/entity_inspector_text.h"
 #include "entity_inspector/entity_inspector_demand_point.h"
 
@@ -65,17 +66,29 @@ void EntityInspectorDemandPoint::addGroupDetails()
 
     QLabel *label_description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Description"), nullptr);
     this->edit_description = new QPlainTextEdit();
-    this->edit_description->setPlaceholderText("Describe this demand point...");
+    LiveUiText::bind(this->edit_description, [this] {
+        this->edit_description->setPlaceholderText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Describe this demand point...")));
+    });
     this->edit_description->setMaximumHeight(90);
 
     QLabel *label_tags = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Tags"), nullptr);
     this->line_tags = new QLineEdit();
-    this->line_tags->setPlaceholderText("household, school, irrigation");
-    this->line_tags->setToolTip("Comma-separated tags. Empty entries and duplicates are ignored.");
+    LiveUiText::bind(this->line_tags, [this] {
+        this->line_tags->setPlaceholderText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "household, school, irrigation")));
+    });
+    LiveUiText::bind(this->line_tags, [this] {
+        this->line_tags->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Comma-separated tags. Empty entries and duplicates are ignored.")));
+    });
 
     QLabel *label_comment = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Comment"), nullptr);
     this->edit_comment = new QPlainTextEdit();
-    this->edit_comment->setPlaceholderText("Free-form modelling or operational note...");
+    LiveUiText::bind(this->edit_comment, [this] {
+        this->edit_comment->setPlaceholderText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Free-form modelling or operational note...")));
+    });
     this->edit_comment->setMaximumHeight(90);
 
     grid->addWidget(label_description, 0, 0, Qt::AlignTop);
@@ -183,16 +196,22 @@ void EntityInspectorDemandPoint::addGroupAttachment()
     this->combo_pipe_allocation_mode = new QComboBox();
     EntityInspectorText::addChoice(this->combo_pipe_allocation_mode, QT_TRANSLATE_NOOP("LiveUiText", "Split by pipe position"), static_cast<int>(HydraulicDemandPointPipeAllocationMode::InterpolateByPosition));
     EntityInspectorText::addChoice(this->combo_pipe_allocation_mode, QT_TRANSLATE_NOOP("LiveUiText", "Assigned junction"), static_cast<int>(HydraulicDemandPointPipeAllocationMode::AssignedJunction));
-    this->combo_pipe_allocation_mode->setToolTip(
-        "'Split by pipe position' mode distributes demand between both pipe endpoint junctions according "
-        "to the demand-point position. <br>"
-        "'Assigned junction' mode keeps the visual pipe attachment "
-        "but applies all demand to one selected endpoint junction.");
+    LiveUiText::bind(this->combo_pipe_allocation_mode, [this] {
+        this->combo_pipe_allocation_mode->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText",
+                "'Split by pipe position' mode distributes demand between both pipe endpoint junctions according "
+                "to the demand-point position. <br>"
+                "'Assigned junction' mode keeps the visual pipe attachment "
+                "but applies all demand to one selected endpoint junction.")));
+    });
 
     this->label_pipe_assigned_junction = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Assigned<br>Junction"), nullptr);
     this->combo_pipe_assigned_junction = new QComboBox();
-    this->combo_pipe_assigned_junction->setToolTip(
-        "The pipe endpoint junction that receives 100% of this demand point's demand.");
+    LiveUiText::bind(this->combo_pipe_assigned_junction, [this] {
+        this->combo_pipe_assigned_junction->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText",
+                "The pipe endpoint junction that receives 100% of this demand point's demand.")));
+    });
 
     this->button_attachment_select = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Attach / Reattach on Map"), nullptr);
     this->button_attachment_locate = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Find Attachment on Map"), nullptr);
@@ -441,9 +460,14 @@ void EntityInspectorDemandPoint::addGroupMeter()
 
     QLabel *label_tags = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Tags"), nullptr);
     this->line_meter_tags = new QLineEdit();
-    this->line_meter_tags->setPlaceholderText("billing, smart-meter, lorawan");
-    this->line_meter_tags->setToolTip(
-        "Comma-separated tags. Empty entries and duplicates are ignored.");
+    LiveUiText::bind(this->line_meter_tags, [this] {
+        this->line_meter_tags->setPlaceholderText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "billing, smart-meter, lorawan")));
+    });
+    LiveUiText::bind(this->line_meter_tags, [this] {
+        this->line_meter_tags->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Comma-separated tags. Empty entries and duplicates are ignored.")));
+    });
 
     QLabel *label_comment = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Comment"), nullptr);
     this->edit_meter_comment = new QPlainTextEdit();

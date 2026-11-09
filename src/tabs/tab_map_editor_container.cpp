@@ -1175,9 +1175,10 @@ void MapEditorMenuWidget::applyTerrainDataset()
         this->terrain_repository != nullptr ? this->terrain_repository->activeDataset() : nullptr;
     if (dataset == nullptr)
     {
-        this->label_terrain_dataset->setText(
-            "<i>No terrain dataset yet:</i> terrain tiles can be deleted once the map "
-            "server's terrain service described its dataset.");
+        this->label_terrain_dataset->setText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText",
+                "<i>No terrain dataset yet:</i> terrain tiles can be deleted once the map "
+                "server's terrain service described its dataset.")));
         this->editor_controller->setTerrainZoomRange(0, -1);
         this->spin_terrain_zoom_from->setEnabled(false);
         this->spin_terrain_zoom_to->setEnabled(false);
@@ -1205,6 +1206,47 @@ void MapEditorMenuWidget::applyTerrainDataset()
     this->spin_terrain_zoom_to->setRange(this->spin_terrain_zoom_from->value(), dataset->maximum_zoom);
     this->spin_terrain_zoom_to->setValue(dataset->maximum_zoom);
     refreshTerrainDeleteButton();
+}
+
+void MapEditorMenuWidget::refreshTerrainDeletionText()
+{
+    if (this->label_terrain_result == nullptr)
+        return;
+    if (this->terrain_deletion_running)
+    {
+        this->label_terrain_result->setText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Deleting the cached terrain…")));
+        return;
+    }
+    if (!this->terrain_deletion_result_available)
+        return;
+
+    QString text;
+    if (this->terrain_deleted_tile_count == 1)
+        text = QCoreApplication::translate("MapEditorMenuWidget", "Deleted %1 terrain tile")
+            .arg(this->terrain_deleted_tile_count);
+    else if (this->terrain_deleted_tile_count >= 0)
+        text = QCoreApplication::translate("MapEditorMenuWidget", "Deleted %n terrain tiles",
+                                           nullptr, this->terrain_deleted_tile_count);
+    else
+        text = LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Deleted the terrain tiles"));
+    if (this->terrain_deletion_with_source)
+    {
+        if (this->terrain_deleted_source_count == 1)
+            text += QCoreApplication::translate("MapEditorMenuWidget", " and %1 source data file")
+                .arg(this->terrain_deleted_source_count);
+        else if (this->terrain_deleted_source_count >= 0)
+            text += QCoreApplication::translate("MapEditorMenuWidget", " and %n source data files",
+                                                nullptr, this->terrain_deleted_source_count);
+        else
+            text += LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", " and the source data"));
+    }
+    text += QStringLiteral(".");
+    if (!this->terrain_deletion_error.isEmpty())
+        text = LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+            "<b>Terrain deletion failed:</b> %1<br>Partially: %2"))
+            .arg(this->terrain_deletion_error.toHtmlEscaped(), text);
+    this->label_terrain_result->setText(text);
 }
 
 void MapEditorMenuWidget::refreshTerrainDeleteButton()
@@ -1380,21 +1422,27 @@ void MapEditorMenuWidget::createToolboxCache(QToolBox *tbx)
         // toolbox, not the hidden editor menu, is the visible dialog owner.
         QMessageBox *box = new QMessageBox(this->toolbox);
         box->setAttribute(Qt::WA_DeleteOnClose);
-        box->setWindowTitle("Delete selected map tiles?");
         box->setIcon(QMessageBox::Warning);
-        box->setText(QString("This will permanently delete all cached map tiles in the selected area for zoom levels %1 through %2.")
-            .arg(this->spin_zoom_from->value())
-            .arg(this->spin_zoom_to->value()));
-        box->setInformativeText("Only continue when you have an internet connection. Deleted tiles may need to be downloaded again; without internet access, the affected map area can remain blank.");
-
-        QPushButton *delete_button = box->addButton("Delete Tiles", QMessageBox::DestructiveRole);
+        const int zoom_from = this->spin_zoom_from->value();
+        const int zoom_to = this->spin_zoom_to->value();
+        QPushButton *delete_button = box->addButton(QString(), QMessageBox::DestructiveRole);
+        LiveUiText::bind(box, [box, delete_button, zoom_from, zoom_to] {
+            box->setWindowTitle(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Delete selected map tiles?")));
+            box->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                "This will permanently delete all cached map tiles in the selected area for zoom levels %1 through %2."))
+                .arg(zoom_from).arg(zoom_to));
+            box->setInformativeText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                "Only continue when you have an internet connection. Deleted tiles may need to be downloaded again; without internet access, the affected map area can remain blank.")));
+            delete_button->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete Tiles")));
+        });
         QPushButton *cancel_button = box->addButton(QMessageBox::Cancel);
         box->setDefaultButton(cancel_button);
         box->setEscapeButton(cancel_button);
 
-        connect(delete_button, &QPushButton::clicked, this, [this]
+        connect(delete_button, &QPushButton::clicked, this, [this, zoom_from, zoom_to]
         {
-            for (int zoom = this->spin_zoom_from->value(); zoom <= this->spin_zoom_to->value(); ++zoom)
+            for (int zoom = zoom_from; zoom <= zoom_to; ++zoom)
             {
                 const MapEditorController::TileSelectionRange range = this->editor_controller->tileSelectionRange(zoom);
                 if (!range.valid)
@@ -1441,6 +1489,15 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
 
     this->label_terrain_dataset = new QLabel(wgt);
     this->label_terrain_dataset->setWordWrap(true);
+    LiveUiText::bind(this->label_terrain_dataset, [this] {
+        if (this->terrain_repository != nullptr
+            && this->terrain_repository->activeDataset() != nullptr)
+            return;
+        this->label_terrain_dataset->setText(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText",
+                "<i>No terrain dataset yet:</i> terrain tiles can be deleted once the map "
+                "server's terrain service described its dataset.")));
+    });
 
     QLabel *label_explanation_spinners = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "<b>Select the terrain zoom level range</b> (from - to) for the terrain tiles you want to delete:"), wgt);
     label_explanation_spinners->setWordWrap(true);
@@ -1463,11 +1520,14 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
     });
 
     this->checkbox_terrain_source = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Also delete source elevation data"), wgt);
-    this->checkbox_terrain_source->setToolTip(
-        "Also delete the terrain provider's downloaded source data (for Copernicus GLO-30 the "
-        "1\u00b0 \u00d7 1\u00b0 GeoTIFF cells) covering the selected area, so its terrain is "
-        "rebuilt from freshly downloaded data. Source cells are large downloads and may also "
-        "cover terrain outside the selection.");
+    LiveUiText::bind(this->checkbox_terrain_source, [this] {
+        this->checkbox_terrain_source->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText",
+                "Also delete the terrain provider's downloaded source data (for Copernicus GLO-30 the "
+                "1\u00b0 \u00d7 1\u00b0 GeoTIFF cells) covering the selected area, so its terrain is "
+                "rebuilt from freshly downloaded data. Source cells are large downloads and may also "
+                "cover terrain outside the selection.")));
+    });
 
     QLabel *label_explanation_actions = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Then delete the cached terrain for the selected area and zoom levels:"), wgt);
     label_explanation_actions->setWordWrap(true);
@@ -1477,6 +1537,9 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
     this->button_terrain_delete->setEnabled(false);
 
     this->label_terrain_result = new QLabel(wgt);
+    LiveUiText::bind(this->label_terrain_result, [this] {
+        refreshTerrainDeletionText();
+    });
     this->label_terrain_result->setWordWrap(true);
     this->label_terrain_result->setVisible(false);
 
@@ -1512,24 +1575,25 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
         // toolbox, not the hidden editor menu, is the visible dialog owner.
         QMessageBox *box = new QMessageBox(this->toolbox);
         box->setAttribute(Qt::WA_DeleteOnClose);
-        box->setWindowTitle("Delete selected terrain?");
         box->setIcon(QMessageBox::Warning);
-        QString text = QString("This will permanently delete all cached terrain tiles of dataset %1 "
-                               "in the selected area for terrain zoom levels %2 through %3.")
-            .arg(dataset_id.toHtmlEscaped())
-            .arg(zoom_from)
-            .arg(zoom_to);
-        if (with_source)
-            text += " The downloaded source elevation data covering the area is deleted as well.";
-        box->setText(text);
-        box->setInformativeText(with_source
-            ? "Only continue when the map server has an internet connection. The source data "
-              "has to be downloaded again (large files); without internet access the affected "
-              "area stays without terrain relief."
-            : "The terrain tiles are rebuilt from the map server's cached source data, or "
-              "downloaded again where it has none.");
-
-        QPushButton *delete_button = box->addButton("Delete Terrain", QMessageBox::DestructiveRole);
+        QPushButton *delete_button = box->addButton(QString(), QMessageBox::DestructiveRole);
+        LiveUiText::bind(box, [box, delete_button, dataset_id, zoom_from, zoom_to, with_source] {
+            box->setWindowTitle(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Delete selected terrain?")));
+            QString description = LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                "This will permanently delete all cached terrain tiles of dataset %1 in the selected area for terrain zoom levels %2 through %3."))
+                .arg(dataset_id.toHtmlEscaped()).arg(zoom_from).arg(zoom_to);
+            if (with_source)
+                description += LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                    " The downloaded source elevation data covering the area is deleted as well."));
+            box->setText(description);
+            box->setInformativeText(with_source
+                ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                    "Only continue when the map server has an internet connection. The source data has to be downloaded again (large files); without internet access the affected area stays without terrain relief."))
+                : LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                    "The terrain tiles are rebuilt from the map server's cached source data, or downloaded again where it has none.")));
+            delete_button->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete Terrain")));
+        });
         QPushButton *cancel_button = box->addButton(QMessageBox::Cancel);
         box->setDefaultButton(cancel_button);
         box->setEscapeButton(cancel_button);
@@ -1564,7 +1628,9 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
 
             this->terrain_deletion_running = true;
             this->terrain_deletion_with_source = with_source;
-            this->label_terrain_result->setText("Deleting the cached terrain\u2026");
+            this->terrain_deletion_result_available = false;
+            this->terrain_deletion_error.clear();
+            refreshTerrainDeletionText();
             this->label_terrain_result->setVisible(true);
             this->editor_controller->clearTileSelectionOverlay();
             this->terrain_selection_valid = false;
@@ -1583,22 +1649,11 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
                 return;
 
             this->terrain_deletion_running = false;
-            QString text = deleted_tiles >= 0
-                ? QString("Deleted %1 terrain tile(s)").arg(deleted_tiles)
-                : QString("Deleted the terrain tiles");
-            if (this->terrain_deletion_with_source)
-            {
-                text += deleted_source_files >= 0
-                    ? QString(" and %1 source data file(s)").arg(deleted_source_files)
-                    : QString(" and the source data");
-            }
-            text += ".";
-            if (!error.isEmpty())
-            {
-                text = QString("<b>Terrain deletion failed:</b> %1<br>Partially: %2")
-                    .arg(error.toHtmlEscaped(), text);
-            }
-            this->label_terrain_result->setText(text);
+            this->terrain_deletion_result_available = true;
+            this->terrain_deleted_tile_count = deleted_tiles;
+            this->terrain_deleted_source_count = deleted_source_files;
+            this->terrain_deletion_error = error;
+            refreshTerrainDeletionText();
             this->label_terrain_result->setVisible(true);
             refreshTerrainDeleteButton();
             updateToolboxHeight(this->toolbox->currentIndex());

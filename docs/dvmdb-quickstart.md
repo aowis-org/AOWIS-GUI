@@ -30,6 +30,31 @@ UUID before creating anything**, rather than assuming saved data was lost.
 Standalone embeds DVMDB in the GUI process and exposes its routes on a
 runtime-only loopback port; it does not require a separate server binary.
 
+### Connecting from the WebAssembly GUI
+
+The browser version creates **remote HTTP connections only**. The `New database`
+form verifies `GET <endpoint>/dvmdb/v1/repository` asynchronously before
+saving a verified profile. If the request cannot be completed, it offers an
+explicit **pending/unverified** profile instead. A pending connection
+must not be treated as an authenticated or verified repository until a
+subsequent successful identity check.
+
+Browser requests to a DVMDB address with a different host, scheme or port
+require a suitable **CORS policy on the DVMDB response**. The GUI's Apache
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` headers enable threaded WASM,
+but do **not** grant permission to fetch from the DVMDB origin. The DVMDB
+service (or a correctly configured reverse proxy) must allow the GUI's origin,
+and any browser-required preflight requests. Use the browser Network/Console
+tabs to distinguish HTTP failure from a CORS rejection. A URL working with
+`curl` is not sufficient evidence that a browser can access it.
+
+The WASM GUI stores configured database profiles in the current **browser
+origin's** `localStorage`, not in the native GUI INI file. Profiles on two
+different GUI hostnames are separate even when both serve the same build.
+Database creation confirmations are nonblocking: a rejected connection check
+should show an error or pending-choice dialog, not terminate the WASM app.
+
 ## 2. Select your personal database
 
 1. In **Projects**, configure the local/remote database in its

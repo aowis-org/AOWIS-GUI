@@ -21,6 +21,7 @@
 #include <QAbstractItemView>
 #include <QButtonGroup>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QCheckBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -79,6 +80,26 @@
 
 namespace
 {
+// Qt WebAssembly cannot run nested event loops without Asyncify/JSPI.
+// QMessageBox's static question/warning helpers enter QDialog::exec(), so
+// database creation must use open() even for its error and confirmation paths.
+void openSourceMessage(QWidget *parent, QMessageBox::Icon icon, const QString &title,
+                       const QString &message,
+                       QMessageBox::StandardButtons buttons = QMessageBox::Ok,
+                       std::function<void(QMessageBox::StandardButton)> finished = {})
+{
+    QMessageBox *dialog = new QMessageBox(icon, title, message, buttons, parent);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowModality(Qt::WindowModal);
+    if (buttons.testFlag(QMessageBox::No))
+        dialog->setDefaultButton(QMessageBox::No);
+    if (finished)
+        QObject::connect(dialog, &QMessageBox::finished, parent,
+            [finished = std::move(finished)](int result)
+            { finished(static_cast<QMessageBox::StandardButton>(result)); });
+    dialog->open();
+}
+
 constexpr int role_key = Qt::UserRole;
 QPushButton *compactButton(const QString &label, const QString &tip, QWidget *parent)
 {
@@ -471,6 +492,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             [this, servers_group, projects_group, revisions_group, no_sources, browse_examples_button,
              heads_button, graph_title, graph_heads_button, graph_full_button, direction_button,
              fit_button, empty_title, empty_description, empty_add, add_server] {
+        refreshPreviewTranslations();
         servers_group->setTitle(tr("Databases"));
         projects_group->setTitle(tr("Projects && Branches"));
         revisions_group->setTitle(tr("Revisions"));
@@ -1192,6 +1214,150 @@ void ProjectsWidget::seedPreview()
                         .message = tr("Initial layout")}};
     south.server_id = QStringLiteral("preview-local");
     this->projects.append(south);
+    // Cache only the text of immutable built-in samples, not user data. A
+    // subsequent LanguageChange can then distinguish untouched samples from
+    // edits that must never be overwritten.
+    const char *const sources[] = {
+        "Sample North Network", "Illustrative project for the version explorer layout.",
+        "Stable hydraulic model", "Pressure optimization experiment",
+        "Update base network parameters.", "Adjusted pressure scenario inputs.",
+        "Branch off the network baseline.", "Initial imported hydraulic model.",
+        "Preview author", "Validated network", "Pressure tuning", "Scenario start",
+        "Network baseline", "Sample Pump Station",
+        "Another fictional project in this GUI preview.", "Demo revision.",
+        "Initial layout"
+    };
+    for (const char *source : sources)
+        this->preview_translation_baselines.insert(QString::fromUtf8(source),
+            QCoreApplication::translate("ProjectsWidget", source));
+}
+
+void ProjectsWidget::refreshPreviewTranslations()
+{
+    if (this->preview_translation_baselines.isEmpty()) return;
+    const QHash<QString, QString> previous_baselines = this->preview_translation_baselines;
+    QHash<QString, QString> next_baselines = previous_baselines;
+    QHash<QString, QString> titles;
+    bool changed = false;
+    const std::function<void(QString &, const char *)> refresh =
+        [this, &next_baselines, &changed](QString &value, const char *source)
+    {
+        const QString key = QString::fromUtf8(source);
+        const QString current = QCoreApplication::translate("ProjectsWidget", source);
+        if (value == this->preview_translation_baselines.value(key) && value != current)
+        {
+            value = current;
+            changed = true;
+        }
+        next_baselines.insert(key, current);
+    };
+    for (ProjectPreviewData &project : this->projects)
+    {
+        if (project.id == QStringLiteral("preview-north"))
+        {
+            refresh(project.name, "Sample North Network");
+            refresh(project.description, "Illustrative project for the version explorer layout.");
+            for (ProjectPreviewBranch &branch : project.branches)
+            {
+                if (branch.id == QStringLiteral("north-main"))
+                    refresh(branch.description, "Stable hydraulic model");
+                else if (branch.id == QStringLiteral("north-study"))
+                    refresh(branch.description, "Pressure optimization experiment");
+            }
+            for (ProjectPreviewRevision &revision : project.revisions)
+            {
+                refresh(revision.author, "Preview author");
+                if (revision.id == QStringLiteral("c8d102ab"))
+                {
+                    refresh(revision.description, "Update base network parameters.");
+                    refresh(revision.message, "Validated network");
+                }
+                else if (revision.id == QStringLiteral("ec9045df"))
+                {
+                    refresh(revision.description, "Adjusted pressure scenario inputs.");
+                    refresh(revision.message, "Pressure tuning");
+                }
+                else if (revision.id == QStringLiteral("a24f918d"))
+                {
+                    refresh(revision.description, "Branch off the network baseline.");
+                    refresh(revision.message, "Scenario start");
+                }
+                else if (revision.id == QStringLiteral("93f0de41"))
+                {
+                    refresh(revision.description, "Initial imported hydraulic model.");
+                    refresh(revision.message, "Network baseline");
+                }
+            }
+        }
+        else if (project.id == QStringLiteral("preview-south"))
+        {
+            refresh(project.name, "Sample Pump Station");
+            refresh(project.description, "Another fictional project in this GUI preview.");
+            for (ProjectPreviewRevision &revision : project.revisions)
+                if (revision.id == QStringLiteral("742b0a90"))
+                {
+                    refresh(revision.author, "Preview author");
+                    refresh(revision.description, "Demo revision.");
+                    refresh(revision.message, "Initial layout");
+                }
+        }
+        if (project.id != QStringLiteral("preview-north")
+            && project.id != QStringLiteral("preview-south")) continue;
+        titles.insert(QStringLiteral("group:project:") + project.id, project.name);
+        for (const ProjectPreviewRevision &revision : project.revisions)
+            titles.insert(revision.id, revision.message.trimmed().isEmpty()
+                ? revision.title : revision.message.simplified());
+    }
+    this->preview_translation_baselines = next_baselines;
+    if (!changed) return;
+    // Update only captions in the existing tree. Do not clear items, change
+    // selection, collapse history, revalidate drafts or issue repository calls.
+    if (this->project_tree != nullptr)
+    {
+        const QSignalBlocker blocker(this->project_tree);
+        for (QTreeWidgetItemIterator it(this->project_tree); *it; ++it)
+        {
+            QTreeWidgetItem *item = *it;
+            const QString key = item->data(0, role_key).toString();
+            for (const ProjectPreviewData &project : this->projects)
+                if ((project.id == QStringLiteral("preview-north")
+                     || project.id == QStringLiteral("preview-south"))
+                    && key == keyFor(QStringLiteral("p"), project.id))
+                {
+                    const QString label = QStringLiteral("▣  ") + project.name;
+                    item->setText(0, label);
+                    item->setToolTip(0, label);
+                    break;
+                }
+        }
+    }
+    // Existing project inspector inputs may contain unsaved user drafts. Only
+    // replace a label still identical to the last generated sample translation.
+    if (this->selection_kind == SelectionKind::Project && this->project_overview != nullptr)
+    {
+        const ProjectPreviewData *project = currentProject();
+        if (project != nullptr && (project->id == QStringLiteral("preview-north")
+                                   || project->id == QStringLiteral("preview-south")))
+        {
+            const QString name_key = project->id == QStringLiteral("preview-north")
+                ? QStringLiteral("Sample North Network") : QStringLiteral("Sample Pump Station");
+            const QString description_key = project->id == QStringLiteral("preview-north")
+                ? QStringLiteral("Illustrative project for the version explorer layout.")
+                : QStringLiteral("Another fictional project in this GUI preview.");
+            if (this->project_overview->name->text() == previous_baselines.value(name_key))
+            {
+                const QSignalBlocker blocked(this->project_overview->name);
+                this->project_overview->name->setText(project->name);
+            }
+            if (this->project_overview->description->toPlainText()
+                == previous_baselines.value(description_key))
+            {
+                const QSignalBlocker blocked(this->project_overview->description);
+                this->project_overview->description->setPlainText(project->description);
+            }
+        }
+    }
+    if (this->graph != nullptr) this->graph->refreshNodeTitles(titles);
 }
 
 ProjectServerProfile *ProjectsWidget::currentServer()
@@ -3031,14 +3197,16 @@ void ProjectsWidget::saveNewSource()
     const QString name = this->database_overview->name->text().trimmed();
     if (name.isEmpty())
     {
-        QMessageBox::warning(this, tr("Invalid name"), tr("Enter a database name."));
+        openSourceMessage(this, QMessageBox::Warning,
+            tr("Invalid name"), tr("Enter a database name."));
         this->database_overview->name->setFocus();
         return;
     }
     for (const ProjectServerProfile &server : this->servers)
         if (server.name.compare(name, Qt::CaseInsensitive) == 0)
         {
-            QMessageBox::warning(this, tr("Already exists"), tr("Choose a different database name."));
+            openSourceMessage(this, QMessageBox::Warning,
+                tr("Already exists"), tr("Choose a different database name."));
             return;
         }
     ProjectServerProfile server;
@@ -3052,7 +3220,7 @@ void ProjectsWidget::saveNewSource()
     if (server.connection_type == QStringLiteral("local"))
     {
 #ifndef AOWIS_STANDALONE_DVMDB_ENABLED
-        QMessageBox::warning(this, tr("Embedded database unavailable"),
+        openSourceMessage(this, QMessageBox::Warning, tr("Embedded database unavailable"),
             tr("This application was built without embedded DVMDB support."));
         return;
 #endif
@@ -3060,7 +3228,7 @@ void ProjectsWidget::saveNewSource()
         server.local_path = QDir::cleanPath(this->database_connection->local_path_edit->text().trimmed());
         if (!QDir::isAbsolutePath(server.local_path))
         {
-            QMessageBox::warning(this, tr("Invalid directory"),
+            openSourceMessage(this, QMessageBox::Warning, tr("Invalid directory"),
                 tr("Enter an absolute path for the local DVMDB data directory."));
             this->database_connection->local_path_edit->setFocus();
             return;
@@ -3069,7 +3237,7 @@ void ProjectsWidget::saveNewSource()
             if (existing.connection_type == QStringLiteral("local")
                 && QDir::cleanPath(existing.local_path) == server.local_path)
             {
-                QMessageBox::warning(this, tr("Database already configured"),
+                openSourceMessage(this, QMessageBox::Information, tr("Database already configured"),
                     tr("This local data directory is already configured."));
                 return;
             }
@@ -3083,7 +3251,7 @@ void ProjectsWidget::saveNewSource()
             || url.host().isEmpty() || !url.userInfo().isEmpty()
             || url.hasQuery() || url.hasFragment())
         {
-            QMessageBox::warning(this, tr("Invalid database URL"),
+            openSourceMessage(this, QMessageBox::Warning, tr("Invalid database URL"),
                 tr("Enter an http:// or https:// URL with a host, without credentials, query or fragment."));
             this->database_connection->server_endpoint_edit->setFocus();
             return;
@@ -3101,9 +3269,21 @@ void ProjectsWidget::saveNewSource()
             server.id = repository_id;
             server.pending = false;
         }
-        else if (QMessageBox::question(this, tr("Embedded database unavailable"),
-            tr("The local database could not be opened: %1\n\nSave this connection as pending?")
-                .arg(error)) != QMessageBox::Yes) return;
+        else
+        {
+            const int request_id = this->source_creation_request;
+            openSourceMessage(this, QMessageBox::Question, tr("Embedded database unavailable"),
+                tr("The local database could not be opened: %1\n\nSave this connection as pending?")
+                    .arg(error), QMessageBox::Yes | QMessageBox::No,
+                [this, server, request_id](QMessageBox::StandardButton answer)
+                {
+                    if (answer == QMessageBox::Yes
+                        && request_id == this->source_creation_request
+                        && this->selection_kind == SelectionKind::NewSource)
+                        persistNewSource(server);
+                });
+            return;
+        }
 #endif
         persistNewSource(server);
         return;
@@ -3144,12 +3324,13 @@ void ProjectsWidget::saveNewSource()
                 : tr("Missing DVMDB identity response.");
             if (!codec_error.isEmpty())
             {
-                QMessageBox::warning(this, tr("Incompatible MODEL codec"), codec_error);
+                openSourceMessage(this, QMessageBox::Warning,
+                    tr("Incompatible MODEL codec"), codec_error);
                 return;
             }
             if (!DvmdbIdentity::isUuidV7(id))
             {
-                QMessageBox::warning(this, tr("Invalid DVMDB identity"),
+                openSourceMessage(this, QMessageBox::Warning, tr("Invalid DVMDB identity"),
                     tr("The endpoint did not return a valid repository UUIDv7."));
                 return;
             }
@@ -3158,14 +3339,28 @@ void ProjectsWidget::saveNewSource()
         }
         else if (status == 0)
         {
-            if (QMessageBox::question(this, tr("Database unreachable"),
-                tr("Could not reach the database at %1 (%2).\n\n"
-                   "Save it as an unverified pending connection anyway?")
-                    .arg(server.endpoint, error)) != QMessageBox::Yes) return;
+            QString details = tr("Could not reach the database at %1 (%2).")
+                .arg(server.endpoint, error);
+#ifdef __EMSCRIPTEN__
+            details += tr("\n\nIn a browser, a reachable URL can still be blocked by "
+                "cross-origin (CORS) rules. Check the browser console and configure "
+                "DVMDB to allow requests from the AOWIS GUI origin.");
+#endif
+            details += tr("\n\nSave it as an unverified pending connection anyway?");
+            openSourceMessage(this, QMessageBox::Question, tr("Database unreachable"),
+                details, QMessageBox::Yes | QMessageBox::No,
+                [this, server, request_id](QMessageBox::StandardButton answer)
+                {
+                    if (answer == QMessageBox::Yes
+                        && request_id == this->source_creation_request
+                        && this->selection_kind == SelectionKind::NewSource)
+                        persistNewSource(server);
+                });
+            return;
         }
         else
         {
-            QMessageBox::warning(this, tr("DVMDB verification failed"),
+            openSourceMessage(this, QMessageBox::Warning, tr("DVMDB verification failed"),
                 tr("The endpoint responded with HTTP %1 (%2), but its repository identity "
                    "could not be verified. Check the URL or server configuration.")
                     .arg(status).arg(error));
@@ -3183,20 +3378,38 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
         {
             if (existing.endpoint != server.endpoint && server.connection_type == QStringLiteral("remote"))
             {
-                if (QMessageBox::question(this, tr("Database already configured"),
+                const QString existing_id = existing.id;
+                const QString existing_name = existing.name;
+                const QString requested_endpoint = server.endpoint;
+                const int request_id = this->source_creation_request;
+                openSourceMessage(this, QMessageBox::Question, tr("Database already configured"),
                     tr("This repository UUIDv7 is already configured as '%1'. "
-                       "Update its endpoint to %2?").arg(existing.name, server.endpoint))
-                    != QMessageBox::Yes) return;
-                const QString previous_endpoint = existing.endpoint;
-                existing.endpoint = server.endpoint;
-                if (!saveProjectServerProfiles(this->servers))
-                {
-                    existing.endpoint = previous_endpoint;
-                    reportServerSaveFailure();
-                    return;
-                }
-                resetSource(existing.id);
-                startSource(existing);
+                       "Update its endpoint to %2?").arg(existing_name, requested_endpoint),
+                    QMessageBox::Yes | QMessageBox::No,
+                    [this, existing_id, requested_endpoint, request_id](QMessageBox::StandardButton answer)
+                    {
+                        if (answer != QMessageBox::Yes
+                            || request_id != this->source_creation_request
+                            || this->selection_kind != SelectionKind::NewSource) return;
+                        for (ProjectServerProfile &current : this->servers)
+                            if (current.id == existing_id)
+                            {
+                                const QString previous_endpoint = current.endpoint;
+                                current.endpoint = requested_endpoint;
+                                if (!saveProjectServerProfiles(this->servers))
+                                {
+                                    current.endpoint = previous_endpoint;
+                                    reportServerSaveFailure();
+                                    return;
+                                }
+                                const ProjectServerProfile updated = current;
+                                resetSource(existing_id);
+                                startSource(updated);
+                                select(SelectionKind::Server, existing_id);
+                                return;
+                            }
+                    });
+                return;
             }
             select(SelectionKind::Server, existing.id);
             return;
@@ -3204,7 +3417,7 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
         if (server.pending && existing.connection_type == server.connection_type
             && existing.endpoint == server.endpoint && existing.local_path == server.local_path)
         {
-            QMessageBox::information(this, tr("Database already configured"),
+            openSourceMessage(this, QMessageBox::Information, tr("Database already configured"),
                 tr("This database endpoint is already configured."));
             select(SelectionKind::Server, existing.id);
             return;
@@ -3279,52 +3492,62 @@ void ProjectsWidget::deleteConnection()
         || (currentServer()->connection_type == QStringLiteral("local")
             && QDir::cleanPath(currentServer()->local_path)
                 == QDir::cleanPath(defaultLocalDvmdbPath()))) return;
-    if (QMessageBox::question(this, tr("Remove connection"),
-        tr("Remove this database connection from the GUI configuration? "
-           "The DVMDB repository and its stored projects and networks will not be deleted."))
-        != QMessageBox::Yes) return;
     const QString removed = this->server_id;
-    resetSource(removed);
-    const QList<ProjectServerProfile> previous_servers = this->servers;
-    for (int i = this->servers.size() - 1; i >= 0; --i)
-        if (this->servers.at(i).id == removed) this->servers.removeAt(i);
-    if (!saveProjectServerProfiles(this->servers))
-    {
-        this->servers = previous_servers;
-        reportServerSaveFailure();
-        return;
-    }
-    for (int i = this->projects.size() - 1; i >= 0; --i)
-        if (this->projects.at(i).server_id == removed) this->projects.removeAt(i);
-    this->server_id.clear();
-    this->project_id.clear();
-    this->branch_id.clear();
-    populateServerTree();
-    this->selection_kind = SelectionKind::None;
-    this->selected_id.clear();
-    updateEmptyState();
-    if (!this->servers.isEmpty())
-    {
-        QString preferred = this->servers.first().id;
-        for (const ProjectServerProfile &profile : this->servers)
-            if (profile.personal) { preferred = profile.id; break; }
-        select(SelectionKind::Server, preferred);
-    }
-    else
-    {
-        populateProjectTree();
-        populateRevisionTree();
-        rebuildGraph();
-        updateInspector();
-        this->inspector_dock->hide();
-        updateButtons();
-        broadcastContext();
-    }
+    openSourceMessage(this, QMessageBox::Question, tr("Remove connection"),
+        tr("Remove this database connection from the GUI configuration? "
+           "The DVMDB repository and its stored projects and networks will not be deleted."),
+        QMessageBox::Yes | QMessageBox::No,
+        [this, removed](QMessageBox::StandardButton answer)
+        {
+            // The answer may arrive after another database was selected.
+            if (answer != QMessageBox::Yes || this->source_writer->isBusy()
+                || this->server_id != removed) return;
+            const ProjectServerProfile *selected = currentServer();
+            if (selected == nullptr || (selected->connection_type == QStringLiteral("local")
+                && QDir::cleanPath(selected->local_path)
+                    == QDir::cleanPath(defaultLocalDvmdbPath()))) return;
+            resetSource(removed);
+            const QList<ProjectServerProfile> previous_servers = this->servers;
+            for (int i = this->servers.size() - 1; i >= 0; --i)
+                if (this->servers.at(i).id == removed) this->servers.removeAt(i);
+            if (!saveProjectServerProfiles(this->servers))
+            {
+                this->servers = previous_servers;
+                reportServerSaveFailure();
+                return;
+            }
+            for (int i = this->projects.size() - 1; i >= 0; --i)
+                if (this->projects.at(i).server_id == removed) this->projects.removeAt(i);
+            this->server_id.clear();
+            this->project_id.clear();
+            this->branch_id.clear();
+            populateServerTree();
+            this->selection_kind = SelectionKind::None;
+            this->selected_id.clear();
+            updateEmptyState();
+            if (!this->servers.isEmpty())
+            {
+                QString preferred = this->servers.first().id;
+                for (const ProjectServerProfile &profile : this->servers)
+                    if (profile.personal) { preferred = profile.id; break; }
+                select(SelectionKind::Server, preferred);
+            }
+            else
+            {
+                populateProjectTree();
+                populateRevisionTree();
+                rebuildGraph();
+                updateInspector();
+                this->inspector_dock->hide();
+                updateButtons();
+                broadcastContext();
+            }
+        });
 }
 
 void ProjectsWidget::reportServerSaveFailure()
 {
-    QMessageBox::warning(this, tr("Cannot save database profiles"),
+    openSourceMessage(this, QMessageBox::Warning, tr("Cannot save database profiles"),
         tr("The database profile change could not be written to the GUI configuration:\n%1")
             .arg(guiConfigurationFilePath()));
 }

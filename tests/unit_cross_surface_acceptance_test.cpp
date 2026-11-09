@@ -19,6 +19,8 @@
 #include <QMenu>
 #endif
 #include <QTabWidget>
+#include <QTranslator>
+#include <QCoreApplication>
 #include <QTableView>
 #include <QVBoxLayout>
 
@@ -157,6 +159,35 @@ static void verifyProfileMenus()
     CHECK(custom_menu->actions().at(0)->isChecked());
     CHECK(custom_menu->actions().at(0)->data().toInt() == 0);
     CHECK(custom_menu->actions().at(1)->data().toInt() == profiles.size() - 1);
+    // Translation updates existing actions in place: profile identity, checks,
+    // callbacks, menu hierarchy and selection must remain unchanged.
+    class UnitMenuTranslator final : public QTranslator
+    {
+    public:
+        bool isEmpty() const override { return false; }
+        QString translate(const char *context, const char *source,
+                          const char *, int) const override
+        {
+            if (std::strcmp(context, "UnitProfileMenu") != 0) return {};
+            return QStringLiteral("translated: ") + QString::fromUtf8(source);
+        }
+    } translator;
+    QAction *const original_profile_action = menu.actions().at(0);
+    QAction *const original_custom_action = custom_menu->actions().at(0);
+    CHECK(QCoreApplication::installTranslator(&translator));
+    UnitProfileMenu::retranslate(&menu, profiles);
+    CHECK(menu.actions().at(0) == original_profile_action);
+    CHECK(custom_menu->actions().at(0) == original_custom_action);
+    CHECK(original_profile_action->text().startsWith(QStringLiteral("translated: ")));
+    CHECK(metric_menu->menuAction()->text().startsWith(QStringLiteral("translated: ")));
+    CHECK(custom_menu->actions().last()->text().startsWith(QStringLiteral("translated: ")));
+    CHECK(original_custom_action->text() == QStringLiteral("Field"));
+    CHECK(original_custom_action->isChecked());
+    CHECK(QCoreApplication::removeTranslator(&translator));
+    UnitProfileMenu::retranslate(&menu, profiles);
+    CHECK(original_profile_action->text() == QStringLiteral("AOWIS Canonical — standard AOWIS units"));
+    CHECK(custom_menu->actions().last()->text() == QStringLiteral("Manage Units…"));
+    CHECK(original_custom_action->isChecked());
     custom_menu->actions().at(1)->trigger();
     CHECK(chosen == profiles.size() - 1);
     custom_menu->actions().last()->trigger();

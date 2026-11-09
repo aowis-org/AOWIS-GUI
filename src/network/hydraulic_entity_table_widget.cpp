@@ -100,6 +100,7 @@ struct DemandDetail
 struct TableCell
 {
     QString display;
+    bool localize_display = false;
     QVariant sort_value;
     Qt::Alignment alignment = Qt::AlignLeft | Qt::AlignVCenter;
     QString tooltip;
@@ -139,6 +140,15 @@ TableCell textCell(const QString &value)
     TableCell cell;
     cell.display = value.isEmpty() ? QStringLiteral("—") : value;
     cell.sort_value = value;
+    return cell;
+}
+
+// Only app-owned enum/categorical values are translated. User IDs, names and
+// free-form metadata continue to use textCell() and are never translated.
+TableCell localizedTextCell(const QString &source)
+{
+    TableCell cell = textCell(source);
+    cell.localize_display = true;
     return cell;
 }
 
@@ -185,11 +195,12 @@ TableCell reactionCell(double coefficient, double order,
     return cell;
 }
 
-TableCell boolCell(bool value, const QString &true_text = QStringLiteral("Yes"),
-                   const QString &false_text = QStringLiteral("No"))
+TableCell boolCell(bool value, const QString &true_text = QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Yes")),
+                   const QString &false_text = QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "No")))
 {
     TableCell cell;
     cell.display = value ? true_text : false_text;
+    cell.localize_display = true;
     cell.sort_value = value;
     cell.alignment = Qt::AlignCenter;
     return cell;
@@ -220,30 +231,30 @@ QString entityModelRoleText(EntityModelRole role)
     switch (role)
     {
     case EntityModelRole::Unspecified:
-        return QStringLiteral("Unspecified");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unspecified"));
     case EntityModelRole::ExistingAsset:
-        return QStringLiteral("Existing Asset");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Existing Asset"));
     case EntityModelRole::PlannedAsset:
-        return QStringLiteral("Planned Asset");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Planned Asset"));
     case EntityModelRole::VirtualModelElement:
-        return QStringLiteral("Virtual / Model-Only");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Virtual / Model-Only"));
     case EntityModelRole::BoundaryCondition:
-        return QStringLiteral("Boundary Condition");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Boundary Condition"));
     case EntityModelRole::TemporaryTesting:
-        return QStringLiteral("Temporary / Testing");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Temporary / Testing"));
     case EntityModelRole::RetiredAsset:
-        return QStringLiteral("Retired Asset");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Retired Asset"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString elevationInputText(HydraulicNodeElevationInputType input_type)
 {
     if (input_type == HydraulicNodeElevationInputType::TerrainElevationAndOffset)
-        return QStringLiteral("Terrain Elevation + Offset");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Terrain Elevation + Offset"));
 
-    return QStringLiteral("Direct Value");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Direct Value"));
 }
 
 QString tankGeometryInputText(HydraulicNodeTankGeometryInputType input_type)
@@ -251,16 +262,16 @@ QString tankGeometryInputText(HydraulicNodeTankGeometryInputType input_type)
     switch (input_type)
     {
     case HydraulicNodeTankGeometryInputType::Cylindrical:
-        return QStringLiteral("Cylindrical");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Cylindrical"));
     case HydraulicNodeTankGeometryInputType::UniformArea:
-        return QStringLiteral("Uniform Area");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Uniform Area"));
     case HydraulicNodeTankGeometryInputType::VolumeAtMaximumLevel:
-        return QStringLiteral("Maximum Volume");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Maximum Volume"));
     case HydraulicNodeTankGeometryInputType::VolumeCurve:
-        return QStringLiteral("Volume Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Volume Curve"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString qualitySourceTypeText(HydraulicNodeQualitySourceType source_type)
@@ -268,17 +279,17 @@ QString qualitySourceTypeText(HydraulicNodeQualitySourceType source_type)
     switch (source_type)
     {
     case HydraulicNodeQualitySourceType::None:
-        return QStringLiteral("None");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "None"));
     case HydraulicNodeQualitySourceType::Concentration:
-        return QStringLiteral("Concentration");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Concentration"));
     case HydraulicNodeQualitySourceType::MassBooster:
-        return QStringLiteral("Mass Booster");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Mass Booster"));
     case HydraulicNodeQualitySourceType::FlowPacedBooster:
-        return QStringLiteral("Flow-Paced Booster");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Flow-Paced Booster"));
     case HydraulicNodeQualitySourceType::SetpointBooster:
-        return QStringLiteral("Setpoint Booster");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Setpoint Booster"));
     }
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString tankMixingModelText(HydraulicNodeTankMixingModel mixing_model)
@@ -286,15 +297,15 @@ QString tankMixingModelText(HydraulicNodeTankMixingModel mixing_model)
     switch (mixing_model)
     {
     case HydraulicNodeTankMixingModel::CompleteMix:
-        return QStringLiteral("Complete Mix");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Complete Mix"));
     case HydraulicNodeTankMixingModel::TwoCompartment:
-        return QStringLiteral("Two-Compartment");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Two-Compartment"));
     case HydraulicNodeTankMixingModel::FirstInFirstOut:
-        return QStringLiteral("First In, First Out");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "First In, First Out"));
     case HydraulicNodeTankMixingModel::LastInFirstOut:
-        return QStringLiteral("Last In, First Out");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Last In, First Out"));
     }
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 TableColumn qualityResultColumn(WaterQualityAnalysisType analysis)
@@ -371,7 +382,7 @@ void appendNodeQualityInputCells(QList<TableCell> &cells, const NetworkHydraulic
     cells.append(numberCell(node.initial_chemical_concentration_mg_per_l, 6,
                             QStringLiteral(" mg/L")));
     cells.append(numberCell(node.initial_water_age_h, 6, QStringLiteral(" h")));
-    cells.append(textCell(qualitySourceTypeText(node.quality_source.type)));
+    cells.append(localizedTextCell(qualitySourceTypeText(node.quality_source.type)));
     cells.append(numberCell(node.quality_source.chemical_concentration_mg_per_l, 6,
                             QStringLiteral(" mg/L")));
     cells.append(numberCell(node.quality_source.chemical_mass_flow_mg_per_min, 6,
@@ -382,7 +393,7 @@ void appendNodeQualityInputCells(QList<TableCell> &cells, const NetworkHydraulic
 QString patternModeText(HydraulicTimePatternMode pattern_mode)
 {
     return pattern_mode == HydraulicTimePatternMode::TimePattern
-        ? QStringLiteral("Time Pattern") : QStringLiteral("Constant");
+        ? QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Time Pattern")) : QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Constant"));
 }
 
 QString demandSourceMethodText(HydraulicDemandSourceMethod source_method)
@@ -390,14 +401,14 @@ QString demandSourceMethodText(HydraulicDemandSourceMethod source_method)
     switch (source_method)
     {
     case HydraulicDemandSourceMethod::ManualEstimation:
-        return QStringLiteral("Manual Estimation");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Manual Estimation"));
     case HydraulicDemandSourceMethod::MeterData:
-        return QStringLiteral("Meter Data");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Meter Data"));
     case HydraulicDemandSourceMethod::Scenario:
-        return QStringLiteral("Scenario");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Scenario"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString pipeInitialStatusText(HydraulicLinkPipeInitialStatus status)
@@ -405,14 +416,14 @@ QString pipeInitialStatusText(HydraulicLinkPipeInitialStatus status)
     switch (status)
     {
     case HydraulicLinkPipeInitialStatus::Open:
-        return QStringLiteral("Open");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open"));
     case HydraulicLinkPipeInitialStatus::Closed:
-        return QStringLiteral("Closed");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"));
     case HydraulicLinkPipeInitialStatus::CheckValve:
-        return QStringLiteral("Check Valve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Check Valve"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString pumpDefinitionText(HydraulicLinkPumpDefinitionType definition_type)
@@ -420,24 +431,24 @@ QString pumpDefinitionText(HydraulicLinkPumpDefinitionType definition_type)
     switch (definition_type)
     {
     case HydraulicLinkPumpDefinitionType::ConstantPower:
-        return QStringLiteral("Constant Power");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Constant Power"));
     case HydraulicLinkPumpDefinitionType::OnePointCurve:
-        return QStringLiteral("1-Point Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "1-Point Curve"));
     case HydraulicLinkPumpDefinitionType::ThreePointCurve:
-        return QStringLiteral("3-Point Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "3-Point Curve"));
     case HydraulicLinkPumpDefinitionType::Library:
-        return QStringLiteral("Library Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Library Curve"));
     case HydraulicLinkPumpDefinitionType::MultiPointCurve:
-        return QStringLiteral("Multi-Point Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Multi-Point Curve"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString pumpInitialStatusText(HydraulicLinkPumpInitialStatus status)
 {
     return status == HydraulicLinkPumpInitialStatus::On
-        ? QStringLiteral("On") : QStringLiteral("Off");
+        ? QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "On")) : QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Off"));
 }
 
 QString pumpControlSummary(const NetworkHydraulic &network, const QUuid &pump_uuid)
@@ -495,14 +506,14 @@ QString pumpEfficiencyInputText(HydraulicLinkPumpEfficiencyInputType input_type)
     switch (input_type)
     {
     case HydraulicLinkPumpEfficiencyInputType::Global:
-        return QStringLiteral("Global");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Global"));
     case HydraulicLinkPumpEfficiencyInputType::Constant:
-        return QStringLiteral("Constant");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Constant"));
     case HydraulicLinkPumpEfficiencyInputType::Curve:
-        return QStringLiteral("Curve");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Curve"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString pumpEnergyPriceInputText(HydraulicLinkPumpEnergyPriceInputType input_type)
@@ -510,14 +521,14 @@ QString pumpEnergyPriceInputText(HydraulicLinkPumpEnergyPriceInputType input_typ
     switch (input_type)
     {
     case HydraulicLinkPumpEnergyPriceInputType::Global:
-        return QStringLiteral("Global");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Global"));
     case HydraulicLinkPumpEnergyPriceInputType::Constant:
-        return QStringLiteral("Constant");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Constant"));
     case HydraulicLinkPumpEnergyPriceInputType::Pattern:
-        return QStringLiteral("Pattern");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Pattern"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString valveTypeText(HydraulicLinkValveType type)
@@ -525,22 +536,22 @@ QString valveTypeText(HydraulicLinkValveType type)
     switch (type)
     {
     case HydraulicLinkValveType::PRV:
-        return QStringLiteral("PRV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "PRV"));
     case HydraulicLinkValveType::PSV:
-        return QStringLiteral("PSV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "PSV"));
     case HydraulicLinkValveType::FCV:
-        return QStringLiteral("FCV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "FCV"));
     case HydraulicLinkValveType::PBV:
-        return QStringLiteral("PBV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "PBV"));
     case HydraulicLinkValveType::TCV:
-        return QStringLiteral("TCV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "TCV"));
     case HydraulicLinkValveType::GPV:
-        return QStringLiteral("GPV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "GPV"));
     case HydraulicLinkValveType::PCV:
-        return QStringLiteral("PCV");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "PCV"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString valveInitialStatusText(HydraulicLinkValveInitialStatus status)
@@ -548,14 +559,14 @@ QString valveInitialStatusText(HydraulicLinkValveInitialStatus status)
     switch (status)
     {
     case HydraulicLinkValveInitialStatus::Active:
-        return QStringLiteral("Active");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Active"));
     case HydraulicLinkValveInitialStatus::Open:
-        return QStringLiteral("Open");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open"));
     case HydraulicLinkValveInitialStatus::Closed:
-        return QStringLiteral("Closed");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 QString pumpStateText(HydraulicSimulationPumpState state)
@@ -563,16 +574,16 @@ QString pumpStateText(HydraulicSimulationPumpState state)
     switch (state)
     {
     case HydraulicSimulationPumpState::CannotSupplyHead:
-        return QStringLiteral("Cannot Supply Head");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Cannot Supply Head"));
     case HydraulicSimulationPumpState::Closed:
-        return QStringLiteral("Closed");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"));
     case HydraulicSimulationPumpState::Open:
-        return QStringLiteral("Open");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open"));
     case HydraulicSimulationPumpState::CannotSupplyFlow:
-        return QStringLiteral("Cannot Supply Flow");
+        return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Cannot Supply Flow"));
     }
 
-    return QStringLiteral("Unknown");
+    return QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Unknown"));
 }
 
 template<typename EntityType>
@@ -859,7 +870,7 @@ void appendCommonCells(QList<TableCell> &cells, const QString &id,
 {
     cells.append(textCell(id));
     cells.append(boolCell(metadata.enabled));
-    cells.append(textCell(entityModelRoleText(metadata.model_role)));
+    cells.append(localizedTextCell(entityModelRoleText(metadata.model_role)));
     cells.append(dateCell(metadata.date_added));
     cells.append(dateCell(metadata.date_installed));
     cells.append(textCell(metadata.description));
@@ -1127,7 +1138,9 @@ public:
                 if (cell.sort_value.userType() == QMetaType::Int)
                     return UnitTablePresentation::formatCount(context, cell.sort_value.toInt());
             }
-            return cell.display;
+            return cell.localize_display
+                ? QCoreApplication::translate("HydraulicTableValues",
+                    cell.display.toUtf8().constData()) : cell.display;
         }
         case ReactionOrderRole:
             return cell.reaction_kind.has_value() ? QVariant(cell.reaction_order) : QVariant();
@@ -1217,16 +1230,20 @@ public:
                     UnitTablePresentation::ReactionKind::Wall);
             if (column.units.kind == UnitTablePresentation::ColumnKind::RowQuantity)
             {
-                return title + QStringLiteral(
+                return title + QCoreApplication::translate("HydraulicTableValues",
+                    QT_TRANSLATE_NOOP("HydraulicTableValues",
                     "\nValve settings have different physical units. Sorting groups "
                     "compatible quantities and orders their canonical values within "
                     "each group. Use Valve Type to filter by type; a single numeric "
-                    "range would mix incompatible units.")
-                    + (column.simulation_result ? QStringLiteral("\nSimulation result.")
-                                                : QString());
+                    "range would mix incompatible units."))
+                    + (column.simulation_result
+                        ? QCoreApplication::translate("HydraulicTableValues",
+                            QT_TRANSLATE_NOOP("HydraulicTableValues", "\nSimulation result."))
+                        : QString());
             }
             if (column.simulation_result)
-                return title + QStringLiteral("\nSimulation result.");
+                return title + QCoreApplication::translate("HydraulicTableValues",
+                    QT_TRANSLATE_NOOP("HydraulicTableValues", "\nSimulation result."));
             return title;
         }
         if (role == Qt::BackgroundRole && column.simulation_result)
@@ -1497,7 +1514,7 @@ private:
             row.uuid = junction.uuid;
             appendCommonCells(row.cells, junction.id, junction.metadata);
             appendNodePositionCells(row.cells, junction.coordinate_wgs84);
-            row.cells.append(textCell(elevationInputText(junction.elevation_input_type)));
+            row.cells.append(localizedTextCell(elevationInputText(junction.elevation_input_type)));
             row.cells.append(numberCell(junction.elevation_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(junction.terrain_elevation_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(junction.elevation_offset_m, 3, QStringLiteral(" m")));
@@ -1596,12 +1613,12 @@ private:
             row.uuid = reservoir.uuid;
             appendCommonCells(row.cells, reservoir.id, reservoir.metadata);
             appendNodePositionCells(row.cells, reservoir.coordinate_wgs84);
-            row.cells.append(textCell(elevationInputText(reservoir.head_input_type)));
+            row.cells.append(localizedTextCell(elevationInputText(reservoir.head_input_type)));
             row.cells.append(numberCell(reservoir.hydraulic_head_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(reservoir.terrain_elevation_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(reservoir.hydraulic_head_offset_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(resolvedSymbologyElevationM(reservoir), 3, QStringLiteral(" m")));
-            row.cells.append(textCell(patternModeText(reservoir.head_pattern_mode)));
+            row.cells.append(localizedTextCell(patternModeText(reservoir.head_pattern_mode)));
             row.cells.append(textCell(patternId(network, reservoir.head_pattern_uuid)));
 
             const HydraulicSimulationResultNodeReservoir *result =
@@ -1704,7 +1721,7 @@ private:
             row.uuid = tank.uuid;
             appendCommonCells(row.cells, tank.id, tank.metadata);
             appendNodePositionCells(row.cells, tank.coordinate_wgs84);
-            row.cells.append(textCell(elevationInputText(tank.elevation_input_type)));
+            row.cells.append(localizedTextCell(elevationInputText(tank.elevation_input_type)));
             row.cells.append(numberCell(tank.bottom_elevation_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(tank.terrain_elevation_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(tank.bottom_offset_m, 3, QStringLiteral(" m")));
@@ -1712,7 +1729,7 @@ private:
             row.cells.append(numberCell(tank.water_level_initial_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(tank.water_level_minimum_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(tank.water_level_maximum_m, 3, QStringLiteral(" m")));
-            row.cells.append(textCell(tankGeometryInputText(tank.geometry_input_type)));
+            row.cells.append(localizedTextCell(tankGeometryInputText(tank.geometry_input_type)));
             row.cells.append(numberCell(tank.diameter_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(tank.cross_section_area_m2, 3, QStringLiteral(" m²")));
             row.cells.append(numberCell(tank.volume_at_maximum_level_m3, 3, QStringLiteral(" m³")));
@@ -1739,7 +1756,7 @@ private:
             }
 
             appendNodeQualityInputCells(row.cells, network, tank);
-            row.cells.append(textCell(tankMixingModelText(tank.mixing_model)));
+            row.cells.append(localizedTextCell(tankMixingModelText(tank.mixing_model)));
             row.cells.append(numberCell(tank.mixing_fraction, 4));
             row.cells.append(boolCell(tank.override_bulk_reaction));
             row.cells.append(reactionCell(tank.bulk_reaction.coefficient,
@@ -1835,7 +1852,7 @@ private:
             row.cells.append(optionalNumberCell(pipe.length_measured_m, 3, QStringLiteral(" m")));
             row.cells.append(numberCell(pipe.length_measured_m.value_or(pipe.length_calculated_m), 3,
                                         QStringLiteral(" m")));
-            row.cells.append(textCell(pipeInitialStatusText(pipe.initial_status)));
+            row.cells.append(localizedTextCell(pipeInitialStatusText(pipe.initial_status)));
             row.cells.append(numberCell(pipe.diameter_mm, 3, QStringLiteral(" mm")));
             row.cells.append(textCell(pipeMaterialId(network, pipe.material_uuid)));
             row.cells.append(numberCell(pipe.roughness_hazen_williams, 3));
@@ -1861,7 +1878,9 @@ private:
                 row.cells.append(numberCell(result->head_loss_m, 3, QStringLiteral(" m")));
                 row.cells.append(numberCell(result->head_loss_gradient_m_per_km, 3, QStringLiteral(" m/km")));
                 row.cells.append(numberCell(result->friction_factor, 6));
-                row.cells.append(boolCell(result->open, QStringLiteral("Open"), QStringLiteral("Closed")));
+                row.cells.append(boolCell(result->open,
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open")),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"))));
                 row.cells.append(optionalNumberCell(result->roughness_hazen_williams, 3));
                 row.cells.append(optionalNumberCell(result->roughness_darcy_weisbach_mm, 6, QStringLiteral(" mm")));
                 row.cells.append(optionalNumberCell(result->roughness_chezy_manning, 6));
@@ -1973,17 +1992,17 @@ private:
             row.cells.append(textCell(nodeId(node_ids, pump.node_uuid_from)));
             row.cells.append(textCell(nodeId(node_ids, pump.node_uuid_to)));
             row.cells.append(integerCell(pump.vertices.size()));
-            row.cells.append(textCell(pumpDefinitionText(pump.definition_type)));
+            row.cells.append(localizedTextCell(pumpDefinitionText(pump.definition_type)));
             row.cells.append(numberCell(pump.constant_power_kw, 3, QStringLiteral(" kW")));
             row.cells.append(textCell(pumpHeadCurveId(network, pump.head_curve_uuid)));
             row.cells.append(numberCell(pump.initial_speed_ratio, 4));
-            row.cells.append(textCell(pumpInitialStatusText(pump.initial_status)));
+            row.cells.append(localizedTextCell(pumpInitialStatusText(pump.initial_status)));
             row.cells.append(textCell(patternId(network, pump.speed_pattern_uuid)));
             row.cells.append(textCell(pumpControlSummary(network, pump.uuid)));
-            row.cells.append(textCell(pumpEfficiencyInputText(pump.efficiency_input_type)));
+            row.cells.append(localizedTextCell(pumpEfficiencyInputText(pump.efficiency_input_type)));
             row.cells.append(numberCell(pump.constant_efficiency_percent, 3, QStringLiteral(" %")));
             row.cells.append(textCell(pumpEfficiencyCurveId(network, pump.efficiency_curve_uuid)));
-            row.cells.append(textCell(pumpEnergyPriceInputText(pump.energy_price_input_type)));
+            row.cells.append(localizedTextCell(pumpEnergyPriceInputText(pump.energy_price_input_type)));
             row.cells.append(numberCell(pump.energy_price_per_kw_h, 6));
             row.cells.append(textCell(patternId(network, pump.price_pattern_uuid)));
 
@@ -1999,8 +2018,10 @@ private:
                 row.cells.append(numberCell(result->flow_m3_per_h, 3, QStringLiteral(" m³/h")));
                 row.cells.append(numberCell(result->velocity_m_per_s, 3, QStringLiteral(" m/s")));
                 row.cells.append(numberCell(result->head_gain_m, 3, QStringLiteral(" m")));
-                row.cells.append(boolCell(result->open, QStringLiteral("Open"), QStringLiteral("Closed")));
-                row.cells.append(textCell(pumpStateText(result->state)));
+                row.cells.append(boolCell(result->open,
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open")),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"))));
+                row.cells.append(localizedTextCell(pumpStateText(result->state)));
                 row.cells.append(numberCell(result->speed_ratio, 4));
                 row.cells.append(numberCell(result->efficiency_percent, 3, QStringLiteral(" %")));
                 row.cells.append(numberCell(result->power_kw, 3, QStringLiteral(" kW")));
@@ -2086,10 +2107,10 @@ private:
             row.cells.append(textCell(nodeId(node_ids, valve.node_uuid_from)));
             row.cells.append(textCell(nodeId(node_ids, valve.node_uuid_to)));
             row.cells.append(integerCell(valve.vertices.size()));
-            row.cells.append(textCell(valveTypeText(valve.type)));
+            row.cells.append(localizedTextCell(valveTypeText(valve.type)));
             row.cells.append(valveSettingCell(valve));
             row.cells.append(textCell(valveSettingCurveId(network, valve)));
-            row.cells.append(textCell(valveInitialStatusText(valve.initial_status)));
+            row.cells.append(localizedTextCell(valveInitialStatusText(valve.initial_status)));
             row.cells.append(numberCell(valve.diameter_mm, 3, QStringLiteral(" mm")));
             row.cells.append(numberCell(valve.minor_loss_coefficient, 6));
 
@@ -2105,7 +2126,9 @@ private:
                 row.cells.append(numberCell(result->flow_m3_per_h, 3, QStringLiteral(" m³/h")));
                 row.cells.append(numberCell(result->velocity_m_per_s, 3, QStringLiteral(" m/s")));
                 row.cells.append(numberCell(result->head_loss_m, 3, QStringLiteral(" m")));
-                row.cells.append(boolCell(result->open, QStringLiteral("Open"), QStringLiteral("Closed")));
+                row.cells.append(boolCell(result->open,
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Open")),
+                QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Closed"))));
                 row.cells.append(boolCell(result->active));
                 row.cells.append(valveResultSettingCell(*result));
                 row.cells.append(boolCell(result->appears_in_control));
@@ -2394,6 +2417,7 @@ public:
     {
         setFixedHeight(52);
         buildControls();
+        LiveUiText::bind(this, [this] { refreshNumericTooltips(); });
 
         QHeaderView *header = this->table->horizontalHeader();
         connect(header, &QHeaderView::sectionResized, this,
@@ -2416,14 +2440,19 @@ public:
     void refreshUnitControls()
     {
         refreshNumericControls();
+        refreshNumericTooltips();
+    }
+
+    void refreshNumericTooltips()
+    {
         for (int column : this->numeric_controls.keys())
         {
             NumericRangeControl &control = this->numeric_controls[column];
             const QString title = UnitTablePresentation::formattedTitle(
                 this->model->columnTitle(column),
                 UnitProfileManager::instance().presentation(), this->model->columnUnits(column));
-            control.minimum->setToolTip(QStringLiteral("Minimum filter for ") + title);
-            control.maximum->setToolTip(QStringLiteral("Maximum filter for ") + title);
+            control.minimum->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Minimum filter for %1")).arg(title));
+            control.maximum->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Maximum filter for %1")).arg(title));
         }
     }
 
@@ -2491,24 +2520,38 @@ private:
             if (kind == ColumnFilterKind::Text)
             {
                 QLineEdit *line_edit = new QLineEdit(this);
-                line_edit->setPlaceholderText(QStringLiteral("Filter…"));
+                line_edit->setPlaceholderText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Filter…")));
                 line_edit->setClearButtonEnabled(true);
-                line_edit->setToolTip(QStringLiteral("Filter ")
-                                      + this->model->columnTitle(column));
+                line_edit->setToolTip(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Filter %1"))
+                    .arg(this->model->columnTitle(column)));
                 connect(line_edit, &QLineEdit::textChanged, this,
                         [this, column](const QString &text)
                 {
                     this->proxy_model->setColumnFilter(column, ColumnFilterKind::Text, text);
                 });
                 line_edit->setText(active_filter);
+                LiveUiText::bind(line_edit, [this, line_edit, column] {
+                    line_edit->setPlaceholderText(LiveUiText::translate(
+                        QT_TRANSLATE_NOOP("LiveUiText", "Filter…")));
+                    line_edit->setToolTip(LiveUiText::translate(
+                        QT_TRANSLATE_NOOP("LiveUiText", "Filter %1"))
+                        .arg(this->model->columnTitle(column)));
+                });
                 control = line_edit;
             }
             else if (kind == ColumnFilterKind::Choice)
             {
                 QComboBox *combo_box = new QComboBox(this);
-                combo_box->setToolTip(QStringLiteral("Filter ")
-                                      + this->model->columnTitle(column));
+                combo_box->setToolTip(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Filter %1"))
+                    .arg(this->model->columnTitle(column)));
                 populateChoiceControl(combo_box, column, active_filter);
+                LiveUiText::bind(combo_box, [this, combo_box, column] {
+                    combo_box->setToolTip(LiveUiText::translate(
+                        QT_TRANSLATE_NOOP("LiveUiText", "Filter %1"))
+                        .arg(this->model->columnTitle(column)));
+                });
 
                 connect(combo_box, &QComboBox::currentIndexChanged, this,
                         [this, combo_box, column](int)
@@ -2586,11 +2629,12 @@ private:
             spin_box->setSingleStep(1.0);
         else
             spin_box->setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
-        spin_box->setToolTip((minimum ? QStringLiteral("Minimum filter for ")
-                                      : QStringLiteral("Maximum filter for "))
-                             + UnitTablePresentation::formattedTitle(
-                                 this->model->columnTitle(column),
-                                 UnitProfileManager::instance().presentation(), this->model->columnUnits(column)));
+        spin_box->setToolTip(LiveUiText::translate(minimum
+            ? QT_TRANSLATE_NOOP("LiveUiText", "Minimum filter for %1")
+            : QT_TRANSLATE_NOOP("LiveUiText", "Maximum filter for %1"))
+            .arg(UnitTablePresentation::formattedTitle(
+                this->model->columnTitle(column),
+                UnitProfileManager::instance().presentation(), this->model->columnUnits(column))));
         spin_box->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     }
 
@@ -2863,8 +2907,8 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
 
     this->table->setModel(this->proxy_model);
     LiveUiText::bind(this->table, [this] {
-        if (this->model->columnCount() > 0)
-            emit this->model->headerDataChanged(Qt::Horizontal, 0, this->model->columnCount() - 1);
+        this->model->refreshPresentation();
+        this->table->viewport()->update();
     });
     this->table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     this->table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -2909,7 +2953,8 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
     bottom_layout->setSpacing(8);
 
     QPushButton *reset_filters_button = new QPushButton(QStringLiteral("Reset filters"), bottom_row);
-    reset_filters_button->setToolTip(QStringLiteral("Reset all table filters"));
+    reset_filters_button->setToolTip(LiveUiText::translate(
+        QT_TRANSLATE_NOOP("LiveUiText", "Reset all table filters")));
     reset_filters_button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     bottom_layout->addWidget(reset_filters_button, 0, Qt::AlignVCenter);
 
@@ -2925,7 +2970,8 @@ HydraulicEntityTableWidget::HydraulicEntityTableWidget(HydraulicData *hydraulic_
                                static_cast<int>(SimulationStatusFilter::WarningsOnly));
     simulation_filter->addItem(QStringLiteral("Errors only"),
                                static_cast<int>(SimulationStatusFilter::ErrorsOnly));
-    simulation_filter->setToolTip(QStringLiteral("Filter entities by simulation diagnostics"));
+    simulation_filter->setToolTip(LiveUiText::translate(
+        QT_TRANSLATE_NOOP("LiveUiText", "Filter entities by simulation diagnostics")));
     simulation_filter->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
     LiveUiText::bind(simulation_filter, [simulation_filter, simulation_filter_label, reset_filters_button] {
         const QSignalBlocker blocker(simulation_filter);

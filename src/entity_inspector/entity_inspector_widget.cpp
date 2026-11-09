@@ -2804,9 +2804,11 @@ void EntityInspectorWidget::addGroupDemands(bool include_emitter)
             }, read_exponent);
         this->spin_emitter_coefficient = coefficient;
         coefficient->setAlignment(Qt::AlignRight);
-        coefficient->setToolTip(
-            "Coefficient C in Q = C · hⁿ. Q and h use the selected flow and pressure-head "
-            "units. The coefficient dimension changes with the exponent n.");
+        LiveUiText::bind(coefficient, [coefficient] {
+            coefficient->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                "Coefficient C in Q = C · hⁿ. Q and h use the selected flow and pressure-head "
+                "units. The coefficient dimension changes with the exponent n.")));
+        });
         constrainSpinWidth(coefficient);
 
         QLabel *label_emitter_pressure_exponent = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Emitter<br>Exponent"), nullptr);
@@ -2818,10 +2820,12 @@ void EntityInspectorWidget::addGroupDemands(bool include_emitter)
             nullptr, [](const QString &) { return QString(); });
         this->spin_emitter_pressure_exponent = exponent;
         exponent->setAlignment(Qt::AlignRight);
-        exponent->setToolTip(
-            "Dimensionless exponent n in Q = C · hⁿ. EPANET supports one exponent "
-            "for the network, so all enabled junctions with a non-zero emitter "
-            "coefficient must use the same value.");
+        LiveUiText::bind(exponent, [exponent] {
+            exponent->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText",
+                "Dimensionless exponent n in Q = C · hⁿ. EPANET supports one exponent "
+                "for the network, so all enabled junctions with a non-zero emitter "
+                "coefficient must use the same value.")));
+        });
         constrainSpinWidth(exponent);
 
         grid->addWidget(label_emitter_coefficient, row, 0);
@@ -3145,7 +3149,10 @@ void EntityInspectorWidget::addDemandRow(
 
     QLineEdit *line_note = new QLineEdit(this->table_demands);
     QPushButton *button_delete = new QPushButton(QIcon(":/icon/remove.png"), "", this->table_demands);
-    button_delete->setToolTip("Delete this demand category");
+    LiveUiText::bind(button_delete, [button_delete] {
+        button_delete->setToolTip(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Delete this demand category")));
+    });
     button_delete->setMaximumWidth(35);
 
     this->table_demands->setCellWidget(demand_index, 0, line_category);

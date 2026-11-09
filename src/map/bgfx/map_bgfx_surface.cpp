@@ -197,7 +197,15 @@ void MapBgfxSurface::resizeEvent(QResizeEvent *event)
 void MapBgfxSurface::changeEvent(QEvent *event)
 {
     if (this->view)
+    {
         this->view->handleHostChange(event->type());
+        // Language changes need an actual HUD frame even when the camera is
+        // stationary. Layout direction changes can also affect text placement.
+        // Neither operation rebuilds the view or modifies map state.
+        if (event->type() == QEvent::LanguageChange
+            || event->type() == QEvent::LayoutDirectionChange)
+            this->view->requestRedraw();
+    }
     QWidget::changeEvent(event);
 }
 

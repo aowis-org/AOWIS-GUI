@@ -79,7 +79,7 @@ public:
         server_form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
         this->server_endpoint_edit = new QLineEdit(this->remote_options);
         this->server_endpoint_edit->setObjectName(QStringLiteral("projectServerEndpoint"));
-        this->server_endpoint_edit->setPlaceholderText(tr("https://database.example.invalid"));
+        this->server_endpoint_edit->setPlaceholderText(QStringLiteral("https://database.example.invalid"));
         this->server_auth_combo = new QComboBox(this->remote_options);
         this->server_auth_combo->setObjectName(QStringLiteral("projectServerAuthMode"));
         this->server_auth_combo->addItem(tr("None"), QStringLiteral("None"));

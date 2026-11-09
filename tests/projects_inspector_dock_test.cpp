@@ -1946,6 +1946,40 @@ int main(int argc, char **argv)
                  "new database name is not editable on the Connection tab")) return 1;
     source_name->setText(QStringLiteral("Added server"));
     endpoint->setText(QStringLiteral("http://127.0.0.1:1"));
+    // A declined connection warning must leave the creation form intact and
+    // must not write a pending profile. In WASM this decision is asynchronous:
+    // it must never require a nested QMessageBox::question() event loop.
+    bool declined_pending = false;
+    QTimer decline_confirmation_timer;
+    decline_confirmation_timer.setInterval(1);
+    QObject::connect(&decline_confirmation_timer, &QTimer::timeout, [&]
+    {
+        for (QWidget *widget : QApplication::topLevelWidgets())
+        {
+            QMessageBox *confirmation = qobject_cast<QMessageBox *>(widget);
+            if (confirmation == nullptr || !confirmation->isVisible()
+                || confirmation->windowTitle() != QStringLiteral("Database unreachable"))
+                continue;
+            if (QAbstractButton *no = confirmation->button(QMessageBox::No))
+            {
+                declined_pending = true;
+                decline_confirmation_timer.stop();
+                no->click();
+            }
+            return;
+        }
+    });
+    decline_confirmation_timer.start();
+    create_source->click();
+    for (int attempt = 0; attempt < 300 && !declined_pending; ++attempt)
+        waitFor(10);
+    decline_confirmation_timer.stop();
+    app.processEvents();
+    if (!require(declined_pending && loadProjectServerProfiles().size() == 2
+                 && create_source->isEnabled() && source_name->text() == QStringLiteral("Added server"),
+                 "declining an unreachable database must preserve the unsaved form"))
+        return 1;
+
     bool accepted_pending = false;
     QTimer pending_confirmation_timer;
     pending_confirmation_timer.setInterval(1);
@@ -1959,7 +1993,7 @@ int main(int argc, char **argv)
             {
                 // Click the actual standard button: forcing QDialog::done()
                 // bypasses QMessageBox's clicked-button handling and can
-                // cause question() to return NoButton instead of Yes.
+                // cause finished() to report NoButton instead of Yes.
                 if (QAbstractButton *yes = confirmation->button(QMessageBox::Yes))
                 {
                     accepted_pending = true;
@@ -2032,6 +2066,8 @@ int main(int argc, char **argv)
     });
     server_confirmation_timer.start();
     delete_connection->click();
+    for (int attempt = 0; attempt < 300 && !confirmed_server_deletion; ++attempt)
+        waitFor(10);
     server_confirmation_timer.stop();
     if (!require(confirmed_server_deletion,
                  "database profile deletion confirmation was not accepted"))

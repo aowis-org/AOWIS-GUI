@@ -80,6 +80,7 @@ public:
     explicit ProjectRevisionGraph(QWidget *parent = nullptr);
     void setNodes(const QVector<ProjectGraphNode> &nodes);
     void retranslateCaptions();
+    void refreshNodeTitles(const QHash<QString, QString> &titles);
     void setSelection(const QString &revision_id);
     void fitGraph();
     void setTopDown(bool top_down);
@@ -98,6 +99,7 @@ public:
     double zoomFactor() const;
     QString selectionId() const;
     QString nodeBranchCaption(const QString &node_id) const;
+    QString nodeTitle(const QString &node_id) const;
     QRectF graphBounds() const;
 
 signals:

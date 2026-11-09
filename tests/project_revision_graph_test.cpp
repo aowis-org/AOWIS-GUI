@@ -1053,6 +1053,19 @@ int main(int argc, char **argv)
                         && localized_graph.selectionId() == locale_head.id,
                         "graph language change altered selection, layout, or camera")) return 1;
     }
+    // Built-in preview translations must not rebuild the DAG or move its
+    // camera. The text-only update keeps the same node and selection IDs.
+    localized_graph.refreshNodeTitles({
+        {locale_project.id, QStringLiteral("Projet traduit")},
+        {locale_head.id, QStringLiteral("HEAD traduit")}
+    });
+    if (!require(localized_graph.nodeTitle(locale_project.id) == QStringLiteral("Projet traduit")
+                     && localized_graph.nodeTitle(locale_head.id) == QStringLiteral("HEAD traduit")
+                     && localized_graph.nodeViewportPosition(locale_project.id) == project_center
+                     && localized_graph.nodeViewportPosition(locale_head.id) == head_center
+                     && localized_graph.zoomFactor() == original_zoom
+                     && localized_graph.selectionId() == locale_head.id,
+                 "preview title translation changed selection, layout or camera")) return 1;
     QCoreApplication::removeTranslator(&synthetic_translator);
     localized_graph.retranslateCaptions();
     if (!require(localized_graph.nodeBranchCaption(locale_project.id)

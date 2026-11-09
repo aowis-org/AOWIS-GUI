@@ -148,6 +148,7 @@ private:
         const MapCanvasMarkers &markers, double max_distance) const;
     QList<CoordinateWGS84> pipeCoordinates(
         const PipeCanvasItem &pipe, const MapCanvasMarkers &markers) const;
+    void confirmVertexConversion(const QUuid &pipe_uuid, int vertex_index);
     void rebuildUuidIndex();
     void updateCanvas();
 

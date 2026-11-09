@@ -75,6 +75,14 @@ private:
     QToolButton *language_button = nullptr;
     QToolButton *export_button = nullptr;
     void refreshViewText();
+    void refreshSimulationRunTooltip();
+    enum class SimulationRunState
+    {
+        Ready, Running, Stopping, Cancelled, Failed, Errors, Invalid, Warnings, Successful
+    };
+    SimulationRunState simulation_run_state = SimulationRunState::Ready;
+    int simulation_run_error_count = 0;
+    int simulation_run_warning_count = 0;
     void refreshNetworkStatus();
     const char *network_status_source = QT_TRANSLATE_NOOP("LiveUiText", "No network");
     QString network_status_argument;

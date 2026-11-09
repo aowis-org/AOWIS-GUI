@@ -435,12 +435,12 @@ void SimulationStatisticsDialog::refreshSummary()
                     QString::number(aggregate.deficient_nodes.value),
                     statisticTime(results, aggregate.deficient_nodes.result_index));
     addSummaryValue(demand_group, tr("Maximum demand reduction"),
-                    tr("%1 %").arg(formatDouble(aggregate.demand_reduction_percent.value)),
+                    QStringLiteral("%1 %").arg(formatDouble(aggregate.demand_reduction_percent.value)),
                     statisticTime(results, aggregate.demand_reduction_percent.result_index));
 
     QTreeWidgetItem *leakage_group = addSummaryGroup(this->tree_summary, tr("Leakage"));
     addSummaryValue(leakage_group, tr("Maximum leakage loss"),
-                    tr("%1 %").arg(formatDouble(aggregate.leakage_loss_percent.value)),
+                    QStringLiteral("%1 %").arg(formatDouble(aggregate.leakage_loss_percent.value)),
                     statisticTime(results, aggregate.leakage_loss_percent.result_index));
 
     for (int top_level_index = 0; top_level_index < this->tree_summary->topLevelItemCount(); ++top_level_index)

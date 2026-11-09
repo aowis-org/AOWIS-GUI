@@ -143,6 +143,13 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
             QMessageBox::Yes | QMessageBox::No,
             this);
         confirmation->setAttribute(Qt::WA_DeleteOnClose);
+        LiveUiText::bind(confirmation, [confirmation, profile_name] {
+            confirmation->setWindowTitle(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Delete unit profile")));
+            confirmation->setText(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Delete the custom unit profile \"%1\"?\nThis cannot be undone."))
+                .arg(profile_name));
+        });
         confirmation->setDefaultButton(QMessageBox::No);
         confirmation->setEscapeButton(QMessageBox::No);
         connect(confirmation, &QMessageBox::finished, this, [this, profile_id](int result) {
@@ -158,6 +165,7 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
         });
         confirmation->open();
     });
+    LiveUiText::bind(this, [this] { refreshLanguage(); });
 }
 
 void UnitsSettingsWidget::load()
@@ -178,14 +186,29 @@ void UnitsSettingsWidget::refreshSelector(int selected)
     QSignalBlocker blocker(this->profile_selector);
     this->profile_selector->clear();
     for (const Profile &profile : UnitProfileManager::instance().profiles())
-        this->profile_selector->addItem(profile.name);
+        this->profile_selector->addItem(UnitProfileMenu::label(profile));
     this->profile_selector->setCurrentIndex(selected);
-    this->profile_button->setText(UnitProfileManager::instance().profiles().at(selected).name + QStringLiteral("  ▾"));
+    this->profile_button->setText(UnitProfileMenu::label(UnitProfileManager::instance().profiles().at(selected)) + QStringLiteral("  ▾"));
     UnitProfileMenu::populate(this->profile_menu, this,
                               UnitProfileManager::instance().profiles(), selected,
                               [this](int index) { this->profile_selector->setCurrentIndex(index); });
     this->refreshFields();
 }
+void UnitsSettingsWidget::refreshLanguage()
+{
+    const QVector<Profile> &profiles = UnitProfileManager::instance().profiles();
+    const QSignalBlocker blocker(this->profile_selector);
+    for (int index = 0; index < this->profile_selector->count() && index < profiles.size(); ++index)
+        this->profile_selector->setItemText(index, UnitProfileMenu::label(profiles.at(index)));
+    const int index = this->profile_selector->currentIndex();
+    if (index >= 0 && index < profiles.size())
+        this->profile_button->setText(UnitProfileMenu::label(profiles.at(index))
+                                      + QStringLiteral("  ▾"));
+    UnitProfileMenu::retranslate(this->profile_menu, profiles);
+    // Deliberately leave the unit editors, selected IDs, search draft and table
+    // positions untouched. Only profile menu presentation is refreshed here.
+}
+
 void UnitsSettingsWidget::refreshFields()
 {
     this->fields_tree->clear();
@@ -194,7 +217,7 @@ void UnitsSettingsWidget::refreshFields()
     const bool builtin = UnitProfileManager::instance().profiles().at(index).builtin;
     this->delete_button->setEnabled(!builtin);
     this->rename_button->setEnabled(!builtin);
-    this->profile_button->setText(UnitProfileManager::instance().profiles().at(index).name + QStringLiteral("  ▾"));
+    this->profile_button->setText(UnitProfileMenu::label(UnitProfileManager::instance().profiles().at(index)) + QStringLiteral("  ▾"));
     // Refresh checked menu entries without rebuilding menus while a selection is in progress.
 #ifndef Q_OS_WASM
     updateMenuChecks(this->profile_menu, index);
@@ -306,7 +329,7 @@ void UnitsSettingsWidget::createProfile()
     layout->addWidget(base_button);
     dialog->setProperty("sourceIndex", qMax(0, this->profile_selector->currentIndex()));
     const int source = dialog->property("sourceIndex").toInt();
-    base_button->setText(UnitProfileManager::instance().profiles().at(source).name + QStringLiteral("  ▾"));
+    base_button->setText(UnitProfileMenu::label(UnitProfileManager::instance().profiles().at(source)) + QStringLiteral("  ▾"));
     QLineEdit *name_edit = new QLineEdit(dialog);
     const std::function<QString(int)> suggestedName = [](int index) {
         return UnitProfileManager::instance().profiles().at(index).name + QStringLiteral(" (custom)");
@@ -317,7 +340,7 @@ void UnitsSettingsWidget::createProfile()
         const QString previousSuggestion = suggestedName(dialog->property("sourceIndex").toInt());
         const bool useSuggestion = name_edit->text() == previousSuggestion;
         dialog->setProperty("sourceIndex", index);
-        base_button->setText(UnitProfileManager::instance().profiles().at(index).name + QStringLiteral("  ▾"));
+        base_button->setText(UnitProfileMenu::label(UnitProfileManager::instance().profiles().at(index)) + QStringLiteral("  ▾"));
         if (useSuggestion) name_edit->setText(suggestedName(index));
     };
 #ifdef Q_OS_WASM
@@ -333,6 +356,13 @@ void UnitsSettingsWidget::createProfile()
 #endif
     UnitProfileMenu::populate(base_menu, dialog,
                               UnitProfileManager::instance().profiles(), -1, selectBase);
+    LiveUiText::bind(base_button, [dialog, base_button, base_menu] {
+        const QVector<Profile> &profiles = UnitProfileManager::instance().profiles();
+        const int index = dialog->property("sourceIndex").toInt();
+        if (index >= 0 && index < profiles.size())
+            base_button->setText(UnitProfileMenu::label(profiles.at(index)) + QStringLiteral("  ▾"));
+        UnitProfileMenu::retranslate(base_menu, profiles);
+    });
     layout->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Profile name:"), dialog));
     layout->addWidget(name_edit);
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
@@ -349,6 +379,12 @@ void UnitsSettingsWidget::createProfile()
             QMessageBox *message = new QMessageBox(QMessageBox::Warning, QStringLiteral("Unit profiles"),
                 QStringLiteral("A profile with this name already exists."), QMessageBox::Ok, this);
             message->setAttribute(Qt::WA_DeleteOnClose);
+            LiveUiText::bind(message, [message] {
+                message->setWindowTitle(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "Unit profiles")));
+                message->setText(LiveUiText::translate(
+                    QT_TRANSLATE_NOOP("LiveUiText", "A profile with this name already exists.")));
+            });
             message->open();
             return;
         }
@@ -389,6 +425,12 @@ void UnitsSettingsWidget::renameProfile()
                 QMessageBox *message = new QMessageBox(QMessageBox::Warning, QStringLiteral("Unit profiles"),
                     QStringLiteral("A profile with this name already exists."), QMessageBox::Ok, this);
                 message->setAttribute(Qt::WA_DeleteOnClose);
+                LiveUiText::bind(message, [message] {
+                    message->setWindowTitle(LiveUiText::translate(
+                        QT_TRANSLATE_NOOP("LiveUiText", "Unit profiles")));
+                    message->setText(LiveUiText::translate(
+                        QT_TRANSLATE_NOOP("LiveUiText", "A profile with this name already exists.")));
+                });
                 message->open();
                 return;
             }

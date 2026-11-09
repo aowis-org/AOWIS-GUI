@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "config/shortcut_registry.h"
 #ifdef Q_OS_WASM
 #include "widgets/wasm_popup_menu.h"
@@ -7,6 +8,7 @@
 
 #include <QAction>
 #include <QMenu>
+#include <QPushButton>
 #include <QSettings>
 #include <QWidget>
 
@@ -383,7 +385,7 @@ bool GuiShortcutRegistry::persistShortcut(const GuiShortcutDefinition &definitio
     if (settings.status() != QSettings::NoError)
     {
         if (error_message != nullptr)
-            *error_message = QStringLiteral("Failed to save the keyboard shortcut configuration.");
+            *error_message = tr("Failed to save the keyboard shortcut configuration.");
         return false;
     }
     return true;
@@ -421,18 +423,30 @@ void installShortcutEditContextMenu(QWidget *widget, GuiShortcutId id)
 #ifdef Q_OS_WASM
         WasmPopupMenu *menu = new WasmPopupMenu(widget);
         menu->setDeleteOnClose(true);
-        menu->addAction(QStringLiteral("Edit keyboard shortcut…"), [id]
+        QPushButton *edit_action = menu->addAction(
+            QCoreApplication::translate("GuiShortcutRegistry", "Edit keyboard shortcut…"), [id]
         {
             guiShortcutRegistry().requestEdit(id);
+        });
+        LiveUiText::bind(menu, [edit_action]
+        {
+            edit_action->setText(QCoreApplication::translate(
+                "GuiShortcutRegistry", "Edit keyboard shortcut…"));
         });
         menu->popup(widget->mapToGlobal(position));
 #else
         QMenu *menu = new QMenu(widget);
         menu->setAttribute(Qt::WA_DeleteOnClose);
-        QAction *edit_action = menu->addAction(QStringLiteral("Edit keyboard shortcut…"));
+        QAction *edit_action = menu->addAction(
+            QCoreApplication::translate("GuiShortcutRegistry", "Edit keyboard shortcut…"));
         QObject::connect(edit_action, &QAction::triggered, widget, [id]
         {
             guiShortcutRegistry().requestEdit(id);
+        });
+        LiveUiText::bind(menu, [edit_action]
+        {
+            edit_action->setText(QCoreApplication::translate(
+                "GuiShortcutRegistry", "Edit keyboard shortcut…"));
         });
         menu->popup(widget->mapToGlobal(position));
 #endif

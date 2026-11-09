@@ -5,6 +5,7 @@
 #include <QMouseEvent>
 #include <QObject>
 #include <QWidget>
+#include <QString>
 #include <QUuid>
 
 #include <QTimer>
@@ -145,6 +146,7 @@ public slots:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
     QHBoxLayout *layout = nullptr;
@@ -159,6 +161,9 @@ private:
     // Shown while no GPU map surface is active (startup or failure). There
     // is deliberately no CPU or JavaScript map renderer behind it.
     QLabel *renderer_status = nullptr;
+    enum class RendererStatusKind { Starting, Failed, Stalled };
+    RendererStatusKind renderer_status_kind = RendererStatusKind::Starting;
+    QString renderer_status_details;
     MapMonitorMenuWidget *map_menu = nullptr;
     // The left menu's scroll area (hidden in map fullscreen).
     MapModeToolPanel *tool_panel = nullptr;
@@ -257,7 +262,8 @@ private:
         const QPointF &position, Qt::MouseButtons buttons,
         Qt::KeyboardModifiers modifiers);
     void setNetworkHovered(bool hovered);
-    void showRendererStatus(const QString &text);
+    void showRendererStatus(RendererStatusKind kind, const QString &details = QString());
+    void refreshRendererStatusText();
     void showMapLegendNode(VisualNode visual_node);
     void showMapLegendLink(VisualLink visual_link);
     void showMapLegendHeatmap(VisualHeatmap visual_heatmap);

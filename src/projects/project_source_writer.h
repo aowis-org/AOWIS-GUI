@@ -2,6 +2,7 @@
 
 #include "config/project_server_profile_storage.h"
 
+#include <QCoreApplication>
 #include <QNetworkAccessManager>
 #include <QPointer>
 #include <QString>
@@ -19,6 +20,8 @@ class QJsonObject;
 // refresh before starting another creation, which would get a new UUIDv7.
 class ProjectSourceWriter final : public QObject
 {
+    Q_DECLARE_TR_FUNCTIONS(ProjectSourceWriter)
+
 public:
     using Completion = std::function<void(const QString &created_id, const QString &error)>;
 

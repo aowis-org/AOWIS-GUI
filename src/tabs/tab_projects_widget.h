@@ -146,6 +146,7 @@ private:
     enum class SelectionKind { None, Server, Project, Branch, Head, Revision, NewSource };
     enum class CreationKind { None, Project, Branch };
     void seedPreview();
+    void refreshPreviewTranslations();
     QString serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const;
     void populateServerTree();
     void populateProjectTree();
@@ -231,6 +232,7 @@ private:
     QList<ProjectServerProfile> servers;
     QString server_id;
     QList<ProjectPreviewData> projects;
+    QHash<QString, QString> preview_translation_baselines;
     QString project_id;
     QString branch_id;
     SelectionKind selection_kind = SelectionKind::None;

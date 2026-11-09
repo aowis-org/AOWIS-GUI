@@ -1,3 +1,4 @@
+#include "config/live_ui_text.h"
 #include "app/main_window.h"
 #include "app/history_dock.h"
 #include "tabs/tab_map_workspace.h"
@@ -1071,8 +1072,13 @@ void MainWindow::keyPressEvent(QKeyEvent *event)
         box->setAttribute(Qt::WA_DeleteOnClose);
         
         box->setIcon(QMessageBox::Question);
-        box->setWindowTitle("Reload page");
-        box->setText("Do you really want to reload this page?<br>You might loose unsaved inputs.");
+        LiveUiText::bind(box, [box] {
+            box->setWindowTitle(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText", "Reload page")));
+            box->setText(LiveUiText::translate(
+                QT_TRANSLATE_NOOP("LiveUiText",
+                    "Do you really want to reload this page?<br>You might lose unsaved inputs.")));
+        });
         box->setStandardButtons(QMessageBox::Yes | QMessageBox::No);
         box->setDefaultButton(QMessageBox::No);
         

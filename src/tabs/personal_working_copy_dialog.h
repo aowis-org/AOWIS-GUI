@@ -43,6 +43,8 @@ private:
     void refreshStaticText();
     void refreshDraftDetailsText();
     void setOperationStatus(const QString &message);
+    void setOperationStatusKey(const char *source_key, const QString &argument = QString());
+    void refreshOperationStatus();
     void reportFailure(const QString &message);
     void refresh();
     void createDraft(const QString &base);
@@ -73,6 +75,10 @@ private:
     QLabel *scope_label = nullptr;
     QDialogButtonBox *close_buttons = nullptr;
     QLabel *status = nullptr;
+    // Retain application-owned status keys rather than already translated text.
+    // A running DVMDB request must not restart when the interface language changes.
+    const char *operation_status_key = nullptr;
+    QString operation_status_argument;
     QLabel *details = nullptr;
     QListWidget *drafts = nullptr;
     QPushButton *refresh_button = nullptr;

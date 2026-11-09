@@ -133,6 +133,11 @@ private:
     // whether it includes the source data (its result text).
     bool terrain_deletion_running = false;
     bool terrain_deletion_with_source = false;
+    bool terrain_deletion_result_available = false;
+    int terrain_deleted_tile_count = -1;
+    int terrain_deleted_source_count = -1;
+    QString terrain_deletion_error;
+    void refreshTerrainDeletionText();
     // Delete Terrain is enabled with a selection, a known dataset and no
     // deletion running.
     void refreshTerrainDeleteButton();

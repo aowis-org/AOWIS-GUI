@@ -2,6 +2,7 @@
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QEvent>
 #include <QLabel>
@@ -15,6 +16,30 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <utility>
+
+namespace
+{
+// QDialogButtonBox retranslates its standard buttons when it receives its own
+// LanguageChange event, which can arrive after the parent's event. Restore the
+// application catalogue text from the button box itself, without replacing it.
+class WorkingCopyCloseButtonBox final : public QDialogButtonBox
+{
+public:
+    explicit WorkingCopyCloseButtonBox(QWidget *parent)
+        : QDialogButtonBox(QDialogButtonBox::Close, parent) {}
+
+protected:
+    void changeEvent(QEvent *event) override
+    {
+        QDialogButtonBox::changeEvent(event);
+        if (event->type() == QEvent::LanguageChange)
+        {
+            if (QPushButton *close = button(QDialogButtonBox::Close))
+                close->setText(QCoreApplication::translate("PersonalWorkingCopyDialog", "Close"));
+        }
+    }
+};
+}
 
 PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         const QString &project_id, const QString &branch_id,
@@ -112,8 +137,10 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         this->edit_button->hide();
         this->drafts->hide();
     }
-    QDialogButtonBox *close = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    QDialogButtonBox *close = new WorkingCopyCloseButtonBox(this);
     this->close_buttons = close;
+    if (QPushButton *close_button = close->button(QDialogButtonBox::Close))
+        close_button->setText(tr("Close"));
     connect(close, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(close);
     connect(this->refresh_button, &QPushButton::clicked, this,
@@ -234,8 +261,10 @@ void PersonalWorkingCopyDialog::refreshStaticText()
             "Create one only after this project and branch exist in the personal DVMDB."));
     else if (this->active_draft.has_value())
         refreshDraftDetailsText();
-    // Preserve an in-flight status/error verbatim: it may contain a server
-    // response or user-relevant failure detail and must not be overwritten.
+    // Reformat active progress from its source key, without restarting the
+    // operation. Backend-supplied errors are not translated or overwritten.
+    if (this->operation_status_key != nullptr)
+        refreshOperationStatus();
 }
 
 void PersonalWorkingCopyDialog::setOperationStatus(const QString &message)
@@ -245,8 +274,28 @@ void PersonalWorkingCopyDialog::setOperationStatus(const QString &message)
         this->on_status(message, false);
 }
 
+void PersonalWorkingCopyDialog::setOperationStatusKey(const char *source_key,
+                                                     const QString &argument)
+{
+    this->operation_status_key = source_key;
+    this->operation_status_argument = argument;
+    refreshOperationStatus();
+}
+
+void PersonalWorkingCopyDialog::refreshOperationStatus()
+{
+    if (this->operation_status_key == nullptr)
+        return;
+    QString text = tr(this->operation_status_key);
+    if (!this->operation_status_argument.isNull())
+        text = text.arg(this->operation_status_argument);
+    setOperationStatus(text);
+}
+
 void PersonalWorkingCopyDialog::reportFailure(const QString &message)
 {
+    this->operation_status_key = nullptr;
+    this->operation_status_argument.clear();
     this->status->setText(message);
     if (this->direct_edit)
     {
@@ -283,7 +332,7 @@ void PersonalWorkingCopyDialog::refresh()
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    setOperationStatus(tr("Reading personal DVMDB drafts…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Reading personal DVMDB drafts…"));
     this->client.list(this->target, this->project_id, [this](const QList<PersonalWorkingCopyInfo> &items,
                                            const QString &error)
     {
@@ -305,8 +354,9 @@ void PersonalWorkingCopyDialog::refresh()
             item->setData(Qt::UserRole + 1, draft.generation);
             item->setData(Qt::UserRole + 2, draft.dirty);
         }
-        setOperationStatus(tr("%1 saved draft(s) for this branch in your personal DVMDB.")
-                              .arg(this->drafts->count()));
+        setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog",
+            "%1 saved draft(s) for this branch in your personal DVMDB."),
+            QString::number(this->drafts->count()));
         this->draft_list_empty_notice = !this->drafts->count();
         if (this->draft_list_empty_notice)
             this->details->setText(tr("No private draft for this branch. "
@@ -350,7 +400,7 @@ void PersonalWorkingCopyDialog::createDraft(const QString &base)
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    setOperationStatus(tr("Creating durable private draft…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Creating durable private draft…"));
     this->client.create(this->target, this->project_id, this->branch_id, base,
                         [this, base](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
@@ -382,7 +432,7 @@ void PersonalWorkingCopyDialog::inspectDraft()
     const QString id = this->drafts->currentItem()->data(Qt::UserRole).toString();
     if (!DvmdbIdentity::isUuidV7(id)) return;
     setBusy(true);
-    setOperationStatus(tr("Reopening private draft…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Reopening private draft…"));
     this->client.reopen(this->target, id,
                         [this](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
@@ -426,14 +476,14 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         this->drafts->setCurrentItem(found);
     }
     setBusy(false);
-    setOperationStatus(tr("Personal draft record loaded successfully."));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Personal draft record loaded successfully."));
     refreshDraftDetailsText();
     // A committed draft is rebased onto its new immutable base revision and
     // its candidateChanges become empty. Discover the entire saved candidate,
     // not just changes, or opening the HEAD after Commit loses its network.
     // This same endpoint handles an unborn draft and a fork from a revision.
     setBusy(true);
-    setOperationStatus(tr("Discovering the saved hydraulic network…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Discovering the saved hydraulic network…"));
     this->client.summarizeDraftNetworks(this->target, draft.id,
         [this, draft](const QJsonObject &summary, const QString &summary_error)
     {
@@ -503,7 +553,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             this->preview_generation = generation;
             setBusy(false);
             refreshDraftDetailsText();
-            setOperationStatus(tr("Hydraulic model verified and ready for private editing."));
+            setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Hydraulic model verified and ready for private editing."));
             if (this->direct_edit && this->confirm_before_editing)
             {
                 QMessageBox *warning = new QMessageBox(QMessageBox::Warning,
@@ -593,7 +643,7 @@ void PersonalWorkingCopyDialog::initializeNetwork()
     if (!accepted || name.isEmpty()) return;
     const QString network_id = DvmdbIdentity::newUuidV7();
     setBusy(true);
-    setOperationStatus(tr("Acquiring private draft writer lease…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Acquiring private draft writer lease…"));
     this->client.acquireLease(this->target, draft.id, draft.session_id, 90,
         [this, draft, network_id, name](const PersonalWorkingCopyLease &lease, const QString &error)
     {
@@ -613,7 +663,7 @@ void PersonalWorkingCopyDialog::initializeNetwork()
             });
             return;
         }
-        setOperationStatus(tr("Initializing first hydraulic network in private draft…"));
+        setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Initializing first hydraulic network in private draft…"));
         this->client.initializeEmptyNetwork(this->target, draft.id, draft.session_id,
             lease.token, lease.generation, network_id, name,
             [this, draft, lease](const PersonalWorkingCopyInfo &updated, const QString &init_error)
@@ -669,7 +719,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
     this->preview_network.reset();
     this->confirm_before_editing = false;
     setBusy(true);
-    setOperationStatus(tr("Checking the private draft against the branch HEAD…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Checking the private draft against the branch HEAD…"));
     this->client.reopen(this->target, draft_id,
         [this](const PersonalWorkingCopyInfo &draft, const QString &error)
     {
@@ -698,7 +748,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
                 this->head != personal_head && !this->source_pull_attempted)
             {
                 this->source_pull_attempted = true;
-                setOperationStatus(tr("Updating the branch from its source repository…"));
+                setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Updating the branch from its source repository…"));
                 this->client.checkoutBranchPrivately(this->target, this->source_endpoint,
                     this->source_repository_id, this->project_id, this->project_name,
                     this->branch_id, this->head, [this, draft](const QString &pull_error)
@@ -738,7 +788,7 @@ void PersonalWorkingCopyDialog::verifyDirectDraft(const QString &draft_id)
 void PersonalWorkingCopyDialog::replaceStaleDraft(const PersonalWorkingCopyInfo &draft,
                                                   const QString &personal_head)
 {
-    setOperationStatus(tr("Replacing the unmodified draft with one at the current HEAD…"));
+    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Replacing the unmodified draft with one at the current HEAD…"));
     // A fresh session: an editor still holding the draft makes this fail
     // instead of deleting a draft that is in use.
     const QString session_id = DvmdbIdentity::newUuidV7();
@@ -782,9 +832,9 @@ void PersonalWorkingCopyDialog::checkoutBranch()
     this->active_draft.reset();
     this->preview_network.reset();
     setBusy(true);
-    setOperationStatus(this->head.isEmpty()
-        ? tr("Checking out unborn branch into personal DVMDB…")
-        : tr("Transferring committed branch into personal DVMDB…"));
+    setOperationStatusKey(this->head.isEmpty()
+        ? QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Checking out unborn branch into personal DVMDB…")
+        : QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Transferring committed branch into personal DVMDB…"));
     this->client.checkoutBranchPrivately(this->target, this->source_endpoint,
         this->source_repository_id, this->project_id, this->project_name,
         this->branch_id, this->head, [this](const QString &error)
@@ -795,7 +845,7 @@ void PersonalWorkingCopyDialog::checkoutBranch()
             reportFailure(tr("Checkout failed: %1").arg(error));
             return;
         }
-        setOperationStatus(tr("Branch checked out to personal DVMDB."));
+        setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Branch checked out to personal DVMDB."));
         if (this->direct_edit)
             createDraft(this->head);
     });
