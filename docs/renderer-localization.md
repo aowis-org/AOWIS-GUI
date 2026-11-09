@@ -186,3 +186,24 @@ rule/premise modals while preserving edits, selections and zero new autosave
 transactions. `aowis-gui-language` checks representative translations from
 the four compiled catalogues. These tests do not replace native or WebAssembly
 verification of Arabic RTL, font shaping and window manager behaviour.
+
+## Hydraulic Entity Inspector: simulation presentation
+
+The Entity Inspector keeps its current entity, active tab, editing controls and
+unsaved values during a language switch. UI-derived simulation captions,
+pump/valve status words, diagnostic severity/context labels, energy-result
+fallbacks, water-quality fallback messages, and the demand summary are
+regenerated from the **existing in-memory** hydraulic results on Qt
+`LanguageChange`. This refresh path does not reload a network, replace the
+inspector, modify the MODEL, or generate an autosave transaction.
+
+`EntityInspectorPresentation` is the stable GUI-owned translation context for
+these strings. Free-form simulator/backend messages, entity names, UUIDs,
+pattern names and numeric input values remain unmodified. Hydraulic-demand
+summary counts use Qt numerus forms (including Arabic plural categories)
+while number formatting still follows the independently configured unit
+profile. Static tooltips, date 'not set' labels and endpoint actions also
+refresh in place. The `aowis-gui-language` test verifies representative
+compiled-catalogue simulation strings and a retained two-demand summary
+across all five languages. This is not yet an integration test that creates a
+fully populated live Inspector or a final Arabic RTL acceptance test.

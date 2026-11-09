@@ -4309,4 +4309,62 @@ change [%1]</source><translation>Max. Durchfluss-
   </message>
 </context>
 
+
+  <context>
+    <name>EntityInspectorPresentation</name>
+    <message><source>Backend code: %1</source><translation>Backend-Code: %1</translation></message>
+    <message><source>Backend message:</source><translation>Backend-Meldung:</translation></message>
+    <message><source>Backend operation: %1</source><translation>Backend-Vorgang: %1</translation></message>
+    <message><source>Backend: %1</source><translation>Backend: %1</translation></message>
+    <message><source>Cannot supply flow</source><translation>Kann keinen Durchfluss liefern</translation></message>
+    <message><source>Cannot supply head</source><translation>Kann keine Förderhöhe liefern</translation></message>
+    <message><source>Closed</source><translation>Geschlossen</translation></message>
+    <message><source>Curve-defined</source><translation>Durch Kennlinie definiert</translation></message>
+    <message><source>Date the entity was added to the model. yyyy-MM-dd</source><translation>Datum der Aufnahme des Elements in das Modell. JJJJ-MM-TT</translation></message>
+    <message><source>Date the physical asset was installed. yyyy-MM-dd</source><translation>Installationsdatum der physischen Anlage. JJJJ-MM-TT</translation></message>
+    <message><source>Describes whether this entity represents a real asset, a planned asset, a model-only helper, a boundary condition, or a temporary/testing element.</source><translation>Beschreibt, ob dieses Element eine reale oder geplante Anlage, eine reine Modellhilfe, eine Randbedingung oder ein temporäres Testelement darstellt.</translation></message>
+    <message><source>Details</source><translation>Details</translation></message>
+    <message><source>Error</source><translation>Fehler</translation></message>
+    <message><source>Fatal</source><translation>Schwerwiegend</translation></message>
+    <message><source>Find on Map</source><translation>Auf Karte finden</translation></message>
+    <message><source>Info</source><translation>Info</translation></message>
+    <message><source>Junction</source><translation>Knoten</translation></message>
+    <message><source>No</source><translation>Nein</translation></message>
+    <message><source>No complete-run energy summary is available for this pump.</source><translation>Für diese Pumpe ist keine Energiebilanz für den vollständigen Lauf verfügbar.</translation></message>
+    <message><source>No result for this entity at the selected timestep.</source><translation>Für dieses Element liegt zum gewählten Zeitschritt kein Ergebnis vor.</translation></message>
+    <message><source>No simulation timestep is selected.</source><translation>Kein Simulationszeitschritt ausgewählt.</translation></message>
+    <message><source>No valid simulation results available.</source><translation>Keine gültigen Simulationsergebnisse verfügbar.</translation></message>
+    <message><source>No water-quality result for this entity at the selected timestep.</source><translation>Für dieses Element liegt zum gewählten Zeitschritt kein Wasserqualitätsergebnis vor.</translation></message>
+    <message><source>No water-quality result is available for the selected hydraulic timestep.</source><translation>Für den gewählten hydraulischen Zeitschritt liegt kein Wasserqualitätsergebnis vor.</translation></message>
+    <message><source>Node</source><translation>Knoten</translation></message>
+    <message><source>Open</source><translation>Offen</translation></message>
+    <message><source>Operation: %1</source><translation>Vorgang: %1</translation></message>
+    <message><source>Outdated diagnostic — this entity has been edited since this simulation.</source><translation>Veraltete Diagnose – dieses Element wurde seit der Simulation bearbeitet.</translation></message>
+    <message><source>Property: %1</source><translation>Eigenschaft: %1</translation></message>
+    <message><source>Recorded geographic/GPS altitude, when available; not hydraulic elevation.</source><translation>Erfasste geografische/GPS-Höhe, soweit vorhanden; nicht die hydraulische Höhe.</translation></message>
+    <message><source>Reservoir</source><translation>Reservoir</translation></message>
+    <message><source>Select a time pattern for variable reservoir head, or Constant for a fixed head.</source><translation>Zeitmuster für eine variable Reservoirhöhe wählen oder Konstant für eine feste Höhe.</translation></message>
+    <message><source>Show in Inspector</source><translation>Im Inspektor anzeigen</translation></message>
+    <message><source>Simulation Error</source><translation>Simulationsfehler</translation></message>
+    <message><source>Simulation Errors (%1)</source><translation>Simulationsfehler (%1)</translation></message>
+    <message><source>Simulation Warning</source><translation>Simulationswarnung</translation></message>
+    <message><source>Simulation Warnings (%1)</source><translation>Simulationswarnungen (%1)</translation></message>
+    <message><source>Simulation error</source><translation>Simulationsfehler</translation></message>
+    <message><source>Simulation warning</source><translation>Simulationswarnung</translation></message>
+    <message><source>Stage: %1</source><translation>Phase: %1</translation></message>
+    <message><source>Tank</source><translation>Tank</translation></message>
+    <message><source>Unit: %1</source><translation>Einheit: %1</translation></message>
+    <message><source>Unknown</source><translation>Unbekannt</translation></message>
+    <message><source>Warning</source><translation>Warnung</translation></message>
+    <message><source>Water-quality simulation was not run.</source><translation>Die Wasserqualitätssimulation wurde nicht ausgeführt.</translation></message>
+    <message><source>Yes</source><translation>Ja</translation></message>
+    <message><source>[Not set]</source><translation>[Nicht festgelegt]</translation></message>
+    <message numerus="yes"><source>%n demand categories
+Total base demand: %1</source><translation>
+      <numerusform>%n Bedarfskategorie
+Gesamter Grundbedarf: %1</numerusform>
+      <numerusform>%n Bedarfskategorien
+Gesamter Grundbedarf: %1</numerusform>
+    </translation></message>
+  </context>
 </TS>

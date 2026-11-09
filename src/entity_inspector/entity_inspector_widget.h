@@ -213,6 +213,7 @@ private:
     void refreshHydraulicNodeElevation();
     void scheduleDemandsRefresh();
     void refreshDemands(bool presentation_only = false);
+    void refreshDemandSummary();
     void rebuildDemandRows(const QList<HydraulicDemand> &demands);
     void addDemandRow(int demand_index, const HydraulicDemand &demand);
     void updateDemandRow(int demand_index, const HydraulicDemand &demand);

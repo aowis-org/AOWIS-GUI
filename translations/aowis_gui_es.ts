@@ -4309,4 +4309,62 @@ caudal [%1]</translation></message></context><context><name>SimulationDiagnostic
   </message>
 </context>
 
+
+  <context>
+    <name>EntityInspectorPresentation</name>
+    <message><source>Backend code: %1</source><translation>Código del motor: %1</translation></message>
+    <message><source>Backend message:</source><translation>Mensaje del motor:</translation></message>
+    <message><source>Backend operation: %1</source><translation>Operación del motor: %1</translation></message>
+    <message><source>Backend: %1</source><translation>Motor: %1</translation></message>
+    <message><source>Cannot supply flow</source><translation>No puede suministrar caudal</translation></message>
+    <message><source>Cannot supply head</source><translation>No puede proporcionar altura de carga</translation></message>
+    <message><source>Closed</source><translation>Cerrado</translation></message>
+    <message><source>Curve-defined</source><translation>Definido por curva</translation></message>
+    <message><source>Date the entity was added to the model. yyyy-MM-dd</source><translation>Fecha en que se añadió el elemento al modelo. aaaa-MM-dd</translation></message>
+    <message><source>Date the physical asset was installed. yyyy-MM-dd</source><translation>Fecha de instalación del activo físico. aaaa-MM-dd</translation></message>
+    <message><source>Describes whether this entity represents a real asset, a planned asset, a model-only helper, a boundary condition, or a temporary/testing element.</source><translation>Indica si este elemento representa un activo real, planificado, solo de modelo, una condición de contorno o un elemento temporal/de prueba.</translation></message>
+    <message><source>Details</source><translation>Detalles</translation></message>
+    <message><source>Error</source><translation>Error</translation></message>
+    <message><source>Fatal</source><translation>Fatal</translation></message>
+    <message><source>Find on Map</source><translation>Buscar en el mapa</translation></message>
+    <message><source>Info</source><translation>Información</translation></message>
+    <message><source>Junction</source><translation>Unión</translation></message>
+    <message><source>No</source><translation>No</translation></message>
+    <message><source>No complete-run energy summary is available for this pump.</source><translation>No hay un resumen energético de la simulación completa para esta bomba.</translation></message>
+    <message><source>No result for this entity at the selected timestep.</source><translation>No hay resultado para este elemento en el intervalo seleccionado.</translation></message>
+    <message><source>No simulation timestep is selected.</source><translation>No hay ningún intervalo de simulación seleccionado.</translation></message>
+    <message><source>No valid simulation results available.</source><translation>No hay resultados de simulación válidos disponibles.</translation></message>
+    <message><source>No water-quality result for this entity at the selected timestep.</source><translation>No hay resultado de calidad del agua para este elemento en el intervalo seleccionado.</translation></message>
+    <message><source>No water-quality result is available for the selected hydraulic timestep.</source><translation>No hay resultado de calidad del agua para el intervalo hidráulico seleccionado.</translation></message>
+    <message><source>Node</source><translation>Nodo</translation></message>
+    <message><source>Open</source><translation>Abierto</translation></message>
+    <message><source>Operation: %1</source><translation>Operación: %1</translation></message>
+    <message><source>Outdated diagnostic — this entity has been edited since this simulation.</source><translation>Diagnóstico obsoleto: este elemento se modificó después de la simulación.</translation></message>
+    <message><source>Property: %1</source><translation>Propiedad: %1</translation></message>
+    <message><source>Recorded geographic/GPS altitude, when available; not hydraulic elevation.</source><translation>Altitud geográfica/GPS registrada, si está disponible; no es la elevación hidráulica.</translation></message>
+    <message><source>Reservoir</source><translation>Depósito</translation></message>
+    <message><source>Select a time pattern for variable reservoir head, or Constant for a fixed head.</source><translation>Seleccione un patrón temporal para una carga variable del depósito o Constante para una carga fija.</translation></message>
+    <message><source>Show in Inspector</source><translation>Mostrar en el inspector</translation></message>
+    <message><source>Simulation Error</source><translation>Error de simulación</translation></message>
+    <message><source>Simulation Errors (%1)</source><translation>Errores de simulación (%1)</translation></message>
+    <message><source>Simulation Warning</source><translation>Advertencia de simulación</translation></message>
+    <message><source>Simulation Warnings (%1)</source><translation>Advertencias de simulación (%1)</translation></message>
+    <message><source>Simulation error</source><translation>Error de simulación</translation></message>
+    <message><source>Simulation warning</source><translation>Advertencia de simulación</translation></message>
+    <message><source>Stage: %1</source><translation>Etapa: %1</translation></message>
+    <message><source>Tank</source><translation>Tanque</translation></message>
+    <message><source>Unit: %1</source><translation>Unidad: %1</translation></message>
+    <message><source>Unknown</source><translation>Desconocido</translation></message>
+    <message><source>Warning</source><translation>Advertencia</translation></message>
+    <message><source>Water-quality simulation was not run.</source><translation>No se ha ejecutado la simulación de calidad del agua.</translation></message>
+    <message><source>Yes</source><translation>Sí</translation></message>
+    <message><source>[Not set]</source><translation>[Sin definir]</translation></message>
+    <message numerus="yes"><source>%n demand categories
+Total base demand: %1</source><translation>
+      <numerusform>%n categoría de demanda
+Demanda base total: %1</numerusform>
+      <numerusform>%n categorías de demanda
+Demanda base total: %1</numerusform>
+    </translation></message>
+  </context>
 </TS>

@@ -100,6 +100,25 @@ int main(int argc, char **argv)
     if (search == nullptr || commands == nullptr)
         return 10;
     search->setText(QStringLiteral("zoom"));
+    // Exercise the retained inspector presentation refresh contract with the
+    // real compiled catalogues, not just a synthetic translator. These views
+    // keep their identity and stored data as language changes.
+    QLabel inspector_simulation_status;
+    LiveUiText::bind(&inspector_simulation_status, [&inspector_simulation_status] {
+        inspector_simulation_status.setText(QCoreApplication::translate(
+            "EntityInspectorPresentation", "No valid simulation results available."));
+    });
+    layout.addWidget(&inspector_simulation_status);
+    QLabel inspector_demand_summary;
+    const int inspector_demand_count = 2;
+    const QString inspector_base_demand = QStringLiteral("12.500 m³/h");
+    LiveUiText::bind(&inspector_demand_summary, [&inspector_demand_summary, &inspector_demand_count,
+                                                &inspector_base_demand] {
+        inspector_demand_summary.setText(QCoreApplication::translate(
+            "EntityInspectorPresentation", "%n demand categories\nTotal base demand: %1",
+            nullptr, inspector_demand_count).arg(inspector_base_demand));
+    });
+    layout.addWidget(&inspector_demand_summary);
     HistoryDock history;
     layout.addWidget(&history);
     HistoryDockContext context;
@@ -205,6 +224,23 @@ int main(int argc, char **argv)
                         QCoreApplication::translate("HydraulicControlsWidget", "Hydraulic map label"),
                         QString::fromUtf8(map_label_titles[index])))
             return 13;
+        const char *const inspector_simulation_messages[] = {
+            "No valid simulation results available.",
+            "Aucun résultat de simulation valide disponible.",
+            "لا تتوفر نتائج محاكاة صالحة.",
+            "Keine gültigen Simulationsergebnisse verfügbar.",
+            "No hay resultados de simulación válidos disponibles."
+        };
+        const QString translated_demand_summary = QCoreApplication::translate(
+            "EntityInspectorPresentation", "%n demand categories\nTotal base demand: %1",
+            nullptr, inspector_demand_count).arg(inspector_base_demand);
+        if (!matches(code, "live inspector simulation status", inspector_simulation_status.text(),
+                     QString::fromUtf8(inspector_simulation_messages[index]))
+            || !matches(code, "live inspector demand summary", inspector_demand_summary.text(),
+                        translated_demand_summary)
+            || !matches(code, "inspector summary numeric data", inspector_demand_summary.text().contains(inspector_base_demand), true)
+            || !matches(code, "inspector plural substitution", inspector_demand_summary.text().contains(QStringLiteral("%n")), false))
+            return 14;
         if (!matches(code, "description label", description_label->text(), QString::fromUtf8(descriptions[index]))
             || !matches(code, "import action", overview.import_network->text(), QString::fromUtf8(imports[index]))
             || !matches(code, "project name selection", overview.name->selectedText(), QStringLiteral("supply"))

@@ -4309,4 +4309,70 @@ change [%1]</source><translation>أقصى تغير
   </message>
 </context>
 
+
+  <context>
+    <name>EntityInspectorPresentation</name>
+    <message><source>Backend code: %1</source><translation>رمز المحرك: %1</translation></message>
+    <message><source>Backend message:</source><translation>رسالة المحرك:</translation></message>
+    <message><source>Backend operation: %1</source><translation>عملية المحرك: %1</translation></message>
+    <message><source>Backend: %1</source><translation>المحرك: %1</translation></message>
+    <message><source>Cannot supply flow</source><translation>تعذّر توفير التدفق</translation></message>
+    <message><source>Cannot supply head</source><translation>تعذّر توفير الضغط الهيدروليكي</translation></message>
+    <message><source>Closed</source><translation>مغلق</translation></message>
+    <message><source>Curve-defined</source><translation>محدد بمنحنى</translation></message>
+    <message><source>Date the entity was added to the model. yyyy-MM-dd</source><translation>تاريخ إضافة العنصر إلى النموذج. yyyy-MM-dd</translation></message>
+    <message><source>Date the physical asset was installed. yyyy-MM-dd</source><translation>تاريخ تركيب الأصل المادي. yyyy-MM-dd</translation></message>
+    <message><source>Describes whether this entity represents a real asset, a planned asset, a model-only helper, a boundary condition, or a temporary/testing element.</source><translation>يوضح ما إذا كان هذا العنصر يمثل أصلاً فعلياً أو مخططاً له أو عنصراً مساعداً للنموذج أو شرطاً حدياً أو عنصراً مؤقتاً للاختبار.</translation></message>
+    <message><source>Details</source><translation>التفاصيل</translation></message>
+    <message><source>Error</source><translation>خطأ</translation></message>
+    <message><source>Fatal</source><translation>فادح</translation></message>
+    <message><source>Find on Map</source><translation>تحديد على الخريطة</translation></message>
+    <message><source>Info</source><translation>معلومات</translation></message>
+    <message><source>Junction</source><translation>عقدة توصيل</translation></message>
+    <message><source>No</source><translation>لا</translation></message>
+    <message><source>No complete-run energy summary is available for this pump.</source><translation>لا يتوفر ملخص طاقة لكامل المحاكاة لهذه المضخة.</translation></message>
+    <message><source>No result for this entity at the selected timestep.</source><translation>لا توجد نتيجة لهذا العنصر عند الخطوة الزمنية المحددة.</translation></message>
+    <message><source>No simulation timestep is selected.</source><translation>لم تُحدد خطوة زمنية للمحاكاة.</translation></message>
+    <message><source>No valid simulation results available.</source><translation>لا تتوفر نتائج محاكاة صالحة.</translation></message>
+    <message><source>No water-quality result for this entity at the selected timestep.</source><translation>لا توجد نتيجة لجودة المياه لهذا العنصر عند الخطوة الزمنية المحددة.</translation></message>
+    <message><source>No water-quality result is available for the selected hydraulic timestep.</source><translation>لا تتوفر نتيجة لجودة المياه عند الخطوة الزمنية الهيدروليكية المحددة.</translation></message>
+    <message><source>Node</source><translation>عقدة</translation></message>
+    <message><source>Open</source><translation>مفتوح</translation></message>
+    <message><source>Operation: %1</source><translation>العملية: %1</translation></message>
+    <message><source>Outdated diagnostic — this entity has been edited since this simulation.</source><translation>تشخيص قديم — تم تعديل هذا العنصر بعد إجراء المحاكاة.</translation></message>
+    <message><source>Property: %1</source><translation>الخاصية: %1</translation></message>
+    <message><source>Recorded geographic/GPS altitude, when available; not hydraulic elevation.</source><translation>الارتفاع الجغرافي المسجل عبر GPS إن توفر، وليس الارتفاع الهيدروليكي.</translation></message>
+    <message><source>Reservoir</source><translation>خزان تغذية</translation></message>
+    <message><source>Select a time pattern for variable reservoir head, or Constant for a fixed head.</source><translation>اختر نمطاً زمنياً لمنسوب الخزان المتغير، أو ثابتاً للمنسوب الثابت.</translation></message>
+    <message><source>Show in Inspector</source><translation>عرض في لوحة الخصائص</translation></message>
+    <message><source>Simulation Error</source><translation>خطأ في المحاكاة</translation></message>
+    <message><source>Simulation Errors (%1)</source><translation>أخطاء المحاكاة (%1)</translation></message>
+    <message><source>Simulation Warning</source><translation>تحذير المحاكاة</translation></message>
+    <message><source>Simulation Warnings (%1)</source><translation>تحذيرات المحاكاة (%1)</translation></message>
+    <message><source>Simulation error</source><translation>خطأ في المحاكاة</translation></message>
+    <message><source>Simulation warning</source><translation>تحذير المحاكاة</translation></message>
+    <message><source>Stage: %1</source><translation>المرحلة: %1</translation></message>
+    <message><source>Tank</source><translation>خزان</translation></message>
+    <message><source>Unit: %1</source><translation>الوحدة: %1</translation></message>
+    <message><source>Unknown</source><translation>غير معروف</translation></message>
+    <message><source>Warning</source><translation>تحذير</translation></message>
+    <message><source>Water-quality simulation was not run.</source><translation>لم يتم تشغيل محاكاة جودة المياه.</translation></message>
+    <message><source>Yes</source><translation>نعم</translation></message>
+    <message><source>[Not set]</source><translation>[غير محدد]</translation></message>
+    <message numerus="yes"><source>%n demand categories
+Total base demand: %1</source><translation>
+      <numerusform>%n فئات طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+      <numerusform>%n فئة طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+      <numerusform>%n فئتا طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+      <numerusform>%n فئات طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+      <numerusform>%n فئة طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+      <numerusform>%n فئة طلب
+إجمالي الطلب الأساسي: %1</numerusform>
+    </translation></message>
+  </context>
 </TS>

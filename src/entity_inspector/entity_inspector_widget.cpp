@@ -31,6 +31,13 @@
 
 namespace
 {
+// Presentation-only translations for simulation values, diagnostics and editor
+// messages. The context is independent of the C++ file location and of MODEL.
+QString inspectorText(const char *source)
+{
+    return QCoreApplication::translate("EntityInspectorPresentation", source);
+}
+
 constexpr int pattern_mode_role = Qt::UserRole;
 constexpr int pattern_uuid_role = Qt::UserRole + 1;
 QString terrainDatumDisplayName(const QString &datum_id)
@@ -131,13 +138,13 @@ QString hydraulicNodeTypeName(InfrastructureEntity entity_type)
     switch (entity_type)
     {
     case InfrastructureEntity::Junction:
-        return QStringLiteral("Junction");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Junction"));
     case InfrastructureEntity::Reservoir:
-        return QStringLiteral("Reservoir");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Reservoir"));
     case InfrastructureEntity::Tank:
-        return QStringLiteral("Tank");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Tank"));
     default:
-        return QStringLiteral("Node");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Node"));
     }
 }
 
@@ -182,16 +189,16 @@ QString pumpStateText(HydraulicSimulationPumpState state)
     switch (state)
     {
     case HydraulicSimulationPumpState::CannotSupplyHead:
-        return QStringLiteral("Cannot supply head");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Cannot supply head"));
     case HydraulicSimulationPumpState::Closed:
-        return QStringLiteral("Closed");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Closed"));
     case HydraulicSimulationPumpState::Open:
-        return QStringLiteral("Open");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Open"));
     case HydraulicSimulationPumpState::CannotSupplyFlow:
-        return QStringLiteral("Cannot supply flow");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Cannot supply flow"));
     }
 
-    return QStringLiteral("Unknown");
+    return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Unknown"));
 }
 
 QString pipeRoughnessText(const HydraulicSimulationResultLinkPipe &result,
@@ -234,16 +241,16 @@ QString simulationDiagnosticSeverityText(HydraulicSimulationDiagnosticSeverity s
     switch (severity)
     {
     case HydraulicSimulationDiagnosticSeverity::Fatal:
-        return QStringLiteral("Fatal");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Fatal"));
     case HydraulicSimulationDiagnosticSeverity::Error:
-        return QStringLiteral("Error");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Error"));
     case HydraulicSimulationDiagnosticSeverity::Warning:
-        return QStringLiteral("Warning");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Warning"));
     case HydraulicSimulationDiagnosticSeverity::Information:
-        return QStringLiteral("Info");
+        return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Info"));
     }
 
-    return QStringLiteral("Error");
+    return inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Error"));
 }
 
 QString simulationDiagnosticSeverityColor(HydraulicSimulationDiagnosticSeverity severity)
@@ -272,28 +279,28 @@ QString simulationDiagnosticContext(const HydraulicSimulationDiagnostic &diagnos
 
     if (diagnostic.stage != HydraulicSimulationStatusStage::None)
     {
-        context.append(QStringLiteral("Stage: %1").arg(
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Stage: %1")).arg(
             simulationStatusEnumText("Stage", static_cast<int>(diagnostic.stage))));
     }
     if (diagnostic.operation != HydraulicSimulationStatusOperation::None)
     {
-        context.append(QStringLiteral("Operation: %1").arg(
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Operation: %1")).arg(
             simulationStatusEnumText("Operation", static_cast<int>(diagnostic.operation))));
     }
     if (diagnostic.property != HydraulicSimulationStatusProperty::None)
     {
-        context.append(QStringLiteral("Property: %1").arg(
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Property: %1")).arg(
             simulationStatusEnumText("Property", static_cast<int>(diagnostic.property))));
     }
     if (!diagnostic.backend_name.isEmpty())
-        context.append(QStringLiteral("Backend: %1").arg(diagnostic.backend_name));
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Backend: %1")).arg(diagnostic.backend_name));
     if (!diagnostic.backend_operation.isEmpty())
     {
-        context.append(QStringLiteral("Backend operation: %1")
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Backend operation: %1"))
                            .arg(diagnostic.backend_operation));
     }
     if (diagnostic.backend_error_code != 0)
-        context.append(QStringLiteral("Backend code: %1").arg(diagnostic.backend_error_code));
+        context.append(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Backend code: %1")).arg(diagnostic.backend_error_code));
 
     return context.join(QStringLiteral(" · "));
 }
@@ -322,7 +329,7 @@ QString simulationDiagnosticHtml(const HydraulicSimulationDiagnostic &diagnostic
         ? QStringLiteral("#808080")
         : simulationDiagnosticSeverityColor(diagnostic.severity);
     const QString default_message = isSimulationErrorSeverity(diagnostic.severity)
-        ? QStringLiteral("Simulation error") : QStringLiteral("Simulation warning");
+        ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation error")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation warning"));
     const QString message = diagnostic.message.isEmpty() ? default_message : diagnostic.message;
 
     QString html = QStringLiteral(
@@ -343,13 +350,15 @@ QString simulationDiagnosticHtml(const HydraulicSimulationDiagnostic &diagnostic
     if (!diagnostic.message_backend.isEmpty()
         && diagnostic.message_backend != diagnostic.message)
     {
-        html += QStringLiteral("<br><b>Backend message:</b> %1")
-                    .arg(diagnostic.message_backend.toHtmlEscaped());
+        html += QStringLiteral("<br><b>%1</b> %2")
+                    .arg(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Backend message:")).toHtmlEscaped(),
+                         diagnostic.message_backend.toHtmlEscaped());
     }
 
     if (!diagnostic.details.isEmpty())
     {
-        html += QStringLiteral("<br><b>Details</b><ul>");
+        html += QStringLiteral("<br><b>%1</b><ul>").arg(
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Details")).toHtmlEscaped());
         for (const QString &detail : diagnostic.details)
             html += QStringLiteral("<li>%1</li>").arg(detail.toHtmlEscaped());
         html += QStringLiteral("</ul>");
@@ -450,6 +459,16 @@ EntityInspectorWidget::EntityInspectorWidget(HydraulicData *hydraulic_data, QWid
         this->tabs->setTabToolTip(2, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Hydraulic Simulation & Measurement")));
         this->tabs->setTabToolTip(3, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Input")));
         this->tabs->setTabToolTip(4, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Water Quality Simulation & Measurement")));
+    });
+    // Refresh cached result captions on the existing inspector. Unlike rebuilding
+    // the inspector, this never replaces editors, selection or the current entity.
+    // Demand summaries refresh independently of demand-row editors.
+    LiveUiText::bind(this->tabs, [this] {
+        refreshSimulation();
+        refreshWaterQualitySimulation();
+        refreshSimulationErrors();
+        refreshSimulationWarnings();
+        refreshDemandSummary();
     });
     connect(this->tabs, &QTabWidget::currentChanged, this, &EntityInspectorWidget::signalCurrentTabChanged);
     
@@ -766,7 +785,7 @@ void EntityInspectorWidget::setSimulationEntityAvailable(bool available)
 
     this->label_simulation_message->setVisible(!available);
     if (!available)
-        this->label_simulation_message->setText("No result for this entity at the selected timestep.");
+        this->label_simulation_message->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No result for this entity at the selected timestep.")));
 }
 
 void EntityInspectorWidget::refreshPumpEnergySummary(
@@ -792,7 +811,7 @@ void EntityInspectorWidget::refreshPumpEnergySummary(
     if (!available)
     {
         this->label_simulation_energy_message->setText(
-            "No complete-run energy summary is available for this pump.");
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No complete-run energy summary is available for this pump.")));
         return;
     }
 
@@ -824,13 +843,13 @@ void EntityInspectorWidget::refreshSimulation()
     {
         this->label_simulation_energy_message->show();
         this->label_simulation_energy_message->setText(
-            "No valid simulation results available.");
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No valid simulation results available.")));
     }
 
     if (this->hydraulic_data == nullptr || !this->hydraulic_data->hasSimulationResults())
     {
         this->label_simulation_message->show();
-        this->label_simulation_message->setText("No valid simulation results available.");
+        this->label_simulation_message->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No valid simulation results available.")));
         return;
     }
 
@@ -840,7 +859,7 @@ void EntityInspectorWidget::refreshSimulation()
     if (result == nullptr || !timeline.has_value())
     {
         this->label_simulation_message->show();
-        this->label_simulation_message->setText("No simulation timestep is selected.");
+        this->label_simulation_message->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No simulation timestep is selected.")));
         return;
     }
 
@@ -874,7 +893,7 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::PressureHead, junction->pressure_head_m,
                            3, QStringLiteral(" m"));
         setSimulationText(SimulationField::ReferencedByControl,
-                          junction->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          junction->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     case InfrastructureEntity::Reservoir:
@@ -891,7 +910,7 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::PressureHead, reservoir->pressure_head_m,
                            3, QStringLiteral(" m"));
         setSimulationText(SimulationField::ReferencedByControl,
-                          reservoir->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          reservoir->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     case InfrastructureEntity::Tank:
@@ -914,7 +933,7 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::MixingZoneVolume, tank->mixing_zone_volume_m3,
                            3, QStringLiteral(" m³"));
         setSimulationText(SimulationField::ReferencedByControl,
-                          tank->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          tank->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     case InfrastructureEntity::Pipe:
@@ -937,10 +956,10 @@ void EntityInspectorWidget::refreshSimulation()
                            pipe->head_loss_gradient_m_per_km, 3, QStringLiteral(" m/km"));
         setSimulationValue(SimulationField::FrictionFactor, pipe->friction_factor, 6);
         setSimulationText(SimulationField::Status,
-                          pipe->open ? QStringLiteral("Open") : QStringLiteral("Closed"));
+                          pipe->open ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Open")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Closed")));
         setSimulationText(SimulationField::Roughness, pipeRoughnessText(*pipe, UnitProfileManager::instance().presentation()));
         setSimulationText(SimulationField::ReferencedByControl,
-                          pipe->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          pipe->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     case InfrastructureEntity::Pump:
@@ -958,7 +977,7 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::Head, pump->head_gain_m,
                            3, QStringLiteral(" m"));
         setSimulationText(SimulationField::Status,
-                          pump->open ? QStringLiteral("Open") : QStringLiteral("Closed"));
+                          pump->open ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Open")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Closed")));
         setSimulationText(SimulationField::PumpState, pumpStateText(pump->state));
         setSimulationValue(SimulationField::Speed, pump->speed_ratio, 3, QStringLiteral(" ×"));
         setSimulationValue(SimulationField::Efficiency, pump->efficiency_percent,
@@ -966,7 +985,7 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::Power, pump->power_kw,
                            3, QStringLiteral(" kW"));
         setSimulationText(SimulationField::ReferencedByControl,
-                          pump->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          pump->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     case InfrastructureEntity::Valve:
@@ -984,9 +1003,9 @@ void EntityInspectorWidget::refreshSimulation()
         setSimulationValue(SimulationField::HeadLoss, valve_result->head_loss_m,
                            3, QStringLiteral(" m"));
         setSimulationText(SimulationField::Status,
-                          valve_result->open ? QStringLiteral("Open") : QStringLiteral("Closed"));
+                          valve_result->open ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Open")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Closed")));
         setSimulationText(SimulationField::ValveRegulating,
-                          valve_result->active ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          valve_result->active ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
 
         switch (valve_result->type)
         {
@@ -1014,11 +1033,11 @@ void EntityInspectorWidget::refreshSimulation()
                     AOWIS_QUANTITY("valve_position"), valve_result->setting_position_percent, 2));
             break;
         case HydraulicLinkValveType::GPV:
-            setSimulationText(SimulationField::Setting, QStringLiteral("Curve-defined"));
+            setSimulationText(SimulationField::Setting, inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Curve-defined")));
             break;
         }
         setSimulationText(SimulationField::ReferencedByControl,
-                          valve_result->appears_in_control ? QStringLiteral("Yes") : QStringLiteral("No"));
+                          valve_result->appears_in_control ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Yes")) : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No")));
         break;
     }
     default:
@@ -1099,7 +1118,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
     if (!timeline.has_value() || timeline->analysis == WaterQualityAnalysisType::None)
     {
         this->label_quality_simulation_message->setVisible(true);
-        this->label_quality_simulation_message->setText("Water-quality simulation was not run.");
+        this->label_quality_simulation_message->setText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Water-quality simulation was not run.")));
         EntityInspectorText::setCaption(this->label_quality_simulation_value_name, QT_TRANSLATE_NOOP("LiveUiText", "Water Quality"));
         return;
     }
@@ -1110,7 +1129,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
     {
         this->label_quality_simulation_message->setVisible(true);
         this->label_quality_simulation_message->setText(
-            "No water-quality result is available for the selected hydraulic timestep.");
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No water-quality result is available for the selected hydraulic timestep.")));
         return;
     }
 
@@ -1231,7 +1250,7 @@ void EntityInspectorWidget::refreshWaterQualitySimulation()
     if (!entity_available)
     {
         this->label_quality_simulation_message->setText(
-            "No water-quality result for this entity at the selected timestep.");
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "No water-quality result for this entity at the selected timestep.")));
         return;
     }
 
@@ -1300,7 +1319,7 @@ void EntityInspectorWidget::addGroupSimulationErrors()
     if (this->group_simulation_errors != nullptr)
         return;
 
-    this->group_simulation_errors = new GroupBoxCollapsible("Simulation Error");
+    this->group_simulation_errors = new GroupBoxCollapsible(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Error")));
     QVBoxLayout *layout = new QVBoxLayout(this->group_simulation_errors);
 
     this->label_simulation_errors = new QLabel();
@@ -1367,10 +1386,9 @@ void EntityInspectorWidget::refreshSimulationErrors()
     QString html;
     if (stale)
     {
-        html += QStringLiteral(
-            "<p style=\"color:#808080; font-weight:600;\">"
-            "Outdated diagnostic — this entity has been edited since this simulation."
-            "</p>");
+        html += QStringLiteral("<p style=\"color:#808080; font-weight:600;\">%1</p>").arg(
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "Outdated diagnostic — this entity has been edited since this simulation.")).toHtmlEscaped());
     }
 
     for (const HydraulicSimulationDiagnostic &diagnostic : entity_errors)
@@ -1378,8 +1396,8 @@ void EntityInspectorWidget::refreshSimulationErrors()
 
     this->group_simulation_errors->setTitle(
         entity_errors.size() == 1
-            ? QStringLiteral("Simulation Error")
-            : QStringLiteral("Simulation Errors (%1)")
+            ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Error"))
+            : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Errors (%1)"))
                   .arg(static_cast<int>(entity_errors.size())));
     this->label_simulation_errors->setText(html);
     this->group_simulation_errors->show();
@@ -1390,7 +1408,7 @@ void EntityInspectorWidget::addGroupSimulationWarnings()
     if (this->group_simulation_warnings != nullptr)
         return;
 
-    this->group_simulation_warnings = new GroupBoxCollapsible("Simulation Warning");
+    this->group_simulation_warnings = new GroupBoxCollapsible(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Warning")));
     QVBoxLayout *layout = new QVBoxLayout(this->group_simulation_warnings);
 
     this->label_simulation_warnings = new QLabel();
@@ -1451,10 +1469,9 @@ void EntityInspectorWidget::refreshSimulationWarnings()
     QString html;
     if (stale)
     {
-        html += QStringLiteral(
-            "<p style=\"color:#808080; font-weight:600;\">"
-            "Outdated diagnostic — this entity has been edited since this simulation."
-            "</p>");
+        html += QStringLiteral("<p style=\"color:#808080; font-weight:600;\">%1</p>").arg(
+            inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "Outdated diagnostic — this entity has been edited since this simulation.")).toHtmlEscaped());
     }
 
     for (const HydraulicSimulationDiagnostic &diagnostic : entity_warnings)
@@ -1462,8 +1479,8 @@ void EntityInspectorWidget::refreshSimulationWarnings()
 
     this->group_simulation_warnings->setTitle(
         entity_warnings.size() == 1
-            ? QStringLiteral("Simulation Warning")
-            : QStringLiteral("Simulation Warnings (%1)")
+            ? inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Warning"))
+            : inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Simulation Warnings (%1)"))
                   .arg(static_cast<int>(entity_warnings.size())));
     this->label_simulation_warnings->setText(html);
     this->group_simulation_warnings->show();
@@ -1487,10 +1504,10 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
     EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Boundary Condition"), static_cast<int>(EntityModelRole::BoundaryCondition));
     EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Temporary / Testing"), static_cast<int>(EntityModelRole::TemporaryTesting));
     EntityInspectorText::addChoice(this->combo_model_role, QT_TRANSLATE_NOOP("LiveUiText", "Retired Asset"), static_cast<int>(EntityModelRole::RetiredAsset));
-    this->combo_model_role->setToolTip(
-        "Describes whether this entity represents a real asset, a planned asset, "
-        "a model-only helper, a boundary condition, or a temporary/testing element."
-    );
+    LiveUiText::bind(this->combo_model_role, [this] {
+        this->combo_model_role->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+            "Describes whether this entity represents a real asset, a planned asset, a model-only helper, a boundary condition, or a temporary/testing element.")));
+    });
 
     const QDate date_unset(100, 1, 1);
 
@@ -1498,18 +1515,22 @@ void EntityInspectorWidget::addGroupGeneral(const QString &name)
     this->date_added = new QDateEdit();
     this->date_added->setCalendarPopup(true);
     this->date_added->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
-    this->date_added->setToolTip("Date the entity was added to the model. yyyy-MM-dd");
+    LiveUiText::bind(this->date_added, [this] {
+        this->date_added->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Date the entity was added to the model. yyyy-MM-dd")));
+        this->date_added->setSpecialValueText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "[Not set]")));
+    });
     this->date_added->setMinimumDate(date_unset);
-    this->date_added->setSpecialValueText("[Not set]");
     this->date_added->setDate(date_unset);
 
     QLabel *label_date_installed = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Installation<br>Date"), nullptr);
     this->date_installed = new QDateEdit();
     this->date_installed->setCalendarPopup(true);
     this->date_installed->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
-    this->date_installed->setToolTip("Date the physical asset was installed. yyyy-MM-dd");
+    LiveUiText::bind(this->date_installed, [this] {
+        this->date_installed->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Date the physical asset was installed. yyyy-MM-dd")));
+        this->date_installed->setSpecialValueText(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "[Not set]")));
+    });
     this->date_installed->setMinimumDate(date_unset);
-    this->date_installed->setSpecialValueText("[Not set]");
     this->date_installed->setDate(date_unset);
 
     this->check_enabled = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Enabled"), nullptr);
@@ -1539,11 +1560,15 @@ void EntityInspectorWidget::addGroupEndpoints()
     this->label_node_1_id->setAlignment(Qt::AlignCenter);
     this->button_node_1_locate = new QPushButton(QIcon(":/icon/geomarker.png"), "");
     this->button_node_1_locate->setIconSize(QSize(20, 20));
-    this->button_node_1_locate->setToolTip("Find on Map");
+    LiveUiText::bind(this->button_node_1_locate, [this] {
+        this->button_node_1_locate->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Find on Map")));
+    });
     this->button_node_1_locate->setMaximumWidth(35);
     this->button_node_1_inspect = new QPushButton(QIcon(":/icon/target.png"), "");
     this->button_node_1_inspect->setIconSize(QSize(20, 20));
-    this->button_node_1_inspect->setToolTip("Show in Inspector");
+    LiveUiText::bind(this->button_node_1_inspect, [this] {
+        this->button_node_1_inspect->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Show in Inspector")));
+    });
     this->button_node_1_inspect->setMaximumWidth(35);
     
     QLabel *label_node_2 = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Node 2"), nullptr);
@@ -1552,11 +1577,15 @@ void EntityInspectorWidget::addGroupEndpoints()
     this->label_node_2_id->setAlignment(Qt::AlignCenter);
     this->button_node_2_locate = new QPushButton(QIcon(":/icon/geomarker.png"), "");
     this->button_node_2_locate->setIconSize(QSize(20, 20));
-    this->button_node_2_locate->setToolTip("Find on Map");
+    LiveUiText::bind(this->button_node_2_locate, [this] {
+        this->button_node_2_locate->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Find on Map")));
+    });
     this->button_node_2_locate->setMaximumWidth(35);
     this->button_node_2_inspect = new QPushButton(QIcon(":/icon/target.png"), "");
     this->button_node_2_inspect->setIconSize(QSize(20, 20));
-    this->button_node_2_inspect->setToolTip("Show in Inspector");
+    LiveUiText::bind(this->button_node_2_inspect, [this] {
+        this->button_node_2_inspect->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Show in Inspector")));
+    });
     this->button_node_2_inspect->setMaximumWidth(35);
     
     grid->addWidget(label_node_1, 0, 0);
@@ -1647,8 +1676,10 @@ void EntityInspectorWidget::addGroupPosition()
 
     this->label_geographic_altitude = new QLabel(group);
     this->label_geographic_altitude->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    this->label_geographic_altitude->setToolTip(QStringLiteral(
-        "Recorded geographic/GPS altitude, when available; not hydraulic elevation."));
+    LiveUiText::bind(this->label_geographic_altitude, [this] {
+        this->label_geographic_altitude->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+            "Recorded geographic/GPS altitude, when available; not hydraulic elevation.")));
+    });
 
     this->button_find_on_map = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Find on Map"), nullptr);
     
@@ -2230,7 +2261,10 @@ void EntityInspectorWidget::addGroupElevation()
     {
         QLabel *label_head_pattern = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Head Pattern"), nullptr);
         this->combo_head_pattern = new QComboBox();
-        this->combo_head_pattern->setToolTip("Select a time pattern for variable reservoir head, or Constant for a fixed head.");
+        LiveUiText::bind(this->combo_head_pattern, [this] {
+            this->combo_head_pattern->setToolTip(inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation",
+                "Select a time pattern for variable reservoir head, or Constant for a fixed head.")));
+        });
         constrainComboWidth(this->combo_head_pattern);
         grid->addWidget(label_head_pattern, 6, 0);
         grid->addWidget(this->combo_head_pattern, 6, 1);
@@ -2749,6 +2783,15 @@ void EntityInspectorWidget::addGroupDemands(bool include_emitter)
         grid->addWidget(coefficient, row++, 1);
         this->label_emitter_coefficient_unit = new QLabel();
         this->label_emitter_coefficient_unit->setWordWrap(true);
+        LiveUiText::bind(this->label_emitter_coefficient_unit, [this] {
+            if (this->spin_emitter_coefficient == nullptr)
+                return;
+            const EmitterCoefficientNumericSpinBox *coefficient =
+                static_cast<const EmitterCoefficientNumericSpinBox *>(this->spin_emitter_coefficient);
+            this->label_emitter_coefficient_unit->setText(
+                inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Unit: %1"))
+                    .arg(coefficient->displayedUnitLabel()));
+        });
         grid->addWidget(this->label_emitter_coefficient_unit, row++, 0, 1, 2);
         grid->addWidget(label_emitter_pressure_exponent, row, 0);
         grid->addWidget(exponent, row++, 1);
@@ -2915,15 +2958,16 @@ void EntityInspectorWidget::scheduleDemandsRefresh()
     });
 }
 
-void EntityInspectorWidget::refreshDemands(bool presentation_only)
+void EntityInspectorWidget::refreshDemandSummary()
 {
+    if (this->label_demands_summary == nullptr || this->hydraulic_data == nullptr)
+        return;
+
     const std::optional<QList<HydraulicDemand>> demands_optional = currentDemands();
     if (!demands_optional.has_value())
         return;
 
     const QList<HydraulicDemand> &demands = demands_optional.value();
-
-    if (this->label_demands_summary)
     {
         double total_base_demand_m3_per_h = 0.0;
         for (const HydraulicDemand &demand : demands)
@@ -2940,11 +2984,22 @@ void EntityInspectorWidget::refreshDemands(bool presentation_only)
         const std::optional<QString> text = NumericText::measurement(
             total, unit, context.locale(), context.formatPolicy(quantity));
         this->label_demands_summary->setText(
-            QStringLiteral("%1 demand categor%2\nTotal base demand: %3")
-                .arg(demand_count)
-                .arg(demand_count == 1 ? QStringLiteral("y") : QStringLiteral("ies"))
+            QCoreApplication::translate("EntityInspectorPresentation",
+                "%n demand categories\nTotal base demand: %1", nullptr, demand_count)
                 .arg(text.value_or(QStringLiteral("—"))));
     }
+
+}
+
+void EntityInspectorWidget::refreshDemands(bool presentation_only)
+{
+    const std::optional<QList<HydraulicDemand>> demands_optional = currentDemands();
+    if (!demands_optional.has_value())
+        return;
+
+    const QList<HydraulicDemand> &demands = demands_optional.value();
+
+    refreshDemandSummary();
 
     if (this->entity_type == InfrastructureEntity::Junction)
     {
@@ -2960,7 +3015,8 @@ void EntityInspectorWidget::refreshDemands(bool presentation_only)
                 coefficient->refreshUnits(context);
                 if (this->label_emitter_coefficient_unit)
                     this->label_emitter_coefficient_unit->setText(
-                        QStringLiteral("Unit: %1").arg(coefficient->displayedUnitLabel()));
+                        inspectorText(QT_TRANSLATE_NOOP("EntityInspectorPresentation", "Unit: %1"))
+                            .arg(coefficient->displayedUnitLabel()));
             }
             if (this->spin_emitter_pressure_exponent)
             {
