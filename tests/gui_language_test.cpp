@@ -187,6 +187,24 @@ int main(int argc, char **argv)
                         QCoreApplication::translate("HydraulicLibrariesWidget", "Add hydraulic library item"),
                         QString::fromUtf8(library_dialog_titles[index])))
             return 12;
+        const char *const control_categories[] = {"Rule controls", "Règles de commande",
+            "قواعد التحكم", "Steuerregeln", "Reglas de control"};
+        const char *const control_dialog_titles[] = {"Hydraulic rule control",
+            "Règle de commande hydraulique", "قاعدة التحكم الهيدروليكي",
+            "Hydraulische Steuerregel", "Regla de control hidráulico"};
+        const char *const map_label_titles[] = {"Hydraulic map label",
+            "Étiquette de carte hydraulique", "تسمية الخريطة الهيدروليكية",
+            "Hydraulische Kartenbeschriftung", "Etiqueta del mapa hidráulico"};
+        if (!matches(code, "controls category catalogue",
+                     QCoreApplication::translate("HydraulicControlsWidget", "Rule controls"),
+                     QString::fromUtf8(control_categories[index]))
+            || !matches(code, "controls modal catalogue",
+                        QCoreApplication::translate("HydraulicControlsWidget", "Hydraulic rule control"),
+                        QString::fromUtf8(control_dialog_titles[index]))
+            || !matches(code, "map label modal catalogue",
+                        QCoreApplication::translate("HydraulicControlsWidget", "Hydraulic map label"),
+                        QString::fromUtf8(map_label_titles[index])))
+            return 13;
         if (!matches(code, "description label", description_label->text(), QString::fromUtf8(descriptions[index]))
             || !matches(code, "import action", overview.import_network->text(), QString::fromUtf8(imports[index]))
             || !matches(code, "project name selection", overview.name->selectedText(), QStringLiteral("supply"))

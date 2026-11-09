@@ -3909,4 +3909,404 @@ change [%1]</source><translation>أقصى تغير
       <translation>لا يزال العنصر مستخدمًا أو أن معرّف UUID الخاص به غير صالح.</translation>
     </message>
   </context>
+<context>
+  <name>HydraulicControlsWidget</name>
+  <message>
+    <source>Unset</source>
+    <translation>غير محدد</translation>
+  </message>
+  <message>
+    <source>Save</source>
+    <translation>حفظ</translation>
+  </message>
+  <message>
+    <source>Cancel</source>
+    <translation>إلغاء</translation>
+  </message>
+  <message>
+    <source>IF</source>
+    <translation>إذا</translation>
+  </message>
+  <message>
+    <source>AND</source>
+    <translation>و</translation>
+  </message>
+  <message>
+    <source>OR</source>
+    <translation>أو</translation>
+  </message>
+  <message>
+    <source>Node</source>
+    <translation>عقدة</translation>
+  </message>
+  <message>
+    <source>Link</source>
+    <translation>وصلة</translation>
+  </message>
+  <message>
+    <source>System</source>
+    <translation>النظام</translation>
+  </message>
+  <message>
+    <source>Demand</source>
+    <translation>الطلب</translation>
+  </message>
+  <message>
+    <source>Head</source>
+    <translation>الحمل الهيدروليكي</translation>
+  </message>
+  <message>
+    <source>Grade</source>
+    <translation>المنسوب الهيدروليكي</translation>
+  </message>
+  <message>
+    <source>Level</source>
+    <translation>المنسوب</translation>
+  </message>
+  <message>
+    <source>Pressure</source>
+    <translation>الضغط</translation>
+  </message>
+  <message>
+    <source>Flow</source>
+    <translation>التدفق</translation>
+  </message>
+  <message>
+    <source>Status</source>
+    <translation>الحالة</translation>
+  </message>
+  <message>
+    <source>Setting</source>
+    <translation>القيمة المضبوطة</translation>
+  </message>
+  <message>
+    <source>Power</source>
+    <translation>القدرة</translation>
+  </message>
+  <message>
+    <source>Time</source>
+    <translation>الوقت</translation>
+  </message>
+  <message>
+    <source>Clock Time</source>
+    <translation>الوقت الفعلي</translation>
+  </message>
+  <message>
+    <source>Fill Time</source>
+    <translation>وقت الملء</translation>
+  </message>
+  <message>
+    <source>Drain Time</source>
+    <translation>وقت التفريغ</translation>
+  </message>
+  <message>
+    <source>=</source>
+    <translation>=</translation>
+  </message>
+  <message>
+    <source>!=</source>
+    <translation>!=</translation>
+  </message>
+  <message>
+    <source>&lt;=</source>
+    <translation>&lt;=</translation>
+  </message>
+  <message>
+    <source>&gt;=</source>
+    <translation>&gt;=</translation>
+  </message>
+  <message>
+    <source>&lt;</source>
+    <translation>&lt;</translation>
+  </message>
+  <message>
+    <source>&gt;</source>
+    <translation>&gt;</translation>
+  </message>
+  <message>
+    <source>IS</source>
+    <translation>يساوي</translation>
+  </message>
+  <message>
+    <source>IS NOT</source>
+    <translation>لا يساوي</translation>
+  </message>
+  <message>
+    <source>BELOW</source>
+    <translation>أقل من</translation>
+  </message>
+  <message>
+    <source>ABOVE</source>
+    <translation>أكبر من</translation>
+  </message>
+  <message>
+    <source>(unset)</source>
+    <translation>(غير محدد)</translation>
+  </message>
+  <message>
+    <source>Open</source>
+    <translation>مفتوح</translation>
+  </message>
+  <message>
+    <source>Closed</source>
+    <translation>مغلق</translation>
+  </message>
+  <message>
+    <source>Active</source>
+    <translation>نشط</translation>
+  </message>
+  <message>
+    <source>Pump speed ratio</source>
+    <translation>نسبة سرعة المضخة</translation>
+  </message>
+  <message>
+    <source>Valve pressure head (m)</source>
+    <translation>ارتفاع ضغط الصمام (م)</translation>
+  </message>
+  <message>
+    <source>Valve flow (m³/h)</source>
+    <translation>تدفق الصمام (م³/ساعة)</translation>
+  </message>
+  <message>
+    <source>Valve loss coefficient</source>
+    <translation>معامل فقد الصمام</translation>
+  </message>
+  <message>
+    <source>Valve position (%)</source>
+    <translation>موضع الصمام (%)</translation>
+  </message>
+  <message>
+    <source>Demand (m³/h)</source>
+    <translation>الطلب (م³/ساعة)</translation>
+  </message>
+  <message>
+    <source>Hydraulic head (m)</source>
+    <translation>الارتفاع الهيدروليكي (م)</translation>
+  </message>
+  <message>
+    <source>Water level (m)</source>
+    <translation>منسوب المياه (م)</translation>
+  </message>
+  <message>
+    <source>Pressure head (m)</source>
+    <translation>ارتفاع الضغط (م)</translation>
+  </message>
+  <message>
+    <source>Flow (m³/h)</source>
+    <translation>التدفق (م³/ساعة)</translation>
+  </message>
+  <message>
+    <source>Power (kW)</source>
+    <translation>القدرة (كيلوواط)</translation>
+  </message>
+  <message>
+    <source>Elapsed time (s)</source>
+    <translation>الوقت المنقضي (ث)</translation>
+  </message>
+  <message>
+    <source>Time of day (s)</source>
+    <translation>وقت اليوم (ث)</translation>
+  </message>
+  <message>
+    <source>Fill time (s)</source>
+    <translation>وقت الملء (ث)</translation>
+  </message>
+  <message>
+    <source>Drain time (s)</source>
+    <translation>وقت التفريغ (ث)</translation>
+  </message>
+  <message>
+    <source>(none)</source>
+    <translation>(لا يوجد)</translation>
+  </message>
+  <message>
+    <source>Pipe: %1</source>
+    <translation>أنبوب: %1</translation>
+  </message>
+  <message>
+    <source>Pump: %1</source>
+    <translation>مضخة: %1</translation>
+  </message>
+  <message>
+    <source>Valve: %1</source>
+    <translation>صمام: %1</translation>
+  </message>
+  <message>
+    <source>Junction: %1</source>
+    <translation>عقدة: %1</translation>
+  </message>
+  <message>
+    <source>Reservoir: %1</source>
+    <translation>خزان مصدر: %1</translation>
+  </message>
+  <message>
+    <source>Tank: %1</source>
+    <translation>خزان: %1</translation>
+  </message>
+  <message>
+    <source>Rule premise</source>
+    <translation>شرط القاعدة</translation>
+  </message>
+  <message>
+    <source>Logic</source>
+    <translation>المنطق</translation>
+  </message>
+  <message>
+    <source>Object type</source>
+    <translation>نوع الكائن</translation>
+  </message>
+  <message>
+    <source>Object</source>
+    <translation>الكائن</translation>
+  </message>
+  <message>
+    <source>Variable</source>
+    <translation>المتغير</translation>
+  </message>
+  <message>
+    <source>Comparison</source>
+    <translation>المقارنة</translation>
+  </message>
+  <message>
+    <source>Invalid premise</source>
+    <translation>شرط غير صالح</translation>
+  </message>
+  <message>
+    <source>Numerical fields must contain finite numbers, and times must be non-negative integers.</source>
+    <translation>يجب إدخال أعداد منتهية في الحقول الرقمية وأعداد صحيحة غير سالبة للوقت.</translation>
+  </message>
+  <message>
+    <source>Select an existing node or link.</source>
+    <translation>اختر عقدة أو وصلة موجودة.</translation>
+  </message>
+  <message>
+    <source>Rule action</source>
+    <translation>إجراء القاعدة</translation>
+  </message>
+  <message>
+    <source>Target link</source>
+    <translation>الوصلة المستهدفة</translation>
+  </message>
+  <message>
+    <source>Invalid action</source>
+    <translation>إجراء غير صالح</translation>
+  </message>
+  <message>
+    <source>Select a valid link and enter finite setting values.</source>
+    <translation>اختر وصلة صالحة وأدخل قيم ضبط منتهية.</translation>
+  </message>
+  <message>
+    <source>Link: %1 | %2</source>
+    <translation>وصلة: %1 | %2</translation>
+  </message>
+  <message>
+    <source>Hydraulic rule control</source>
+    <translation>قاعدة التحكم الهيدروليكي</translation>
+  </message>
+  <message>
+    <source>ID</source>
+    <translation>المعرّف</translation>
+  </message>
+  <message>
+    <source>Priority</source>
+    <translation>الأولوية</translation>
+  </message>
+  <message>
+    <source>Enabled</source>
+    <translation>مفعّل</translation>
+  </message>
+  <message>
+    <source>Premises (IF / AND / OR)</source>
+    <translation>الشروط (إذا / و / أو)</translation>
+  </message>
+  <message>
+    <source>THEN actions</source>
+    <translation>إجراءات «إذن»</translation>
+  </message>
+  <message>
+    <source>ELSE actions</source>
+    <translation>إجراءات «وإلا»</translation>
+  </message>
+  <message>
+    <source>Incomplete rule</source>
+    <translation>قاعدة غير مكتملة</translation>
+  </message>
+  <message>
+    <source>A rule needs at least one premise and one THEN action.</source>
+    <translation>تحتاج القاعدة إلى شرط واحد على الأقل وإجراء واحد من نوع «إذن».</translation>
+  </message>
+  <message>
+    <source>Invalid priority</source>
+    <translation>أولوية غير صالحة</translation>
+  </message>
+  <message>
+    <source>Priority must be a finite number.</source>
+    <translation>يجب أن تكون الأولوية عددًا منتهيًا.</translation>
+  </message>
+  <message>
+    <source>Hydraulic map label</source>
+    <translation>تسمية الخريطة الهيدروليكية</translation>
+  </message>
+  <message>
+    <source>Text</source>
+    <translation>النص</translation>
+  </message>
+  <message>
+    <source>Latitude (°)</source>
+    <translation>خط العرض (°)</translation>
+  </message>
+  <message>
+    <source>Longitude (°)</source>
+    <translation>خط الطول (°)</translation>
+  </message>
+  <message>
+    <source>Altitude (m; optional)</source>
+    <translation>الارتفاع (م؛ اختياري)</translation>
+  </message>
+  <message>
+    <source>Anchor node (optional)</source>
+    <translation>عقدة الارتكاز (اختياري)</translation>
+  </message>
+  <message>
+    <source>Invalid coordinates</source>
+    <translation>إحداثيات غير صالحة</translation>
+  </message>
+  <message>
+    <source>Provide finite latitude [-90,90], longitude [-180,180], and optional altitude.</source>
+    <translation>أدخل خط عرض منتهيًا [-90,90] وخط طول منتهيًا [-180,180] وارتفاعًا اختياريًا.</translation>
+  </message>
+  <message>
+    <source>Rule controls</source>
+    <translation>قواعد التحكم</translation>
+  </message>
+  <message>
+    <source>Map labels</source>
+    <translation>تسميات الخريطة</translation>
+  </message>
+  <message>
+    <source>Cannot save hydraulic edit</source>
+    <translation>تعذر حفظ التعديل الهيدروليكي</translation>
+  </message>
+  <message>
+    <source>The edit was rejected. Check entity references, coordinates and the active network.</source>
+    <translation>رُفض التعديل. تحقق من مراجع العناصر والإحداثيات والشبكة النشطة.</translation>
+  </message>
+  <message>
+    <source>Delete hydraulic entity</source>
+    <translation>حذف عنصر هيدروليكي</translation>
+  </message>
+  <message>
+    <source>Delete the selected entry from this network?</source>
+    <translation>هل تريد حذف العنصر المحدد من هذه الشبكة؟</translation>
+  </message>
+  <message>
+    <source>Cannot delete</source>
+    <translation>تعذر الحذف</translation>
+  </message>
+  <message>
+    <source>The entry could not be removed from the current network.</source>
+    <translation>تعذر إزالة العنصر من الشبكة الحالية.</translation>
+  </message>
+</context>
+
 </TS>

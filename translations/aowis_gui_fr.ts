@@ -3909,4 +3909,404 @@ débit [%1]</translation></message></context><context><name>SimulationDiagnostic
       <translation>L’entrée est toujours référencée ou son UUID est invalide.</translation>
     </message>
   </context>
+<context>
+  <name>HydraulicControlsWidget</name>
+  <message>
+    <source>Unset</source>
+    <translation>Non défini</translation>
+  </message>
+  <message>
+    <source>Save</source>
+    <translation>Enregistrer</translation>
+  </message>
+  <message>
+    <source>Cancel</source>
+    <translation>Annuler</translation>
+  </message>
+  <message>
+    <source>IF</source>
+    <translation>SI</translation>
+  </message>
+  <message>
+    <source>AND</source>
+    <translation>ET</translation>
+  </message>
+  <message>
+    <source>OR</source>
+    <translation>OU</translation>
+  </message>
+  <message>
+    <source>Node</source>
+    <translation>Nœud</translation>
+  </message>
+  <message>
+    <source>Link</source>
+    <translation>Tronçon</translation>
+  </message>
+  <message>
+    <source>System</source>
+    <translation>Système</translation>
+  </message>
+  <message>
+    <source>Demand</source>
+    <translation>Demande</translation>
+  </message>
+  <message>
+    <source>Head</source>
+    <translation>Charge hydraulique</translation>
+  </message>
+  <message>
+    <source>Grade</source>
+    <translation>Cote piézométrique</translation>
+  </message>
+  <message>
+    <source>Level</source>
+    <translation>Niveau</translation>
+  </message>
+  <message>
+    <source>Pressure</source>
+    <translation>Pression</translation>
+  </message>
+  <message>
+    <source>Flow</source>
+    <translation>Débit</translation>
+  </message>
+  <message>
+    <source>Status</source>
+    <translation>État</translation>
+  </message>
+  <message>
+    <source>Setting</source>
+    <translation>Consigne</translation>
+  </message>
+  <message>
+    <source>Power</source>
+    <translation>Puissance</translation>
+  </message>
+  <message>
+    <source>Time</source>
+    <translation>Temps</translation>
+  </message>
+  <message>
+    <source>Clock Time</source>
+    <translation>Heure de la journée</translation>
+  </message>
+  <message>
+    <source>Fill Time</source>
+    <translation>Temps de remplissage</translation>
+  </message>
+  <message>
+    <source>Drain Time</source>
+    <translation>Temps de vidange</translation>
+  </message>
+  <message>
+    <source>=</source>
+    <translation>=</translation>
+  </message>
+  <message>
+    <source>!=</source>
+    <translation>!=</translation>
+  </message>
+  <message>
+    <source>&lt;=</source>
+    <translation>&lt;=</translation>
+  </message>
+  <message>
+    <source>&gt;=</source>
+    <translation>&gt;=</translation>
+  </message>
+  <message>
+    <source>&lt;</source>
+    <translation>&lt;</translation>
+  </message>
+  <message>
+    <source>&gt;</source>
+    <translation>&gt;</translation>
+  </message>
+  <message>
+    <source>IS</source>
+    <translation>EST</translation>
+  </message>
+  <message>
+    <source>IS NOT</source>
+    <translation>N’EST PAS</translation>
+  </message>
+  <message>
+    <source>BELOW</source>
+    <translation>INFÉRIEUR À</translation>
+  </message>
+  <message>
+    <source>ABOVE</source>
+    <translation>SUPÉRIEUR À</translation>
+  </message>
+  <message>
+    <source>(unset)</source>
+    <translation>(non défini)</translation>
+  </message>
+  <message>
+    <source>Open</source>
+    <translation>Ouvert</translation>
+  </message>
+  <message>
+    <source>Closed</source>
+    <translation>Fermé</translation>
+  </message>
+  <message>
+    <source>Active</source>
+    <translation>Actif</translation>
+  </message>
+  <message>
+    <source>Pump speed ratio</source>
+    <translation>Rapport de vitesse de la pompe</translation>
+  </message>
+  <message>
+    <source>Valve pressure head (m)</source>
+    <translation>Charge de pression de la vanne (m)</translation>
+  </message>
+  <message>
+    <source>Valve flow (m³/h)</source>
+    <translation>Débit de la vanne (m³/h)</translation>
+  </message>
+  <message>
+    <source>Valve loss coefficient</source>
+    <translation>Coefficient de perte de charge de la vanne</translation>
+  </message>
+  <message>
+    <source>Valve position (%)</source>
+    <translation>Position de la vanne (%)</translation>
+  </message>
+  <message>
+    <source>Demand (m³/h)</source>
+    <translation>Demande (m³/h)</translation>
+  </message>
+  <message>
+    <source>Hydraulic head (m)</source>
+    <translation>Charge hydraulique (m)</translation>
+  </message>
+  <message>
+    <source>Water level (m)</source>
+    <translation>Niveau d’eau (m)</translation>
+  </message>
+  <message>
+    <source>Pressure head (m)</source>
+    <translation>Charge de pression (m)</translation>
+  </message>
+  <message>
+    <source>Flow (m³/h)</source>
+    <translation>Débit (m³/h)</translation>
+  </message>
+  <message>
+    <source>Power (kW)</source>
+    <translation>Puissance (kW)</translation>
+  </message>
+  <message>
+    <source>Elapsed time (s)</source>
+    <translation>Temps écoulé (s)</translation>
+  </message>
+  <message>
+    <source>Time of day (s)</source>
+    <translation>Heure de la journée (s)</translation>
+  </message>
+  <message>
+    <source>Fill time (s)</source>
+    <translation>Temps de remplissage (s)</translation>
+  </message>
+  <message>
+    <source>Drain time (s)</source>
+    <translation>Temps de vidange (s)</translation>
+  </message>
+  <message>
+    <source>(none)</source>
+    <translation>(aucun)</translation>
+  </message>
+  <message>
+    <source>Pipe: %1</source>
+    <translation>Conduite : %1</translation>
+  </message>
+  <message>
+    <source>Pump: %1</source>
+    <translation>Pompe : %1</translation>
+  </message>
+  <message>
+    <source>Valve: %1</source>
+    <translation>Vanne : %1</translation>
+  </message>
+  <message>
+    <source>Junction: %1</source>
+    <translation>Nœud : %1</translation>
+  </message>
+  <message>
+    <source>Reservoir: %1</source>
+    <translation>Réservoir : %1</translation>
+  </message>
+  <message>
+    <source>Tank: %1</source>
+    <translation>Bâche : %1</translation>
+  </message>
+  <message>
+    <source>Rule premise</source>
+    <translation>Condition de règle</translation>
+  </message>
+  <message>
+    <source>Logic</source>
+    <translation>Logique</translation>
+  </message>
+  <message>
+    <source>Object type</source>
+    <translation>Type d’objet</translation>
+  </message>
+  <message>
+    <source>Object</source>
+    <translation>Objet</translation>
+  </message>
+  <message>
+    <source>Variable</source>
+    <translation>Variable</translation>
+  </message>
+  <message>
+    <source>Comparison</source>
+    <translation>Comparaison</translation>
+  </message>
+  <message>
+    <source>Invalid premise</source>
+    <translation>Condition invalide</translation>
+  </message>
+  <message>
+    <source>Numerical fields must contain finite numbers, and times must be non-negative integers.</source>
+    <translation>Les champs numériques doivent contenir des nombres finis et les durées des entiers non négatifs.</translation>
+  </message>
+  <message>
+    <source>Select an existing node or link.</source>
+    <translation>Sélectionnez un nœud ou une liaison existante.</translation>
+  </message>
+  <message>
+    <source>Rule action</source>
+    <translation>Action de règle</translation>
+  </message>
+  <message>
+    <source>Target link</source>
+    <translation>Liaison cible</translation>
+  </message>
+  <message>
+    <source>Invalid action</source>
+    <translation>Action invalide</translation>
+  </message>
+  <message>
+    <source>Select a valid link and enter finite setting values.</source>
+    <translation>Sélectionnez une liaison valide et saisissez des valeurs finies.</translation>
+  </message>
+  <message>
+    <source>Link: %1 | %2</source>
+    <translation>Liaison : %1 | %2</translation>
+  </message>
+  <message>
+    <source>Hydraulic rule control</source>
+    <translation>Règle de commande hydraulique</translation>
+  </message>
+  <message>
+    <source>ID</source>
+    <translation>ID</translation>
+  </message>
+  <message>
+    <source>Priority</source>
+    <translation>Priorité</translation>
+  </message>
+  <message>
+    <source>Enabled</source>
+    <translation>Activé</translation>
+  </message>
+  <message>
+    <source>Premises (IF / AND / OR)</source>
+    <translation>Conditions (SI / ET / OU)</translation>
+  </message>
+  <message>
+    <source>THEN actions</source>
+    <translation>Actions ALORS</translation>
+  </message>
+  <message>
+    <source>ELSE actions</source>
+    <translation>Actions SINON</translation>
+  </message>
+  <message>
+    <source>Incomplete rule</source>
+    <translation>Règle incomplète</translation>
+  </message>
+  <message>
+    <source>A rule needs at least one premise and one THEN action.</source>
+    <translation>Une règle doit avoir au moins une condition et une action ALORS.</translation>
+  </message>
+  <message>
+    <source>Invalid priority</source>
+    <translation>Priorité invalide</translation>
+  </message>
+  <message>
+    <source>Priority must be a finite number.</source>
+    <translation>La priorité doit être un nombre fini.</translation>
+  </message>
+  <message>
+    <source>Hydraulic map label</source>
+    <translation>Étiquette de carte hydraulique</translation>
+  </message>
+  <message>
+    <source>Text</source>
+    <translation>Texte</translation>
+  </message>
+  <message>
+    <source>Latitude (°)</source>
+    <translation>Latitude (°)</translation>
+  </message>
+  <message>
+    <source>Longitude (°)</source>
+    <translation>Longitude (°)</translation>
+  </message>
+  <message>
+    <source>Altitude (m; optional)</source>
+    <translation>Altitude (m ; facultatif)</translation>
+  </message>
+  <message>
+    <source>Anchor node (optional)</source>
+    <translation>Nœud d’ancrage (facultatif)</translation>
+  </message>
+  <message>
+    <source>Invalid coordinates</source>
+    <translation>Coordonnées invalides</translation>
+  </message>
+  <message>
+    <source>Provide finite latitude [-90,90], longitude [-180,180], and optional altitude.</source>
+    <translation>Saisissez une latitude finie [-90,90], une longitude finie [-180,180] et, éventuellement, une altitude.</translation>
+  </message>
+  <message>
+    <source>Rule controls</source>
+    <translation>Règles de commande</translation>
+  </message>
+  <message>
+    <source>Map labels</source>
+    <translation>Étiquettes de carte</translation>
+  </message>
+  <message>
+    <source>Cannot save hydraulic edit</source>
+    <translation>Impossible d’enregistrer la modification hydraulique</translation>
+  </message>
+  <message>
+    <source>The edit was rejected. Check entity references, coordinates and the active network.</source>
+    <translation>La modification a été refusée. Vérifiez les références, les coordonnées et le réseau actif.</translation>
+  </message>
+  <message>
+    <source>Delete hydraulic entity</source>
+    <translation>Supprimer l’entité hydraulique</translation>
+  </message>
+  <message>
+    <source>Delete the selected entry from this network?</source>
+    <translation>Supprimer l’entrée sélectionnée de ce réseau ?</translation>
+  </message>
+  <message>
+    <source>Cannot delete</source>
+    <translation>Suppression impossible</translation>
+  </message>
+  <message>
+    <source>The entry could not be removed from the current network.</source>
+    <translation>L’entrée n’a pas pu être supprimée du réseau actuel.</translation>
+  </message>
+</context>
+
 </TS>

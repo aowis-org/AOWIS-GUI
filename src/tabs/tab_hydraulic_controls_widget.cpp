@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QCoreApplication>
+#include <QEvent>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -14,17 +16,148 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QShowEvent>
-#include <QStringList>
 #include <QVBoxLayout>
 
 #include <cmath>
 #include <functional>
-#include <limits>
 #include <optional>
+#include <cstddef>
 
 namespace
 {
+// This entire screen is GUI-owned.  Fixed translation contexts survive the
+// renderer extraction and do not depend on the locations of C++ source files.
+QString controlText(const char *source)
+{
+    return QCoreApplication::translate("HydraulicControlsWidget", source);
+}
+
+void localizeRow(QFormLayout *form, QWidget *field, const char *source, QWidget *parent)
+{
+    QLabel *label = new QLabel(parent);
+    LiveUiText::bind(label, [label, source]() { label->setText(controlText(source)); });
+    form->addRow(label, field);
+}
+
+void localizePlaceholder(QLineEdit *field)
+{
+    LiveUiText::bind(field, [field]() {
+        field->setPlaceholderText(controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Unset")));
+    });
+}
+
+// Qt retranslates standard QDialogButtonBox buttons itself.  Restore our
+// catalogue after that event so the labels also change on already-open modals.
+class ControlDialogButtons final : public QDialogButtonBox
+{
+public:
+    explicit ControlDialogButtons(QWidget *parent)
+        : QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, parent)
+    {
+        retranslate();
+    }
+
+protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QDialogButtonBox::event(event);
+        if (event->type() == QEvent::LanguageChange)
+            retranslate();
+        return handled;
+    }
+
+private:
+    void retranslate()
+    {
+        QPushButton *save = button(QDialogButtonBox::Save);
+        QPushButton *cancel = button(QDialogButtonBox::Cancel);
+        if (save != nullptr)
+            save->setText(controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Save")));
+        if (cancel != nullptr)
+            cancel->setText(controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Cancel")));
+    }
+};
+
+void localizeTitle(QDialog *dialog, const char *source)
+{
+    LiveUiText::bind(dialog, [dialog, source]() { dialog->setWindowTitle(controlText(source)); });
+}
+
+const char *const logic_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "IF"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "AND"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "OR")
+};
+const char *const object_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Node"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Link"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "System")
+};
+const char *const variable_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Demand"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Head"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Grade"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Level"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Pressure"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Flow"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Status"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Setting"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Power"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Time"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Clock Time"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Fill Time"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Drain Time")
+};
+const char *const comparison_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "="),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "!="),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "<="),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", ">="),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "<"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", ">"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "IS"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "IS NOT"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "BELOW"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "ABOVE")
+};
+const char *const status_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "(unset)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Open"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Closed"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Active")
+};
+const char *const setting_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Pump speed ratio"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Valve pressure head (m)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Valve flow (m³/h)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Valve loss coefficient"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Valve position (%)")
+};
+const char *const numeric_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Demand (m³/h)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic head (m)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Water level (m)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Pressure head (m)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Flow (m³/h)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Power (kW)")
+};
+const char *const time_names[] = {
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Elapsed time (s)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Time of day (s)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Fill time (s)"),
+    QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Drain time (s)")
+};
+
+template<std::size_t N>
+QString enumText(const char *const (&names)[N], int index)
+{
+    if (index < 0 || index >= int(N))
+        return QString();
+    return controlText(names[index]);
+}
+
 template<typename Entity>
 const Entity *lookup(const QList<Entity> &items, const QUuid &uuid)
 {
@@ -33,11 +166,20 @@ const Entity *lookup(const QList<Entity> &items, const QUuid &uuid)
     return nullptr;
 }
 
-QComboBox *enumeration(QWidget *parent, const QStringList &labels, int selected)
+template<std::size_t N>
+QComboBox *enumeration(QWidget *parent, const char *const (&labels)[N], int selected)
 {
     QComboBox *combo = new QComboBox(parent);
-    combo->addItems(labels);
+    for (const char *source : labels)
+        combo->addItem(controlText(source));
     combo->setCurrentIndex(selected);
+    // Preserve enum ordinal/currentIndex and never emit value-change signals.
+    const char *const *sources = labels;
+    LiveUiText::bind(combo, [combo, sources]() {
+        const QSignalBlocker blocker(combo);
+        for (int index = 0; index < int(N); ++index)
+            combo->setItemText(index, controlText(sources[index]));
+    });
     return combo;
 }
 
@@ -77,11 +219,6 @@ void addSettingFields(QFormLayout *form, QWidget *parent,
                       const HydraulicControlLinkSetting &setting,
                       QList<QLineEdit *> *fields)
 {
-    const QStringList names = {
-        QStringLiteral("Pump speed ratio"), QStringLiteral("Valve pressure head (m)"),
-        QStringLiteral("Valve flow (m³/h)"), QStringLiteral("Valve loss coefficient"),
-        QStringLiteral("Valve position (%)")
-    };
     const std::optional<double> values[] = {
         setting.pump_speed_ratio, setting.valve_pressure_head_m,
         setting.valve_flow_m3_per_h, setting.valve_loss_coefficient,
@@ -90,8 +227,8 @@ void addSettingFields(QFormLayout *form, QWidget *parent,
     for (int index = 0; index < 5; ++index)
     {
         QLineEdit *field = numberField(parent, values[index]);
-        field->setPlaceholderText(QStringLiteral("Unset"));
-        form->addRow(names.at(index), field);
+        localizePlaceholder(field);
+        localizeRow(form, field, setting_names[index], parent);
         fields->append(field);
     }
 }
@@ -106,28 +243,48 @@ bool readSettingFields(const QList<QLineEdit *> &fields, HydraulicControlLinkSet
         && readNumber(fields.at(4), &setting->valve_position_percent);
 }
 
+void addReference(QComboBox *combo, const char *kind, const QString &id, const QUuid &uuid)
+{
+    combo->addItem(QString(), uuid);
+    const int index = combo->count() - 1;
+    combo->setItemData(index, QString::fromUtf8(kind), Qt::UserRole + 1);
+    combo->setItemData(index, id, Qt::UserRole + 2);
+}
+
+void localizeReferences(QComboBox *combo)
+{
+    const QSignalBlocker blocker(combo);
+    for (int index = 0; index < combo->count(); ++index)
+    {
+        const QByteArray source = combo->itemData(index, Qt::UserRole + 1).toString().toUtf8();
+        const QString caption = controlText(source.constData());
+        combo->setItemText(index, index == 0 ? caption
+            : caption.arg(combo->itemData(index, Qt::UserRole + 2).toString()));
+    }
+}
+
 QComboBox *referenceSelector(QWidget *parent, const NetworkHydraulic &network,
                              bool links, const QUuid &selected)
 {
     QComboBox *combo = new QComboBox(parent);
-    combo->addItem(QStringLiteral("(none)"), QUuid());
+    addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "(none)"), QString(), QUuid());
     if (links)
     {
         for (const HydraulicLinkPipe &item : network.links_pipes)
-            combo->addItem(QStringLiteral("Pipe: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Pipe: %1"), item.id, item.uuid);
         for (const HydraulicLinkPump &item : network.links_pumps)
-            combo->addItem(QStringLiteral("Pump: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Pump: %1"), item.id, item.uuid);
         for (const HydraulicLinkValve &item : network.links_valves)
-            combo->addItem(QStringLiteral("Valve: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Valve: %1"), item.id, item.uuid);
     }
     else
     {
         for (const HydraulicNodeJunction &item : network.nodes_junctions)
-            combo->addItem(QStringLiteral("Junction: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Junction: %1"), item.id, item.uuid);
         for (const HydraulicNodeReservoir &item : network.nodes_reservoirs)
-            combo->addItem(QStringLiteral("Reservoir: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Reservoir: %1"), item.id, item.uuid);
         for (const HydraulicNodeTank &item : network.nodes_tanks)
-            combo->addItem(QStringLiteral("Tank: %1").arg(item.id), item.uuid);
+            addReference(combo, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Tank: %1"), item.id, item.uuid);
     }
     for (int index = 0; index < combo->count(); ++index)
     {
@@ -137,6 +294,7 @@ QComboBox *referenceSelector(QWidget *parent, const NetworkHydraulic &network,
             break;
         }
     }
+    LiveUiText::bind(combo, [combo]() { localizeReferences(combo); });
     return combo;
 }
 
@@ -153,8 +311,7 @@ QFormLayout *scrollingForm(QDialog *dialog, QVBoxLayout *layout)
 
 void addDialogButtons(QDialog *dialog, QVBoxLayout *layout)
 {
-    QDialogButtonBox *buttons = new QDialogButtonBox(
-        QDialogButtonBox::Save | QDialogButtonBox::Cancel, dialog);
+    QDialogButtonBox *buttons = new ControlDialogButtons(dialog);
     layout->addWidget(buttons);
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
 }
@@ -163,12 +320,12 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
                  HydraulicControlRulePremise *premise)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QStringLiteral("Rule premise"));
+    localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule premise"));
     dialog.resize(545, 670);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QFormLayout *form = scrollingForm(&dialog, layout);
-    QComboBox *logical = enumeration(&dialog, {"IF", "AND", "OR"}, int(premise->logical_operator));
-    QComboBox *object = enumeration(&dialog, {"Node", "Link", "System"}, int(premise->object));
+    QComboBox *logical = enumeration(&dialog, logic_names, int(premise->logical_operator));
+    QComboBox *object = enumeration(&dialog, object_names, int(premise->object));
     object->setObjectName(QStringLiteral("premiseObject"));
     QComboBox *reference = new QComboBox(&dialog);
     const QUuid old_uuid = premise->object_uuid;
@@ -179,31 +336,30 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
             object->currentIndex() == int(HydraulicControlRuleObject::Link), old_uuid);
         reference->clear();
         for (int index = 0; index < choices->count(); ++index)
+        {
             reference->addItem(choices->itemText(index), choices->itemData(index));
+            reference->setItemData(index, choices->itemData(index, Qt::UserRole + 1), Qt::UserRole + 1);
+            reference->setItemData(index, choices->itemData(index, Qt::UserRole + 2), Qt::UserRole + 2);
+        }
         reference->setCurrentIndex(choices->currentIndex());
         reference->setEnabled(!system);
         delete choices;
     };
     refresh_references();
+    LiveUiText::bind(reference, [reference]() { localizeReferences(reference); });
     QObject::connect(object, QOverload<int>::of(&QComboBox::currentIndexChanged),
                      &dialog, [refresh_references](int) { refresh_references(); });
-    QComboBox *variable = enumeration(&dialog,
-        {"Demand", "Head", "Grade", "Level", "Pressure", "Flow", "Status", "Setting",
-         "Power", "Time", "Clock Time", "Fill Time", "Drain Time"}, int(premise->variable));
+    QComboBox *variable = enumeration(&dialog, variable_names, int(premise->variable));
     variable->setObjectName(QStringLiteral("premiseVariable"));
-    QComboBox *comparison = enumeration(&dialog,
-        {"=", "!=", "<=", ">=", "<", ">", "IS", "IS NOT", "BELOW", "ABOVE"},
-        int(premise->comparison));
-    QComboBox *status = enumeration(&dialog, {"(unset)", "Open", "Closed", "Active"},
+    QComboBox *comparison = enumeration(&dialog, comparison_names, int(premise->comparison));
+    QComboBox *status = enumeration(&dialog, status_names,
         premise->status ? int(*premise->status) + 1 : 0);
-    form->addRow(QStringLiteral("Logic"), logical);
-    form->addRow(QStringLiteral("Object type"), object);
-    form->addRow(QStringLiteral("Object"), reference);
-    form->addRow(QStringLiteral("Variable"), variable);
-    form->addRow(QStringLiteral("Comparison"), comparison);
-    form->addRow(QStringLiteral("Status"), status);
-    const QStringList numeric_names = {"Demand (m³/h)", "Hydraulic head (m)", "Water level (m)",
-        "Pressure head (m)", "Flow (m³/h)", "Power (kW)"};
+    localizeRow(form, logical, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Logic"), &dialog);
+    localizeRow(form, object, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Object type"), &dialog);
+    localizeRow(form, reference, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Object"), &dialog);
+    localizeRow(form, variable, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Variable"), &dialog);
+    localizeRow(form, comparison, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Comparison"), &dialog);
+    localizeRow(form, status, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Status"), &dialog);
     const std::optional<double> numeric_values[] = {premise->demand_m3_per_h,
         premise->hydraulic_head_m, premise->water_level_m, premise->pressure_head_m,
         premise->flow_m3_per_h, premise->power_kw};
@@ -211,14 +367,12 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
     for (int index = 0; index < 6; ++index)
     {
         QLineEdit *field = numberField(&dialog, numeric_values[index]);
-        field->setPlaceholderText(QStringLiteral("Unset"));
-        form->addRow(numeric_names.at(index), field);
+        localizePlaceholder(field);
+        localizeRow(form, field, numeric_names[index], &dialog);
         values.append(field);
     }
     QList<QLineEdit *> setting_fields;
     addSettingFields(form, &dialog, premise->link_setting, &setting_fields);
-    const QStringList time_names = {"Elapsed time (s)", "Time of day (s)",
-                                   "Fill time (s)", "Drain time (s)"};
     const std::optional<quint64> time_values[] = {premise->elapsed_time_s,
         premise->time_of_day_s, premise->fill_time_s, premise->drain_time_s};
     QList<QLineEdit *> times;
@@ -226,8 +380,8 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
     {
         QLineEdit *field = timeField(&dialog, time_values[index]);
         if (index == 0) field->setObjectName(QStringLiteral("premiseElapsedTime"));
-        field->setPlaceholderText(QStringLiteral("Unset"));
-        form->addRow(time_names.at(index), field);
+        localizePlaceholder(field);
+        localizeRow(form, field, time_names[index], &dialog);
         times.append(field);
     }
     addDialogButtons(&dialog, layout);
@@ -255,14 +409,14 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
             || !readTime(times.at(2), &edited.fill_time_s)
             || !readTime(times.at(3), &edited.drain_time_s))
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid premise"),
-                QStringLiteral("Numerical fields must contain finite numbers, and times must be non-negative integers."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid premise")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Numerical fields must contain finite numbers, and times must be non-negative integers.")));
             return;
         }
         if (edited.object != HydraulicControlRuleObject::System && edited.object_uuid.isNull())
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid premise"),
-                QStringLiteral("Select an existing node or link."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid premise")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Select an existing node or link.")));
             return;
         }
         *premise = edited;
@@ -274,17 +428,17 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
 bool editAction(QWidget *parent, const NetworkHydraulic &network, HydraulicControlRuleAction *action)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QStringLiteral("Rule action"));
+    localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule action"));
     dialog.resize(490, 470);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QFormLayout *form = scrollingForm(&dialog, layout);
     QComboBox *reference = referenceSelector(&dialog, network, true, action->link_uuid);
     reference->setObjectName(QStringLiteral("actionLink"));
-    QComboBox *status = enumeration(&dialog, {"(unset)", "Open", "Closed", "Active"},
+    QComboBox *status = enumeration(&dialog, status_names,
         action->status ? int(*action->status) + 1 : 0);
     status->setObjectName(QStringLiteral("actionStatus"));
-    form->addRow(QStringLiteral("Target link"), reference);
-    form->addRow(QStringLiteral("Status"), status);
+    localizeRow(form, reference, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Target link"), &dialog);
+    localizeRow(form, status, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Status"), &dialog);
     QList<QLineEdit *> setting_fields;
     addSettingFields(form, &dialog, action->setting, &setting_fields);
     addDialogButtons(&dialog, layout);
@@ -297,8 +451,8 @@ bool editAction(QWidget *parent, const NetworkHydraulic &network, HydraulicContr
             : std::optional<HydraulicControlRuleStatus>(HydraulicControlRuleStatus(status->currentIndex() - 1));
         if (edited.link_uuid.isNull() || !readSettingFields(setting_fields, &edited.setting))
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid action"),
-                QStringLiteral("Select a valid link and enter finite setting values."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid action")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Select a valid link and enter finite setting values.")));
             return;
         }
         *action = edited;
@@ -310,27 +464,28 @@ bool editAction(QWidget *parent, const NetworkHydraulic &network, HydraulicContr
 QString premiseSummary(const HydraulicControlRulePremise &premise)
 {
     return QStringLiteral("%1 | %2 | %3 | %4")
-        .arg(QStringList({"IF", "AND", "OR"}).value(int(premise.logical_operator)),
-             QStringList({"Node", "Link", "System"}).value(int(premise.object)),
+        .arg(enumText(logic_names, int(premise.logical_operator)),
+             enumText(object_names, int(premise.object)),
              premise.object_uuid.toString(QUuid::WithoutBraces),
-             QStringList({"Demand", "Head", "Grade", "Level", "Pressure", "Flow", "Status",
-                          "Setting", "Power", "Time", "Clock Time", "Fill Time", "Drain Time"})
-                .value(int(premise.variable)));
+             enumText(variable_names, int(premise.variable)));
 }
 
 QString actionSummary(const HydraulicControlRuleAction &action)
 {
-    return QStringLiteral("Link: %1 | %2").arg(action.link_uuid.toString(QUuid::WithoutBraces),
-        action.status ? QStringList({"Open", "Closed", "Active"}).value(int(*action.status))
-                      : QStringLiteral("Setting"));
+    return controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Link: %1 | %2"))
+        .arg(action.link_uuid.toString(QUuid::WithoutBraces),
+             action.status ? enumText(status_names, int(*action.status) + 1)
+                           : controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Setting")));
 }
 
-void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
+void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
                   const NetworkHydraulic &network, QList<HydraulicControlRulePremise> *premises)
 {
-    layout->addWidget(new QLabel(label, dialog));
+    QLabel *heading = new QLabel(dialog);
+    LiveUiText::bind(heading, [heading, label]() { heading->setText(controlText(label)); });
+    layout->addWidget(heading);
     QListWidget *list = new QListWidget(dialog);
-    list->setObjectName(label);
+    list->setObjectName(QString::fromUtf8(label));
     layout->addWidget(list);
     QHBoxLayout *buttons = new QHBoxLayout();
     QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Premise"), dialog);
@@ -346,6 +501,11 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
         if (selected >= 0 && selected < list->count()) list->setCurrentRow(selected);
     };
     redraw(-1);
+    LiveUiText::bind(list, [list, premises]() {
+        const QSignalBlocker blocker(list);
+        for (int index = 0; index < list->count() && index < premises->size(); ++index)
+            list->item(index)->setText(premiseSummary(premises->at(index)));
+    });
     QObject::connect(add, &QPushButton::clicked, dialog, [dialog, &network, premises, redraw]()
     {
         HydraulicControlRulePremise item;
@@ -371,12 +531,14 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
                      [edit](QListWidgetItem *) { edit->click(); });
 }
 
-void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
+void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
                   const NetworkHydraulic &network, QList<HydraulicControlRuleAction> *actions)
 {
-    layout->addWidget(new QLabel(label, dialog));
+    QLabel *heading = new QLabel(dialog);
+    LiveUiText::bind(heading, [heading, label]() { heading->setText(controlText(label)); });
+    layout->addWidget(heading);
     QListWidget *list = new QListWidget(dialog);
-    list->setObjectName(label);
+    list->setObjectName(QString::fromUtf8(label));
     layout->addWidget(list);
     QHBoxLayout *buttons = new QHBoxLayout();
     QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Action"), dialog);
@@ -392,6 +554,11 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
         if (selected >= 0 && selected < list->count()) list->setCurrentRow(selected);
     };
     redraw(-1);
+    LiveUiText::bind(list, [list, actions]() {
+        const QSignalBlocker blocker(list);
+        for (int index = 0; index < list->count() && index < actions->size(); ++index)
+            list->item(index)->setText(actionSummary(actions->at(index)));
+    });
     QObject::connect(add, &QPushButton::clicked, dialog, [dialog, &network, actions, redraw]()
     {
         HydraulicControlRuleAction item;
@@ -420,7 +587,7 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const QString &label,
 bool editRule(QWidget *parent, const NetworkHydraulic &network, HydraulicControlRule *rule)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QStringLiteral("Hydraulic rule control"));
+    localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic rule control"));
     dialog.resize(690, 720);
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QFormLayout *form = new QFormLayout();
@@ -430,30 +597,30 @@ bool editRule(QWidget *parent, const NetworkHydraulic &network, HydraulicControl
     priority->setObjectName(QStringLiteral("rulePriority"));
     QCheckBox *enabled = new QCheckBox(&dialog);
     enabled->setChecked(rule->enabled);
-    form->addRow(QStringLiteral("ID"), id);
-    form->addRow(QStringLiteral("Priority"), priority);
-    form->addRow(QStringLiteral("Enabled"), enabled);
+    localizeRow(form, id, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "ID"), &dialog);
+    localizeRow(form, priority, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Priority"), &dialog);
+    localizeRow(form, enabled, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Enabled"), &dialog);
     layout->addLayout(form);
     HydraulicControlRule edited = *rule;
-    clauseEditor(&dialog, layout, QStringLiteral("Premises (IF / AND / OR)"), network, &edited.premises);
-    clauseEditor(&dialog, layout, QStringLiteral("THEN actions"), network, &edited.actions_then);
-    clauseEditor(&dialog, layout, QStringLiteral("ELSE actions"), network, &edited.actions_else);
+    clauseEditor(&dialog, layout, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Premises (IF / AND / OR)"), network, &edited.premises);
+    clauseEditor(&dialog, layout, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "THEN actions"), network, &edited.actions_then);
+    clauseEditor(&dialog, layout, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "ELSE actions"), network, &edited.actions_else);
     addDialogButtons(&dialog, layout);
     QDialogButtonBox *buttons = dialog.findChild<QDialogButtonBox *>();
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]()
     {
         if (edited.premises.isEmpty() || edited.actions_then.isEmpty())
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Incomplete rule"),
-                QStringLiteral("A rule needs at least one premise and one THEN action."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Incomplete rule")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "A rule needs at least one premise and one THEN action.")));
             return;
         }
         bool priority_ok = false;
         const double priority_value = priority->text().trimmed().toDouble(&priority_ok);
         if (!priority_ok || !std::isfinite(priority_value))
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid priority"),
-                QStringLiteral("Priority must be a finite number."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid priority")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Priority must be a finite number.")));
             return;
         }
         edited.id = id->text().trimmed();
@@ -477,7 +644,7 @@ bool readFinite(QLineEdit *field, double *out, double minimum, double maximum)
 bool editLabel(QWidget *parent, const NetworkHydraulic &network, HydraulicMapLabel *label)
 {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QStringLiteral("Hydraulic map label"));
+    localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic map label"));
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
     QFormLayout *form = new QFormLayout();
     QLineEdit *id = new QLineEdit(label->id, &dialog);
@@ -492,12 +659,12 @@ bool editLabel(QWidget *parent, const NetworkHydraulic &network, HydraulicMapLab
     altitude->setObjectName(QStringLiteral("labelAltitude"));
     QComboBox *anchor = referenceSelector(&dialog, network, false, label->anchor_node_uuid);
     anchor->setObjectName(QStringLiteral("labelAnchor"));
-    form->addRow(QStringLiteral("ID"), id);
-    form->addRow(QStringLiteral("Text"), text);
-    form->addRow(QStringLiteral("Latitude (°)"), latitude);
-    form->addRow(QStringLiteral("Longitude (°)"), longitude);
-    form->addRow(QStringLiteral("Altitude (m; optional)"), altitude);
-    form->addRow(QStringLiteral("Anchor node (optional)"), anchor);
+    localizeRow(form, id, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "ID"), &dialog);
+    localizeRow(form, text, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Text"), &dialog);
+    localizeRow(form, latitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Latitude (°)"), &dialog);
+    localizeRow(form, longitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Longitude (°)"), &dialog);
+    localizeRow(form, altitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Altitude (m; optional)"), &dialog);
+    localizeRow(form, anchor, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Anchor node (optional)"), &dialog);
     layout->addLayout(form);
     addDialogButtons(&dialog, layout);
     QDialogButtonBox *buttons = dialog.findChild<QDialogButtonBox *>();
@@ -508,8 +675,8 @@ bool editLabel(QWidget *parent, const NetworkHydraulic &network, HydraulicMapLab
             || !readFinite(longitude, &edited.coordinate_wgs84.longitude_deg, -180.0, 180.0)
             || !readNumber(altitude, &edited.coordinate_wgs84.altitude_m))
         {
-            QMessageBox::warning(&dialog, QStringLiteral("Invalid coordinates"),
-                QStringLiteral("Provide finite latitude [-90,90], longitude [-180,180], and optional altitude."));
+            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid coordinates")),
+                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Provide finite latitude [-90,90], longitude [-180,180], and optional altitude.")));
             return;
         }
         edited.id = id->text().trimmed();
@@ -532,7 +699,16 @@ HydraulicControlsWidget::HydraulicControlsWidget(HydraulicData *hydraulic_data, 
     layout->addWidget(description);
     QHBoxLayout *toolbar = new QHBoxLayout();
     this->category = new QComboBox(this);
-    this->category->addItems({QStringLiteral("Rule controls"), QStringLiteral("Map labels")});
+    const char *const names[] = {
+        QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule controls"),
+        QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Map labels")
+    };
+    this->category->addItems({controlText(names[0]), controlText(names[1])});
+    LiveUiText::bind(this->category, [this]() {
+        const QSignalBlocker blocker(this->category);
+        this->category->setItemText(0, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule controls")));
+        this->category->setItemText(1, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Map labels")));
+    });
     toolbar->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Collection:"), this));
     toolbar->addWidget(this->category, 1);
     QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Add"), this);
@@ -643,8 +819,8 @@ void HydraulicControlsWidget::editEntry(bool creating)
     }
     if (changed.isNull())
     {
-        QMessageBox::warning(this, QStringLiteral("Cannot save hydraulic edit"),
-            QStringLiteral("The edit was rejected. Check entity references, coordinates and the active network."));
+        QMessageBox::warning(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Cannot save hydraulic edit")),
+            controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "The edit was rejected. Check entity references, coordinates and the active network.")));
         return;
     }
     refresh(changed);
@@ -654,16 +830,16 @@ void HydraulicControlsWidget::deleteEntry()
 {
     const QUuid uuid = selectedUuid();
     if (uuid.isNull()) return;
-    if (QMessageBox::question(this, QStringLiteral("Delete hydraulic entity"),
-        QStringLiteral("Delete the selected entry from this network?")) != QMessageBox::Yes)
+    if (QMessageBox::question(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Delete hydraulic entity")),
+        controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Delete the selected entry from this network?"))) != QMessageBox::Yes)
         return;
     const bool removed = this->category->currentIndex() == 0
         ? this->hydraulic_data->removeRuleControl(uuid)
         : this->hydraulic_data->removeMapLabel(uuid);
     if (!removed)
     {
-        QMessageBox::warning(this, QStringLiteral("Cannot delete"),
-            QStringLiteral("The entry could not be removed from the current network."));
+        QMessageBox::warning(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Cannot delete")),
+            controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "The entry could not be removed from the current network.")));
         return;
     }
     refresh();

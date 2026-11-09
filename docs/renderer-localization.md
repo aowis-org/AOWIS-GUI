@@ -159,3 +159,30 @@ both the existing collection selector and an open dialog, asserting no logical
 edit, lost draft, or selection signal. `aowis-gui-language` separately checks
 real catalogue entries for all five supported languages. Both tests must run
 with Qt 6; a passing catalogue test alone does not demonstrate UI refresh.
+
+## Hydraulic Controls and map labels: live presentation contract
+
+The Controls & Map Labels page translates its two collection names without
+repopulating the selector, changing its enum index, emitting selection signals
+or changing the loaded network. Rule and map-label IDs remain user data.
+
+The rule, premise, action and map-label modal editors use the stable GUI-owned
+`HydraulicControlsWidget` translation context. They update window titles,
+form labels, enum captions, reference prefixes, clause summaries and
+Save/Cancel buttons when Qt delivers `LanguageChange` inside an already-running
+modal `exec()` loop. Enum ordinals, UUID item data, partially entered numeric
+values, cursor positions and unsaved rule actions are never recomputed or
+replaced in response to the language event. Reference selectors update their
+**display captions** while retaining the UUID used on save. Rule summary list
+items are updated in place, keeping their current row.
+
+Transient validation/deletion dialogs use the active GUI catalogue when opened.
+Inputs continue to use unambiguous, dot-decimal storage values; changing GUI
+language is not an engineering-unit or numeric-locale conversion.
+
+`aowis-hydraulic-controls-widget` tests an English → synthetic translation →
+English switch on the existing selector, an open map-label modal, and nested
+rule/premise modals while preserving edits, selections and zero new autosave
+transactions. `aowis-gui-language` checks representative translations from
+the four compiled catalogues. These tests do not replace native or WebAssembly
+verification of Arabic RTL, font shaping and window manager behaviour.

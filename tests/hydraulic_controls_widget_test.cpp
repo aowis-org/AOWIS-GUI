@@ -8,6 +8,9 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
+#include <QFormLayout>
+#include <QLabel>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLineEdit>
@@ -15,11 +18,35 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTimer>
+#include <QTranslator>
 
 #include <cstdio>
 
 namespace
 {
+class ControlTestTranslator final : public QTranslator
+{
+public:
+    // A synthetic translator without a .qm must be nonempty for Qt to post
+    // LanguageChange to existing top-level widgets and their children.
+    bool isEmpty() const override { return false; }
+
+    QString translate(const char *context, const char *source, const char *, int) const override
+    {
+        if (qstrcmp(context, "HydraulicControlsWidget") != 0)
+            return QString();
+        return QStringLiteral("TEST: ") + QString::fromUtf8(source);
+    }
+};
+
+bool hasLabel(QWidget *widget, const QString &label)
+{
+    for (QLabel *entry : widget->findChildren<QLabel *>())
+        if (entry->text() == label)
+            return true;
+    return false;
+}
+
 bool require(bool valid, const char *message)
 {
     if (!valid) std::fprintf(stderr, "FAIL: %s\n", message);
@@ -215,6 +242,144 @@ int main(int argc, char **argv)
                  "unchanged rule must not emit transaction")) return 1;
     if (!require(deleteSelected(&widget) && rows->count() == 0 && events.size() == 6,
                  "delete rule must emit transaction")) return 1;
+
+    // Live switching on an already-open screen must never change the enum
+    // identity (index), trigger selection handlers, or create autosave edits.
+    ControlTestTranslator translator;
+    category->setCurrentIndex(1);
+    int changed_indices = 0;
+    QObject::connect(category, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                     &widget, [&changed_indices](int) { ++changed_indices; });
+    const int edits_before_language = events.size();
+    if (!require(QCoreApplication::installTranslator(&translator),
+                 "could not install controls translator")) return 1;
+    app.processEvents();
+    if (!require(category->itemText(1) == QStringLiteral("TEST: Map labels"),
+                 "existing controls category did not retranslate")
+        || !require(category->currentIndex() == 1 && changed_indices == 0,
+                    "language change altered controls selection")
+        || !require(events.size() == edits_before_language,
+                    "language change emitted an autosave transaction")) return 1;
+    QCoreApplication::removeTranslator(&translator);
+    app.processEvents();
+    if (!require(category->itemText(1) == QStringLiteral("Map labels")
+                 && category->currentIndex() == 1,
+                 "controls category did not revert to English")) return 1;
+
+    // Change languages inside a *running modal event loop*: all presentation
+    // text must update without discarding a partially typed label or UUID.
+    bool label_checked = false;
+    QPushButton *add_label = buttonWithText(&widget, QStringLiteral("+ Add"));
+    if (!require(add_label != nullptr, "missing controls Add button")) return 1;
+    QTimer::singleShot(0, &widget, [&]()
+    {
+        QDialog *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (dialog == nullptr) return;
+        QLineEdit *draft = dialog->findChild<QLineEdit *>(QStringLiteral("labelText"));
+        QComboBox *anchor = dialog->findChild<QComboBox *>(QStringLiteral("labelAnchor"));
+        QDialogButtonBox *buttons = dialog->findChild<QDialogButtonBox *>();
+        if (draft == nullptr || anchor == nullptr || buttons == nullptr)
+        {
+            dialog->reject();
+            return;
+        }
+        draft->setText(QStringLiteral("unfinished draft text"));
+        draft->setCursorPosition(5);
+        anchor->setCurrentIndex(1);
+        const QUuid selected = anchor->currentData().toUuid();
+        const bool installed = QCoreApplication::installTranslator(&translator);
+        app.processEvents();
+        bool okay = installed
+            && dialog->windowTitle() == QStringLiteral("TEST: Hydraulic map label")
+            && hasLabel(dialog, QStringLiteral("TEST: Latitude (°)"))
+            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("TEST: Save")
+            && buttons->button(QDialogButtonBox::Cancel)->text() == QStringLiteral("TEST: Cancel")
+            && anchor->itemText(1) == QStringLiteral("TEST: Junction: J1")
+            && anchor->currentData().toUuid() == selected
+            && draft->text() == QStringLiteral("unfinished draft text")
+            && draft->cursorPosition() == 5;
+        QCoreApplication::removeTranslator(&translator);
+        app.processEvents();
+        okay = okay
+            && dialog->windowTitle() == QStringLiteral("Hydraulic map label")
+            && anchor->itemText(1) == QStringLiteral("Junction: J1")
+            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("Save")
+            && draft->text() == QStringLiteral("unfinished draft text")
+            && draft->cursorPosition() == 5;
+        label_checked = okay;
+        dialog->reject();
+    });
+    add_label->click();
+    if (!require(label_checked, "open map-label dialog failed live retranslation/draft preservation")
+        || !require(events.size() == edits_before_language,
+                    "cancelled localized label dialog generated an edit")) return 1;
+
+    // A rule dialog has nested premise and action dialogs. Switching the
+    // language with two modal loops running must also preserve the rule draft.
+    category->setCurrentIndex(0);
+    bool rule_checked = false;
+    bool premise_checked = false;
+    QPushButton *add_rule = buttonWithText(&widget, QStringLiteral("+ Add"));
+    if (!require(add_rule != nullptr, "missing rule Add button")) return 1;
+    QTimer::singleShot(0, &widget, [&]()
+    {
+        QDialog *rule = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (rule == nullptr) return;
+        QLineEdit *id = rule->findChild<QLineEdit *>(QStringLiteral("ruleId"));
+        QPushButton *add_premise = buttonWithText(rule, QStringLiteral("+ Premise"));
+        if (id == nullptr || add_premise == nullptr)
+        {
+            rule->reject();
+            return;
+        }
+        id->setText(QStringLiteral("pending RULE"));
+        id->setCursorPosition(4);
+        QCoreApplication::installTranslator(&translator);
+        app.processEvents();
+        rule_checked = rule->windowTitle() == QStringLiteral("TEST: Hydraulic rule control")
+            && hasLabel(rule, QStringLiteral("TEST: Premises (IF / AND / OR)"))
+            && id->text() == QStringLiteral("pending RULE") && id->cursorPosition() == 4;
+        QTimer::singleShot(0, rule, [&]()
+        {
+            QDialog *premise = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+            if (premise == nullptr || premise == rule) return;
+            QComboBox *object = premise->findChild<QComboBox *>(QStringLiteral("premiseObject"));
+            QComboBox *variable = premise->findChild<QComboBox *>(QStringLiteral("premiseVariable"));
+            QLineEdit *elapsed = premise->findChild<QLineEdit *>(QStringLiteral("premiseElapsedTime"));
+            if (object == nullptr || variable == nullptr || elapsed == nullptr)
+            {
+                premise->reject();
+                return;
+            }
+            object->setCurrentIndex(2); // System
+            variable->setCurrentIndex(9); // Time
+            elapsed->setText(QStringLiteral("12345"));
+            elapsed->setCursorPosition(3);
+            QCoreApplication::removeTranslator(&translator);
+            app.processEvents();
+            QCoreApplication::installTranslator(&translator);
+            app.processEvents();
+            premise_checked = premise->windowTitle() == QStringLiteral("TEST: Rule premise")
+                && hasLabel(premise, QStringLiteral("TEST: Elapsed time (s)"))
+                && object->itemText(2) == QStringLiteral("TEST: System")
+                && variable->itemText(9) == QStringLiteral("TEST: Time")
+                && object->currentIndex() == 2 && variable->currentIndex() == 9
+                && elapsed->text() == QStringLiteral("12345") && elapsed->cursorPosition() == 3;
+            premise->reject();
+        });
+        add_premise->click();
+        QCoreApplication::removeTranslator(&translator);
+        app.processEvents();
+        rule_checked = rule_checked
+            && id->text() == QStringLiteral("pending RULE") && id->cursorPosition() == 4
+            && rule->windowTitle() == QStringLiteral("Hydraulic rule control");
+        rule->reject();
+    });
+    add_rule->click();
+    if (!require(rule_checked && premise_checked,
+                 "nested rule/premise live language switch did not preserve drafts")
+        || !require(events.size() == edits_before_language,
+                    "cancelled localized rule dialog generated an edit")) return 1;
 
     QString error;
     for (const QByteArray &event : events)
