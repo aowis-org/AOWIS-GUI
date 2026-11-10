@@ -1006,7 +1006,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->database_connection->server_endpoint_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
     const std::function<void(const QString &)> set_profile = [this](const QString &path) {
-        this->database_connection->wireguard_path->setText(path);
+        this->database_connection->setWireGuardProfile(path);
         if (this->selection_kind == SelectionKind::NewSource)
         {
             ++this->source_creation_request;
@@ -2864,12 +2864,20 @@ void ProjectsWidget::updateInspector()
         }
         this->database_connection->server_endpoint_edit->setText(server->endpoint);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-        this->database_connection->wireguard_path->setText(server->wireguard_profile_path);
+        if (this->database_connection->wireguard_server_id != server->id
+            || this->database_connection->wireguard_path->text() != server->wireguard_profile_path)
+        {
+            this->database_connection->wireguard_server_id = server->id;
+            this->database_connection->setWireGuardProfile(server->wireguard_profile_path);
+        }
 #endif
         this->database_connection->local_path_edit->setText(server->local_path);
         const int index = this->database_connection->server_auth_combo->findData(server->auth_mode);
         this->database_connection->server_auth_combo->setCurrentIndex(index < 0 ? 0 : index);
     }
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    else this->database_connection->wireguard_server_id.clear();
+#endif
     updateSourceFields();
     if (this->creation_kind == CreationKind::Project)
     {
@@ -3301,7 +3309,7 @@ void ProjectsWidget::createServer()
     this->database_connection->source_kind_combo->setCurrentIndex(0);
     this->database_connection->server_endpoint_edit->clear();
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    this->database_connection->wireguard_path->clear();
+    this->database_connection->setWireGuardProfile(QString());
 #endif
     this->database_inspector->save_source->setEnabled(true);
     this->database_connection->server_auth_combo->setCurrentIndex(0);

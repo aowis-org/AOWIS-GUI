@@ -413,6 +413,9 @@ int main(int argc, char **argv)
     preview_remote.endpoint = QStringLiteral("https://database.example.invalid");
     preview_remote.description = QStringLiteral("Remote test profile");
     preview_remote.auth_mode = QStringLiteral("API token");
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    preview_remote.wireguard_profile_path = QStringLiteral("/test/remote.conf");
+#endif
     const QList<ProjectServerProfile> sample_profiles{preview_local, preview_remote};
     if (!require(saveProjectServerProfiles(sample_profiles), "could not seed profile fixtures"))
         return 1;
@@ -659,6 +662,16 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(inspector_tabs->tabText(1) == QStringLiteral("Connection"),
                  "server inspector is missing the Connection tab")) return 1;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    if (!require(!wireguard_group->isCollapsed() && !profile->isHidden()
+                     && profile->text() == preview_remote.wireguard_profile_path,
+                 "configured database must show its WireGuard profile on selection")) return 1;
+    servers->setCurrentItem(servers->topLevelItem(0));
+    if (!require(wireguard_group->isCollapsed() && profile->text().isEmpty(),
+                 "direct database must start with the WireGuard group folded")) return 1;
+    servers->setCurrentItem(servers->topLevelItem(1));
+    if (!require(!wireguard_group->isCollapsed(), "reselected configured database must expand again")) return 1;
+#endif
     QWidget *head_branch_page = projects.findChild<QWidget *>(
         QStringLiteral("projectsRevisionBranchTab"));
     if (!require(head_branch_page != nullptr && !head_branch_page->isVisible()

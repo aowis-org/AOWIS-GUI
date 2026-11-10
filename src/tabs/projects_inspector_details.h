@@ -92,28 +92,28 @@ public:
         wrapLabel(server_warning);
         server_form->addRow(server_warning);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-        GroupBoxCollapsible *wireguard = new GroupBoxCollapsible(QStringLiteral("WireGuard"), this->remote_options);
-        wireguard->setObjectName(QStringLiteral("projectWireGuardGroup"));
-        QVBoxLayout *profile_layout = new QVBoxLayout(wireguard);
-        this->wireguard_path = new QLineEdit(wireguard);
+        this->wireguard = new GroupBoxCollapsible(QStringLiteral("WireGuard"), this->remote_options);
+        this->wireguard->setObjectName(QStringLiteral("projectWireGuardGroup"));
+        QVBoxLayout *profile_layout = new QVBoxLayout(this->wireguard);
+        this->wireguard_path = new QLineEdit(this->wireguard);
         this->wireguard_path->setObjectName(QStringLiteral("projectWireGuardProfile"));
         this->wireguard_path->setReadOnly(true);
         LiveUiText::bind(this->wireguard_path, [this] {
             this->wireguard_path->setPlaceholderText(tr("Direct connection"));
         });
         profile_layout->addWidget(this->wireguard_path);
-        this->choose_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Choose WireGuard profile…"), wireguard);
-        this->clear_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Use direct connection"), wireguard);
-        this->verify_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Verify repository"), wireguard);
+        this->choose_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Choose WireGuard profile…"), this->wireguard);
+        this->clear_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Use direct connection"), this->wireguard);
+        this->verify_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Verify repository"), this->wireguard);
         profile_layout->addWidget(this->choose_wireguard);
         profile_layout->addWidget(this->clear_wireguard);
         this->verify_wireguard->setObjectName(QStringLiteral("projectsVerifyRepository"));
         profile_layout->addWidget(this->verify_wireguard);
-        QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection."), wireguard);
+        QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection."), this->wireguard);
         wrapLabel(scope);
         profile_layout->addWidget(scope);
-        wireguard->setCollapsed(true);
-        server_form->addRow(wireguard);
+        this->wireguard->setCollapsed(true);
+        server_form->addRow(this->wireguard);
 #endif
         source_layout->addWidget(this->remote_options);
 
@@ -188,6 +188,13 @@ public:
     QComboBox *source_kind_combo = nullptr;
     QWidget *remote_options = nullptr;
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
+    void setWireGuardProfile(const QString &path)
+    {
+        this->wireguard_path->setText(path);
+        this->wireguard->setCollapsed(path.isEmpty());
+    }
+
+    QString wireguard_server_id;
     QLineEdit *wireguard_path = nullptr;
     QPushButton *choose_wireguard = nullptr;
     QPushButton *clear_wireguard = nullptr;
@@ -201,6 +208,9 @@ public:
     QPushButton *delete_connection = nullptr;
 
 private:
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    GroupBoxCollapsible *wireguard = nullptr;
+#endif
     void refreshPersonalToolTip()
     {
 #ifndef AOWIS_STANDALONE_DVMDB_ENABLED
