@@ -3,6 +3,7 @@
 #include "config/project_server_profile_storage.h"
 #include "projects/dvmdb_identity.h"
 #include "services/http_health_monitor.h"
+#include "widgets/group_box_collapsible.h"
 
 #include <QApplication>
 #include <QElapsedTimer>
@@ -15,6 +16,9 @@
 #include <QStackedWidget>
 #include <QTcpServer>
 #include <QPushButton>
+#include <QProcess>
+#include <QMessageBox>
+#include <QTemporaryFile>
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTreeWidget>
@@ -48,6 +52,7 @@ struct FakeDvmdb
     bool valid = true;
     bool graph_valid = true;
     bool catalogue_valid = true;
+    int catalogue_requests = 0;
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
     const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a001");
@@ -79,6 +84,7 @@ struct FakeDvmdb
                                  ModelCodecCompatibility::fingerprint()}}).toJson();
                         else if (path == "/dvmdb/v1/projects")
                         {
+                            ++this->catalogue_requests;
                             if (this->catalogue_valid)
                                 data = QJsonDocument(QJsonObject{
                                     {QStringLiteral("projects"), QJsonArray{QJsonObject{
@@ -148,6 +154,25 @@ int main(int argc, char **argv)
     b.id = second.repository_id;
     b.name = QStringLiteral("Source B");
     b.endpoint = second.endpoint();
+    QProcess peer;
+    QTemporaryFile profile_file(config.filePath(QStringLiteral("peer-XXXXXX.conf")));
+    if (argc == 2)
+    {
+        peer.start(QString::fromLocal8Bit(argv[1]), {QString::number(first.server.serverPort())});
+        if (!require(peer.waitForStarted() && waitUntil(app, [&] { return peer.canReadLine(); }),
+                     "WireGuard peer did not start")) return 1;
+        const QJsonObject ready = QJsonDocument::fromJson(peer.readLine()).object();
+        const QByteArray key = ready.value(QStringLiteral("client_private_key")).toString().toLatin1();
+        const QByteArray public_key = ready.value(QStringLiteral("server_public_key")).toString().toLatin1();
+        const QByteArray endpoint = ready.value(QStringLiteral("endpoint")).toString().toLatin1();
+        const QByteArray config_text = "[Interface]\nAddress=10.173.91.2/32\nPrivateKey=" + key
+            + "\n[Peer]\nPublicKey=" + public_key + "\nEndpoint=" + endpoint + "\nAllowedIPs=10.173.91.1/32\n";
+        if (!require(profile_file.open() && profile_file.write(config_text) == config_text.size()
+                     && profile_file.flush(), "could not write temporary WireGuard profile")) return 1;
+        profile_file.close();
+        a.endpoint = QStringLiteral("http://10.173.91.1:18080");
+        a.wireguard_profile_path = profile_file.fileName();
+    }
     if (!require(saveProjectServerProfiles({a, b}), "could not store multiple sources")) return 1;
 
     ProjectsWidget projects;
@@ -164,7 +189,7 @@ int main(int argc, char **argv)
             return tree->topLevelItemCount() == 2
                 && tree->topLevelItem(0)->childCount() == 1
                 && tree->topLevelItem(1)->childCount() == 1;
-        }), "database catalogues did not load independently at startup")) return 1;
+        }, argc == 2 ? 15000 : 5000), "database catalogues did not load independently at startup")) return 1;
     if (!require(sources->topLevelItem(0)->checkState(0) == Qt::Checked
             && sources->topLevelItem(1)->checkState(0) == Qt::Checked,
             "both sources should be visible by default")) return 1;
@@ -197,6 +222,23 @@ int main(int argc, char **argv)
     if (!require(waitUntil(app, [&] {
             return health_label->text() == QStringLiteral("Available");
         }), "healthy service never reached Available state")) return 1;
+    if (argc == 2)
+    {
+        // A second tunnel would have to reread the profile. Removing the
+        // temporary file proves that Verify and Refresh reuse the active one.
+        if (!require(profile_file.remove(), "could not remove temporary profile")) return 1;
+        GroupBoxCollapsible *group = projects.findChild<GroupBoxCollapsible *>(QStringLiteral("projectWireGuardGroup"));
+        if (!require(group != nullptr, "missing WireGuard inspector group")) return 1;
+        group->setCollapsed(false);
+        QPushButton *verify = projects.findChild<QPushButton *>(QStringLiteral("projectsVerifyRepository"));
+        if (!require(verify != nullptr && verify->isEnabled(), "missing saved-server verification")) return 1;
+        verify->click();
+        if (!require(waitUntil(app, [&] {
+            QMessageBox *message = projects.findChild<QMessageBox *>();
+            return message != nullptr && message->text().contains(first.repository_id);
+        }), "saved verification did not reuse the connected tunnel")) return 1;
+        projects.findChild<QMessageBox *>()->accept();
+    }
     first.graph_valid = false;
     refresh->click();
     if (!require(waitUntil(app, [&] {
@@ -339,9 +381,11 @@ int main(int argc, char **argv)
 
     // A successful HTTP status alone is insufficient: validate service data,
     // degrade after the first bad response and turn offline after the second.
+    FakeDvmdb monitor_fixture;
+    if (!require(monitor_fixture.start(), "health monitor fixture failed to start")) return 1;
     HttpHealthMonitor monitor;
     HttpHealthMonitor::State status = HttpHealthMonitor::State::Checking;
-    monitor.start(QUrl(first.endpoint() + QStringLiteral("/dvmdb/v1/projects")),
+    monitor.start(QUrl(monitor_fixture.endpoint() + QStringLiteral("/dvmdb/v1/projects")),
         [](const QByteArray &body)
         {
             const QJsonDocument json = QJsonDocument::fromJson(body);
@@ -349,18 +393,42 @@ int main(int argc, char **argv)
         }, [&](HttpHealthMonitor::State value, const QString &) { status = value; }, {}, 30000);
     if (!require(waitUntil(app, [&] { return status == HttpHealthMonitor::State::Healthy; }),
                  "health probe did not validate a good service response")) return 1;
-    first.valid = false;
+    monitor_fixture.valid = false;
     monitor.poll();
     if (!require(waitUntil(app, [&] { return status == HttpHealthMonitor::State::Degraded; }),
                  "health probe did not degrade after invalid response")) return 1;
     monitor.poll();
     if (!require(waitUntil(app, [&] { return status == HttpHealthMonitor::State::Offline; }),
                  "health probe did not declare offline after repeated failures")) return 1;
-    first.valid = true;
+    monitor_fixture.valid = true;
     monitor.poll();
     if (!require(waitUntil(app, [&] { return status == HttpHealthMonitor::State::Healthy; }),
                  "health probe did not recover after service restoration")) return 1;
     monitor.stop();
+
+    if (argc == 2)
+    {
+        sources->setCurrentItem(sources->topLevelItem(0));
+        sources->itemClicked(sources->topLevelItem(0), 0);
+        if (!require(!health_label->parentWidget()->isHidden() && inspectorHasIdentity(first.repository_id)
+                     && health_label->text() == QStringLiteral("Available"),
+                     "clicking Source A must open its live inspector before stopping the peer")) return 1;
+        peer.closeWriteChannel();
+        if (!require(peer.waitForFinished(5000) && peer.exitCode() == 0, "test peer did not stop")) return 1;
+        if (!waitUntil(app, [&] { return health_label->text() == QStringLiteral("Unavailable"); }, 25000))
+        {
+            std::fprintf(stderr, "Source A after peer shutdown: inspector=%s, sidebar=%s\n",
+                         qPrintable(health_label->text()), qPrintable(sources->topLevelItem(0)->toolTip(0)));
+            return 1;
+        }
+        sources->setCurrentItem(sources->topLevelItem(1));
+        const int previous_requests = second.catalogue_requests;
+        refresh->click();
+        if (!require(waitUntil(app, [&] {
+            return second.catalogue_requests > previous_requests && health_label->text() == QStringLiteral("Available")
+                && source_status->text().contains(QStringLiteral("catalogue loaded"));
+        }), "direct catalogue must still refresh after WireGuard peer loss")) return 1;
+    }
 
     // A saved offline endpoint begins with a temporary UUIDv7 and becomes the
     // authoritative repository UUID after its first successful catalogue read.

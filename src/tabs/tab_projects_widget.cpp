@@ -193,6 +193,8 @@ QString sourceBranchForRevision(const ProjectPreviewData &project,
 
 struct ProjectsWidget::SourceSession
 {
+    DvmdbConnection *connection = nullptr;
+    bool opening = false;
     ProjectSourceReader *reader = nullptr;
     HttpHealthMonitor *health = nullptr; // only remote sources have HTTP health monitoring
     QTimer *refresh = nullptr;
@@ -212,6 +214,7 @@ ProjectsWidget::~ProjectsWidget()
         delete session->refresh;
         delete session->health;
         delete session->reader;
+        delete session->connection;
         delete session;
     }
 }
@@ -805,6 +808,15 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         const QString key = items.first()->data(0, role_key).toString();
         if (key.startsWith(QStringLiteral("s:"))) select(SelectionKind::Server, key.mid(2));
     });
+    connect(this->server_tree, &QTreeWidget::itemClicked, this,
+            [this](QTreeWidgetItem *item, int)
+    {
+        // A project or branch keeps its database highlighted. Clicking that
+        // same row must reopen its inspector even without a selection change.
+        if (!this->updating_ui && this->selection_kind != SelectionKind::Server
+            && item != nullptr && item->data(0, role_key).toString() == keyFor(QStringLiteral("s"), this->server_id))
+            this->select(SelectionKind::Server, this->server_id);
+    });
     connect(this->server_tree, &QTreeWidget::itemChanged, this,
             [this](QTreeWidgetItem *item, int column)
     {
@@ -1015,7 +1027,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         const ProjectServerProfile *server = this->currentServer();
         if (this->selection_kind != SelectionKind::Server || server == nullptr) return;
         const ProjectServerProfile profile = *server;
-        probeRepository(repositoryRequest(profile.endpoint), profile.wireguard_profile_path, this,
+        const std::function<void(RepositoryProbeResult)> verified =
             [this, profile](RepositoryProbeResult result) {
                 const ProjectServerProfile *current = this->currentServer();
                 if (this->selection_kind != SelectionKind::Server || current == nullptr
@@ -1042,7 +1054,13 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                     openSourceMessage(this, QMessageBox::Information, tr("Verify repository"),
                         tr("Verified repository %1").arg(id));
                 }
-            });
+            };
+        const QNetworkRequest request = repositoryRequest(profile.endpoint);
+        SourceSession *session = this->source_sessions.value(profile.id, nullptr);
+        if (session != nullptr && session->connection != nullptr)
+            session->connection->verify(request, verified);
+        else
+            probeRepository(request, profile.wireguard_profile_path, this, verified);
     });
 #endif
     connect(this->database_connection->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
@@ -1705,6 +1723,7 @@ void ProjectsWidget::resetSource(const QString &id)
         delete session->refresh;
         delete session->health;
         delete session->reader;
+        delete session->connection;
         delete session;
     }
     for (int i = this->projects.size() - 1; i >= 0; --i)
@@ -1726,7 +1745,14 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
     // Legacy in-memory example sources deliberately do not initiate network I/O.
     if (profile.id == QStringLiteral("preview-local") || profile.id == QStringLiteral("preview-remote")) return;
     SourceSession *session = new SourceSession;
-    session->reader = new ProjectSourceReader(this);
+    if (profile.connection_type == QStringLiteral("remote"))
+    {
+        session->connection = new DvmdbConnection(QUrl(profile.endpoint), profile.wireguard_profile_path, this);
+        session->reader = new ProjectSourceReader(this, [session](const QNetworkRequest &request) {
+            return session->connection->get(request);
+        });
+    }
+    else session->reader = new ProjectSourceReader(this);
     session->refresh = new QTimer(this);
     session->refresh->setInterval(60000);
     this->source_sessions.insert(profile.id, session);
@@ -1749,67 +1775,95 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
         session->state = SourceState::Error;
         session->error = tr("REST authentication is not implemented");
     }
-    else
-    {
-        QString endpoint = profile.endpoint.trimmed();
-        while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
-        if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1"))) endpoint += QStringLiteral("/dvmdb/v1");
-        session->health = new HttpHealthMonitor(this);
-        // Liveness is not catalogue availability. /projects can fail while
-        // DVMDB is still responding (for example, a revision-graph error).
-        // Probe the lightweight identity route and separately load the
-        // project catalogue. A verified source must keep the same UUIDv7.
-        const QString expected_repository = profile.pending ? QString() : profile.id;
-        session->health->start(QUrl(endpoint + QStringLiteral("/repository")),
-            [this, id, expected_repository](const QByteArray &body)
-            {
-                const QJsonDocument document = QJsonDocument::fromJson(body);
-                SourceSession *current = this->source_sessions.value(id, nullptr);
-                if (current != nullptr)
-                    current->codec_error = document.isObject()
-                        ? ModelCodecCompatibility::error(document.object()) : QString();
-                if (!document.isObject()) return false;
-                const QString identity = document.object().value(
-                    QStringLiteral("repositoryId")).toString();
-                return DvmdbIdentity::isUuidV7(identity)
-                    && (current == nullptr || current->codec_error.isEmpty())
-                    && (expected_repository.isEmpty() || identity == expected_repository);
-            }, [this, id](HttpHealthMonitor::State state, const QString &error)
-            {
-                SourceSession *current = this->source_sessions.value(id, nullptr);
-                if (current == nullptr) return;
-                if (state == HttpHealthMonitor::State::Healthy)
-                {
-                    if (current->state == SourceState::Checking
-                        || current->state == SourceState::Error) loadSource(id);
-                }
-                else if (state == HttpHealthMonitor::State::Offline)
-                {
-                    if (!current->loading)
-                    {
-                        current->state = SourceState::Error;
-                        current->error = current->codec_error.isEmpty()
-                            ? error : current->codec_error;
-                        // Keep an existing catalogue as an explicitly offline cache;
-                        // never claim it is currently writable.
-                    }
-                }
-                else if (state == HttpHealthMonitor::State::Degraded
-                         && current->state == SourceState::Checking)
-                    current->error = error;
-                populateServerTree();
-                if (state == HttpHealthMonitor::State::Healthy
-                    || state == HttpHealthMonitor::State::Offline)
-                {
-                    populateProjectTree();
-                    rebuildGraph();
-                }
-                updateConnectionStatus();
-                updateButtons();
-            }, {}, 5000);
-    }
+    else openRemoteSource(profile);
     populateServerTree();
     updateConnectionStatus();
+}
+
+void ProjectsWidget::openRemoteSource(const ProjectServerProfile &profile)
+{
+    SourceSession *session = this->source_sessions.value(profile.id, nullptr);
+    if (session == nullptr || session->opening || session->health != nullptr) return;
+    session->opening = true;
+    session->connection->open([this, session, profile](const QString &error) {
+        session->opening = false;
+        if (error.isEmpty())
+        {
+            this->startRemoteHealth(profile);
+            return;
+        }
+        session->state = SourceState::Error;
+        session->error = error;
+        this->populateServerTree();
+        this->populateProjectTree();
+        this->rebuildGraph();
+        this->updateConnectionStatus();
+        this->updateButtons();
+    });
+}
+
+void ProjectsWidget::startRemoteHealth(const ProjectServerProfile &profile)
+{
+    const QString id = profile.id;
+    SourceSession *session = this->source_sessions.value(id);
+    QString endpoint = profile.endpoint.trimmed();
+    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
+    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1"))) endpoint += QStringLiteral("/dvmdb/v1");
+    session->health = new HttpHealthMonitor(this, [session](const QNetworkRequest &request) {
+        return session->connection->get(request);
+    });
+    // Liveness is not catalogue availability. /projects can fail while
+    // DVMDB is still responding (for example, a revision-graph error).
+    // Probe the lightweight identity route and separately load the
+    // project catalogue. A verified source must keep the same UUIDv7.
+    const QString expected_repository = profile.pending ? QString() : profile.id;
+    session->health->start(QUrl(endpoint + QStringLiteral("/repository")),
+        [this, id, expected_repository](const QByteArray &body)
+        {
+            const QJsonDocument document = QJsonDocument::fromJson(body);
+            SourceSession *current = this->source_sessions.value(id, nullptr);
+            if (current != nullptr)
+                current->codec_error = document.isObject()
+                    ? ModelCodecCompatibility::error(document.object()) : QString();
+            if (!document.isObject()) return false;
+            const QString identity = document.object().value(
+                QStringLiteral("repositoryId")).toString();
+            return DvmdbIdentity::isUuidV7(identity)
+                && (current == nullptr || current->codec_error.isEmpty())
+                && (expected_repository.isEmpty() || identity == expected_repository);
+        }, [this, id](HttpHealthMonitor::State state, const QString &error)
+        {
+            SourceSession *current = this->source_sessions.value(id, nullptr);
+            if (current == nullptr) return;
+            if (state == HttpHealthMonitor::State::Healthy)
+            {
+                if (current->state == SourceState::Checking
+                    || current->state == SourceState::Error) loadSource(id);
+            }
+            else if (state == HttpHealthMonitor::State::Offline)
+            {
+                if (!current->loading)
+                {
+                    current->state = SourceState::Error;
+                    current->error = current->codec_error.isEmpty()
+                        ? error : current->codec_error;
+                    // Keep an existing catalogue as an explicitly offline cache;
+                    // never claim it is currently writable.
+                }
+            }
+            else if (state == HttpHealthMonitor::State::Degraded
+                     && current->state == SourceState::Checking)
+                current->error = error;
+            populateServerTree();
+            if (state == HttpHealthMonitor::State::Healthy
+                || state == HttpHealthMonitor::State::Offline)
+            {
+                populateProjectTree();
+                rebuildGraph();
+            }
+            updateConnectionStatus();
+            updateButtons();
+        }, {}, 5000);
 }
 
 void ProjectsWidget::loadSource(const QString &id)
@@ -1821,6 +1875,12 @@ void ProjectsWidget::loadSource(const QString &id)
     for (const ProjectServerProfile &entry : this->servers)
         if (entry.id == id) { profile = entry; found = true; break; }
     if (!found) return;
+    if (session->connection != nullptr && session->health == nullptr)
+    {
+        if (profile.auth_mode.isEmpty() || profile.auth_mode == QStringLiteral("None"))
+            this->openRemoteSource(profile);
+        return;
+    }
     session->loading = true;
     session->state = SourceState::Loading;
     session->error.clear();
@@ -1848,7 +1908,7 @@ void ProjectsWidget::loadSource(const QString &id)
             if (profile.pending)
             {
                 const QString verified_id = snapshot.repository_id;
-                QTimer::singleShot(0, this, [this, id, verified_id]
+                QTimer::singleShot(0, current->reader, [this, id, verified_id]
                 { promoteVerifiedSource(id, verified_id); });
                 return;
             }
@@ -5582,6 +5642,7 @@ void ProjectsWidget::applyInspectorEdits()
                 return;
             }
             if (server->endpoint != previous.endpoint || server->local_path != previous.local_path
+                || server->wireguard_profile_path != previous.wireguard_profile_path
                 || server->auth_mode != previous.auth_mode)
             {
                 resetSource(server->id);

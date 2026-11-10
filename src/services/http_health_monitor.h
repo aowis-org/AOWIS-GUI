@@ -9,6 +9,7 @@
 #include <QUrl>
 
 #include <functional>
+#include <memory>
 #include <utility>
 
 // A bounded, non-overlapping HTTP liveness probe shared by the map service
@@ -21,9 +22,11 @@ public:
     using Validator = std::function<bool(const QByteArray &)>;
     using Observer = std::function<void(State, const QString &)>;
 
-    explicit HttpHealthMonitor(QObject *parent = nullptr)
-        : QObject(parent), manager(this), timer(this)
+    using Get = std::function<QNetworkReply *(const QNetworkRequest &)>;
+    explicit HttpHealthMonitor(QObject *parent = nullptr, Get get = {})
+        : QObject(parent), get(std::move(get)), timer(this)
     {
+        if (!this->get) this->manager = std::make_unique<QNetworkAccessManager>();
         this->timer.setInterval(5000);
         connect(&this->timer, &QTimer::timeout, this, [this] { poll(); });
     }
@@ -74,7 +77,7 @@ public:
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::ManualRedirectPolicy);
         request.setTransferTimeout(3000);
-        QNetworkReply *pending = this->manager.get(request);
+        QNetworkReply *pending = this->get ? this->get(request) : this->manager->get(request);
         pending->setReadBufferSize(256 * 1024);
         this->reply = pending;
         const QPointer<QNetworkReply> guarded(pending);
@@ -94,7 +97,7 @@ public:
             const int status = pending->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool transport_ok = pending->error() == QNetworkReply::NoError && status == 200;
             // Bound memory even when an unexpected server returns an enormous body.
-            const QByteArray body = pending->read(256 * 1024 + 1);
+            const QByteArray body = transport_ok ? pending->read(256 * 1024 + 1) : QByteArray();
             const bool valid = transport_ok && body.size() <= 256 * 1024
                 && this->validator && this->validator(body);
             const QString error = valid ? QString()
@@ -122,7 +125,8 @@ private:
         }
     }
 
-    QNetworkAccessManager manager;
+    Get get;
+    std::unique_ptr<QNetworkAccessManager> manager;
     QTimer timer;
     QPointer<QNetworkReply> reply;
     QUrl url;
