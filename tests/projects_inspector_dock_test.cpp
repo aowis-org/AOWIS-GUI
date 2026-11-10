@@ -1026,17 +1026,24 @@ int main(int argc, char **argv)
                      && near(startup_head.y(), graph->revisionViewportPosition(head_id).y()),
                  "first graph display was not already fitted as if Fit graph was clicked"))
         return 1;
-    // Both explorer and editable HEAD shortcuts retain minimum heights and share extra space.
+    // Explorer belongs above the HEAD shortcuts. An empty HEAD list must not
+    // consume one third of the sidebar until there are actual editable HEADs.
     GroupBoxCollapsible *project_section = projects.findChild<GroupBoxCollapsible *>(
         QStringLiteral("explorerCollapsibleGroup"));
     GroupBoxCollapsible *revision_section = projects.findChild<GroupBoxCollapsible *>(
         QStringLiteral("editableHeadsCollapsibleGroup"));
+    QVBoxLayout *sidebar_sections_layout = project_section != nullptr
+        ? qobject_cast<QVBoxLayout *>(project_section->parentWidget()->layout()) : nullptr;
     if (!require(project_section != nullptr && project_section == server_section
-                     && revision_section != nullptr
+                     && revision_section != nullptr && sidebar_sections_layout != nullptr
                      && project_section->title() == QStringLiteral("Explorer")
                      && revision_section->title() == QStringLiteral("Editable HEADs")
-                     && revision_section->geometry().top() < project_section->geometry().top(),
-                 "unified Explorer section is missing or incorrectly titled"))
+                     && project_section->geometry().top() < revision_section->geometry().top()
+                     && sidebar_sections_layout->stretch(
+                            sidebar_sections_layout->indexOf(project_section)) == 2
+                     && sidebar_sections_layout->stretch(
+                            sidebar_sections_layout->indexOf(revision_section)) == 0,
+                 "Explorer must be above the compact, empty HEAD section"))
         return 1;
     // The navigator has no create/import button row. Its only job is navigation.
     QScrollArea *sidebar = projects.findChild<QScrollArea *>(
@@ -1069,7 +1076,7 @@ int main(int argc, char **argv)
     if (!require(project_tree->isVisible() && project_tree->height() >= 190
                      && !revisions->isVisible() && empty_heads != nullptr
                      && empty_heads->isVisible() && revision_section->height() < 160,
-                 "empty HEAD shortcuts should remain compact above Explorer")) return 1;
+                 "empty HEAD shortcuts should remain compact below Explorer")) return 1;
     const int default_project_height = project_tree->height();
     projects.resize(1250, 1040);
     app.processEvents();

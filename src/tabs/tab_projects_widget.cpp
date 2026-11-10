@@ -348,7 +348,9 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->editable_heads_tree->setHeaderHidden(true);
     this->editable_heads_tree->setRootIsDecorated(false);
     this->editable_heads_tree->setUniformRowHeights(false);
-    this->editable_heads_tree->setMinimumHeight(220);
+    // Keep the shortcut list compact: Explorer receives two thirds of the
+    // available sidebar height whenever both sections are populated/expanded.
+    this->editable_heads_tree->setMinimumHeight(100);
     this->editable_heads_tree->setMinimumWidth(0);
     this->editable_heads_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     revisions_layout->addWidget(this->editable_heads_tree, 1);
@@ -357,17 +359,17 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     this->no_editable_heads->setWordWrap(true);
     this->no_editable_heads->setAlignment(Qt::AlignCenter);
     revisions_layout->insertWidget(0, this->no_editable_heads);
+    left_layout->addWidget(explorer_group, 2);
     left_layout->addWidget(revisions_group, 1);
-    left_layout->addWidget(explorer_group, 1);
     // Keep the footer inert while either tree can grow. An always-expanding
     // spacer competes for height with the tree sections inside QScrollArea.
     QSpacerItem *footer_spacer = new QSpacerItem(0, 0, QSizePolicy::Minimum,
                                                 QSizePolicy::Fixed);
     left_layout->addItem(footer_spacer);
 
-    // Give the trees any spare sidebar height without reducing their existing
-    // minimum heights. When a section is collapsed, its header should remain
-    // compact and the other expanded tree should use the freed space.
+    // Split available height 2:1 between Explorer and editable HEADs. When a
+    // section is collapsed (or HEADs is empty), leave it compact and give the
+    // available height to the other section instead.
     const std::function<void()> update_section_stretches = [this, left_layout, footer_spacer,
                                                               explorer_group, revisions_group]()
     {
@@ -378,7 +380,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             explorer_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
         revisions_group->setSizePolicy(QSizePolicy::Preferred,
             revisions_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
-        left_layout->setStretch(left_layout->indexOf(explorer_group), explorer_expanded ? 1 : 0);
+        left_layout->setStretch(left_layout->indexOf(explorer_group), explorer_expanded ? 2 : 0);
         left_layout->setStretch(left_layout->indexOf(revisions_group), revisions_expanded ? 1 : 0);
         const bool expand_footer = !explorer_expanded && !revisions_expanded;
         footer_spacer->changeSize(0, 0, QSizePolicy::Minimum,

@@ -25,6 +25,7 @@
 #include <QTemporaryDir>
 #include <QTreeWidget>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include <cstdio>
 #include <cmath>
@@ -646,6 +647,30 @@ int main(int argc, char **argv)
                 && explorer->topLevelItemCount() == 2
                 && explorer->topLevelItem(0)->childCount() == 2;
         }), "personal HEAD list did not include all branches and unborn HEADs")) return 1;
+        GroupBoxCollapsible *explorer_section = shortcuts.findChild<GroupBoxCollapsible *>(
+            QStringLiteral("explorerCollapsibleGroup"));
+        GroupBoxCollapsible *heads_section = shortcuts.findChild<GroupBoxCollapsible *>(
+            QStringLiteral("editableHeadsCollapsibleGroup"));
+        QVBoxLayout *sidebar_layout = explorer_section != nullptr
+            ? qobject_cast<QVBoxLayout *>(explorer_section->parentWidget()->layout()) : nullptr;
+        if (!require(explorer_section != nullptr && heads_section != nullptr
+                && sidebar_layout != nullptr
+                && explorer_section->geometry().top() < heads_section->geometry().top()
+                && sidebar_layout->stretch(sidebar_layout->indexOf(explorer_section)) == 2
+                && sidebar_layout->stretch(sidebar_layout->indexOf(heads_section)) == 1
+                && heads->minimumHeight() <= 110
+                && explorer_section->height() > heads_section->height(),
+                "populated HEAD shortcuts must sit below Explorer at a one-third height share"))
+            return 1;
+        heads_section->setCollapsed(true);
+        app.processEvents();
+        if (!require(sidebar_layout->stretch(sidebar_layout->indexOf(explorer_section)) == 2
+                && sidebar_layout->stretch(sidebar_layout->indexOf(heads_section)) == 0,
+                "collapsed HEAD shortcuts still claim sidebar height")) return 1;
+        heads_section->setCollapsed(false);
+        app.processEvents();
+        if (!require(sidebar_layout->stretch(sidebar_layout->indexOf(heads_section)) == 1,
+                "expanding HEAD shortcuts did not restore the one-third share")) return 1;
         QTreeWidgetItem *committed = nullptr;
         QTreeWidgetItem *unborn = nullptr;
         QTreeWidgetItem *other_project = nullptr;
