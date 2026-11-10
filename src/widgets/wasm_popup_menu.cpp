@@ -87,6 +87,17 @@ WasmPopupMenu::WasmPopupMenu(QWidget *owner, WasmPopupMenu *parent_menu)
       menu_layout(new QVBoxLayout(this)),
       submenu_close_timer(new QTimer(this))
 {
+#ifdef Q_OS_WASM
+    // WebAssembly renders the bgfx map into its own browser canvas layered
+    // above the ordinary Qt canvas. Popups that stay inside the main Qt
+    // window will therefore render beneath the map. Make the menu a real Qt
+    // popup window so the browser-side z-index stacking can place it above the
+    // bgfx canvas like any other transient top-level Qt window.
+    setWindowFlag(Qt::Popup, true);
+    setWindowFlag(Qt::FramelessWindowHint, true);
+    setWindowFlag(Qt::NoDropShadowWindowHint, true);
+    setAttribute(Qt::WA_ShowWithoutActivating, true);
+#endif
     this->submenu_close_timer->setSingleShot(true);
     this->submenu_close_timer->setInterval(SubMenuCloseDelayMs);
     connect(this->submenu_close_timer, &QTimer::timeout, this, [this]
@@ -429,23 +440,28 @@ void WasmPopupMenu::cancelPendingSubMenuClose()
 void WasmPopupMenu::showAtGlobalPosition(const QPoint &global_position, bool submenu)
 {
     Q_UNUSED(submenu);
-    QWidget *parent_widget = parentWidget();
-    if (parent_widget == nullptr)
-        return;
 
     adjustSize();
     const QSize requested_size = sizeHint().expandedTo(minimumSizeHint());
     resize(requested_size);
 
-    QPoint local_position = parent_widget->mapFromGlobal(global_position);
     const QRect bounds = availableParentRect();
+    QPoint position = global_position;
 
-    local_position.setX(qBound(
-        bounds.left(), local_position.x(), qMax(bounds.left(), bounds.right() - width() + 1)));
-    local_position.setY(qBound(
-        bounds.top(), local_position.y(), qMax(bounds.top(), bounds.bottom() - height() + 1)));
+    if (!isWindow())
+    {
+        QWidget *parent_widget = parentWidget();
+        if (parent_widget == nullptr)
+            return;
+        position = parent_widget->mapFromGlobal(global_position);
+    }
 
-    move(local_position);
+    position.setX(qBound(
+        bounds.left(), position.x(), qMax(bounds.left(), bounds.right() - width() + 1)));
+    position.setY(qBound(
+        bounds.top(), position.y(), qMax(bounds.top(), bounds.bottom() - height() + 1)));
+
+    move(position);
     show();
     raise();
 }
@@ -472,13 +488,16 @@ void WasmPopupMenu::openSubMenu(QWidget *item, WasmPopupMenu *submenu)
     const QPoint item_left = item->mapToGlobal(
         QPoint(-submenu->sizeHint().width() + SubMenuOverlapPx, 0));
 
-    QWidget *parent_widget = parentWidget();
-    if (parent_widget == nullptr)
-        return;
-
     const QRect bounds = availableParentRect();
-    const QPoint right_local = parent_widget->mapFromGlobal(item_right);
-    const bool fits_right = right_local.x() + submenu->sizeHint().width() <= bounds.right();
+    QPoint right_test = item_right;
+    if (!submenu->isWindow())
+    {
+        QWidget *parent_widget = parentWidget();
+        if (parent_widget == nullptr)
+            return;
+        right_test = parent_widget->mapFromGlobal(item_right);
+    }
+    const bool fits_right = right_test.x() + submenu->sizeHint().width() <= bounds.right();
     submenu->showAtGlobalPosition(fits_right ? item_right : item_left, true);
 }
 
@@ -512,8 +531,14 @@ QRect WasmPopupMenu::availableParentRect() const
 {
     QWidget *parent_widget = parentWidget();
     if (parent_widget != nullptr)
+    {
+        if (isWindow())
+            return QRect(parent_widget->mapToGlobal(QPoint(0, 0)), parent_widget->size()).adjusted(
+                MenuScreenMargin, MenuScreenMargin, -MenuScreenMargin, -MenuScreenMargin);
+
         return parent_widget->rect().adjusted(
             MenuScreenMargin, MenuScreenMargin, -MenuScreenMargin, -MenuScreenMargin);
+    }
 
     QScreen *screen = QGuiApplication::primaryScreen();
     if (screen != nullptr)
