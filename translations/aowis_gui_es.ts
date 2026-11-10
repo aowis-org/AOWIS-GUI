@@ -337,12 +337,8 @@
       <translation>Conexión directa</translation>
     </message>
     <message>
-      <source>Databases</source>
-      <translation>Bases de datos</translation>
-    </message>
-    <message>
-      <source>Projects &amp;&amp; Branches</source>
-      <translation>Proyectos y ramas</translation>
+      <source>Explorer</source>
+      <translation>Explorador</translation>
     </message>
     <message>
       <source>Revisions</source>

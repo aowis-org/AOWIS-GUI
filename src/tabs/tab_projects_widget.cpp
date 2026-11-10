@@ -37,6 +37,7 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QHash>
+#include <QHeaderView>
 #include <QDateTime>
 #include <QDebug>
 #include <QJsonArray>
@@ -295,62 +296,48 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     left_layout->setContentsMargins(8, 8, 8, 8);
     left_layout->setSpacing(10);
 
-    // Profiles are persisted locally; each source is opened asynchronously at startup.
-    GroupBoxCollapsible *servers_group = new GroupBoxCollapsible(tr("Databases"), left);
-    servers_group->setObjectName(QStringLiteral("serversCollapsibleGroup"));
-    QVBoxLayout *servers_layout = new QVBoxLayout(servers_group);
-    QToolButton *add_server = new QToolButton(servers_group);
-    add_server->setText(QStringLiteral("+"));
-    add_server->setToolTip(tr("Add a database (local or REST)"));
-    add_server->setAccessibleName(tr("Add database"));
-    add_server->setObjectName(QStringLiteral("serversCreateButton"));
-    servers_group->setHeaderAction(add_server);
-    this->server_tree = new QTreeWidget(servers_group);
-    this->server_tree->setObjectName(QStringLiteral("serversTree"));
-    this->server_tree->setHeaderHidden(true);
-    this->server_tree->setMinimumWidth(0);
-    this->server_tree->setMinimumHeight(86);
-    // Keep the server selector compact. Without an upper bound its QTreeWidget
-    // size hint reserves hundreds of pixels before the two revision/project
-    // trees receive their stretch, even when only two servers are listed.
-    // The tree remains scrollable, and its section can still be collapsed.
-    this->server_tree->setMaximumHeight(112);
-    this->server_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    servers_layout->addWidget(this->server_tree, 1);
-    QLabel *no_sources = new QLabel(tr("No databases configured"), servers_group);
-    no_sources->setObjectName(QStringLiteral("projectsNoSourcesSidebar"));
-    no_sources->setAlignment(Qt::AlignCenter);
-    servers_layout->addWidget(no_sources);
-    left_layout->addWidget(servers_group, 0);
-
-    // QGroupBox interprets a single & as a mnemonic marker. Use && for a visible ampersand.
-    GroupBoxCollapsible *projects_group = new GroupBoxCollapsible(tr("Projects && Branches"), left);
-    projects_group->setObjectName(QStringLiteral("projectsCollapsibleGroup"));
-    QVBoxLayout *projects_layout = new QVBoxLayout(projects_group);
-    // The navigator locates objects; object-specific actions belong to the inspector.
-    this->project_tree = new QTreeWidget(projects_group);
-    this->project_tree->setObjectName(QStringLiteral("projectsTree"));
-    this->project_tree->setHeaderHidden(true);
-    this->project_tree->setIndentation(18);
-    this->project_tree->setMinimumHeight(190);
-    this->project_tree->setMinimumWidth(0);
-    this->project_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    projects_layout->addWidget(this->project_tree, 1);
-    left_layout->addWidget(projects_group, 1);
-
-    // Bundled examples are templates, not objects in the selected DB server.
-    // The library stays accessible while any server profile is selected.
+    // Examples are independent of the currently selected database. Keep their
+    // entry point above the explorer, where it is always easy to find.
     QPushButton *browse_examples_button = nullptr;
     if (guiConfiguration().examples_builtin_enable)
     {
         browse_examples_button = compactButton(tr("Browse examples…"),
             tr("Open a bundled network or prepare a project from it"), left);
         browse_examples_button->setObjectName(QStringLiteral("projectsBrowseExamplesButton"));
-        // A long translated label must not widen the sidebar's scroll content.
         browse_examples_button->setMinimumWidth(0);
         browse_examples_button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
         left_layout->addWidget(browse_examples_button, 0);
     }
+
+    // One navigator for database -> project -> branch. Database visibility,
+    // connectivity and selection all belong to the same top-level row.
+    GroupBoxCollapsible *explorer_group = new GroupBoxCollapsible(tr("Explorer"), left);
+    explorer_group->setObjectName(QStringLiteral("explorerCollapsibleGroup"));
+    QVBoxLayout *explorer_layout = new QVBoxLayout(explorer_group);
+    QToolButton *add_server = new QToolButton(explorer_group);
+    add_server->setText(QStringLiteral("+"));
+    add_server->setToolTip(tr("Add a database (local or REST)"));
+    add_server->setAccessibleName(tr("Add database"));
+    add_server->setObjectName(QStringLiteral("serversCreateButton"));
+    explorer_group->setHeaderAction(add_server);
+    this->project_tree = new QTreeWidget(explorer_group);
+    this->project_tree->setObjectName(QStringLiteral("projectsTree"));
+    this->project_tree->setHeaderHidden(true);
+    this->project_tree->setColumnCount(2);
+    this->project_tree->header()->setStretchLastSection(false);
+    this->project_tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    this->project_tree->header()->setSectionResizeMode(1, QHeaderView::Fixed);
+    this->project_tree->setColumnWidth(1, 24); // one dedicated availability indicator
+    this->project_tree->setIndentation(18);
+    this->project_tree->setMinimumHeight(190);
+    this->project_tree->setMinimumWidth(0);
+    this->project_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    explorer_layout->addWidget(this->project_tree, 1);
+    QLabel *no_sources = new QLabel(tr("No databases configured"), explorer_group);
+    no_sources->setObjectName(QStringLiteral("projectsNoSourcesSidebar"));
+    no_sources->setAlignment(Qt::AlignCenter);
+    explorer_layout->addWidget(no_sources);
+    left_layout->addWidget(explorer_group, 1);
 
     GroupBoxCollapsible *revisions_group = new GroupBoxCollapsible(tr("Revisions"), left);
     revisions_group->setObjectName(QStringLiteral("revisionsCollapsibleGroup"));
@@ -394,42 +381,31 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     // Give the trees any spare sidebar height without reducing their existing
     // minimum heights. When a section is collapsed, its header should remain
     // compact and the other expanded tree should use the freed space.
-    const auto update_section_stretches = [left_layout, footer_spacer, servers_group,
-                                           projects_group, revisions_group]()
+    const std::function<void()> update_section_stretches = [left_layout, footer_spacer,
+                                                              explorer_group, revisions_group]()
     {
-        const bool projects_expanded = !projects_group->isCollapsed();
+        const bool explorer_expanded = !explorer_group->isCollapsed();
         const bool revisions_expanded = !revisions_group->isCollapsed();
-        // The server selector must occupy only its own content height. A
-        // vertically Preferred QGroupBox may absorb the extra viewport height
-        // without growing its capped tree, leaving blank space while the two
-        // actual project/revision trees are starved.
-        servers_group->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-        projects_group->setSizePolicy(QSizePolicy::Preferred,
-            projects_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
+        explorer_group->setSizePolicy(QSizePolicy::Preferred,
+            explorer_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
         revisions_group->setSizePolicy(QSizePolicy::Preferred,
             revisions_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
-        left_layout->setStretch(left_layout->indexOf(servers_group), 0);
-        left_layout->setStretch(left_layout->indexOf(projects_group), projects_expanded ? 1 : 0);
+        left_layout->setStretch(left_layout->indexOf(explorer_group), explorer_expanded ? 1 : 0);
         left_layout->setStretch(left_layout->indexOf(revisions_group), revisions_expanded ? 1 : 0);
-        // Only use the footer as a filler when neither tree can expand.
-        const bool expand_footer = !projects_expanded && !revisions_expanded;
+        const bool expand_footer = !explorer_expanded && !revisions_expanded;
         footer_spacer->changeSize(0, 0, QSizePolicy::Minimum,
             expand_footer ? QSizePolicy::Expanding : QSizePolicy::Fixed);
         left_layout->setStretch(left_layout->count() - 1, expand_footer ? 1 : 0);
         left_layout->invalidate();
     };
-    connect(servers_group, &GroupBoxCollapsible::signalExpanded, left,
+    connect(explorer_group, &GroupBoxCollapsible::signalExpanded, left,
             [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
-    connect(servers_group, &GroupBoxCollapsible::signalCollapsed, left,
+    connect(explorer_group, &GroupBoxCollapsible::signalCollapsed, left,
             [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
-    connect(servers_group, &GroupBoxCollapsible::signalExpanded, this,
+    connect(explorer_group, &GroupBoxCollapsible::signalExpanded, this,
             [this](GroupBoxCollapsible *) { updateEmptyState(); });
-    connect(servers_group, &GroupBoxCollapsible::signalCollapsed, this,
+    connect(explorer_group, &GroupBoxCollapsible::signalCollapsed, this,
             [this](GroupBoxCollapsible *) { updateEmptyState(); });
-    connect(projects_group, &GroupBoxCollapsible::signalExpanded, left,
-            [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
-    connect(projects_group, &GroupBoxCollapsible::signalCollapsed, left,
-            [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
     connect(revisions_group, &GroupBoxCollapsible::signalExpanded, left,
             [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
     connect(revisions_group, &GroupBoxCollapsible::signalCollapsed, left,
@@ -517,12 +493,11 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     empty_layout->addWidget(empty_description, 0, Qt::AlignHCenter);
     empty_layout->addWidget(empty_add, 0, Qt::AlignHCenter);
     connect(this, &ProjectsWidget::languageChanged, left,
-            [this, servers_group, projects_group, revisions_group, no_sources, browse_examples_button,
+            [this, explorer_group, revisions_group, no_sources, browse_examples_button,
              heads_button, graph_add_server, graph_heads_button, graph_full_button, direction_button,
              fit_button, empty_title, empty_description, empty_add, add_server] {
         refreshPreviewTranslations();
-        servers_group->setTitle(tr("Databases"));
-        projects_group->setTitle(tr("Projects && Branches"));
+        explorer_group->setTitle(tr("Explorer"));
         revisions_group->setTitle(tr("Revisions"));
         add_server->setToolTip(tr("Add a database (local or REST)"));
         add_server->setAccessibleName(tr("Add database"));
@@ -807,52 +782,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             applyInspectorEdits();
         }
     });
-    connect(this->server_tree, &QTreeWidget::itemSelectionChanged, this, [this]
-    {
-        const QList<QTreeWidgetItem *> items = this->server_tree->selectedItems();
-        if (items.isEmpty() || this->updating_ui) return;
-        const QString key = items.first()->data(0, role_key).toString();
-        if (key.startsWith(QStringLiteral("s:"))) select(SelectionKind::Server, key.mid(2));
-    });
-    connect(this->server_tree, &QTreeWidget::itemClicked, this,
-            [this](QTreeWidgetItem *item, int)
-    {
-        // A project or branch keeps its database highlighted. Clicking that
-        // same row must reopen its inspector even without a selection change.
-        if (!this->updating_ui && this->selection_kind != SelectionKind::Server
-            && item != nullptr && item->data(0, role_key).toString() == keyFor(QStringLiteral("s"), this->server_id))
-            this->select(SelectionKind::Server, this->server_id);
-    });
-    connect(this->server_tree, &QTreeWidget::itemChanged, this,
-            [this](QTreeWidgetItem *item, int column)
-    {
-        if (this->updating_ui || column != 0 || item == nullptr) return;
-        const QString key = item->data(0, role_key).toString();
-        if (!key.startsWith(QStringLiteral("s:"))) return;
-        const QString id = key.mid(2);
-        for (ProjectServerProfile &profile : this->servers)
-        {
-            if (profile.id != id) continue;
-            const bool old = profile.visible;
-            profile.visible = item->checkState(0) == Qt::Checked;
-            if (!saveProjectServerProfiles(this->servers))
-            {
-                profile.visible = old;
-                const QSignalBlocker blocked(this->server_tree);
-                item->setCheckState(0, old ? Qt::Checked : Qt::Unchecked);
-                reportServerSaveFailure();
-                return;
-            }
-            if (!profile.visible) restoreVisibleSelection();
-            populateProjectTree();
-            populateRevisionTree();
-            rebuildGraph();
-            updateEmptyState();
-            updateButtons();
-            broadcastContext();
-            return;
-        }
-    });
     for (QPushButton *button : {this->database_overview->create_project,
                                 this->database_relations->create_project})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
@@ -943,14 +872,52 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->project_tree, &QTreeWidget::itemClicked, this,
             [this](QTreeWidgetItem *item, int)
     {
-        // A HEAD card also highlights its owning branch in the sidebar.
-        // Clicking that already-selected branch must still switch to the
-        // branch-management Inspector (selectionChanged would not fire).
-        if (this->updating_ui || this->selection_kind != SelectionKind::Head
-            || item == nullptr) return;
+        if (this->updating_ui || item == nullptr) return;
         const QString key = item->data(0, role_key).toString();
-        if (key.startsWith(QStringLiteral("b:")))
+        // Selecting a graph card can leave the corresponding explorer row
+        // highlighted. A click on that row must still reopen its inspector.
+        if (key.startsWith(QStringLiteral("s:"))
+            && (this->selection_kind != SelectionKind::Server || this->selected_id != key.mid(2)))
+            select(SelectionKind::Server, key.mid(2));
+        else if (key.startsWith(QStringLiteral("p:"))
+                 && (this->selection_kind != SelectionKind::Project || this->selected_id != key.mid(2)))
+            select(SelectionKind::Project, key.mid(2));
+        else if (key.startsWith(QStringLiteral("b:"))
+                 && (this->selection_kind != SelectionKind::Branch || this->selected_id != key.mid(2)))
             select(SelectionKind::Branch, key.mid(2));
+    });
+    connect(this->project_tree, &QTreeWidget::itemChanged, this,
+            [this](QTreeWidgetItem *item, int column)
+    {
+        if (this->updating_ui || column != 0 || item == nullptr) return;
+        const QString key = item->data(0, role_key).toString();
+        if (!key.startsWith(QStringLiteral("s:"))) return;
+        const QString id = key.mid(2);
+        for (ProjectServerProfile &profile : this->servers)
+        {
+            if (profile.id != id) continue;
+            const bool old = profile.visible;
+            profile.visible = item->checkState(0) == Qt::Checked;
+            if (!saveProjectServerProfiles(this->servers))
+            {
+                profile.visible = old;
+                const QSignalBlocker blocked(this->project_tree);
+                item->setCheckState(0, old ? Qt::Checked : Qt::Unchecked);
+                reportServerSaveFailure();
+                return;
+            }
+            if (!profile.visible) restoreVisibleSelection();
+            QTimer::singleShot(0, this, [this]
+            {
+                populateProjectTree();
+                populateRevisionTree();
+                rebuildGraph();
+                updateEmptyState();
+                updateButtons();
+                broadcastContext();
+            });
+            return;
+        }
     });
     connect(heads_button, &QPushButton::clicked, this, [this]
     {
@@ -1183,9 +1150,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     });
     // Initialize the shared status snapshot before any view renders a server.
     refreshServerAvailability();
-    populateServerTree();
-    updateEmptyState();
     populateProjectTree();
+    updateEmptyState();
     populateRevisionTree();
     rebuildGraph();
     bool personal_selected = false;
@@ -1562,35 +1528,6 @@ QString ProjectsWidget::serverToolTip(const ProjectServerProfile &server, const 
                  server.connection_type == QStringLiteral("local") ? server.local_path : server.endpoint, status, status_details);
 }
 
-void ProjectsWidget::populateServerTree()
-{
-    const QSignalBlocker blocked(this->server_tree);
-    this->server_tree->clear();
-    for (const ProjectServerProfile &server : this->servers)
-    {
-        const bool local = server.connection_type == QStringLiteral("local");
-        QTreeWidgetItem *item = newTreeItem(this->server_tree,
-            server.personal ? tr("♛ %1").arg(server.name)
-                : server.pending ? tr("◷ %1").arg(server.name) : server.name,
-            keyFor(QStringLiteral("s"), server.id));
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-        item->setCheckState(0, server.visible ? Qt::Checked : Qt::Unchecked);
-        const SourceSession *session = this->source_sessions.value(server.id, nullptr);
-        const ProjectServerAvailability availability = this->server_availability.value(server.id);
-        if (local)
-            item->setIcon(0, QIcon::fromTheme(QStringLiteral("drive-harddisk"),
-                style()->standardIcon(QStyle::SP_DriveHDIcon)));
-        else
-        {
-            item->setIcon(0, QIcon(serverAvailabilityPixmap(availability.color)));
-        }
-        item->setToolTip(0, serverToolTip(server, availability.status, availability.details));
-        if (session != nullptr && session->state == SourceState::Error)
-            item->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
-    }
-    selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
-}
-
 void ProjectsWidget::updateEmptyState()
 {
     const bool empty = this->servers.isEmpty();
@@ -1604,12 +1541,12 @@ void ProjectsWidget::updateEmptyState()
     if (QWidget *toolbar = findChild<QWidget *>(QStringLiteral("projectsGraphToolbar")))
         toolbar->setVisible(has_visible_database);
     bool expanded = true;
-    if (GroupBoxCollapsible *section = findChild<GroupBoxCollapsible *>(QStringLiteral("serversCollapsibleGroup")))
+    if (GroupBoxCollapsible *section = findChild<GroupBoxCollapsible *>(QStringLiteral("explorerCollapsibleGroup")))
         expanded = !section->isCollapsed();
     if (QLabel *notice = findChild<QLabel *>(QStringLiteral("projectsNoSourcesSidebar")))
         notice->setVisible(empty && expanded);
-    if (this->server_tree != nullptr)
-        this->server_tree->setVisible(!empty && expanded);
+    if (this->project_tree != nullptr)
+        this->project_tree->setVisible(!empty && expanded);
     updateConnectionStatus();
 }
 
@@ -1628,11 +1565,9 @@ bool ProjectsWidget::isSourceReady(const QString &id) const
 
 void ProjectsWidget::refreshServerAvailability()
 {
-    // Only the existing SourceSession/HttpHealthMonitor probes remote DVMDBs.
-    // Materialize their presentation once and fan it out to every view.
-    // Updating a tree icon/tooltip emits itemChanged without this blocker,
-    // which would otherwise persist profiles and rebuild the DAG per health poll.
-    const QSignalBlocker blocked(this->server_tree);
+    // Health is polled only by SourceSession/HttpHealthMonitor. The explorer,
+    // inspector and graph share this derived, presentation-only snapshot.
+    const QSignalBlocker blocked(this->project_tree);
     QHash<QString, ProjectServerAvailability> current;
     for (int row = 0; row < this->servers.size(); ++row)
     {
@@ -1645,16 +1580,16 @@ void ProjectsWidget::refreshServerAvailability()
                 || previous.status != availability.status
                 || previous.details != availability.details))
             this->graph->updateServerAvailability(server.id, availability);
-        if (this->server_tree != nullptr && row < this->server_tree->topLevelItemCount())
+        if (this->project_tree != nullptr && row < this->project_tree->topLevelItemCount())
         {
-            QTreeWidgetItem *item = this->server_tree->topLevelItem(row);
+            QTreeWidgetItem *item = this->project_tree->topLevelItem(row);
             if (item->data(0, role_key).toString()
                 != keyFor(QStringLiteral("s"), server.id)) continue;
-            if (server.connection_type != QStringLiteral("local")
-                && previous.color != availability.color)
-                item->setIcon(0, QIcon(serverAvailabilityPixmap(availability.color)));
-            item->setToolTip(0,
-                serverToolTip(server, availability.status, availability.details));
+            if (previous.color != availability.color)
+                item->setIcon(1, QIcon(serverAvailabilityPixmap(availability.color)));
+            const QString tooltip = serverToolTip(server, availability.status, availability.details);
+            item->setToolTip(0, tooltip);
+            item->setToolTip(1, tooltip);
         }
     }
     this->server_availability = std::move(current);
@@ -1759,7 +1694,6 @@ void ProjectsWidget::resetSource(const QString &id)
     populateProjectTree();
     populateRevisionTree();
     rebuildGraph();
-    populateServerTree();
     updateEmptyState();
     updateButtons();
     broadcastContext();
@@ -1804,7 +1738,7 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
         session->error = tr("REST authentication is not implemented");
     }
     else openRemoteSource(profile);
-    populateServerTree();
+    populateProjectTree();
     updateConnectionStatus();
 }
 
@@ -1824,8 +1758,7 @@ void ProjectsWidget::openRemoteSource(const ProjectServerProfile &profile)
         }
         session->state = SourceState::Error;
         session->error = error;
-        this->populateServerTree();
-        this->populateProjectTree();
+        populateProjectTree();
         this->rebuildGraph();
         this->updateConnectionStatus();
         this->updateButtons();
@@ -1865,6 +1798,7 @@ void ProjectsWidget::startRemoteHealth(const ProjectServerProfile &profile)
         {
             SourceSession *current = this->source_sessions.value(id, nullptr);
             if (current == nullptr) return;
+            const SourceState previous_state = current->state;
             if (state == HttpHealthMonitor::State::Healthy)
             {
                 if (current->state == SourceState::Checking
@@ -1884,9 +1818,9 @@ void ProjectsWidget::startRemoteHealth(const ProjectServerProfile &profile)
             else if (state == HttpHealthMonitor::State::Degraded
                      && current->state == SourceState::Checking)
                 current->error = error;
-            populateServerTree();
-            if (state == HttpHealthMonitor::State::Healthy
-                || state == HttpHealthMonitor::State::Offline)
+            // A health poll only changes availability presentation. Rebuild
+            // the catalogue/navigation only if the source state changed.
+            if (current->state != previous_state)
             {
                 populateProjectTree();
                 rebuildGraph();
@@ -1914,7 +1848,7 @@ void ProjectsWidget::loadSource(const QString &id)
     session->loading = true;
     session->state = SourceState::Loading;
     session->error.clear();
-    populateServerTree();
+    populateProjectTree();
     updateConnectionStatus();
     session->reader->load(profile, [this, id, profile](const SourceSnapshot &snapshot, const QString &error)
     {
@@ -1980,7 +1914,7 @@ void ProjectsWidget::loadSource(const QString &id)
                     }
             }
         }
-        populateServerTree();
+        populateProjectTree();
         updateEmptyState();
         updateConnectionStatus();
         if (this->server_id == id) updateInspector();
@@ -2096,43 +2030,70 @@ QStringList ProjectsWidget::parseTags(const QString &text)
 void ProjectsWidget::populateProjectTree()
 {
     const QSignalBlocker blocked(this->project_tree);
+    // Reopening a session, renaming a database or hiding a database must not
+    // reset the user's manually expanded/collapsed explorer branches.
+    for (QTreeWidgetItemIterator it(this->project_tree); *it; ++it)
+    {
+        QTreeWidgetItem *item = *it;
+        const QString key = item->data(0, role_key).toString();
+        if (item->childCount() > 0 && !key.isEmpty())
+            this->explorer_expansions.insert(key, item->isExpanded());
+    }
     this->project_tree->clear();
     for (const ProjectServerProfile &server : this->servers)
     {
-        if (!server.visible) continue;
+        const bool local = server.connection_type == QStringLiteral("local");
+        const QString key = keyFor(QStringLiteral("s"), server.id);
+        QTreeWidgetItem *group = newTreeItem(this->project_tree,
+            server.personal ? tr("♛ %1").arg(server.name)
+                : server.pending ? tr("◷ %1").arg(server.name) : server.name, key);
+        group->setFlags(group->flags() | Qt::ItemIsUserCheckable);
+        group->setCheckState(0, server.visible ? Qt::Checked : Qt::Unchecked);
+        group->setIcon(0, local
+            ? QIcon::fromTheme(QStringLiteral("drive-harddisk"),
+                style()->standardIcon(QStyle::SP_DriveHDIcon))
+            : QIcon::fromTheme(QStringLiteral("network-server"),
+                style()->standardIcon(QStyle::SP_DriveNetIcon)));
+        const ProjectServerAvailability availability = this->server_availability.value(server.id);
+        group->setIcon(1, QIcon(serverAvailabilityPixmap(availability.color)));
+        const QString tooltip = serverToolTip(server, availability.status, availability.details);
+        group->setToolTip(0, tooltip);
+        group->setToolTip(1, tooltip);
+        const SourceSession *session = this->source_sessions.value(server.id, nullptr);
+        if (session != nullptr && session->state == SourceState::Error)
+            group->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
+        if (!server.visible)
+        {
+            // The database itself remains in the navigator while its projects
+            // are hidden. The user can always check it again from this row.
+            group->setExpanded(this->explorer_expansions.value(key, true));
+            continue;
+        }
         const bool preview = server.id == QStringLiteral("preview-local")
             || server.id == QStringLiteral("preview-remote");
-        // Preserve the isolated demonstration explorer's original flat tree.
         if (preview && server.id != this->server_id) continue;
-        QTreeWidgetItem *group = preview ? nullptr : newTreeItem(this->project_tree,
-            server.name, keyFor(QStringLiteral("s"), server.id));
-        if (group != nullptr)
-        {
-            QFont heading = group->font(0);
-            heading.setBold(true);
-            group->setFont(0, heading);
-            group->setExpanded(true);
-        }
-        const SourceSession *session = this->source_sessions.value(server.id, nullptr);
-        if (group != nullptr && session != nullptr && session->state == SourceState::Error)
-        {
-            group->setToolTip(0, tr("Unavailable · cached projects (read-only): %1").arg(session->error));
-            group->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
-        }
         for (const ProjectPreviewData &project : this->projects)
         {
             if (project.server_id != server.id) continue;
-            QTreeWidgetItem *parent = group != nullptr
-                ? newTreeChild(group, QStringLiteral("▣  ") + project.name,
-                    keyFor(QStringLiteral("p"), project.id))
-                : newTreeItem(this->project_tree, QStringLiteral("▣  ") + project.name,
-                    keyFor(QStringLiteral("p"), project.id));
-            parent->setExpanded(project.id == this->project_id);
+            const QString project_key = keyFor(QStringLiteral("p"), project.id);
+            QTreeWidgetItem *parent = newTreeChild(group,
+                QStringLiteral("▣  ") + project.name, project_key);
             for (const ProjectPreviewBranch &branch : project.branches)
                 newTreeChild(parent, QStringLiteral("⑂  ") + branch.name,
                              keyFor(QStringLiteral("b"), branch.id));
+            parent->setExpanded(this->explorer_expansions.value(project_key,
+                project.id == this->project_id));
         }
+        group->setExpanded(this->explorer_expansions.value(key, true));
     }
+    const QString selection = this->selection_kind == SelectionKind::Server
+        ? keyFor(QStringLiteral("s"), this->selected_id)
+        : this->selection_kind == SelectionKind::Project
+            ? keyFor(QStringLiteral("p"), this->selected_id)
+        : this->selection_kind == SelectionKind::Branch
+          || this->selection_kind == SelectionKind::Head
+            ? keyFor(QStringLiteral("b"), this->selected_id) : QString();
+    selectTreeItem(this->project_tree, selection, false);
 }
 
 bool ProjectsWidget::isBranchHead(const QString &revision_id) const
@@ -2425,7 +2386,7 @@ void ProjectsWidget::rebuildGraph()
     this->graph->setSelection(graph_selection);
 }
 
-void ProjectsWidget::selectTreeItem(QTreeWidget *tree, const QString &key)
+void ProjectsWidget::selectTreeItem(QTreeWidget *tree, const QString &key, bool reveal)
 {
     const QSignalBlocker blocked(tree);
     tree->clearSelection();
@@ -2434,14 +2395,17 @@ void ProjectsWidget::selectTreeItem(QTreeWidget *tree, const QString &key)
     {
         if ((*it)->data(0, role_key).toString() == key)
         {
-            QTreeWidgetItem *ancestor = (*it)->parent();
-            while (ancestor != nullptr)
+            if (reveal)
             {
-                ancestor->setExpanded(true);
-                ancestor = ancestor->parent();
+                QTreeWidgetItem *ancestor = (*it)->parent();
+                while (ancestor != nullptr)
+                {
+                    ancestor->setExpanded(true);
+                    ancestor = ancestor->parent();
+                }
             }
             tree->setCurrentItem(*it);
-            tree->scrollToItem(*it);
+            if (reveal) tree->scrollToItem(*it);
             return;
         }
     }
@@ -2460,9 +2424,10 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                 != QMessageBox::Discard)
         {
             this->updating_ui = true;
-            selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
             selectTreeItem(this->project_tree,
-                this->selection_kind == SelectionKind::Project
+                this->selection_kind == SelectionKind::Server
+                    ? keyFor(QStringLiteral("s"), this->selected_id)
+                : this->selection_kind == SelectionKind::Project
                     ? keyFor(QStringLiteral("p"), this->selected_id)
                     : this->selection_kind == SelectionKind::Branch
                         || this->selection_kind == SelectionKind::Head
@@ -2477,7 +2442,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
     }
     if (this->source_writer->isBusy() && kind == SelectionKind::Server && id != this->server_id)
     {
-        selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
         return;
     }
     if (kind == SelectionKind::Server)
@@ -2516,7 +2480,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                 {
                     if (this->source_writer->isBusy()) return;
                     this->server_id = project.server_id;
-                    populateServerTree();
                     populateProjectTree();
                     break;
                 }
@@ -2541,7 +2504,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                         {
                             if (this->source_writer->isBusy()) return;
                             this->server_id = project.server_id;
-                            populateServerTree();
                             populateProjectTree();
                         }
                         this->project_id = project.id;
@@ -2585,9 +2547,9 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
     this->selection_kind = kind;
     this->selected_id = id;
     this->updating_ui = true;
-    selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
     selectTreeItem(this->project_tree,
-                   kind == SelectionKind::Project ? keyFor(QStringLiteral("p"), id)
+                   kind == SelectionKind::Server ? keyFor(QStringLiteral("s"), id)
+                   : kind == SelectionKind::Project ? keyFor(QStringLiteral("p"), id)
                    : kind == SelectionKind::Branch || kind == SelectionKind::Head
                        ? keyFor(QStringLiteral("b"), id) : QString());
     selectTreeItem(this->revision_tree,
@@ -3337,7 +3299,6 @@ void ProjectsWidget::createServer()
     this->selected_id.clear();
     updateConnectionStatus();
     this->updating_ui = true;
-    selectTreeItem(this->server_tree, QString());
     selectTreeItem(this->project_tree, QString());
     selectTreeItem(this->revision_tree, QString());
     this->database_connection->source_kind_combo->setCurrentIndex(0);
@@ -3597,7 +3558,7 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
         reportServerSaveFailure();
         return;
     }
-    populateServerTree();
+    populateProjectTree();
     updateEmptyState();
     select(SelectionKind::Server, server.id);
     startSource(server);
@@ -3644,7 +3605,6 @@ void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString 
         for (const ProjectServerProfile &profile : this->servers)
             if (profile.id == repository_id) { startSource(profile); break; }
     }
-    populateServerTree();
     populateProjectTree();
     populateRevisionTree();
     rebuildGraph();
@@ -3688,7 +3648,7 @@ void ProjectsWidget::deleteConnection()
             this->server_id.clear();
             this->project_id.clear();
             this->branch_id.clear();
-            populateServerTree();
+            populateProjectTree();
             this->selection_kind = SelectionKind::None;
             this->selected_id.clear();
             updateEmptyState();
@@ -5091,7 +5051,7 @@ void ProjectsWidget::setPersonalServer(bool enabled)
             this->servers = previous;
             reportServerSaveFailure();
         }
-        populateServerTree();
+        populateProjectTree();
         rebuildGraph(); // Update the golden server card immediately when designation changes.
         if (this->selection_kind == SelectionKind::Server) updateInspector();
     };
@@ -5707,18 +5667,16 @@ void ProjectsWidget::applyInspectorEdits()
             // A database rename also appears in the Projects tree, server graph
             // cards and contextual project selectors. Refresh them immediately
             // after the profile is saved, without restarting the DVMDB session.
-            populateServerTree();
+            populateProjectTree();
             if (server->name != previous.name)
             {
                 // Database type and name share the bold heading; update it
                 // immediately after a successful profile rename.
                 this->inspector_heading->setText(
                     ProjectsInspectorPresentations::database(server, QString()).heading);
-                populateProjectTree();
                 rebuildGraph();
                 broadcastContext();
             }
-            selectTreeItem(this->server_tree, keyFor(QStringLiteral("s"), this->server_id));
         }
     }
     else if (this->selection_kind == SelectionKind::Project)

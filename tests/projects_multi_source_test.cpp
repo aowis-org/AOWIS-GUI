@@ -241,12 +241,12 @@ int main(int argc, char **argv)
     ProjectsWidget projects;
     projects.resize(1200, 740);
     projects.show();
-    QTreeWidget *sources = projects.findChild<QTreeWidget *>(QStringLiteral("serversTree"));
+    QTreeWidget *sources = projects.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
     QTreeWidget *tree = projects.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
     ProjectRevisionGraph *graph = projects.findChild<ProjectRevisionGraph *>(
         QStringLiteral("projectRevisionGraph"));
-    if (!require(sources != nullptr && tree != nullptr && graph != nullptr,
-                 "missing multi-source components")) return 1;
+    if (!require(sources != nullptr && sources == tree && graph != nullptr,
+                 "Explorer must use one tree for sources, projects and branches")) return 1;
     if (!require(waitUntil(app, [&]
         {
             return tree->topLevelItemCount() == 2
@@ -295,7 +295,7 @@ int main(int argc, char **argv)
     // Sidebar and inspector must consume the same availability snapshot.
     // Neither choosing a card nor drawing the graph should trigger another
     // service probe; the sole remote probe belongs to HttpHealthMonitor.
-    const QColor sidebar_green = sources->topLevelItem(0)->icon(0)
+    const QColor sidebar_green = sources->topLevelItem(0)->icon(1)
         .pixmap(16, 16).toImage().pixelColor(8, 8);
     const QColor inspector_green = health_icon->grab().toImage().pixelColor(8, 8);
     if (!require(sidebar_green.green() > sidebar_green.red()
@@ -319,13 +319,17 @@ int main(int argc, char **argv)
         }), "saved verification did not reuse the connected tunnel")) return 1;
         projects.findChild<QMessageBox *>()->accept();
     }
+    sources->topLevelItem(0)->setExpanded(false);
     first.graph_valid = false;
     refresh->click();
     if (!require(waitUntil(app, [&] {
             return health_label->text() == QStringLiteral("Available · catalogue error")
                 && source_status->text().contains(QStringLiteral("Invalid DVMDB revision graph page"));
         }), "catalogue failure incorrectly marked the responding server unavailable")) return 1;
-    const QColor sidebar_amber = sources->topLevelItem(0)->icon(0)
+    if (!require(!sources->topLevelItem(0)->isExpanded(),
+                 "a catalogue refresh reopened a manually collapsed database")) return 1;
+    sources->topLevelItem(0)->setExpanded(true);
+    const QColor sidebar_amber = sources->topLevelItem(0)->icon(1)
         .pixmap(16, 16).toImage().pixelColor(8, 8);
     const QColor inspector_amber = health_icon->grab().toImage().pixelColor(8, 8);
     if (!require(sidebar_amber == inspector_amber
@@ -456,15 +460,19 @@ int main(int argc, char **argv)
 
     sources->topLevelItem(1)->setCheckState(0, Qt::Unchecked);
     app.processEvents();
-    if (!require(tree->topLevelItemCount() == 1
+    if (!require(tree->topLevelItemCount() == 2
+                 && tree->topLevelItem(1)->childCount() == 0
+                 && tree->topLevelItem(1)->checkState(0) == Qt::Unchecked
                  && loadProjectServerProfiles().at(1).visible == false
                  && graph->revisionViewportPosition(second_graph_id).isNull(),
-                 "unchecking a source did not persistently filter navigator and graph")) return 1;
+                 "unchecking a source must hide its projects but retain the checkbox")) return 1;
     if (!require(graph->nodeViewportPosition(QStringLiteral("group:server:") + second.repository_id).isNull(),
                  "hidden database still has a graph header")) return 1;
     sources->topLevelItem(1)->setCheckState(0, Qt::Checked);
     app.processEvents();
-    if (!require(tree->topLevelItemCount() == 2 && loadProjectServerProfiles().at(1).visible,
+    if (!require(tree->topLevelItemCount() == 2
+                 && tree->topLevelItem(1)->childCount() == 1
+                 && loadProjectServerProfiles().at(1).visible,
                  "rechecking a source did not restore catalogue visibility")) return 1;
 
     // A successful HTTP status alone is insufficient: validate service data,

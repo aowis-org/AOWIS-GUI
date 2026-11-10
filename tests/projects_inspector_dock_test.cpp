@@ -266,7 +266,7 @@ int main(int argc, char **argv)
     {
         ProjectsWidget empty_profiles;
         QTreeWidget *empty_tree = empty_profiles.findChild<QTreeWidget *>(
-            QStringLiteral("serversTree"));
+            QStringLiteral("projectsTree"));
         QDockWidget *empty_dock = empty_profiles.findChild<QDockWidget *>(
             QStringLiteral("projectsInspectorDock"));
         QStackedWidget *empty_stack = empty_profiles.findChild<QStackedWidget *>(
@@ -322,7 +322,7 @@ int main(int argc, char **argv)
         ProjectRevisionGraph *server_graph = embedded_profiles.findChild<ProjectRevisionGraph *>(
             QStringLiteral("projectRevisionGraph"));
         QTreeWidget *embedded_servers = embedded_profiles.findChild<QTreeWidget *>(
-            QStringLiteral("serversTree"));
+            QStringLiteral("projectsTree"));
         if (!require(server_graph_stack != nullptr && server_graph != nullptr
                          && embedded_servers != nullptr && embedded_servers->topLevelItemCount() > 0
                          && server_graph_stack->currentWidget() == server_graph
@@ -636,8 +636,8 @@ int main(int argc, char **argv)
     // Servers are managed as GUI-only profiles. Selecting one scopes the
     // preview projects and reopens its inspector, without creating a session.
     GroupBoxCollapsible *server_section = projects.findChild<GroupBoxCollapsible *>(
-        QStringLiteral("serversCollapsibleGroup"));
-    QTreeWidget *servers = projects.findChild<QTreeWidget *>(QStringLiteral("serversTree"));
+        QStringLiteral("explorerCollapsibleGroup"));
+    QTreeWidget *servers = projects.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
     QLineEdit *endpoint = projects.findChild<QLineEdit *>(QStringLiteral("projectServerEndpoint"));
     QComboBox *auth_mode = projects.findChild<QComboBox *>(QStringLiteral("projectServerAuthMode"));
     QWidget *server_options = projects.findChild<QWidget *>(QStringLiteral("projectServerOptions"));
@@ -647,11 +647,10 @@ int main(int argc, char **argv)
                      && auth_mode != nullptr && server_options != nullptr,
                  "Servers panel or inspector configuration fields are missing"))
         return 1;
-    if (!require(servers->parentWidget() != nullptr && server_section->isVisible(),
-                 "Servers section is not visible above the project tree"))
-        return 1;
-    if (!require(servers->minimumHeight() == 86 && servers->maximumHeight() == 112,
-                 "Servers tree must remain compact so Projects and Revisions can expand"))
+    if (!require(servers == project_tree && server_section->isVisible()
+                     && servers->columnCount() == 2
+                     && projects.findChild<QTreeWidget *>(QStringLiteral("serversTree")) == nullptr,
+                 "Explorer must own one database/project/branch tree and a status column"))
         return 1;
     for (QLabel *label : projects.findChildren<QLabel *>())
         if (!require(label->text() != QStringLiteral("View:"),
@@ -798,9 +797,10 @@ int main(int argc, char **argv)
     activeInspectorName(projects)->setText(QStringLiteral("Remote preview"));
     QMetaObject::invokeMethod(activeInspectorName(projects), "editingFinished", Qt::DirectConnection);
     app.processEvents();
-    if (!require(project_tree->topLevelItemCount() == 1
-                     || project_tree->topLevelItemCount() == 0,
-                 "projects from the local server leaked into the remote server view"))
+    if (!require(project_tree->topLevelItemCount() == 2
+                     && project_tree->topLevelItem(0)->childCount() == 2
+                     && project_tree->topLevelItem(1)->childCount() == 0,
+                 "Explorer lost its persistent database hierarchy during server switch"))
         return 1;
     endpoint->setText(QStringLiteral("https://new-preview.example.invalid"));
     QMetaObject::invokeMethod(endpoint, "editingFinished", Qt::DirectConnection);
@@ -819,8 +819,8 @@ int main(int argc, char **argv)
     if (!require(servers->currentItem() != nullptr
                      && servers->currentItem()->data(0, Qt::UserRole).toString()
                          == QStringLiteral("s:preview-local")
-                     && project_tree->topLevelItemCount() >= 2,
-                 "switching to the local preview server did not load its projects"))
+                     && project_tree->topLevelItem(0)->childCount() == 2,
+                 "switching to the local preview server did not show its projects"))
         return 1;
     if (!require(inspector_tabs->count() == 3
                      && inspector_tabs->widget(2)->objectName()
@@ -1143,19 +1143,15 @@ int main(int argc, char **argv)
                      && near(startup_head.y(), graph->revisionViewportPosition(head_id).y()),
                  "first graph display was not already fitted as if Fit graph was clicked"))
         return 1;
-    // Both sidebar trees keep their existing minimum heights and consume
-    // additional vertical space as the Projects page becomes taller.
+    // Both explorer and revisions retain minimum heights and share extra space.
     GroupBoxCollapsible *project_section = projects.findChild<GroupBoxCollapsible *>(
-        QStringLiteral("projectsCollapsibleGroup"));
+        QStringLiteral("explorerCollapsibleGroup"));
     GroupBoxCollapsible *revision_section = projects.findChild<GroupBoxCollapsible *>(
         QStringLiteral("revisionsCollapsibleGroup"));
-    // QGroupBox uses && for a visible ampersand rather than a mnemonic.
-    if (!require(project_section != nullptr && revision_section != nullptr
-                     && project_section->title() == QStringLiteral("Projects && Branches"),
-                 "project/branch section is missing or incorrectly titled"))
-        return 1;
-    if (!require(server_section->isVisible() && server_section->y() < project_section->y(),
-                 "Servers section must appear above Projects & Branches"))
+    if (!require(project_section != nullptr && project_section == server_section
+                     && revision_section != nullptr
+                     && project_section->title() == QStringLiteral("Explorer"),
+                 "unified Explorer section is missing or incorrectly titled"))
         return 1;
     // The navigator has no create/import button row. Its only job is navigation.
     QScrollArea *sidebar = projects.findChild<QScrollArea *>(
@@ -1163,6 +1159,7 @@ int main(int argc, char **argv)
     QPushButton *browse_action = projects.findChild<QPushButton *>(
         QStringLiteral("projectsBrowseExamplesButton"));
     if (!require(sidebar != nullptr && browse_action != nullptr
+                     && browse_action->geometry().top() < server_section->geometry().top()
                      && projects.findChild<QPushButton *>(QStringLiteral("projectsCreateProjectButton")) == nullptr
                      && projects.findChild<QPushButton *>(QStringLiteral("projectsCreateBranchButton")) == nullptr
                      && projects.findChild<QPushButton *>(QStringLiteral("projectsImportButton")) == nullptr,
@@ -1184,7 +1181,6 @@ int main(int argc, char **argv)
     const int default_revision_height = revisions->height();
     const int default_project_section_height = project_section->height();
     const int default_revision_section_height = revision_section->height();
-    const int default_servers_section_height = server_section->height();
     const int default_content_height = sidebar->widget()->height();
     const int default_viewport_height = sidebar->viewport()->height();
     if (!require(default_project_height >= 190 && default_revision_height >= 220,
@@ -1196,7 +1192,7 @@ int main(int argc, char **argv)
     const int revision_growth = revisions->height() - default_revision_height;
     const int project_section_growth = project_section->height() - default_project_section_height;
     const int revision_section_growth = revision_section->height() - default_revision_section_height;
-    // The initial sidebar can scroll vertically because its three sections
+    // The initial sidebar can scroll vertically because the two sections
     // already exceed the short viewport. A fixed "+50 px per tree" threshold
     // mistakes viewport growth for *available* growth; much of the resize
     // first removes that initial overflow. Verify instead that both trees
@@ -1209,21 +1205,16 @@ int main(int argc, char **argv)
         project_growth >= 20 && revision_growth >= 20
         && std::abs(project_growth - project_section_growth) <= caption_reflow_tolerance
         && std::abs(revision_growth - revision_section_growth) <= caption_reflow_tolerance;
-    const bool server_remains_compact =
-        std::abs(server_section->height() - default_servers_section_height) <= 2;
     const bool content_fills_viewport =
         std::abs(sidebar->widget()->height() - sidebar->viewport()->height()) <= 2;
-    if (!(trees_absorb_section_growth && server_remains_compact && content_fills_viewport))
+    if (!(trees_absorb_section_growth && content_fills_viewport))
     {
         std::fprintf(stderr,
             "projects_inspector_dock: sidebar tree growth (initial -> tall): "
             "projects %d -> %d (section %+d), revisions %d -> %d (section %+d), "
-            "servers tree %d, servers section %d -> %d (hint %d); "
             "viewport height %d -> %d, content height %d -> %d\n",
             default_project_height, project_tree->height(), project_section_growth,
             default_revision_height, revisions->height(), revision_section_growth,
-            servers->height(), default_servers_section_height, server_section->height(),
-            server_section->sizeHint().height(),
             default_viewport_height, sidebar->viewport()->height(),
             default_content_height, sidebar->widget()->height());
         if (!require(false, "sidebar extra height was not allocated to the two trees"))
@@ -1234,7 +1225,7 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(!project_tree->isVisible() && revisions->isVisible()
                      && revisions->height() > expanded_revision_height + 50,
-                 "collapsing Projects & Branches did not expand the Revisions tree"))
+                 "collapsing Explorer did not expand the Revisions tree"))
         return 1;
     project_section->setCollapsed(false);
     app.processEvents();
@@ -1243,7 +1234,7 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(!revisions->isVisible() && project_tree->isVisible()
                      && project_tree->height() > expanded_project_height + 50,
-                 "collapsing Revisions did not expand the Projects & Branches tree"))
+                 "collapsing Revisions did not expand the Explorer tree"))
         return 1;
     revision_section->setCollapsed(false);
     projects.resize(1250, 740);
@@ -1298,10 +1289,12 @@ int main(int argc, char **argv)
 
     dock->close();
     app.processEvents();
-    if (!require(project_tree->topLevelItemCount() >= 2, "preview project tree is empty"))
+    if (!require(project_tree->topLevelItemCount() == 2
+                     && project_tree->topLevelItem(0)->childCount() == 2,
+                 "preview Explorer does not contain both local projects"))
         return 1;
     const double zoom_before_project_selection = graph->zoomFactor();
-    project_tree->setCurrentItem(project_tree->topLevelItem(1));
+    project_tree->setCurrentItem(project_tree->topLevelItem(0)->child(1));
     app.processEvents();
     if (!require(near(zoom_before_project_selection, graph->zoomFactor()),
                  "sidebar project selection unexpectedly fitted the graph")) return 1;
@@ -1803,7 +1796,8 @@ int main(int argc, char **argv)
     app.processEvents();
     if (!require(wizard_ok && opened_resource.isEmpty()
                      && activeInspectorName(projects)->text() == QStringLiteral("NET3 Remote Experiment")
-                     && project_tree->topLevelItemCount() == 1
+                     && project_tree->topLevelItemCount() == 2
+                     && project_tree->topLevelItem(1)->childCount() == 1
                      && revisions->topLevelItemCount() == 1
                      && revisions->topLevelItem(0)->text(0) == QStringLiteral("Initial import (preview)"),
                  "creating a project from an example did not create a remote-scoped preview"))
@@ -2081,7 +2075,7 @@ int main(int argc, char **argv)
         return 1;
     ProjectsWidget reloaded;
     QTreeWidget *reloaded_servers = reloaded.findChild<QTreeWidget *>(
-        QStringLiteral("serversTree"));
+        QStringLiteral("projectsTree"));
     if (!require(reloaded_servers != nullptr && reloaded_servers->topLevelItemCount() == 3
                      && reloaded_servers->topLevelItem(2)->text(0).endsWith(QStringLiteral("Added server")),
                  "created server profile was not restored at startup"))
@@ -2213,7 +2207,7 @@ int main(int argc, char **argv)
         if (!require(saveProjectServerProfiles({profile}),
                      "could not save HTTP personal-role fixture")) return 1;
         ProjectsWidget roleProjects;
-        QTreeWidget *tree = roleProjects.findChild<QTreeWidget *>(QStringLiteral("serversTree"));
+        QTreeWidget *tree = roleProjects.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
         QCheckBox *personal = roleProjects.findChild<QCheckBox *>(
             QStringLiteral("projectsPersonalServerCheckbox"));
         if (!require(tree != nullptr && tree->topLevelItemCount() > 0 && personal != nullptr,
@@ -2263,7 +2257,7 @@ int main(int argc, char **argv)
                      "could not prepare a personal database startup fixture")) return 1;
         ProjectsWidget initialSelection;
         QTreeWidget *initialTree = initialSelection.findChild<QTreeWidget *>(
-            QStringLiteral("serversTree"));
+            QStringLiteral("projectsTree"));
         QStackedWidget *initialOverview = initialSelection.findChild<QStackedWidget *>(
             QStringLiteral("projectsInspectorOverviewStack"));
         if (!require(initialTree != nullptr && initialTree->currentItem() != nullptr

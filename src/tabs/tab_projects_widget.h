@@ -148,7 +148,6 @@ private:
     void seedPreview();
     void refreshPreviewTranslations();
     QString serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const;
-    void populateServerTree();
     void populateProjectTree();
     void populateRevisionTree();
     void refreshRevisionTreeLanguage();
@@ -179,7 +178,7 @@ private:
     bool isPreviewSource() const;
     void broadcastContext();
     void select(SelectionKind kind, const QString &id);
-    void selectTreeItem(QTreeWidget *tree, const QString &key);
+    void selectTreeItem(QTreeWidget *tree, const QString &key, bool reveal = true);
     void createServer();
     void saveNewSource();
     void persistNewSource(ProjectServerProfile profile);
@@ -240,8 +239,8 @@ private:
     QString branch_id;
     SelectionKind selection_kind = SelectionKind::None;
     QString selected_id;
-    QTreeWidget *server_tree = nullptr;
     QTreeWidget *project_tree = nullptr;
+    QHash<QString, bool> explorer_expansions;
     QTreeWidget *revision_tree = nullptr;
     QPushButton *full_tree_button = nullptr;
     bool show_full_revision_tree = true;

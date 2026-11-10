@@ -345,12 +345,8 @@
       <translation>اتصال مباشر</translation>
     </message>
     <message>
-      <source>Databases</source>
-      <translation>قواعد البيانات</translation>
-    </message>
-    <message>
-      <source>Projects &amp;&amp; Branches</source>
-      <translation>المشاريع والفروع</translation>
+      <source>Explorer</source>
+      <translation>المستكشف</translation>
     </message>
     <message>
       <source>Revisions</source>
