@@ -389,8 +389,8 @@
       <translation>الشجرة كاملة</translation>
     </message>
     <message>
-      <source>Branch &amp; revision graph</source>
-      <translation>مخطط الفروع والمراجعات</translation>
+      <source>Add server connection</source>
+      <translation>إضافة اتصال بالخادم</translation>
     </message>
     <message>
       <source>Top down ↓</source>

@@ -450,11 +450,10 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     graph_toolbar->setObjectName(QStringLiteral("projectsGraphToolbar"));
     QHBoxLayout *graph_header = new QHBoxLayout(graph_toolbar);
     graph_header->setContentsMargins(0, 0, 0, 0);
-    QLabel *graph_title = new QLabel(tr("Branch & revision graph"), center);
-    QFont graph_font = graph_title->font();
-    graph_font.setBold(true);
-    graph_title->setFont(graph_font);
-    graph_header->addWidget(graph_title);
+    QPushButton *graph_add_server = compactButton(tr("Add server connection"),
+        tr("Add a database (local or REST)"), graph_toolbar);
+    graph_add_server->setObjectName(QStringLiteral("projectsGraphAddServerConnectionButton"));
+    graph_header->addWidget(graph_add_server);
     graph_header->addStretch();
     // One visibly grouped, mutually exclusive control. The selected half
     // uses the Qt highlight color, so it is unmistakably a view-mode switch.
@@ -523,7 +522,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     empty_layout->addWidget(empty_add, 0, Qt::AlignHCenter);
     connect(this, &ProjectsWidget::languageChanged, left,
             [this, servers_group, projects_group, revisions_group, no_sources, browse_examples_button,
-             heads_button, graph_title, graph_heads_button, graph_full_button, direction_button,
+             heads_button, graph_add_server, graph_heads_button, graph_full_button, direction_button,
              fit_button, empty_title, empty_description, empty_add, add_server] {
         refreshPreviewTranslations();
         servers_group->setTitle(tr("Databases"));
@@ -536,7 +535,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             browse_examples_button->setText(tr("Browse examples…"));
         heads_button->setText(tr("Editable heads"));
         this->full_tree_button->setText(tr("Full tree"));
-        graph_title->setText(tr("Branch & revision graph"));
+        graph_add_server->setText(tr("Add server connection"));
+        graph_add_server->setToolTip(tr("Add a database (local or REST)"));
         graph_heads_button->setText(tr("Editable heads"));
         graph_full_button->setText(tr("Full tree"));
         direction_button->setText(direction_button->isChecked() ? tr("Bottom up ↑") : tr("Top down ↓"));
@@ -782,6 +782,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     splitter->setStretchFactor(1, 1);
 
     connect(add_server, &QToolButton::clicked, this, &ProjectsWidget::createServer);
+    connect(graph_add_server, &QPushButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->database_connection->source_refresh_button, &QPushButton::clicked, this, &ProjectsWidget::connectSource);
     connect(empty_add, &QPushButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->database_inspector->save_source, &QPushButton::clicked, this, &ProjectsWidget::saveNewSource);

@@ -381,8 +381,8 @@
       <translation>Vollständiger Baum</translation>
     </message>
     <message>
-      <source>Branch &amp; revision graph</source>
-      <translation>Zweig- und Revisionsgraph</translation>
+      <source>Add server connection</source>
+      <translation>Serververbindung hinzufügen</translation>
     </message>
     <message>
       <source>Top down ↓</source>

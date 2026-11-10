@@ -381,8 +381,8 @@
       <translation>Arbre complet</translation>
     </message>
     <message>
-      <source>Branch &amp; revision graph</source>
-      <translation>Graphe des branches et révisions</translation>
+      <source>Add server connection</source>
+      <translation>Ajouter une connexion serveur</translation>
     </message>
     <message>
       <source>Top down ↓</source>

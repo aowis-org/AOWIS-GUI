@@ -1946,7 +1946,36 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    // The compact + opens the inspector; only Create persists a full profile.
+    // Replacing the graph heading must not create a separate server-creation
+    // flow: this toolbar button opens the same unsaved Connection inspector.
+    QPushButton *graph_add_server = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsGraphAddServerConnectionButton"));
+    QWidget *graph_toolbar = projects.findChild<QWidget *>(
+        QStringLiteral("projectsGraphToolbar"));
+    if (!require(graph_add_server != nullptr && graph_add_server->isVisible()
+                     && graph_add_server->text() == QStringLiteral("Add server connection")
+                     && graph_toolbar != nullptr,
+                 "graph toolbar lacks the Add server connection action")) return 1;
+    for (QLabel *label : graph_toolbar->findChildren<QLabel *>())
+        if (!require(label->text() != QStringLiteral("Branch & revision graph"),
+                     "obsolete branch and revision graph heading remains")) return 1;
+    graph_add_server->click();
+    app.processEvents();
+    QPushButton *graph_draft_cancel = projects.findChild<QPushButton *>(
+        QStringLiteral("projectSourceCancelButton"));
+    if (!require(graph_draft_cancel != nullptr && graph_draft_cancel->isVisible()
+                     && inspector_tabs->tabText(inspector_tabs->currentIndex())
+                         == QStringLiteral("Connection")
+                     && loadProjectServerProfiles().size() == 2,
+                 "graph add-server action did not open the existing unsaved connection form"))
+        return 1;
+    graph_draft_cancel->click();
+    app.processEvents();
+    if (!require(loadProjectServerProfiles().size() == 2,
+                 "cancelling graph-initiated server creation changed the persisted profiles"))
+        return 1;
+
+    // The sidebar + keeps using that same inspector flow; only Create saves.
     add_server->click();
     app.processEvents();
     if (!require(inspector_tabs->tabText(inspector_tabs->currentIndex())
