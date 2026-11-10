@@ -185,10 +185,6 @@
       <translation>Formule de perte de charge</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Aucun réseau</translation>
-    </message>
-    <message>
       <source>Simulation Settings</source>
       <translation>Paramètres de simulation</translation>
     </message>
@@ -2416,8 +2412,8 @@ Clic droit : revenir à 1,0×</translation>
       <translation>Modifié</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Aucun réseau</translation>
+      <source>No hydraulic network open</source>
+      <translation>Aucun réseau hydraulique ouvert</translation>
     </message>
     <message>
       <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>

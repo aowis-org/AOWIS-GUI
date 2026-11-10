@@ -84,7 +84,7 @@ private:
     int simulation_run_error_count = 0;
     int simulation_run_warning_count = 0;
     void refreshNetworkStatus();
-    const char *network_status_source = QT_TRANSLATE_NOOP("LiveUiText", "No network");
+    const char *network_status_source = QT_TRANSLATE_NOOP("LiveUiText", "No hydraulic network open");
     QString network_status_argument;
     QWidget *content = nullptr;
     ComboCheckboxes *combo_quality_analysis = nullptr;

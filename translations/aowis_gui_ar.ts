@@ -193,10 +193,6 @@
       <translation>معادلة فقد الضغط</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>لا توجد شبكة</translation>
-    </message>
-    <message>
       <source>Simulation Settings</source>
       <translation>إعدادات المحاكاة</translation>
     </message>
@@ -2436,8 +2432,8 @@ Right-click: animate back to 1.0×</source>
       <translation>معدّل</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>لا توجد شبكة</translation>
+      <source>No hydraulic network open</source>
+      <translation>لا توجد شبكة هيدروليكية مفتوحة</translation>
     </message>
     <message>
       <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>

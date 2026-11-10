@@ -291,6 +291,17 @@ int main(int argc, char **argv)
         if (!matches(code, "select language", language.select(code), true))
             return 2;
         app.processEvents();
+        // The toolbar must distinguish a hydraulic model from a network connection,
+        // including after switching the UI language without restarting the app.
+        const char *const no_hydraulic_network[] = {
+            "No hydraulic network open", "Aucun réseau hydraulique ouvert",
+            "لا توجد شبكة هيدروليكية مفتوحة", "Kein hydraulisches Netz geöffnet",
+            "Ninguna red hidráulica abierta"
+        };
+        if (!matches(code, "empty hydraulic network status",
+                     QCoreApplication::translate("LiveUiText", "No hydraulic network open"),
+                     QString::fromUtf8(no_hydraulic_network[index])))
+            return 23;
         const char *const unit_menu_titles[] = {
             "Manage Units…", "Gérer les unités…", "إدارة الوحدات…",
             "Einheiten verwalten…", "Administrar unidades…"

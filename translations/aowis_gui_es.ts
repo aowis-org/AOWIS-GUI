@@ -185,10 +185,6 @@
       <translation>Fórmula de pérdida de carga</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Sin red</translation>
-    </message>
-    <message>
       <source>Simulation Settings</source>
       <translation>Configuración de simulación</translation>
     </message>
@@ -2416,8 +2412,8 @@ Clic derecho: volver a 1,0×</translation>
       <translation>Modificado</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Sin red</translation>
+      <source>No hydraulic network open</source>
+      <translation>Ninguna red hidráulica abierta</translation>
     </message>
     <message>
       <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>

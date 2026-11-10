@@ -718,7 +718,7 @@ void TopControlBar::addProjectControls()
     QHBoxLayout *actions = new QHBoxLayout();
     actions->setContentsMargins(0, 0, 0, 0);
     actions->setSpacing(6);
-    this->label_modified = createCaption(tr("No network"), workspace_context);
+    this->label_modified = createCaption(QString(), workspace_context);
     this->label_modified->setObjectName(QStringLiteral("toolbarWorkingCopyStatus"));
     actions->addWidget(this->label_modified, 1);
 

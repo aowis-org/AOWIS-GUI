@@ -185,10 +185,6 @@
       <translation>Druckverlustformel</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Kein Netzwerk</translation>
-    </message>
-    <message>
       <source>Simulation Settings</source>
       <translation>Simulationseinstellungen</translation>
     </message>
@@ -2416,8 +2412,8 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
       <translation>Geändert</translation>
     </message>
     <message>
-      <source>No network</source>
-      <translation>Kein Netz</translation>
+      <source>No hydraulic network open</source>
+      <translation>Kein hydraulisches Netz geöffnet</translation>
     </message>
     <message>
       <source>&lt;b&gt;Hint:&lt;/b&gt; Create %1 in the Map Editor.</source>
