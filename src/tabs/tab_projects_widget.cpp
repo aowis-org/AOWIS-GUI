@@ -2040,9 +2040,9 @@ void ProjectsWidget::populateProjectTree()
             group->setExpanded(this->explorer_expansions.value(key, true));
             continue;
         }
-        const bool preview = server.id == QStringLiteral("preview-local")
-            || server.id == QStringLiteral("preview-remote");
-        if (preview && server.id != this->server_id) continue;
+        // The Explorer is a persistent cross-database hierarchy. Switching
+        // the active database may scope the graph preview, but must not hide
+        // projects already present under another checked database.
         for (const ProjectPreviewData &project : this->projects)
         {
             if (project.server_id != server.id) continue;
