@@ -317,6 +317,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
+      <translation>Ce dépôt UUIDv7 est déjà configuré sous le nom « %1 ». Mettre à jour ses paramètres de connexion pour %2 ?</translation>
+    </message>
+    <message>
+      <source>Verified repository %1</source>
+      <translation>Dépôt %1 vérifié</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Vérifier le dépôt</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile</source>
+      <translation>Choisir un profil WireGuard</translation>
+    </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Connexion directe</translation>
+    </message>
+    <message>
       <source>Databases</source>
       <translation>Bases de données</translation>
     </message>
@@ -2255,6 +2275,22 @@ Clic droit : revenir à 1,0×</translation>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
+      <translation>Ce profil sert à vérifier le dépôt. L’actualisation du catalogue et les opérations sur les projets utilisent la connexion directe.</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Vérifier le dépôt</translation>
+    </message>
+    <message>
+      <source>Use direct connection</source>
+      <translation>Utiliser une connexion directe</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile…</source>
+      <translation>Choisir un profil WireGuard…</translation>
+    </message>
     <message>
       <source>Saving · %1 pending</source>
       <translation>Enregistrement · %1 en attente</translation>
@@ -8192,6 +8228,21 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Manage Units…</source>
       <translation>Gérer les unités…</translation>
+    </message>
+  </context>
+  <context>
+    <name>QObject</name>
+    <message>
+      <source>WireGuard is unavailable in this build.</source>
+      <translation>WireGuard est indisponible dans cette version.</translation>
+    </message>
+    <message>
+      <source>Could not open the WireGuard profile.</source>
+      <translation>Impossible d’ouvrir le profil WireGuard.</translation>
+    </message>
+    <message>
+      <source>Expected a single-interface, single-peer WireGuard profile.</source>
+      <translation>Le profil WireGuard doit contenir une seule interface et un seul pair.</translation>
     </message>
   </context>
 </TS>

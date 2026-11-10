@@ -317,6 +317,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
+      <translation>Dieses Repository mit UUIDv7 ist bereits als „%1“ eingerichtet. Verbindungseinstellungen für %2 aktualisieren?</translation>
+    </message>
+    <message>
+      <source>Verified repository %1</source>
+      <translation>Repository %1 bestätigt</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Repository überprüfen</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile</source>
+      <translation>WireGuard-Profil auswählen</translation>
+    </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Direkte Verbindung</translation>
+    </message>
+    <message>
       <source>Databases</source>
       <translation>Datenbanken</translation>
     </message>
@@ -2255,6 +2275,22 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
+      <translation>Dieses Profil dient zur Überprüfung des Repositorys. Katalogaktualisierungen und Projektvorgänge verwenden die direkte Verbindung.</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Repository überprüfen</translation>
+    </message>
+    <message>
+      <source>Use direct connection</source>
+      <translation>Direkte Verbindung verwenden</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile…</source>
+      <translation>WireGuard-Profil auswählen…</translation>
+    </message>
     <message>
       <source>Saving · %1 pending</source>
       <translation>Speichern · %1 ausstehend</translation>
@@ -8192,6 +8228,21 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Manage Units…</source>
       <translation>Einheiten verwalten…</translation>
+    </message>
+  </context>
+  <context>
+    <name>QObject</name>
+    <message>
+      <source>WireGuard is unavailable in this build.</source>
+      <translation>WireGuard ist in diesem Build nicht verfügbar.</translation>
+    </message>
+    <message>
+      <source>Could not open the WireGuard profile.</source>
+      <translation>Das WireGuard-Profil konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+      <source>Expected a single-interface, single-peer WireGuard profile.</source>
+      <translation>Es wird ein WireGuard-Profil mit genau einer Schnittstelle und einem Peer erwartet.</translation>
     </message>
   </context>
 </TS>

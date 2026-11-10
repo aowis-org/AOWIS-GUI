@@ -325,6 +325,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
+      <translation>هذا المستودع ذو المعرّف UUIDv7 مُعدّ باسم «%1». هل تريد تحديث إعدادات اتصاله لـ %2؟</translation>
+    </message>
+    <message>
+      <source>Verified repository %1</source>
+      <translation>تم التحقق من المستودع %1</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>التحقق من المستودع</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile</source>
+      <translation>اختيار ملف تعريف WireGuard</translation>
+    </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>اتصال مباشر</translation>
+    </message>
+    <message>
       <source>Databases</source>
       <translation>قواعد البيانات</translation>
     </message>
@@ -2275,6 +2295,22 @@ Right-click: animate back to 1.0×</source>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
+      <translation>يُستخدم هذا الملف للتحقق من المستودع. يستخدم تحديث الفهرس وعمليات المشاريع الاتصال المباشر.</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>التحقق من المستودع</translation>
+    </message>
+    <message>
+      <source>Use direct connection</source>
+      <translation>استخدام اتصال مباشر</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile…</source>
+      <translation>اختيار ملف تعريف WireGuard…</translation>
+    </message>
     <message>
       <source>Saving · %1 pending</source>
       <translation>جارٍ الحفظ · %1 قيد الانتظار</translation>
@@ -8244,6 +8280,21 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Manage Units…</source>
       <translation>إدارة الوحدات…</translation>
+    </message>
+  </context>
+  <context>
+    <name>QObject</name>
+    <message>
+      <source>WireGuard is unavailable in this build.</source>
+      <translation>WireGuard غير متاح في هذه النسخة.</translation>
+    </message>
+    <message>
+      <source>Could not open the WireGuard profile.</source>
+      <translation>تعذّر فتح ملف تعريف WireGuard.</translation>
+    </message>
+    <message>
+      <source>Expected a single-interface, single-peer WireGuard profile.</source>
+      <translation>يجب أن يحتوي ملف تعريف WireGuard على واجهة واحدة ونظير واحد.</translation>
     </message>
   </context>
 </TS>

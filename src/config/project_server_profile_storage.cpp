@@ -78,6 +78,7 @@ QJsonObject serializeProfile(const ProjectServerProfile &profile)
         {QStringLiteral("auth_mode"), profile.auth_mode},
         {QStringLiteral("connection_type"), profile.connection_type},
         {QStringLiteral("local_path"), profile.local_path},
+        {QStringLiteral("wireguard_profile_path"), profile.wireguard_profile_path},
         {QStringLiteral("visible"), profile.visible},
         {QStringLiteral("personal"), profile.personal}
     };
@@ -135,6 +136,8 @@ QList<ProjectServerProfile> loadProjectServerProfiles()
         if (profile.connection_type != QStringLiteral("local"))
             profile.connection_type = QStringLiteral("remote");
         profile.local_path = record.value(QStringLiteral("local_path")).toString().trimmed();
+        if (profile.connection_type == QStringLiteral("remote"))
+            profile.wireguard_profile_path = record.value(QStringLiteral("wireguard_profile_path")).toString();
         profile.visible = record.value(QStringLiteral("visible")).toBool(true);
         profile.personal = record.value(QStringLiteral("personal")).toBool(false)
             && !profile.pending && !personal_found;

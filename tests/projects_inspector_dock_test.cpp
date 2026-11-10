@@ -510,6 +510,18 @@ int main(int argc, char **argv)
     // with independent row data. No one shared list is reconfigured by kind.
     QWidget *database_connection = projects.findChild<QWidget *>(
         QStringLiteral("projectsInspectorConnection"));
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    GroupBoxCollapsible *wireguard_group = database_connection == nullptr ? nullptr
+        : database_connection->findChild<GroupBoxCollapsible *>(QStringLiteral("projectWireGuardGroup"));
+    if (!require(wireguard_group != nullptr && wireguard_group->isCollapsed(),
+                 "WireGuard group missing from Connection or initially expanded")) return 1;
+    QLineEdit *profile = wireguard_group->findChild<QLineEdit *>(QStringLiteral("projectWireGuardProfile"));
+    if (!require(profile != nullptr && profile->isReadOnly() && profile->text().isEmpty(),
+                 "new WireGuard selector must default to direct access")) return 1;
+    wireguard_group->setCollapsed(false);
+    if (!require(!profile->isHidden(), "expanded WireGuard group must expose the profile")) return 1;
+    wireguard_group->setCollapsed(true);
+#endif
     QSet<QListWidget *> relation_lists;
     for (const QString &kind : {QStringLiteral("Database"), QStringLiteral("Project"),
                                QStringLiteral("Branch"), QStringLiteral("Revision")})

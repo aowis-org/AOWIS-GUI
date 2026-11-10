@@ -67,6 +67,22 @@ if(NOT EMSCRIPTEN)
     )
 endif()
 
+# The Go bridge currently builds for its host. Keep cross builds on Qt HTTP.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-NETWORK/CMakeLists.txt")
+        message(FATAL_ERROR "Missing AOWIS-NETWORK sources. Run ./git_submodule_init.sh --network and verify the GUI gitlink.")
+    endif()
+    find_package(Qt6 REQUIRED COMPONENTS Concurrent)
+    function(aowis_add_gui_network)
+        set(BUILD_TESTING OFF)
+        add_subdirectory(external/AOWIS-NETWORK EXCLUDE_FROM_ALL)
+    endfunction()
+    aowis_add_gui_network()
+    if(NOT TARGET AOWIS::NetworkQt OR NOT AOWIS_NETWORK_WITH_WIREGUARD)
+        message(FATAL_ERROR "Native Linux GUI requires the NETWORK Qt adapter and WireGuard engine.")
+    endif()
+endif()
+
 # GeographicLib submodule
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_BOTH_LIBS OFF CACHE BOOL "" FORCE)
@@ -353,6 +369,7 @@ qt_add_executable(aowis-server-gui
     src/tabs/tab_junctions_widget.h
     src/tabs/tab_logs_widget.cpp
     src/tabs/tab_logs_widget.h
+    src/projects/repository_probe.cpp
     src/tabs/tab_projects_widget.cpp
     src/tabs/tab_projects_widget.h
     src/projects/project_source_reader.cpp
@@ -960,6 +977,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # visible and selections must still synchronize while it is hidden.
     add_executable(aowis-projects-inspector-dock-tests
         tests/projects_inspector_dock_test.cpp
+        src/projects/repository_probe.cpp
         src/tabs/tab_projects_widget.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
@@ -999,6 +1017,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     add_executable(aowis-projects-multi-source-tests
         tests/projects_multi_source_test.cpp
+        src/projects/repository_probe.cpp
         src/tabs/tab_projects_widget.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
@@ -1728,6 +1747,14 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             LABELS "aowis"
     )
 
+    if(TARGET AOWIS::NetworkQt)
+        add_executable(aowis-repository-probe-tests
+            tests/repository_probe_test.cpp src/projects/repository_probe.cpp)
+        target_include_directories(aowis-repository-probe-tests PRIVATE src)
+        add_test(NAME aowis-repository-probe COMMAND aowis-repository-probe-tests)
+        set_tests_properties(aowis-repository-probe PROPERTIES LABELS "aowis" TIMEOUT 20)
+    endif()
+
     # Build all locally declared AOWIS test executables, not a manually
     # maintained list. A stale list let Ninja report success while CTest then
     # complained about unbuilt test executables (many pages of "Not Run").
@@ -1760,6 +1787,15 @@ endif()
 qt_import_plugins(aowis-server-gui
     INCLUDE_BY_TYPE imageformats
 )
+
+if(TARGET AOWIS::NetworkQt AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
+    foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests)
+        if(TARGET ${probe_target})
+            target_compile_definitions(${probe_target} PRIVATE AOWIS_GUI_WIREGUARD_PROBE)
+            target_link_libraries(${probe_target} PRIVATE AOWIS::NetworkQt Qt6::Concurrent)
+        endif()
+    endforeach()
+endif()
 
 if(EMSCRIPTEN AND NOT TARGET Qt6::QSQLiteDriverPlugin)
     message(FATAL_ERROR

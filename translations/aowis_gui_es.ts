@@ -317,6 +317,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
+      <translation>Este repositorio UUIDv7 ya está configurado como «%1». ¿Actualizar su conexión para %2?</translation>
+    </message>
+    <message>
+      <source>Verified repository %1</source>
+      <translation>Repositorio %1 verificado</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Verificar repositorio</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile</source>
+      <translation>Elegir perfil de WireGuard</translation>
+    </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Conexión directa</translation>
+    </message>
+    <message>
       <source>Databases</source>
       <translation>Bases de datos</translation>
     </message>
@@ -2255,6 +2275,22 @@ Clic derecho: volver a 1,0×</translation>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
+      <translation>Este perfil se usa para verificar el repositorio. La actualización del catálogo y las operaciones de proyecto usan la conexión directa.</translation>
+    </message>
+    <message>
+      <source>Verify repository</source>
+      <translation>Verificar repositorio</translation>
+    </message>
+    <message>
+      <source>Use direct connection</source>
+      <translation>Usar conexión directa</translation>
+    </message>
+    <message>
+      <source>Choose WireGuard profile…</source>
+      <translation>Elegir perfil de WireGuard…</translation>
+    </message>
     <message>
       <source>Saving · %1 pending</source>
       <translation>Guardando · %1 pendientes</translation>
@@ -8192,6 +8228,21 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Manage Units…</source>
       <translation>Administrar unidades…</translation>
+    </message>
+  </context>
+  <context>
+    <name>QObject</name>
+    <message>
+      <source>WireGuard is unavailable in this build.</source>
+      <translation>WireGuard no está disponible en esta compilación.</translation>
+    </message>
+    <message>
+      <source>Could not open the WireGuard profile.</source>
+      <translation>No se pudo abrir el perfil de WireGuard.</translation>
+    </message>
+    <message>
+      <source>Expected a single-interface, single-peer WireGuard profile.</source>
+      <translation>El perfil de WireGuard debe contener una sola interfaz y un solo par.</translation>
     </message>
   </context>
 </TS>

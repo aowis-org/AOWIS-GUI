@@ -1,6 +1,7 @@
 #include "projects/model_codec_compatibility.h"
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
+#include "projects/repository_probe.h"
 #include "config/personal_repository_storage.h"
 #include "projects/embedded_dvmdb_host.h"
 #include "projects/personal_edit_queue.h"
@@ -98,6 +99,18 @@ void openSourceMessage(QWidget *parent, QMessageBox::Icon icon, const QString &t
             [finished = std::move(finished)](int result)
             { finished(static_cast<QMessageBox::StandardButton>(result)); });
     dialog->open();
+}
+
+QNetworkRequest repositoryRequest(QString endpoint)
+{
+    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
+    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
+        endpoint += QStringLiteral("/dvmdb/v1");
+    QNetworkRequest request(QUrl(endpoint + QStringLiteral("/repository")));
+    request.setTransferTimeout(4000);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);
+    return request;
 }
 
 constexpr int role_key = Qt::UserRole;
@@ -979,6 +992,59 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->database_connection->personal_server_checkbox, &QCheckBox::toggled,
             this, &ProjectsWidget::setPersonalServer);
     connect(this->database_connection->server_endpoint_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    const std::function<void(const QString &)> set_profile = [this](const QString &path) {
+        this->database_connection->wireguard_path->setText(path);
+        if (this->selection_kind == SelectionKind::NewSource)
+        {
+            ++this->source_creation_request;
+            this->database_inspector->save_source->setEnabled(true);
+        }
+        else this->applyInspectorEdits();
+        this->updateSourceFields();
+    };
+    connect(this->database_connection->choose_wireguard, &QPushButton::clicked, this, [this, set_profile] {
+        const QString path = QFileDialog::getOpenFileName(this, tr("Choose WireGuard profile"),
+            this->database_connection->wireguard_path->text(), QStringLiteral("WireGuard (*.conf);;*"));
+        if (!path.isEmpty()) set_profile(path);
+    });
+    connect(this->database_connection->clear_wireguard, &QPushButton::clicked, this, [set_profile] {
+        set_profile(QString());
+    });
+    connect(this->database_connection->verify_wireguard, &QPushButton::clicked, this, [this] {
+        const ProjectServerProfile *server = this->currentServer();
+        if (this->selection_kind != SelectionKind::Server || server == nullptr) return;
+        const ProjectServerProfile profile = *server;
+        probeRepository(repositoryRequest(profile.endpoint), profile.wireguard_profile_path, this,
+            [this, profile](RepositoryProbeResult result) {
+                const ProjectServerProfile *current = this->currentServer();
+                if (this->selection_kind != SelectionKind::Server || current == nullptr
+                    || current->id != profile.id || current->endpoint != profile.endpoint
+                    || current->wireguard_profile_path != profile.wireguard_profile_path) return;
+                const QJsonObject repository = QJsonDocument::fromJson(result.body).object();
+                const QString id = repository.value(QStringLiteral("repositoryId")).toString();
+                QString error;
+                if (!result.transport_ok || result.status != 200)
+                    error = QStringLiteral("HTTP %1 (%2)").arg(result.status).arg(result.error);
+                else if (!DvmdbIdentity::isUuidV7(id) || (!profile.pending && id != profile.id))
+                    error = tr("Invalid DVMDB identity");
+                else error = ModelCodecCompatibility::error(repository);
+                if (!error.isEmpty())
+                    openSourceMessage(this, QMessageBox::Warning, tr("DVMDB verification failed"), error);
+                else
+                {
+                    if (current->pending)
+                    {
+                        this->promoteVerifiedSource(profile.id, id);
+                        const ProjectServerProfile *verified = this->currentServer();
+                        if (verified == nullptr || verified->pending || verified->id != id) return;
+                    }
+                    openSourceMessage(this, QMessageBox::Information, tr("Verify repository"),
+                        tr("Verified repository %1").arg(id));
+                }
+            });
+    });
+#endif
     connect(this->database_connection->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
     connect(this->database_connection->server_auth_combo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { applyInspectorEdits(); });
@@ -2737,6 +2803,9 @@ void ProjectsWidget::updateInspector()
             this->database_connection->personal_server_checkbox->setChecked(server->personal);
         }
         this->database_connection->server_endpoint_edit->setText(server->endpoint);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        this->database_connection->wireguard_path->setText(server->wireguard_profile_path);
+#endif
         this->database_connection->local_path_edit->setText(server->local_path);
         const int index = this->database_connection->server_auth_combo->findData(server->auth_mode);
         this->database_connection->server_auth_combo->setCurrentIndex(index < 0 ? 0 : index);
@@ -3171,6 +3240,10 @@ void ProjectsWidget::createServer()
     selectTreeItem(this->revision_tree, QString());
     this->database_connection->source_kind_combo->setCurrentIndex(0);
     this->database_connection->server_endpoint_edit->clear();
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    this->database_connection->wireguard_path->clear();
+#endif
+    this->database_inspector->save_source->setEnabled(true);
     this->database_connection->server_auth_combo->setCurrentIndex(0);
     this->updating_ui = false;
     updateInspector();
@@ -3244,6 +3317,9 @@ void ProjectsWidget::saveNewSource()
     }
     else
     {
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        server.wireguard_profile_path = this->database_connection->wireguard_path->text();
+#endif
         server.endpoint = this->database_connection->server_endpoint_edit->text().trimmed();
         const QUrl url(server.endpoint);
         if (server.endpoint.isEmpty() || !url.isValid()
@@ -3292,30 +3368,16 @@ void ProjectsWidget::saveNewSource()
     // checked. A network failure offers an explicit pending choice instead.
     const int request_id = ++this->source_creation_request;
     this->database_inspector->save_source->setEnabled(false);
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    QString endpoint = server.endpoint;
-    while (endpoint.endsWith(QLatin1Char('/'))) endpoint.chop(1);
-    if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
-        endpoint += QStringLiteral("/dvmdb/v1");
-    QNetworkRequest request(QUrl(endpoint + QStringLiteral("/repository")));
-    request.setTransferTimeout(4000);
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::ManualRedirectPolicy);
-    QNetworkReply *reply = manager->get(request);
-    connect(reply, &QNetworkReply::finished, this, [this, server, request_id, manager, reply]() mutable
+    probeRepository(repositoryRequest(server.endpoint), server.wireguard_profile_path, this, [this, server, request_id](RepositoryProbeResult result) mutable
     {
-        const QByteArray body = reply->readAll();
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QString error = reply->errorString();
-        const bool transport_ok = reply->error() == QNetworkReply::NoError;
-        reply->deleteLater();
-        manager->deleteLater();
+        const int status = result.status;
+        const QString &error = result.error;
         if (request_id != this->source_creation_request
             || this->selection_kind != SelectionKind::NewSource) return;
         this->database_inspector->save_source->setEnabled(true);
-        if (transport_ok && status == 200)
+        if (result.transport_ok && status == 200)
         {
-            const QJsonDocument document = QJsonDocument::fromJson(body);
+            const QJsonDocument document = QJsonDocument::fromJson(result.body);
             const QString id = document.isObject()
                 ? document.object().value(QStringLiteral("repositoryId")).toString()
                 : QString();
@@ -3376,17 +3438,19 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
     {
         if (existing.id == server.id && !server.pending)
         {
-            if (existing.endpoint != server.endpoint && server.connection_type == QStringLiteral("remote"))
+            if ((existing.endpoint != server.endpoint || existing.wireguard_profile_path != server.wireguard_profile_path)
+                && server.connection_type == QStringLiteral("remote"))
             {
                 const QString existing_id = existing.id;
                 const QString existing_name = existing.name;
                 const QString requested_endpoint = server.endpoint;
+                const QString requested_profile = server.wireguard_profile_path;
                 const int request_id = this->source_creation_request;
                 openSourceMessage(this, QMessageBox::Question, tr("Database already configured"),
                     tr("This repository UUIDv7 is already configured as '%1'. "
-                       "Update its endpoint to %2?").arg(existing_name, requested_endpoint),
+                       "Update its connection settings for %2?").arg(existing_name, requested_endpoint),
                     QMessageBox::Yes | QMessageBox::No,
-                    [this, existing_id, requested_endpoint, request_id](QMessageBox::StandardButton answer)
+                    [this, existing_id, requested_endpoint, requested_profile, request_id](QMessageBox::StandardButton answer)
                     {
                         if (answer != QMessageBox::Yes
                             || request_id != this->source_creation_request
@@ -3394,11 +3458,12 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
                         for (ProjectServerProfile &current : this->servers)
                             if (current.id == existing_id)
                             {
-                                const QString previous_endpoint = current.endpoint;
+                                const ProjectServerProfile previous = current;
                                 current.endpoint = requested_endpoint;
+                                current.wireguard_profile_path = requested_profile;
                                 if (!saveProjectServerProfiles(this->servers))
                                 {
-                                    current.endpoint = previous_endpoint;
+                                    current = previous;
                                     reportServerSaveFailure();
                                     return;
                                 }
@@ -5486,6 +5551,9 @@ void ProjectsWidget::applyInspectorEdits()
                 }
             }
             else server->endpoint = endpoint;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+            server->wireguard_profile_path = this->database_connection->wireguard_path->text();
+#endif
             server->auth_mode = this->database_connection->server_auth_combo->currentData().toString();
         }
         if (server->personal && (server->endpoint != previous.endpoint
@@ -5502,6 +5570,7 @@ void ProjectsWidget::applyInspectorEdits()
         server->tags = tags;
         if (server->name != previous.name || server->endpoint != previous.endpoint
             || server->local_path != previous.local_path
+            || server->wireguard_profile_path != previous.wireguard_profile_path
             || server->auth_mode != previous.auth_mode
             || server->description != previous.description || server->tags != previous.tags)
         {

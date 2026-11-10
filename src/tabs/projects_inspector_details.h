@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config/live_ui_text.h"
+#include "widgets/group_box_collapsible.h"
 
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
@@ -90,6 +91,29 @@ public:
         QLabel *server_warning = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Automatically monitored and loaded. REST authentication is not yet supported; credentials and tokens are not stored."), this->remote_options);
         wrapLabel(server_warning);
         server_form->addRow(server_warning);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        GroupBoxCollapsible *wireguard = new GroupBoxCollapsible(QStringLiteral("WireGuard"), this->remote_options);
+        wireguard->setObjectName(QStringLiteral("projectWireGuardGroup"));
+        QVBoxLayout *profile_layout = new QVBoxLayout(wireguard);
+        this->wireguard_path = new QLineEdit(wireguard);
+        this->wireguard_path->setObjectName(QStringLiteral("projectWireGuardProfile"));
+        this->wireguard_path->setReadOnly(true);
+        LiveUiText::bind(this->wireguard_path, [this] {
+            this->wireguard_path->setPlaceholderText(tr("Direct connection"));
+        });
+        profile_layout->addWidget(this->wireguard_path);
+        this->choose_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Choose WireGuard profile…"), wireguard);
+        this->clear_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Use direct connection"), wireguard);
+        this->verify_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Verify repository"), wireguard);
+        profile_layout->addWidget(this->choose_wireguard);
+        profile_layout->addWidget(this->clear_wireguard);
+        profile_layout->addWidget(this->verify_wireguard);
+        QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "This profile is used for repository verification. Catalogue refresh and project operations use the direct connection."), wireguard);
+        wrapLabel(scope);
+        profile_layout->addWidget(scope);
+        wireguard->setCollapsed(true);
+        server_form->addRow(wireguard);
+#endif
         source_layout->addWidget(this->remote_options);
 
         this->local_options = new QWidget(this->server_options);
@@ -138,6 +162,11 @@ public:
         this->source_kind_combo->setEnabled(creating);
         const bool local = this->source_kind_combo->currentData().toString() == QStringLiteral("local");
         this->remote_options->setVisible(!local);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        this->choose_wireguard->setEnabled(!busy);
+        this->clear_wireguard->setEnabled(!busy && !this->wireguard_path->text().isEmpty());
+        this->verify_wireguard->setEnabled(!busy && !creating);
+#endif
         this->local_options->setVisible(local);
         this->personal_server_checkbox->setVisible(!creating);
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
@@ -157,6 +186,12 @@ public:
     QCheckBox *personal_server_checkbox = nullptr;
     QComboBox *source_kind_combo = nullptr;
     QWidget *remote_options = nullptr;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    QLineEdit *wireguard_path = nullptr;
+    QPushButton *choose_wireguard = nullptr;
+    QPushButton *clear_wireguard = nullptr;
+    QPushButton *verify_wireguard = nullptr;
+#endif
     QLineEdit *server_endpoint_edit = nullptr;
     QComboBox *server_auth_combo = nullptr;
     QWidget *local_options = nullptr;
