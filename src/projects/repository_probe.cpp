@@ -158,6 +158,25 @@ QNetworkReply *DvmdbConnection::get(const QNetworkRequest &request)
     return nullptr;
 }
 
+bool DvmdbConnection::matches(const QUrl &url, const QString &path) const
+{
+    return this->endpoint == url && this->profile == path;
+}
+
+QNetworkReply *DvmdbConnection::write(const QNetworkRequest &request, const QByteArray &method,
+                                      const QByteArray &body)
+{
+    if (this->direct)
+        return method == "POST" ? this->direct->post(request, body)
+                                : this->direct->sendCustomRequest(request, method, body);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    if (this->http)
+        return method == "POST" ? this->http->post(request, body)
+                                : this->http->sendCustomRequest(request, method, body);
+#endif
+    return nullptr;
+}
+
 void DvmdbConnection::verify(const QNetworkRequest &request, std::function<void(RepositoryProbeResult)> finished)
 {
     this->open([this, request, finished](const QString &error) {

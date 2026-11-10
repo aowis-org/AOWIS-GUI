@@ -8,6 +8,9 @@
 #include <QString>
 
 #include <functional>
+#include <memory>
+
+class DvmdbConnection;
 
 class QNetworkReply;
 class QJsonObject;
@@ -25,7 +28,8 @@ class ProjectSourceWriter final : public QObject
 public:
     using Completion = std::function<void(const QString &created_id, const QString &error)>;
 
-    explicit ProjectSourceWriter(QObject *parent = nullptr);
+    using ConnectionFor = std::function<std::shared_ptr<DvmdbConnection>(const ProjectServerProfile &)>;
+    explicit ProjectSourceWriter(QObject *parent = nullptr, ConnectionFor connection_for = {});
     bool isBusy() const;
     void createProject(const ProjectServerProfile &profile, const QString &name, Completion completion);
     // Rename a project persistently. The expected name prevents overwriting a
@@ -71,6 +75,8 @@ private:
                          const QJsonObject &body, const QString &expected_response_key,
                          const QString &expected_value, Completion completion);
 
+    ConnectionFor connection_for;
+    std::shared_ptr<DvmdbConnection> active_connection;
     QNetworkAccessManager manager;
     QPointer<QNetworkReply> reply;
     Completion completion;

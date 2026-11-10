@@ -13,6 +13,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLineEdit>
 #include <QStackedWidget>
 #include <QTcpServer>
 #include <QPushButton>
@@ -53,6 +54,8 @@ struct FakeDvmdb
     bool graph_valid = true;
     bool catalogue_valid = true;
     int catalogue_requests = 0;
+    int tracking_requests = 0;
+    QJsonObject created_project;
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
     const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a001");
@@ -74,6 +77,7 @@ struct FakeDvmdb
                     buffer->append(socket->readAll());
                     if (!buffer->contains("\r\n\r\n")) return;
                     const QByteArray path = buffer->split(' ').value(1);
+                    QByteArray status = "200 OK";
                     QByteArray data = R"({"broken":true})";
                     if (this->valid)
                     {
@@ -82,14 +86,52 @@ struct FakeDvmdb
                                 {QStringLiteral("repositoryId"), this->repository_id},
                                 {QStringLiteral("modelCodecFingerprint"),
                                  ModelCodecCompatibility::fingerprint()}}).toJson();
+                        else if (path == "/dvmdb/v1/repository/tracking")
+                        {
+                            ++this->tracking_requests;
+                            data = QJsonDocument(QJsonObject{
+                                {QStringLiteral("role"), QStringLiteral("shared")},
+                                {QStringLiteral("repositoryId"), this->repository_id},
+                                {QStringLiteral("modelCodecFingerprint"), ModelCodecCompatibility::fingerprint()}
+                            }).toJson();
+                        }
+                        else if (path == "/dvmdb/v1/projects" && buffer->startsWith("POST "))
+                        {
+                            const qsizetype header_end = buffer->indexOf("\r\n\r\n");
+                            const QList<QByteArray> headers = buffer->left(header_end).split('\n');
+                            qint64 length = -1;
+                            QByteArray expected_id;
+                            for (const QByteArray &header : headers)
+                            {
+                                const QByteArray name = header.left(header.indexOf(':')).toLower();
+                                const QByteArray value = header.mid(header.indexOf(':') + 1).trimmed();
+                                if (name == "content-length") length = value.toLongLong();
+                                if (name == "x-aowis-expected-repository-id") expected_id = value;
+                            }
+                            const QByteArray body = buffer->mid(header_end + 4);
+                            if (body.size() < length) return;
+                            const QJsonObject project = QJsonDocument::fromJson(body).object();
+                            if (length != body.size() || expected_id != this->repository_id.toUtf8()
+                                || !DvmdbIdentity::isUuidV7(project.value(QStringLiteral("id")).toString()))
+                                status = "400 Bad Request";
+                            else
+                            {
+                                this->created_project = project;
+                                data = QJsonDocument(project).toJson();
+                                status = "201 Created";
+                            }
+                        }
                         else if (path == "/dvmdb/v1/projects")
                         {
                             ++this->catalogue_requests;
                             if (this->catalogue_valid)
-                                data = QJsonDocument(QJsonObject{
-                                    {QStringLiteral("projects"), QJsonArray{QJsonObject{
-                                        {QStringLiteral("id"), this->project_id},
-                                        {QStringLiteral("name"), QStringLiteral("Shared name")}}}}}).toJson();
+                            {
+                                QJsonArray projects{QJsonObject{
+                                    {QStringLiteral("id"), this->project_id},
+                                    {QStringLiteral("name"), QStringLiteral("Shared name")}}};
+                                if (!this->created_project.isEmpty()) projects.append(this->created_project);
+                                data = QJsonDocument(QJsonObject{{QStringLiteral("projects"), projects}}).toJson();
+                            }
                         }
                         else if (path == QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
                                      .arg(this->project_id).toUtf8())
@@ -115,8 +157,11 @@ struct FakeDvmdb
                                 data = QJsonDocument(response).toJson();
                             }
                         }
+                        else if (!this->created_project.isEmpty() && path == QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
+                                     .arg(this->created_project.value(QStringLiteral("id")).toString()).toUtf8())
+                            data = R"({"heads":[],"revisions":[],"complete":true,"nextCursor":null})";
                     }
-                    socket->write("HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: "
+                    socket->write("HTTP/1.1 " + status + "\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: "
                                   + QByteArray::number(data.size()) + "\r\n\r\n" + data);
                     socket->disconnectFromHost();
                 });
@@ -413,6 +458,21 @@ int main(int argc, char **argv)
         if (!require(!health_label->parentWidget()->isHidden() && inspectorHasIdentity(first.repository_id)
                      && health_label->text() == QStringLiteral("Available"),
                      "clicking Source A must open its live inspector before stopping the peer")) return 1;
+        QPushButton *create = projects.findChild<QPushButton *>(QStringLiteral("projectsInspectorCreateProject"));
+        QLineEdit *name = projects.findChild<QLineEdit *>(QStringLiteral("projectsProjectCreationName"));
+        if (!require(create != nullptr && create->isEnabled() && name != nullptr, "missing create project controls")) return 1;
+        create->click();
+        name->setText(QStringLiteral("Tunnel project"));
+        QPushButton *confirm = action_stack->currentWidget()->findChild<QPushButton *>(QStringLiteral("projectsCreationConfirm"));
+        if (!require(confirm != nullptr && confirm->isEnabled(), "project creation form was not ready")) return 1;
+        confirm->click();
+        if (!require(waitUntil(app, [&] {
+            return first.tracking_requests > 0 && first.created_project.value(QStringLiteral("name")).toString()
+                == QStringLiteral("Tunnel project") && tree->topLevelItemCount() > 0 && tree->topLevelItem(0)->childCount() == 2;
+        }), "tunneled Create project did not verify, write and refresh")) return 1;
+        if (!require(second.created_project.isEmpty(), "write reached the other repository")) return 1;
+        sources->setCurrentItem(sources->topLevelItem(0));
+        sources->itemClicked(sources->topLevelItem(0), 0);
         peer.closeWriteChannel();
         if (!require(peer.waitForFinished(5000) && peer.exitCode() == 0, "test peer did not stop")) return 1;
         if (!waitUntil(app, [&] { return health_label->text() == QStringLiteral("Unavailable"); }, 25000))
@@ -432,6 +492,7 @@ int main(int argc, char **argv)
 
     // A saved offline endpoint begins with a temporary UUIDv7 and becomes the
     // authoritative repository UUID after its first successful catalogue read.
+    first.created_project = {};
     ProjectServerProfile pending;
     pending.id = DvmdbIdentity::newUuidV7();
     pending.pending = true;

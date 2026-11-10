@@ -30,6 +30,8 @@ public:
     void open(std::function<void(const QString &)> finished);
     // Call only after open() succeeds.
     QNetworkReply *get(const QNetworkRequest &request);
+    QNetworkReply *write(const QNetworkRequest &request, const QByteArray &method, const QByteArray &body);
+    bool matches(const QUrl &url, const QString &path) const;
     void verify(const QNetworkRequest &request, std::function<void(RepositoryProbeResult)> finished);
 
 private:

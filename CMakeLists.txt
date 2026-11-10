@@ -851,6 +851,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # DVMDB write contract: POST project/branch only, with no external daemon.
     add_executable(aowis-project-source-writer-tests
         tests/project_source_writer_test.cpp
+        src/projects/repository_probe.cpp
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h)
     target_include_directories(aowis-project-source-writer-tests PRIVATE
@@ -864,6 +865,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Set AOWIS_DVMDB_SERVER_BIN at ctest runtime; absent server is SKIP, not PASS.
     add_executable(aowis-project-source-writer-live-dvmdb-tests
         tests/project_source_writer_live_dvmdb_test.cpp
+        src/projects/repository_probe.cpp
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h)
     target_include_directories(aowis-project-source-writer-live-dvmdb-tests PRIVATE

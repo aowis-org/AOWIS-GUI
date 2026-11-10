@@ -2276,8 +2276,8 @@ Clic derecho: volver a 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
-      <source>WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection.</source>
-      <translation>WireGuard se usa para verificar el repositorio, comprobar su disponibilidad y actualizar el catálogo. Los proyectos se siguen abriendo y editando mediante la conexión directa.</translation>
+      <source>WireGuard is used for the catalogue and for project, branch and revision metadata writes. Network and working-copy operations still use the direct connection.</source>
+      <translation>WireGuard se usa para el catálogo y para escribir metadatos de proyectos, ramas y revisiones. Las operaciones sobre redes y copias de trabajo siguen usando la conexión directa.</translation>
     </message>
     <message>
       <source>Verify repository</source>

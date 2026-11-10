@@ -20,7 +20,7 @@ struct ProjectServerProfile
     QString local_path;
     bool visible = true; // include this source in the navigator and graph
     bool personal = false; // one personal working database, selected in Projects Inspector
-    QString wireguard_profile_path; // Empty selects direct HTTP for verification, health and catalogue reads.
+    QString wireguard_profile_path; // Empty selects direct HTTP for catalogue reads and metadata writes.
 };
 
 QList<ProjectServerProfile> loadProjectServerProfiles();

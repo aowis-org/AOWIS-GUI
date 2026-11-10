@@ -193,7 +193,7 @@ QString sourceBranchForRevision(const ProjectPreviewData &project,
 
 struct ProjectsWidget::SourceSession
 {
-    DvmdbConnection *connection = nullptr;
+    std::shared_ptr<DvmdbConnection> connection;
     bool opening = false;
     ProjectSourceReader *reader = nullptr;
     HttpHealthMonitor *health = nullptr; // only remote sources have HTTP health monitoring
@@ -214,7 +214,6 @@ ProjectsWidget::~ProjectsWidget()
         delete session->refresh;
         delete session->health;
         delete session->reader;
-        delete session->connection;
         delete session;
     }
 }
@@ -223,7 +222,13 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     : QWidget(parent)
 {
     setObjectName(QStringLiteral("projectsWorkspace"));
-    this->source_writer = new ProjectSourceWriter(this);
+    this->source_writer = new ProjectSourceWriter(this, [this](const ProjectServerProfile &profile)
+        -> std::shared_ptr<DvmdbConnection> {
+        SourceSession *session = this->source_sessions.value(profile.id, nullptr);
+        if (session == nullptr || !session->connection
+            || !session->connection->matches(QUrl(profile.endpoint), profile.wireguard_profile_path)) return {};
+        return session->connection;
+    });
     seedPreview();
     this->servers = loadProjectServerProfiles();
     ensureDefaultLocalDvmdbProfile(this->servers);
@@ -1028,7 +1033,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (this->selection_kind != SelectionKind::Server || server == nullptr) return;
         const ProjectServerProfile profile = *server;
         const std::function<void(RepositoryProbeResult)> verified =
-            [this, profile](RepositoryProbeResult result) {
+            [this, profile, owner = QPointer<ProjectsWidget>(this)](RepositoryProbeResult result) {
+                if (!owner) return;
                 const ProjectServerProfile *current = this->currentServer();
                 if (this->selection_kind != SelectionKind::Server || current == nullptr
                     || current->id != profile.id || current->endpoint != profile.endpoint
@@ -1723,7 +1729,6 @@ void ProjectsWidget::resetSource(const QString &id)
         delete session->refresh;
         delete session->health;
         delete session->reader;
-        delete session->connection;
         delete session;
     }
     for (int i = this->projects.size() - 1; i >= 0; --i)
@@ -1747,7 +1752,9 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
     SourceSession *session = new SourceSession;
     if (profile.connection_type == QStringLiteral("remote"))
     {
-        session->connection = new DvmdbConnection(QUrl(profile.endpoint), profile.wireguard_profile_path, this);
+        session->connection = std::shared_ptr<DvmdbConnection>(
+            new DvmdbConnection(QUrl(profile.endpoint), profile.wireguard_profile_path, nullptr),
+            [](DvmdbConnection *connection) { connection->deleteLater(); });
         session->reader = new ProjectSourceReader(this, [session](const QNetworkRequest &request) {
             return session->connection->get(request);
         });
@@ -1785,7 +1792,9 @@ void ProjectsWidget::openRemoteSource(const ProjectServerProfile &profile)
     SourceSession *session = this->source_sessions.value(profile.id, nullptr);
     if (session == nullptr || session->opening || session->health != nullptr) return;
     session->opening = true;
-    session->connection->open([this, session, profile](const QString &error) {
+    session->connection->open([this, session, profile, owner = QPointer<ProjectSourceReader>(session->reader)]
+                              (const QString &error) {
+        if (!owner) return;
         session->opening = false;
         if (error.isEmpty())
         {

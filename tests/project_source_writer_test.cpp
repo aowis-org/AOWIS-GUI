@@ -185,6 +185,14 @@ int main(int argc, char **argv)
     profile.endpoint = QStringLiteral("http://127.0.0.1:%1").arg(server.serverPort());
     profile.auth_mode = QStringLiteral("None");
     ProjectSourceWriter writer;
+    ProjectServerProfile configured = profile;
+    configured.wireguard_profile_path = QStringLiteral("/test/private.conf");
+    QString missing_transport_error;
+    writer.createProject(configured, QStringLiteral("Must stay inside the tunnel"),
+        [&](const QString &, const QString &error) { missing_transport_error = error; });
+    if (!require(!writer.isBusy() && !missing_transport_error.isEmpty() && identity_lookups == 0
+                 && requested_paths.isEmpty(),
+                 "writer without a tunnel must not fall back to direct HTTP")) return 1;
     bool done = false;
     QString created;
     QString failure;

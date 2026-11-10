@@ -1,4 +1,5 @@
 #include "projects/project_source_writer.h"
+#include "projects/repository_probe.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/model_codec_compatibility.h"
 
@@ -58,8 +59,8 @@ QString validateProfile(const ProjectServerProfile &profile)
 
 } // namespace
 
-ProjectSourceWriter::ProjectSourceWriter(QObject *parent)
-    : QObject(parent), manager(this)
+ProjectSourceWriter::ProjectSourceWriter(QObject *parent, ConnectionFor connection_for)
+    : QObject(parent), connection_for(std::move(connection_for)), manager(this)
 {
 }
 
@@ -79,7 +80,19 @@ void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
     verify.setTransferTimeout(8000);
     verify.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                         QNetworkRequest::ManualRedirectPolicy);
-    this->reply = this->manager.get(verify);
+    if (profile.connection_type == QStringLiteral("remote") && this->connection_for)
+        this->active_connection = this->connection_for(profile);
+    // A GUI remote write must stay on the selected catalogue session for both requests.
+    if (this->active_connection)
+        this->reply = this->active_connection->get(verify);
+    else if (profile.connection_type == QStringLiteral("local")
+             || (!this->connection_for && profile.wireguard_profile_path.isEmpty()))
+        this->reply = this->manager.get(verify);
+    if (!this->reply)
+    {
+        this->finish({}, tr("DVMDB repository identity could not be verified. No write was sent."));
+        return;
+    }
     QNetworkReply *identity = this->reply;
     const QPointer<QNetworkReply> deadline(identity);
     QTimer::singleShot(10000, this, [deadline] { if (deadline) deadline->abort(); });
@@ -88,12 +101,16 @@ void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
     {
         if (this->reply == identity) this->reply.clear();
         const int status = identity->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray payload = identity->readAll();
+        const QByteArray payload = identity->isReadable() ? identity->readAll() : QByteArray();
         const bool transport_ok = status == 200 && identity->error() == QNetworkReply::NoError;
         identity->deleteLater();
         if (!transport_ok || payload.size() > 1024 * 1024)
         {
-            finish({}, tr("DVMDB repository identity could not be verified. No write was sent."));
+            QString message = tr("DVMDB repository identity could not be verified. No write was sent.");
+            if (!transport_ok)
+                message += QStringLiteral(" (%1)").arg(status > 0 ? QStringLiteral("HTTP %1").arg(status)
+                                                                 : identity->errorString());
+            finish({}, message);
             return;
         }
         const QJsonDocument document = QJsonDocument::fromJson(payload);
@@ -142,8 +159,16 @@ void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
         call.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                           QNetworkRequest::ManualRedirectPolicy);
         const QByteArray data = QJsonDocument(body).toJson(QJsonDocument::Compact);
-        this->reply = method == "PATCH" ? this->manager.sendCustomRequest(call, "PATCH", data)
-                                        : this->manager.post(call, data);
+        if (this->active_connection)
+            this->reply = this->active_connection->write(call, method, data);
+        else
+            this->reply = method == "PATCH" ? this->manager.sendCustomRequest(call, method, data)
+                                            : this->manager.post(call, data);
+        if (!this->reply)
+        {
+            this->finish({}, tr("DVMDB repository identity could not be verified. No write was sent."));
+            return;
+        }
         QNetworkReply *pending = this->reply;
         const QPointer<QNetworkReply> write_deadline(pending);
         QTimer::singleShot(15000, this, [write_deadline] {
@@ -437,6 +462,7 @@ void ProjectSourceWriter::patchProperties(const ProjectServerProfile &profile,
 
 void ProjectSourceWriter::finish(const QString &id, const QString &error)
 {
+    this->active_connection.reset();
     this->busy = false;
     Completion done = std::move(this->completion);
     this->completion = {};
