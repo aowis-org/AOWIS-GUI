@@ -2228,6 +2228,34 @@ Save this connection as pending?</source>
       <source>♛ Personal database</source>
       <translation>♛ قاعدة البيانات الشخصية</translation>
     </message>
+      <message>
+      <source>Editable HEADs</source>
+      <translation>رؤوس HEAD القابلة للتحرير</translation>
+    </message>
+    <message>
+      <source>No editable HEADs in personal databases</source>
+      <translation>لا توجد رؤوس HEAD قابلة للتحرير في قواعد البيانات الشخصية</translation>
+    </message>
+    <message>
+      <source>Editable working HEAD</source>
+      <translation>رأس HEAD عامل قابل للتحرير</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+%3 · %4</source>
+      <translation>%1 / %2
+%3 · %4</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+Personal database: %3
+%4
+Click to inspect HEAD; double-click to open network</source>
+      <translation>%1 / %2
+قاعدة البيانات الشخصية: %3
+%4
+انقر لفحص HEAD؛ انقر مرتين لفتح الشبكة</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

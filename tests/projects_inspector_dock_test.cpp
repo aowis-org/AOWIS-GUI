@@ -431,7 +431,7 @@ int main(int argc, char **argv)
 
     QMainWindow *host = projects.findChild<QMainWindow *>(QStringLiteral("projectsDockHost"));
     QDockWidget *dock = projects.findChild<QDockWidget *>(QStringLiteral("projectsInspectorDock"));
-    QTreeWidget *revisions = projects.findChild<QTreeWidget *>(QStringLiteral("revisionsTree"));
+    QTreeWidget *revisions = projects.findChild<QTreeWidget *>(QStringLiteral("editableHeadsTree"));
     QLineEdit *name = activeInspectorName(projects);
     ProjectRevisionGraph *graph = projects.findChild<ProjectRevisionGraph *>(
         QStringLiteral("projectRevisionGraph"));
@@ -858,46 +858,16 @@ int main(int argc, char **argv)
                  "server-specific inspector fields remain visible for a branch"))
         return 1;
 
-    QPushButton *heads_view = projects.findChild<QPushButton *>(
-        QStringLiteral("revisionsHeadsOnlyButton"));
-    QPushButton *full_tree_view = projects.findChild<QPushButton *>(
-        QStringLiteral("revisionsFullTreeButton"));
-    if (!require(heads_view != nullptr && full_tree_view != nullptr
-                     && heads_view->isCheckable() && full_tree_view->isCheckable()
-                     && full_tree_view->isChecked() && !heads_view->isChecked(),
-                 "Revisions must default to the Full tree view"))
-        return 1;
-    const auto find_revision = [revisions](const QString &revision_id) -> QTreeWidgetItem *
-    {
-        for (QTreeWidgetItemIterator it(revisions); *it; ++it)
-            if ((*it)->data(0, Qt::UserRole).toString()
-                == QStringLiteral("r:") + revision_id)
-                return *it;
-        return nullptr;
-    };
+    // Preview fixtures are not real writable databases; they must never be
+    // advertised as editable HEADs. Immutable revisions remain in the graph.
+    if (!require(revisions->topLevelItemCount() == 0
+                     && projects.findChild<QPushButton *>(
+                         QStringLiteral("revisionsHeadsOnlyButton")) == nullptr
+                     && projects.findChild<QPushButton *>(
+                         QStringLiteral("revisionsFullTreeButton")) == nullptr,
+                 "preview revisions leaked into the personal HEAD shortcuts")) return 1;
     const QString baseline_id = QStringLiteral("93f0de41");
     const QString main_head_id = QStringLiteral("c8d102ab");
-    const QString scenario_start_id = QStringLiteral("a24f918d");
-    const QString scenario_head_id = QStringLiteral("ec9045df");
-    QTreeWidgetItem *baseline = find_revision(baseline_id);
-    QTreeWidgetItem *main_head = find_revision(main_head_id);
-    QTreeWidgetItem *scenario_start = find_revision(scenario_start_id);
-    QTreeWidgetItem *scenario_head = find_revision(scenario_head_id);
-    if (!require(revisions->topLevelItemCount() == 1 && baseline != nullptr
-                     && main_head != nullptr && scenario_start != nullptr
-                     && scenario_head != nullptr && baseline->parent() == nullptr
-                     && main_head->parent() == baseline
-                     && scenario_start->parent() == baseline
-                     && scenario_head->parent() == scenario_start,
-                 "Full tree should nest revisions under their parents"))
-        return 1;
-    if (!require(baseline->text(0) == QStringLiteral("Network baseline")
-                     && main_head->text(0) == QStringLiteral("Validated network")
-                     && scenario_start->text(0) == QStringLiteral("Scenario start")
-                     && scenario_head->text(0) == QStringLiteral("Pressure tuning"),
-                 "Revision labels must contain names only, never hashes"))
-        return 1;
-
     QPushButton *graph_heads_view = projects.findChild<QPushButton *>(
         QStringLiteral("projectsGraphHeadsOnlyButton"));
     QPushButton *graph_full_view = projects.findChild<QPushButton *>(
@@ -916,126 +886,39 @@ int main(int argc, char **argv)
     if (!require(graph_heads_view->isChecked() && !graph->showsFullTree()
                      && graph->omissionCount() == 1
                      && !graph->revisionViewportPosition(baseline_id).isNull()
-                     && revisions->topLevelItemCount() == 1,
-                 "graph heads mode must retain the common ancestor and fold history"))
+                     && revisions->topLevelItemCount() == 0,
+                 "graph heads mode must retain common ancestors without populating the shortcut list"))
         return 1;
     graph->expandOmission(0);
     app.processEvents();
-    if (!require(!graph->showsFullTree() && graph->omissionCount() == 0
-                     && revisions->topLevelItemCount() == 1,
-                 "graph omission expansion changed sidebar filter or did not unfold"))
-        return 1;
+    if (!require(!graph->showsFullTree() && graph->omissionCount() == 0,
+                 "graph omission expansion did not unfold history")) return 1;
     graph_full_view->click();
     app.processEvents();
     if (!require(graph_full_view->isChecked() && !graph_heads_view->isChecked()
                      && graph->showsFullTree() && graph->omissionCount() == 0,
-                 "graph Full tree did not restore hidden history"))
-        return 1;
+                 "graph Full tree did not restore hidden history")) return 1;
     graph_heads_view->click();
     app.processEvents();
     if (!require(graph_heads_view->isChecked() && !graph_full_view->isChecked()
                      && !graph->showsFullTree() && graph->omissionCount() == 1,
-                 "switching back to Editable heads must re-fold the graph"))
-        return 1;
+                 "switching back to Editable heads must re-fold the graph")) return 1;
     graph->expandOmission(0);
     graph_heads_view->click();
     app.processEvents();
     if (!require(graph_heads_view->isChecked() && graph->omissionCount() == 1,
                  "pressing the active Editable heads control must re-fold expanded history"))
         return 1;
-
-    heads_view->click();
-    app.processEvents();
-    if (!require(heads_view->isChecked() && !full_tree_view->isChecked()
-                     && revisions->topLevelItemCount() == 2
-                     && find_revision(main_head_id) != nullptr
-                     && find_revision(scenario_head_id) != nullptr
-                     && find_revision(baseline_id) == nullptr
-                     && find_revision(scenario_start_id) == nullptr,
-                 "Editable heads mode must show only distinct branch heads"))
-        return 1;
-    // The filter must also follow the active project instead of keeping
-    // stale branch heads from the previously opened project.
-    projects.selectProjectByName(QStringLiteral("Sample Pump Station"));
-    app.processEvents();
-    if (!require(revisions->topLevelItemCount() == 1
-                     && revisions->topLevelItem(0)->text(0) == QStringLiteral("Initial layout")
-                     && find_revision(main_head_id) == nullptr,
-                 "Heads-only view retained revisions from the previous project"))
-        return 1;
-    projects.selectProjectByName(QStringLiteral("Sample North Network"));
-    app.processEvents();
-    if (!require(heads_view->isChecked() && revisions->topLevelItemCount() == 2
-                     && find_revision(main_head_id) != nullptr,
-                 "Heads-only view did not follow a project switch"))
-        return 1;
-    revisions->setCurrentItem(find_revision(scenario_head_id));
-    app.processEvents();
-    if (!require(activeInspectorName(projects)->text() == QStringLiteral("pressure-study")
-                     && find_revision(scenario_head_id)->isSelected(),
-                 "Selecting a head did not synchronize the inspector and tree"))
-        return 1;
-    full_tree_view->click();
-    app.processEvents();
-    if (!require(full_tree_view->isChecked() && revisions->topLevelItemCount() == 1
-                     && find_revision(scenario_head_id) != nullptr
-                     && find_revision(scenario_head_id)->isSelected(),
-                 "Returning to Full tree did not keep the selected head"))
-        return 1;
-    revisions->setCurrentItem(find_revision(baseline_id));
-    app.processEvents();
-    heads_view->click();
-    app.processEvents();
-    // Filtering historical revisions navigates to the exact branch-tip
-    // revision. Its immutable commit message is independent of the preview
-    // revision description; verify the selected ID, branch and message.
-    if (!require(heads_view->isChecked() && find_revision(baseline_id) == nullptr
-                     && find_revision(main_head_id) != nullptr
-                     && find_revision(main_head_id)->isSelected(),
-                 "Filtering a historical selection did not select main's latest revision"))
-        return 1;
-    QLineEdit *selected_branch_name = activeInspectorName(projects);
-    QPlainTextEdit *selected_commit_message = activeRevisionCommitMessage(projects);
-    QLabel *visible_branch_name = projects.findChild<QLabel *>(
-        QStringLiteral("projectsNetworkOverviewBranch"));
-    if (!require(selected_branch_name != nullptr
-                     && selected_branch_name->text() == QStringLiteral("main")
-                     && visible_branch_name != nullptr
-                     && visible_branch_name->text() == QStringLiteral("Branch: main"),
-                 "HEAD filter did not present main's branch identity"))
-    {
-        std::fprintf(stderr, "  Branch editor: '%s', visible Overview: '%s'\n",
-            selected_branch_name != nullptr
-                ? selected_branch_name->text().toUtf8().constData() : "<missing>",
-            visible_branch_name != nullptr
-                ? visible_branch_name->text().toUtf8().constData() : "<missing>");
-        return 1;
-    }
-    if (!require(selected_commit_message != nullptr
-                     && selected_commit_message->toPlainText()
-                         == QStringLiteral("Validated network")
-                     && selected_commit_message->toPlainText()
-                         == find_revision(main_head_id)->text(0),
-                 "HEAD filter did not show the selected revision's commit message"))
-    {
-        std::fprintf(stderr, "  Actual commit message: '%s'\n",
-            selected_commit_message != nullptr
-                ? selected_commit_message->toPlainText().toUtf8().constData() : "<missing>");
-        return 1;
-    }
-    // A historical revision picked in the central DAG should be made visible
-    // in the sidebar rather than silently losing tree synchronization.
+    graph_full_view->click();
     graph->revisionActivated(baseline_id);
     app.processEvents();
-    if (!require(full_tree_view->isChecked()
-                     && find_revision(baseline_id) != nullptr
-                     && find_revision(baseline_id)->isSelected()
+    QPlainTextEdit *selected_commit_message = activeRevisionCommitMessage(projects);
+    if (!require(graph->selectionId() == baseline_id
                      && activeInspectorName(projects)->text() == QStringLiteral("main")
-                     && selected_commit_message->toPlainText()
-                         == QStringLiteral("Network baseline")
-                     && selected_commit_message->toPlainText()
-                         == find_revision(baseline_id)->text(0),
-                 "Graph selection of history should reveal the Full tree and selected commit message"))
+                     && selected_commit_message != nullptr
+                     && selected_commit_message->toPlainText() == QStringLiteral("Network baseline")
+                     && revisions->topLevelItemCount() == 0,
+                 "Graph selection must inspect immutable history without changing personal shortcuts"))
         return 1;
     // A historical revision initiates an inline branch draft at the exact
     // selected revision, without creating an extra revision or opening a dialog.
@@ -1143,14 +1026,16 @@ int main(int argc, char **argv)
                      && near(startup_head.y(), graph->revisionViewportPosition(head_id).y()),
                  "first graph display was not already fitted as if Fit graph was clicked"))
         return 1;
-    // Both explorer and revisions retain minimum heights and share extra space.
+    // Both explorer and editable HEAD shortcuts retain minimum heights and share extra space.
     GroupBoxCollapsible *project_section = projects.findChild<GroupBoxCollapsible *>(
         QStringLiteral("explorerCollapsibleGroup"));
     GroupBoxCollapsible *revision_section = projects.findChild<GroupBoxCollapsible *>(
-        QStringLiteral("revisionsCollapsibleGroup"));
+        QStringLiteral("editableHeadsCollapsibleGroup"));
     if (!require(project_section != nullptr && project_section == server_section
                      && revision_section != nullptr
-                     && project_section->title() == QStringLiteral("Explorer"),
+                     && project_section->title() == QStringLiteral("Explorer")
+                     && revision_section->title() == QStringLiteral("Editable HEADs")
+                     && revision_section->geometry().top() < project_section->geometry().top(),
                  "unified Explorer section is missing or incorrectly titled"))
         return 1;
     // The navigator has no create/import button row. Its only job is navigation.
@@ -1177,71 +1062,34 @@ int main(int argc, char **argv)
     splitter->setSizes(QList<int>{295, 720});
     app.processEvents();
 
+    // Without a personal database, the HEAD shortcuts are an inexpensive
+    // empty state, not a blank 220-pixel tree that displaces Explorer.
+    QLabel *empty_heads = projects.findChild<QLabel *>(
+        QStringLiteral("projectsNoEditableHeads"));
+    if (!require(project_tree->isVisible() && project_tree->height() >= 190
+                     && !revisions->isVisible() && empty_heads != nullptr
+                     && empty_heads->isVisible() && revision_section->height() < 160,
+                 "empty HEAD shortcuts should remain compact above Explorer")) return 1;
     const int default_project_height = project_tree->height();
-    const int default_revision_height = revisions->height();
-    const int default_project_section_height = project_section->height();
-    const int default_revision_section_height = revision_section->height();
-    const int default_content_height = sidebar->widget()->height();
-    const int default_viewport_height = sidebar->viewport()->height();
-    if (!require(default_project_height >= 190 && default_revision_height >= 220,
-                 "sidebar trees fell below their existing minimum heights"))
-        return 1;
     projects.resize(1250, 1040);
     app.processEvents();
-    const int project_growth = project_tree->height() - default_project_height;
-    const int revision_growth = revisions->height() - default_revision_height;
-    const int project_section_growth = project_section->height() - default_project_section_height;
-    const int revision_section_growth = revision_section->height() - default_revision_section_height;
-    // The initial sidebar can scroll vertically because the two sections
-    // already exceed the short viewport. A fixed "+50 px per tree" threshold
-    // mistakes viewport growth for *available* growth; much of the resize
-    // first removes that initial overflow. Verify instead that both trees
-    // actually grow and that the height received by each section is passed
-    // through to its tree (rather than becoming empty space in its group).
-    // A caption may rewrap when the sidebar's vertical scrollbar disappears,
-    // changing the non-tree portion of a group by one line of text.
-    const int caption_reflow_tolerance = 24;
-    const bool trees_absorb_section_growth =
-        project_growth >= 20 && revision_growth >= 20
-        && std::abs(project_growth - project_section_growth) <= caption_reflow_tolerance
-        && std::abs(revision_growth - revision_section_growth) <= caption_reflow_tolerance;
-    const bool content_fills_viewport =
-        std::abs(sidebar->widget()->height() - sidebar->viewport()->height()) <= 2;
-    if (!(trees_absorb_section_growth && content_fills_viewport))
-    {
-        std::fprintf(stderr,
-            "projects_inspector_dock: sidebar tree growth (initial -> tall): "
-            "projects %d -> %d (section %+d), revisions %d -> %d (section %+d), "
-            "viewport height %d -> %d, content height %d -> %d\n",
-            default_project_height, project_tree->height(), project_section_growth,
-            default_revision_height, revisions->height(), revision_section_growth,
-            default_viewport_height, sidebar->viewport()->height(),
-            default_content_height, sidebar->widget()->height());
-        if (!require(false, "sidebar extra height was not allocated to the two trees"))
-            return 1;
-    }
-    const int expanded_revision_height = revisions->height();
+    if (!require(project_tree->isVisible()
+                     && project_tree->height() >= default_project_height,
+                 "Explorer did not receive available sidebar height")) return 1;
     project_section->setCollapsed(true);
     app.processEvents();
-    if (!require(!project_tree->isVisible() && revisions->isVisible()
-                     && revisions->height() > expanded_revision_height + 50,
-                 "collapsing Explorer did not expand the Revisions tree"))
-        return 1;
+    if (!require(!project_tree->isVisible() && !revisions->isVisible(),
+                 "collapsing Explorer unexpectedly exposed an empty HEAD tree")) return 1;
     project_section->setCollapsed(false);
-    app.processEvents();
-    const int expanded_project_height = project_tree->height();
     revision_section->setCollapsed(true);
     app.processEvents();
-    if (!require(!revisions->isVisible() && project_tree->isVisible()
-                     && project_tree->height() > expanded_project_height + 50,
-                 "collapsing Revisions did not expand the Explorer tree"))
-        return 1;
+    if (!require(!revisions->isVisible() && project_tree->isVisible(),
+                 "collapsing HEAD shortcuts hid Explorer")) return 1;
     revision_section->setCollapsed(false);
     projects.resize(1250, 740);
     app.processEvents();
-    if (!require(project_tree->height() >= 190 && revisions->height() >= 220,
-                 "restoring sidebar sections lost their minimum tree heights"))
-        return 1;
+    if (!require(project_tree->isVisible() && project_tree->height() >= 190,
+                 "restoring sidebar sections lost Explorer's minimum size")) return 1;
 
     orientation_toggle->click();
     if (!require(orientation_toggle->isChecked() && !graph->isTopDown()
@@ -1273,12 +1121,8 @@ int main(int argc, char **argv)
     if (!require(!dock->isVisible(), "graph navigation unexpectedly reopened the inspector"))
         return 1;
 
-    // A revision selected in the left tree changes inspector contents and
-    // therefore automatically restores the dock.
-    if (!require(revisions->topLevelItemCount() > 0,
-                 "preview revision tree is unexpectedly empty"))
-        return 1;
-    revisions->setCurrentItem(find_revision(main_head_id));
+    // Selecting an immutable revision in the graph reopens its inspector.
+    graph->revisionActivated(main_head_id);
     app.processEvents();
     if (!require(dock->isVisible()
                      && activeInspectorName(projects)->text() == QStringLiteral("main")
@@ -1798,8 +1642,7 @@ int main(int argc, char **argv)
                      && activeInspectorName(projects)->text() == QStringLiteral("NET3 Remote Experiment")
                      && project_tree->topLevelItemCount() == 2
                      && project_tree->topLevelItem(1)->childCount() == 1
-                     && revisions->topLevelItemCount() == 1
-                     && revisions->topLevelItem(0)->text(0) == QStringLiteral("Initial import (preview)"),
+                     && revisions->topLevelItemCount() == 0),
                  "creating a project from an example did not create a remote-scoped preview"))
         return 1;
     QLabel *metadata = activeInspectorMetadata(projects);
@@ -1862,11 +1705,10 @@ int main(int argc, char **argv)
                  "closing the embedded inspector also hid the project tree or graph"))
         return 1;
     QTreeWidget *embedded_revisions = embedded_projects->findChild<QTreeWidget *>(
-        QStringLiteral("revisionsTree"));
-    if (!require(embedded_revisions != nullptr && embedded_revisions->topLevelItemCount() > 0,
-                 "embedded revision list is missing"))
-        return 1;
-    embedded_revisions->setCurrentItem(embedded_revisions->topLevelItem(0));
+        QStringLiteral("editableHeadsTree"));
+    if (!require(embedded_revisions != nullptr && embedded_revisions->topLevelItemCount() == 0,
+                 "preview cannot expose writable personal HEAD shortcuts")) return 1;
+    embedded_graph->revisionActivated(main_head_id);
     app.processEvents();
     if (!require(embedded_dock->isVisible() && embedded_tree->isVisible()
                      && embedded_graph->isVisible(),

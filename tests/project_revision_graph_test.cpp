@@ -1073,6 +1073,17 @@ int main(int argc, char **argv)
     sendMouse(stable_camera, QEvent::MouseButtonDblClick, QPointF(410, 260), Qt::LeftButton);
     if (!require(stable_camera.zoomFactor() == manual_zoom,
                  "double-click unexpectedly fitted the graph")) return 1;
+    // Unlike ordinary selection, an explicit HEAD shortcut may bring an
+    // offscreen card into view, without fitting or changing the user's zoom.
+    stable_camera.ensureNodeVisible(right_project.id);
+    const QPointF shortcut_center = stable_camera.nodeViewportPosition(right_project.id);
+    if (!require(stable_camera.zoomFactor() == manual_zoom
+                     && shortcut_center.x() >= 0 && shortcut_center.x() <= stable_camera.width()
+                     && shortcut_center.y() >= 0 && shortcut_center.y() <= stable_camera.height(),
+                 "HEAD shortcut did not reveal the selected card at the current zoom")) return 1;
+    stable_camera.ensureNodeVisible(right_project.id);
+    if (!require(stable_camera.nodeViewportPosition(right_project.id) == shortcut_center,
+                 "a second HEAD shortcut focus moved an already visible card")) return 1;
     stable_camera.fitGraph(); // only the explicit Fit action resets framing
     if (!require(std::abs(stable_camera.zoomFactor() - manual_zoom) > 0.1
                      && std::abs(stable_camera.zoomFactor() - first_catalogue_zoom) < 0.01,

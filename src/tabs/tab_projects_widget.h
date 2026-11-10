@@ -14,6 +14,8 @@
 #include <QStringList>
 #include <QWidget>
 
+#include <functional>
+
 #include <aowis/model/hydraulic/network_hydraulic.h>
 
 class GroupBoxCollapsible;
@@ -149,8 +151,8 @@ private:
     void refreshPreviewTranslations();
     QString serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const;
     void populateProjectTree();
-    void populateRevisionTree();
-    void refreshRevisionTreeLanguage();
+    void populateEditableHeads();
+    void refreshEditableHeadsLanguage();
     bool isBranchHead(const QString &revision_id) const;
     void rebuildGraph();
     void updateInspector();
@@ -241,9 +243,9 @@ private:
     QString selected_id;
     QTreeWidget *project_tree = nullptr;
     QHash<QString, bool> explorer_expansions;
-    QTreeWidget *revision_tree = nullptr;
-    QPushButton *full_tree_button = nullptr;
-    bool show_full_revision_tree = true;
+    QTreeWidget *editable_heads_tree = nullptr;
+    QLabel *no_editable_heads = nullptr;
+    std::function<void()> update_sidebar_stretches;
     ProjectRevisionGraph *graph = nullptr;
     QStackedWidget *graph_stack = nullptr;
     QDockWidget *inspector_dock = nullptr;

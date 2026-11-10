@@ -59,6 +59,11 @@ struct FakeDvmdb
     int role_posts = 0;
     QString role = QStringLiteral("unconfigured");
     QJsonObject created_project;
+    bool include_unborn_branch = false;
+    bool include_second_project = false;
+    const QString unborn_branch_id = QStringLiteral("018f84c0-0000-7000-8000-00000000c002");
+    const QString second_project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a002");
+    const QString second_branch_id = QStringLiteral("018f84c0-0000-7000-8000-00000000c003");
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
     const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a001");
@@ -147,6 +152,9 @@ struct FakeDvmdb
                                 QJsonArray projects{QJsonObject{
                                     {QStringLiteral("id"), this->project_id},
                                     {QStringLiteral("name"), QStringLiteral("Shared name")}}};
+                                if (this->include_second_project)
+                                    projects.append(QJsonObject{{QStringLiteral("id"), this->second_project_id},
+                                        {QStringLiteral("name"), QStringLiteral("Other personal project")}});
                                 if (!this->created_project.isEmpty()) projects.append(this->created_project);
                                 data = QJsonDocument(QJsonObject{{QStringLiteral("projects"), projects}}).toJson();
                             }
@@ -163,18 +171,37 @@ struct FakeDvmdb
                                     {QStringLiteral("recordHash"), this->digest},
                                     {QStringLiteral("parents"), QJsonArray{}},
                                     {QStringLiteral("parentRecordHashes"), QJsonArray{}}};
+                                QJsonArray heads{QJsonObject{
+                                    {QStringLiteral("branch"), QStringLiteral("main")},
+                                    {QStringLiteral("branchId"), this->branch_id},
+                                    {QStringLiteral("revision"), this->hash},
+                                    {QStringLiteral("recordHash"), this->digest}}};
+                                if (this->include_unborn_branch)
+                                    heads.append(QJsonObject{
+                                        {QStringLiteral("branch"), QStringLiteral("unborn")},
+                                        {QStringLiteral("branchId"), this->unborn_branch_id},
+                                        {QStringLiteral("revision"), QJsonValue(QJsonValue::Null)},
+                                        {QStringLiteral("recordHash"), QJsonValue(QJsonValue::Null)}});
                                 const QJsonObject response{
                                     {QStringLiteral("revisions"), QJsonArray{revision}},
-                                    {QStringLiteral("heads"), QJsonArray{QJsonObject{
-                                        {QStringLiteral("branch"), QStringLiteral("main")},
-                                        {QStringLiteral("branchId"), this->branch_id},
-                                        {QStringLiteral("revision"), this->hash},
-                                        {QStringLiteral("recordHash"), this->digest}}}},
+                                    {QStringLiteral("heads"), heads},
                                     {QStringLiteral("complete"), true},
                                     {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}};
                                 data = QJsonDocument(response).toJson();
                             }
                         }
+                        else if (this->include_second_project
+                            && path == QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
+                                     .arg(this->second_project_id).toUtf8())
+                            data = QJsonDocument(QJsonObject{
+                                {QStringLiteral("revisions"), QJsonArray{}},
+                                {QStringLiteral("heads"), QJsonArray{QJsonObject{
+                                    {QStringLiteral("branch"), QStringLiteral("main")},
+                                    {QStringLiteral("branchId"), this->second_branch_id},
+                                    {QStringLiteral("revision"), QJsonValue(QJsonValue::Null)},
+                                    {QStringLiteral("recordHash"), QJsonValue(QJsonValue::Null)}}}},
+                                {QStringLiteral("complete"), true},
+                                {QStringLiteral("nextCursor"), QJsonValue(QJsonValue::Null)}}).toJson();
                         else if (!this->created_project.isEmpty() && path == QStringLiteral("/dvmdb/v1/projects/%1/revision-graph?limit=256")
                                      .arg(this->created_project.value(QStringLiteral("id")).toString()).toUtf8())
                             data = R"({"heads":[],"revisions":[],"complete":true,"nextCursor":null})";
@@ -583,6 +610,99 @@ int main(int argc, char **argv)
             return promotedTree != nullptr && promotedTree->topLevelItemCount() == 1
                 && promotedTree->topLevelItem(0)->childCount() == 1;
         }), "promoted repository did not recover its project catalogue")) return 1;
+
+    // An independent HEAD shortcut catalogue: no selected-project filter,
+    // no visibility dependency, no immutable revision entries or extra probes.
+    // The same reader/selection/open path drives both the graph and shortcuts.
+    {
+        FakeDvmdb personal_backend;
+        personal_backend.repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d099");
+        personal_backend.include_unborn_branch = true;
+        personal_backend.include_second_project = true;
+        personal_backend.role = QStringLiteral("private");
+        if (!require(personal_backend.start(), "personal shortcut fixture failed")) return 1;
+        ProjectServerProfile personal_profile = a;
+        personal_profile.id = personal_backend.repository_id;
+        personal_profile.name = QStringLiteral("Personal Fixture");
+        personal_profile.endpoint = personal_backend.endpoint();
+        personal_profile.wireguard_profile_path.clear();
+        personal_profile.personal = true;
+        ProjectServerProfile read_only_profile = b;
+        read_only_profile.personal = false;
+        if (!require(saveProjectServerProfiles({personal_profile, read_only_profile}),
+                     "HEAD shortcut profile setup failed")) return 1;
+        ProjectsWidget shortcuts;
+        shortcuts.resize(1200, 740);
+        shortcuts.show();
+        QTreeWidget *heads = shortcuts.findChild<QTreeWidget *>(
+            QStringLiteral("editableHeadsTree"));
+        QTreeWidget *explorer = shortcuts.findChild<QTreeWidget *>(
+            QStringLiteral("projectsTree"));
+        ProjectRevisionGraph *shortcut_graph = shortcuts.findChild<ProjectRevisionGraph *>(
+            QStringLiteral("projectRevisionGraph"));
+        if (!require(waitUntil(app, [&] {
+            return heads != nullptr && explorer != nullptr && shortcut_graph != nullptr
+                && heads->topLevelItemCount() == 3
+                && explorer->topLevelItemCount() == 2
+                && explorer->topLevelItem(0)->childCount() == 2;
+        }), "personal HEAD list did not include all branches and unborn HEADs")) return 1;
+        QTreeWidgetItem *committed = nullptr;
+        QTreeWidgetItem *unborn = nullptr;
+        QTreeWidgetItem *other_project = nullptr;
+        for (int i = 0; i < heads->topLevelItemCount(); ++i)
+        {
+            QTreeWidgetItem *item = heads->topLevelItem(i);
+            const QString key = item->data(0, Qt::UserRole).toString();
+            if (key.endsWith(personal_backend.branch_id)) committed = item;
+            if (key.endsWith(personal_backend.unborn_branch_id)) unborn = item;
+            if (key.endsWith(personal_backend.second_branch_id)) other_project = item;
+        }
+        if (!require(committed != nullptr && unborn != nullptr && other_project != nullptr
+                && committed->text(0).contains(QStringLiteral("Shared name / main"))
+                && unborn->text(0).contains(QStringLiteral("No commits yet"))
+                && other_project->text(0).contains(QStringLiteral("Other personal project"))
+                && heads->topLevelItemCount() == 3,
+                "shortcuts lost per-branch identity, unborn HEADs or project context")) return 1;
+        const int catalogue_requests = personal_backend.catalogue_requests;
+        explorer->topLevelItem(0)->setExpanded(false);
+        explorer->topLevelItem(0)->setCheckState(0, Qt::Unchecked);
+        app.processEvents();
+        if (!require(heads->topLevelItemCount() == 3,
+                     "hiding/collapsing a personal source removed its HEAD shortcuts")) return 1;
+        // Re-enable the graph before checking focus, without expanding Explorer.
+        explorer->topLevelItem(0)->setCheckState(0, Qt::Checked);
+        app.processEvents();
+        other_project = nullptr;
+        for (int index = 0; index < heads->topLevelItemCount(); ++index)
+            if (heads->topLevelItem(index)->data(0, Qt::UserRole).toString()
+                .endsWith(personal_backend.second_branch_id))
+                other_project = heads->topLevelItem(index);
+        if (!require(other_project != nullptr, "HEAD shortcut vanished after re-enabling source")) return 1;
+        heads->setCurrentItem(other_project);
+        app.processEvents();
+        if (!require(shortcut_graph->selectionId()
+                         == QStringLiteral("group:branch:") + other_project->data(0, Qt::UserRole).toString().mid(2)
+                         && shortcut_graph->nodeViewportPosition(shortcut_graph->selectionId()) != QPointF()
+                         && shortcuts.findChild<QStackedWidget *>(
+                             QStringLiteral("projectsInspectorActionsStack")) != nullptr
+                         && shortcuts.findChild<QStackedWidget *>(
+                             QStringLiteral("projectsInspectorActionsStack"))->currentWidget()->objectName()
+                                == QStringLiteral("projectsRevisionInspector"),
+                     "cross-project HEAD selection did not reach the graph and inspector")) return 1;
+        QString opened_branch;
+        bool checkout_requested = true;
+        QObject::connect(&shortcuts, &ProjectsWidget::networkOpenRequested, &shortcuts,
+            [&opened_branch, &checkout_requested](const QString &, const QString &branch_id,
+                const QString &, const QString &, const QString &, bool checkout)
+            { opened_branch = branch_id; checkout_requested = checkout; });
+        heads->itemDoubleClicked(other_project, 0);
+        app.processEvents();
+        if (!require(opened_branch == other_project->data(0, Qt::UserRole).toString().mid(2)
+                         && !checkout_requested,
+                     "double-click on a personal HEAD did not use the standard network open path")) return 1;
+        if (!require(personal_backend.catalogue_requests == catalogue_requests,
+                     "shortcut navigation triggered an unnecessary catalogue refresh")) return 1;
+    }
 
     std::puts("Multi-source explorer and health monitor tests passed");
     return 0;

@@ -89,6 +89,7 @@ public:
     void updateServerAvailability(const QString &server_id,
                                   const ProjectServerAvailability &availability);
     void setSelection(const QString &revision_id);
+    void ensureNodeVisible(const QString &node_id);
     void fitGraph();
     void setTopDown(bool top_down);
     bool isTopDown() const;

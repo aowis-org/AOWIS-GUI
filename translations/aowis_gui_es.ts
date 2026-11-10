@@ -2208,6 +2208,34 @@ Save this connection as pending?</source>
       <source>♛ Personal database</source>
       <translation>♛ Base de datos personal</translation>
     </message>
+      <message>
+      <source>Editable HEADs</source>
+      <translation>HEAD editables</translation>
+    </message>
+    <message>
+      <source>No editable HEADs in personal databases</source>
+      <translation>No hay HEAD editables en bases de datos personales</translation>
+    </message>
+    <message>
+      <source>Editable working HEAD</source>
+      <translation>HEAD de trabajo editable</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+%3 · %4</source>
+      <translation>%1 / %2
+%3 · %4</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+Personal database: %3
+%4
+Click to inspect HEAD; double-click to open network</source>
+      <translation>%1 / %2
+Base de datos personal: %3
+%4
+Clic para inspeccionar HEAD; doble clic para abrir la red</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

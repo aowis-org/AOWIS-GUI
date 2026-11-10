@@ -719,6 +719,38 @@ void ProjectRevisionGraph::setSelection(const QString &revision_id)
     requestGraphRedraw();
 }
 
+void ProjectRevisionGraph::ensureNodeVisible(const QString &node_id)
+{
+    // Shortcut navigation only: preserve zoom and a visible user's camera.
+    // Move the camera just enough to reveal an offscreen HEAD card.
+    for (const ProjectGraphNode &node : this->nodes)
+    {
+        if (node.id != node_id) continue;
+        const QRectF rectangle = nodeRect(node);
+        const QPointF top_left = graphToViewport(rectangle.topLeft());
+        const QPointF bottom_right = graphToViewport(rectangle.bottomRight());
+        constexpr double margin = 18.0;
+        QPointF delta;
+        if (top_left.x() < margin)
+            delta.setX(margin - top_left.x());
+        else if (bottom_right.x() > width() - margin)
+            delta.setX(width() - margin - bottom_right.x());
+        if (top_left.y() < margin)
+            delta.setY(margin - top_left.y());
+        else if (bottom_right.y() > height() - margin)
+            delta.setY(height() - margin - bottom_right.y());
+        if (delta.isNull()) return;
+        this->preserve_camera = true;
+        this->pan_velocity = QPointF();
+        this->mouse_pan_velocity = QPointF();
+        this->offset += delta;
+        this->zoom_anchor += delta;
+        clampCamera();
+        requestGraphRedraw();
+        return;
+    }
+}
+
 QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
 {
     if (node.kind == ProjectGraphNode::Kind::Revision)

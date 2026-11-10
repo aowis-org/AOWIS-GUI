@@ -2208,6 +2208,34 @@ Diese Verbindung als ausstehend speichern?</translation>
       <source>♛ Personal database</source>
       <translation>♛ Persönliche Datenbank</translation>
     </message>
+      <message>
+      <source>Editable HEADs</source>
+      <translation>Bearbeitbare HEADs</translation>
+    </message>
+    <message>
+      <source>No editable HEADs in personal databases</source>
+      <translation>Keine bearbeitbaren HEADs in persönlichen Datenbanken</translation>
+    </message>
+    <message>
+      <source>Editable working HEAD</source>
+      <translation>Bearbeitbarer Arbeits-HEAD</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+%3 · %4</source>
+      <translation>%1 / %2
+%3 · %4</translation>
+    </message>
+    <message>
+      <source>%1 / %2
+Personal database: %3
+%4
+Click to inspect HEAD; double-click to open network</source>
+      <translation>%1 / %2
+Persönliche Datenbank: %3
+%4
+Klicken: HEAD anzeigen; Doppelklicken: Netzwerk öffnen</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

@@ -337,41 +337,28 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     no_sources->setObjectName(QStringLiteral("projectsNoSourcesSidebar"));
     no_sources->setAlignment(Qt::AlignCenter);
     explorer_layout->addWidget(no_sources);
-    left_layout->addWidget(explorer_group, 1);
-
-    GroupBoxCollapsible *revisions_group = new GroupBoxCollapsible(tr("Revisions"), left);
-    revisions_group->setObjectName(QStringLiteral("revisionsCollapsibleGroup"));
+    // Fast access to real writable branch HEADs across personal repositories.
+    // This is deliberately not a revision history view; the center graph owns
+    // navigation through immutable revisions and merge ancestry.
+    GroupBoxCollapsible *revisions_group = new GroupBoxCollapsible(tr("Editable HEADs"), left);
+    revisions_group->setObjectName(QStringLiteral("editableHeadsCollapsibleGroup"));
     QVBoxLayout *revisions_layout = new QVBoxLayout(revisions_group);
-    // Two exclusive views over the same immutable revisions. The "editable"
-    // heads are branch pointers, not mutable historical snapshots.
-    QHBoxLayout *revision_views = new QHBoxLayout();
-    revision_views->setSpacing(4);
-    QPushButton *heads_button = compactButton(tr("Editable heads"),
-        tr("Show only the latest revision referenced by each branch"), revisions_group);
-    heads_button->setObjectName(QStringLiteral("revisionsHeadsOnlyButton"));
-    this->full_tree_button = compactButton(tr("Full tree"),
-        tr("Show all revisions nested by their parent relationships"), revisions_group);
-    this->full_tree_button->setObjectName(QStringLiteral("revisionsFullTreeButton"));
-    QButtonGroup *revision_views_group = new QButtonGroup(revisions_group);
-    revision_views_group->setExclusive(true);
-    for (QPushButton *button : {heads_button, this->full_tree_button})
-    {
-        button->setCheckable(true);
-        button->setMinimumWidth(0);
-        button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-        revision_views_group->addButton(button);
-        revision_views->addWidget(button, 1);
-    }
-    this->full_tree_button->setChecked(true);
-    revisions_layout->addLayout(revision_views);
-    this->revision_tree = new QTreeWidget(revisions_group);
-    this->revision_tree->setObjectName(QStringLiteral("revisionsTree"));
-    this->revision_tree->setHeaderHidden(true);
-    this->revision_tree->setMinimumHeight(220);
-    this->revision_tree->setMinimumWidth(0);
-    this->revision_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    revisions_layout->addWidget(this->revision_tree, 1);
+    this->editable_heads_tree = new QTreeWidget(revisions_group);
+    this->editable_heads_tree->setObjectName(QStringLiteral("editableHeadsTree"));
+    this->editable_heads_tree->setHeaderHidden(true);
+    this->editable_heads_tree->setRootIsDecorated(false);
+    this->editable_heads_tree->setUniformRowHeights(false);
+    this->editable_heads_tree->setMinimumHeight(220);
+    this->editable_heads_tree->setMinimumWidth(0);
+    this->editable_heads_tree->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    revisions_layout->addWidget(this->editable_heads_tree, 1);
+    this->no_editable_heads = new QLabel(tr("No editable HEADs in personal databases"), revisions_group);
+    this->no_editable_heads->setObjectName(QStringLiteral("projectsNoEditableHeads"));
+    this->no_editable_heads->setWordWrap(true);
+    this->no_editable_heads->setAlignment(Qt::AlignCenter);
+    revisions_layout->insertWidget(0, this->no_editable_heads);
     left_layout->addWidget(revisions_group, 1);
+    left_layout->addWidget(explorer_group, 1);
     // Keep the footer inert while either tree can grow. An always-expanding
     // spacer competes for height with the tree sections inside QScrollArea.
     QSpacerItem *footer_spacer = new QSpacerItem(0, 0, QSizePolicy::Minimum,
@@ -381,11 +368,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     // Give the trees any spare sidebar height without reducing their existing
     // minimum heights. When a section is collapsed, its header should remain
     // compact and the other expanded tree should use the freed space.
-    const std::function<void()> update_section_stretches = [left_layout, footer_spacer,
+    const std::function<void()> update_section_stretches = [this, left_layout, footer_spacer,
                                                               explorer_group, revisions_group]()
     {
         const bool explorer_expanded = !explorer_group->isCollapsed();
-        const bool revisions_expanded = !revisions_group->isCollapsed();
+        const bool revisions_expanded = !revisions_group->isCollapsed()
+            && this->editable_heads_tree->topLevelItemCount() > 0;
         explorer_group->setSizePolicy(QSizePolicy::Preferred,
             explorer_expanded ? QSizePolicy::Expanding : QSizePolicy::Maximum);
         revisions_group->setSizePolicy(QSizePolicy::Preferred,
@@ -398,6 +386,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         left_layout->setStretch(left_layout->count() - 1, expand_footer ? 1 : 0);
         left_layout->invalidate();
     };
+    this->update_sidebar_stretches = update_section_stretches;
     connect(explorer_group, &GroupBoxCollapsible::signalExpanded, left,
             [update_section_stretches](GroupBoxCollapsible *) { update_section_stretches(); });
     connect(explorer_group, &GroupBoxCollapsible::signalCollapsed, left,
@@ -494,18 +483,16 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     empty_layout->addWidget(empty_add, 0, Qt::AlignHCenter);
     connect(this, &ProjectsWidget::languageChanged, left,
             [this, explorer_group, revisions_group, no_sources, browse_examples_button,
-             heads_button, graph_add_server, graph_heads_button, graph_full_button, direction_button,
+             graph_add_server, graph_heads_button, graph_full_button, direction_button,
              fit_button, empty_title, empty_description, empty_add, add_server] {
         refreshPreviewTranslations();
         explorer_group->setTitle(tr("Explorer"));
-        revisions_group->setTitle(tr("Revisions"));
+        revisions_group->setTitle(tr("Editable HEADs"));
         add_server->setToolTip(tr("Add a database (local or REST)"));
         add_server->setAccessibleName(tr("Add database"));
         no_sources->setText(tr("No databases configured"));
         if (browse_examples_button)
             browse_examples_button->setText(tr("Browse examples…"));
-        heads_button->setText(tr("Editable heads"));
-        this->full_tree_button->setText(tr("Full tree"));
         graph_add_server->setText(tr("Add server connection"));
         graph_add_server->setToolTip(tr("Add a database (local or REST)"));
         graph_heads_button->setText(tr("Editable heads"));
@@ -568,7 +555,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         }
         if (this->graph != nullptr)
             this->graph->retranslateCaptions();
-        refreshRevisionTreeLanguage();
+        refreshEditableHeadsLanguage();
         refreshRevisionInspectorLanguage();
         if (this->selection_kind == SelectionKind::Project && this->inspector_tabs != nullptr)
         {
@@ -910,7 +897,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             QTimer::singleShot(0, this, [this]
             {
                 populateProjectTree();
-                populateRevisionTree();
+                populateEditableHeads();
                 rebuildGraph();
                 updateEmptyState();
                 updateButtons();
@@ -919,39 +906,25 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             return;
         }
     });
-    connect(heads_button, &QPushButton::clicked, this, [this]
+    connect(this->editable_heads_tree, &QTreeWidget::itemSelectionChanged, this, [this]
     {
-        this->show_full_revision_tree = false;
-        populateRevisionTree();
-        // A historical selection cannot remain highlighted in Heads-only mode.
-        // Follow its branch to the editable head and synchronize all panes.
-        if (this->selection_kind == SelectionKind::Revision && !isBranchHead(this->selected_id))
-        {
-            if (ProjectPreviewBranch *branch = currentBranch())
-                if (isBranchHead(branch->head))
-                {
-                    select(SelectionKind::Revision, branch->head);
-                    return;
-                }
-        }
-        selectTreeItem(this->revision_tree,
-            this->selection_kind == SelectionKind::Revision
-                ? keyFor(QStringLiteral("r"), this->selected_id) : QString());
-    });
-    connect(this->full_tree_button, &QPushButton::clicked, this, [this]
-    {
-        this->show_full_revision_tree = true;
-        populateRevisionTree();
-        selectTreeItem(this->revision_tree,
-            this->selection_kind == SelectionKind::Revision
-                ? keyFor(QStringLiteral("r"), this->selected_id) : QString());
-    });
-    connect(this->revision_tree, &QTreeWidget::itemSelectionChanged, this, [this]
-    {
-        const QList<QTreeWidgetItem *> items = this->revision_tree->selectedItems();
+        const QList<QTreeWidgetItem *> items = this->editable_heads_tree->selectedItems();
         if (items.isEmpty() || this->updating_ui) return;
         const QString key = items.first()->data(0, role_key).toString();
-        if (key.startsWith(QStringLiteral("r:"))) select(SelectionKind::Revision, key.mid(2));
+        if (!key.startsWith(QStringLiteral("h:"))) return;
+        const QString branch_id = key.mid(2);
+        select(SelectionKind::Head, branch_id);
+        if (this->selection_kind == SelectionKind::Head && this->selected_id == branch_id)
+            this->graph->ensureNodeVisible(QStringLiteral("group:branch:") + branch_id);
+    });
+    connect(this->editable_heads_tree, &QTreeWidget::itemDoubleClicked, this,
+            [this](QTreeWidgetItem *item, int)
+    {
+        if (item == nullptr || !item->data(0, role_key).toString().startsWith(QStringLiteral("h:"))) return;
+        const QString branch_id = item->data(0, role_key).toString().mid(2);
+        select(SelectionKind::Head, branch_id);
+        if (this->selection_kind == SelectionKind::Head && this->selected_id == branch_id)
+            editProjectNetwork(); // The same checked open path as the HEAD Inspector.
     });
     connect(this->graph, &ProjectRevisionGraph::revisionActivated, this, [this](const QString &id)
     {
@@ -1152,7 +1125,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     refreshServerAvailability();
     populateProjectTree();
     updateEmptyState();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     bool personal_selected = false;
     for (const ProjectServerProfile &profile : this->servers)
@@ -1692,7 +1665,7 @@ void ProjectsWidget::resetSource(const QString &id)
             this->projects.removeAt(i);
     restoreVisibleSelection();
     populateProjectTree();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     updateEmptyState();
     updateButtons();
@@ -1971,7 +1944,7 @@ void ProjectsWidget::applySourceSnapshot(const QString &source_id, const SourceS
     }
     restoreVisibleSelection();
     populateProjectTree();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     broadcastContext();
 }
@@ -2106,124 +2079,74 @@ bool ProjectsWidget::isBranchHead(const QString &revision_id) const
     return false;
 }
 
-void ProjectsWidget::populateRevisionTree()
+void ProjectsWidget::populateEditableHeads()
 {
-    const QSignalBlocker blocked(this->revision_tree);
-    this->revision_tree->clear();
-    const ProjectPreviewData *project = currentProject();
-    if (project == nullptr) return;
+    if (this->editable_heads_tree == nullptr) return;
+    const QSignalBlocker blocked(this->editable_heads_tree);
+    this->editable_heads_tree->clear();
 
-    QHash<QString, const ProjectPreviewRevision *> revisions_by_id;
-    for (const ProjectPreviewRevision &revision : project->revisions)
-        revisions_by_id.insert(revision.id, &revision);
-
-    const auto displayTitle = [this](const ProjectPreviewRevision &revision)
+    // The catalogue is already loaded by the shared SourceSession reader.
+    // Do not probe the network, and do not mistake a committed tip for a
+    // mutable HEAD. Only personal database branches are writable directly.
+    struct Shortcut
     {
-        const QString title = revision.message.trimmed().isEmpty()
-            ? revision.title.trimmed() : revision.message.simplified();
-        return title.isEmpty() ? tr("Revision without commit message") : title;
+        const ProjectServerProfile *server;
+        const ProjectPreviewData *project;
+        const ProjectPreviewBranch *branch;
     };
-    const auto labelRevision = [this, project](QTreeWidgetItem *item,
-                                         const ProjectPreviewRevision &revision)
+    QList<Shortcut> shortcuts;
+    for (const ProjectServerProfile &server : this->servers)
     {
-        // The tree displays titles only: identities remain in Qt::UserRole so
-        // duplicate names still select their own revision in the graph.
-        QStringList head_branches;
-        for (const ProjectPreviewBranch &branch : project->branches)
-            if (branch.head == revision.id) head_branches.append(branch.name);
-        QStringList details;
-        if (!head_branches.isEmpty())
+        if (!server.personal || server.pending) continue;
+        for (const ProjectPreviewData &project : this->projects)
         {
-            QFont label_font = item->font(0);
-            label_font.setBold(true);
-            item->setFont(0, label_font);
-            details.append(tr("Editable head: %1").arg(head_branches.join(QStringLiteral(", "))));
+            if (!project.database_backed || project.server_id != server.id) continue;
+            for (const ProjectPreviewBranch &branch : project.branches)
+                shortcuts.append({&server, &project, &branch});
         }
-        if (!revision.description.isEmpty()) details.append(revision.description);
-        item->setToolTip(0, details.join(QLatin1Char('\n')));
-    };
-
-    if (!this->show_full_revision_tree)
-    {
-        // One entry per *revision*, even when several branches share a head.
-        QSet<QString> shown;
-        for (const ProjectPreviewBranch &branch : project->branches)
-        {
-            const ProjectPreviewRevision *revision = revisions_by_id.value(branch.head, nullptr);
-            if (revision == nullptr || shown.contains(revision->id)) continue;
-            shown.insert(revision->id);
-            QTreeWidgetItem *item = newTreeItem(this->revision_tree, displayTitle(*revision),
-                keyFor(QStringLiteral("r"), revision->id));
-            labelRevision(item, *revision);
-        }
-        return;
     }
-
-    // QTreeWidget represents a tree rather than a DAG. Nest every revision
-    // under its first available parent; additional merge edges stay visible in
-    // the center graph, while each revision appears only once in the sidebar.
-    QHash<QString, QTreeWidgetItem *> items_by_id;
-    QSet<QString> visiting;
-    std::function<QTreeWidgetItem *(const ProjectPreviewRevision &)> append_revision;
-    append_revision = [&](const ProjectPreviewRevision &revision) -> QTreeWidgetItem *
+    // Stable deterministic ordering until a persistent recent-access record
+    // exists. The list does not depend on the selected project or visibility.
+    std::sort(shortcuts.begin(), shortcuts.end(), [](const Shortcut &left, const Shortcut &right)
     {
-        if (QTreeWidgetItem *item = items_by_id.value(revision.id, nullptr)) return item;
-        if (visiting.contains(revision.id)) return nullptr; // protect against bad preview data
-        visiting.insert(revision.id);
-        QTreeWidgetItem *parent_item = nullptr;
-        for (const QString &parent_id : revision.parents)
-        {
-            if (const ProjectPreviewRevision *parent_revision = revisions_by_id.value(parent_id, nullptr))
-            {
-                parent_item = append_revision(*parent_revision);
-                if (parent_item != nullptr) break;
-            }
-        }
-        QTreeWidgetItem *item = parent_item != nullptr
-            ? newTreeChild(parent_item, displayTitle(revision), keyFor(QStringLiteral("r"), revision.id))
-            : newTreeItem(this->revision_tree, displayTitle(revision), keyFor(QStringLiteral("r"), revision.id));
-        items_by_id.insert(revision.id, item);
-        labelRevision(item, revision);
-        visiting.remove(revision.id);
-        return item;
-    };
-    for (const ProjectPreviewRevision &revision : project->revisions)
-        append_revision(revision);
-    this->revision_tree->expandAll();
+        const QString left_label = left.project->name + QLatin1Char('/') + left.branch->name;
+        const QString right_label = right.project->name + QLatin1Char('/') + right.branch->name;
+        const int by_label = QString::compare(left_label, right_label, Qt::CaseInsensitive);
+        if (by_label != 0) return by_label < 0;
+        return left.branch->id < right.branch->id;
+    });
+    for (const Shortcut &shortcut : shortcuts)
+    {
+        QTreeWidgetItem *item = newTreeItem(this->editable_heads_tree, QString(),
+            keyFor(QStringLiteral("h"), shortcut.branch->id));
+        const QString status = shortcut.branch->head.isEmpty()
+            ? tr("No commits yet") : tr("Editable working HEAD");
+        item->setText(0, tr("%1 / %2\n%3 · %4")
+            .arg(shortcut.project->name, shortcut.branch->name, shortcut.server->name, status));
+        item->setSizeHint(0, QSize(0, 44));
+        item->setIcon(0, QIcon::fromTheme(QStringLiteral("document-edit"),
+            style()->standardIcon(QStyle::SP_FileIcon)));
+        item->setToolTip(0, tr("%1 / %2\nPersonal database: %3\n%4\nClick to inspect HEAD; double-click to open network")
+            .arg(shortcut.project->name, shortcut.branch->name, shortcut.server->name, status));
+    }
+    const bool empty = shortcuts.isEmpty();
+    if (this->no_editable_heads != nullptr)
+        this->no_editable_heads->setVisible(empty);
+    this->editable_heads_tree->setVisible(!empty);
+    if (this->update_sidebar_stretches)
+        this->update_sidebar_stretches();
+    if (this->selection_kind == SelectionKind::Head)
+        selectTreeItem(this->editable_heads_tree,
+            keyFor(QStringLiteral("h"), this->selected_id), false);
 }
 
-void ProjectsWidget::refreshRevisionTreeLanguage()
+void ProjectsWidget::refreshEditableHeadsLanguage()
 {
-    const ProjectPreviewData *project = currentProject();
-    if (project == nullptr || this->revision_tree == nullptr)
-        return;
-    const QSignalBlocker block(this->revision_tree);
-    QHash<QString, const ProjectPreviewRevision *> revisions;
-    for (const ProjectPreviewRevision &revision : project->revisions)
-        revisions.insert(revision.id, &revision);
-    for (QTreeWidgetItemIterator it(this->revision_tree); *it; ++it)
-    {
-        QTreeWidgetItem *item = *it;
-        const QString key = item->data(0, role_key).toString();
-        if (!key.startsWith(QStringLiteral("r:")))
-            continue;
-        const ProjectPreviewRevision *revision = revisions.value(key.mid(2), nullptr);
-        if (revision == nullptr)
-            continue;
-        const QString title = revision->message.trimmed().isEmpty()
-            ? revision->title.trimmed() : revision->message.simplified();
-        item->setText(0, title.isEmpty() ? tr("Revision without commit message") : title);
-        QStringList heads;
-        for (const ProjectPreviewBranch &branch : project->branches)
-            if (branch.head == revision->id)
-                heads.append(branch.name);
-        QStringList details;
-        if (!heads.isEmpty())
-            details.append(tr("Editable head: %1").arg(heads.join(QStringLiteral(", "))));
-        if (!revision->description.isEmpty())
-            details.append(revision->description);
-        item->setToolTip(0, details.join(QLatin1Char('\n')));
-    }
+    // Regenerate labels and tooltips from the same already-loaded catalogue.
+    // This does not trigger health probes, graph placement or camera changes.
+    populateEditableHeads();
+    if (this->no_editable_heads != nullptr)
+        this->no_editable_heads->setText(tr("No editable HEADs in personal databases"));
 }
 
 void ProjectsWidget::rebuildGraph()
@@ -2432,9 +2355,9 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                     : this->selection_kind == SelectionKind::Branch
                         || this->selection_kind == SelectionKind::Head
                         ? keyFor(QStringLiteral("b"), this->selected_id) : QString());
-            selectTreeItem(this->revision_tree,
-                this->selection_kind == SelectionKind::Revision
-                    ? keyFor(QStringLiteral("r"), this->selected_id) : QString());
+            selectTreeItem(this->editable_heads_tree,
+                this->selection_kind == SelectionKind::Head
+                    ? keyFor(QStringLiteral("h"), this->selected_id) : QString());
             this->updating_ui = false;
             return;
         }
@@ -2463,7 +2386,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                     break;
                 }
             populateProjectTree();
-            populateRevisionTree();
             rebuildGraph();
         }
     }
@@ -2487,7 +2409,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
             const ProjectPreviewData *project = currentProject();
             this->branch_id = project != nullptr && !project->branches.isEmpty()
                 ? project->branches.first().id : QString();
-            populateRevisionTree();
             rebuildGraph();
         }
     }
@@ -2507,7 +2428,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                             populateProjectTree();
                         }
                         this->project_id = project.id;
-                        populateRevisionTree();
                         rebuildGraph();
                     }
                     this->branch_id = branch.id;
@@ -2534,14 +2454,6 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                 break;
             }
         if (!found) return;
-        // The graph can select historical revisions even when the sidebar is
-        // filtered to heads. Reveal the full tree to keep that selection visible.
-        if (!this->show_full_revision_tree && !isBranchHead(id))
-        {
-            this->show_full_revision_tree = true;
-            this->full_tree_button->setChecked(true);
-            populateRevisionTree();
-        }
     }
 
     this->selection_kind = kind;
@@ -2552,8 +2464,8 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
                    : kind == SelectionKind::Project ? keyFor(QStringLiteral("p"), id)
                    : kind == SelectionKind::Branch || kind == SelectionKind::Head
                        ? keyFor(QStringLiteral("b"), id) : QString());
-    selectTreeItem(this->revision_tree,
-                   kind == SelectionKind::Revision ? keyFor(QStringLiteral("r"), id) : QString());
+    selectTreeItem(this->editable_heads_tree,
+                   kind == SelectionKind::Head ? keyFor(QStringLiteral("h"), id) : QString());
     this->updating_ui = false;
     QString graph_selection;
     if (kind == SelectionKind::Server)
@@ -3283,8 +3195,8 @@ void ProjectsWidget::showRevisionHistory()
             if (!branch->head.isEmpty()) select(SelectionKind::Revision, branch->head);
         }
     }
-    this->revision_tree->setFocus();
-    // History is an explicit request to inspect a revision. Reopening works
+    this->graph->setFocus();
+    // The immutable revision history remains in the central graph. Reopening works
     // even when the selected revision was already the current one.
     if (this->selection_kind == SelectionKind::Revision
         && this->inspector_dock != nullptr && this->inspector_dock->isHidden())
@@ -3300,7 +3212,7 @@ void ProjectsWidget::createServer()
     updateConnectionStatus();
     this->updating_ui = true;
     selectTreeItem(this->project_tree, QString());
-    selectTreeItem(this->revision_tree, QString());
+    selectTreeItem(this->editable_heads_tree, QString());
     this->database_connection->source_kind_combo->setCurrentIndex(0);
     this->database_connection->server_endpoint_edit->clear();
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
@@ -3606,7 +3518,7 @@ void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString 
             if (profile.id == repository_id) { startSource(profile); break; }
     }
     populateProjectTree();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     updateInspector();
     updateButtons();
@@ -3662,7 +3574,7 @@ void ProjectsWidget::deleteConnection()
             else
             {
                 populateProjectTree();
-                populateRevisionTree();
+                populateEditableHeads();
                 rebuildGraph();
                 updateInspector();
                 this->inspector_dock->hide();
@@ -4592,7 +4504,7 @@ void ProjectsWidget::createBranch()
     const QString id = branch.id;
     project->branches.append(branch);
     populateProjectTree();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     cancelCreation();
     select(SelectionKind::Branch, id);
@@ -4763,7 +4675,7 @@ void ProjectsWidget::deleteSelection()
     this->selection_kind = SelectionKind::None;
     this->selected_id.clear();
     populateProjectTree();
-    populateRevisionTree();
+    populateEditableHeads();
     rebuildGraph();
     if (kind == SelectionKind::Project && !this->project_id.isEmpty())
         select(SelectionKind::Project, this->project_id);
@@ -5052,6 +4964,7 @@ void ProjectsWidget::setPersonalServer(bool enabled)
             reportServerSaveFailure();
         }
         populateProjectTree();
+        populateEditableHeads();
         rebuildGraph(); // Update the golden server card immediately when designation changes.
         if (this->selection_kind == SelectionKind::Server) updateInspector();
     };
@@ -5325,7 +5238,7 @@ void ProjectsWidget::saveRevisionInspectorChanges()
         if (!isPreviewSource()) {
             loadSource(server_id);
         } else {
-            populateProjectTree(); populateRevisionTree(); rebuildGraph();
+            populateProjectTree(); populateEditableHeads(); rebuildGraph();
             select(mode, selected_id);
         }
     };
@@ -5779,7 +5692,7 @@ void ProjectsWidget::applyInspectorEdits()
     if (tree_changed)
     {
         populateProjectTree();
-        populateRevisionTree();
+        populateEditableHeads();
         if (this->selection_kind != SelectionKind::Server) rebuildGraph();
         select(this->selection_kind, this->selected_id);
     }
