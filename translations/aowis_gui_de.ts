@@ -5423,28 +5423,12 @@ Der entfernte Branch wird zuerst nach %1 ausgecheckt.</translation>
       <translation>Hydrauliknetz im Editor öffnen</translation>
     </message>
     <message>
-      <source>Personal working copies</source>
-      <translation>Persönliche Arbeitskopien</translation>
-    </message>
-    <message>
       <source>Refresh drafts</source>
       <translation>Entwürfe aktualisieren</translation>
     </message>
     <message>
-      <source>Checkout branch privately</source>
-      <translation>Branch privat auschecken</translation>
-    </message>
-    <message>
-      <source>Create draft at HEAD</source>
-      <translation>Entwurf bei HEAD erstellen</translation>
-    </message>
-    <message>
       <source>Reopen selected draft</source>
       <translation>Ausgewählten Entwurf erneut öffnen</translation>
-    </message>
-    <message>
-      <source>Initialize empty network</source>
-      <translation>Leeres Netz initialisieren</translation>
     </message>
     <message>
       <source>View in Distribution Monitor</source>
@@ -5465,18 +5449,6 @@ Branch: %2</source>
 Branch: %2</translation>
     </message>
     <message>
-      <source>Project: %1
-Branch: %2
-Pinned base: %3</source>
-      <translation>Projekt: %1
-Branch: %2
-Fixierte Basis: %3</translation>
-    </message>
-    <message>
-      <source>No commits yet</source>
-      <translation>Noch keine Commits</translation>
-    </message>
-    <message>
       <source>Unborn</source>
       <translation>Noch ohne Commit</translation>
     </message>
@@ -5495,10 +5467,6 @@ Fixierte Basis: %3</translation>
     <message>
       <source>%1 · generation %2%3</source>
       <translation>%1 · Generation %2%3</translation>
-    </message>
-    <message>
-      <source>No private draft for this branch. Create one only after this project and branch exist in the personal DVMDB.</source>
-      <translation>Kein privater Entwurf für diesen Branch. Erstellen Sie einen erst, wenn Projekt und Branch in Ihrer persönlichen DVMDB existieren.</translation>
     </message>
     <message>
       <source>Personal draft record loaded successfully.</source>
@@ -5553,10 +5521,6 @@ Knoten: %3 · Leitungen: %4 · Reservoirs: %5 · Tanks: %6</translation>
       <translation>Privater Entwurf wird mit dem Branch-HEAD abgeglichen…</translation>
     </message>
     <message>
-      <source>Checkout and first-network initialization change only your personal DVMDB draft, never the committed branch. Verified networks can be viewed in Distribution Monitor. Supported Distribution Editor transactions can be saved through an explicitly opened fenced private session. Local Commit and uncaptured model operations are not yet supported.</source>
-      <translation>Checkout und Initialisierung des ersten Netzes ändern nur den Entwurf in Ihrer persönlichen DVMDB, niemals den committeten Branch. Verifizierte Netze können im Verteilungsmonitor angezeigt werden. Unterstützte Aktionen des Verteilungseditors können über eine ausdrücklich geöffnete, abgesicherte private Sitzung gespeichert werden. Lokale Commits und nicht erfasste Modelloperationen werden noch nicht unterstützt.</translation>
-    </message>
-    <message>
       <source>Checkout failed: %1</source>
       <translation>Checkout fehlgeschlagen: %1</translation>
     </message>
@@ -5603,10 +5567,6 @@ Geladene Kandidatendatensätze: %6</translation>
       <translation>Entwurf geladen, hydraulisches Netz konnte jedoch nicht rekonstruiert werden: %1</translation>
     </message>
     <message>
-      <source>Initialize first hydraulic network</source>
-      <translation>Erstes hydraulisches Netz initialisieren</translation>
-    </message>
-    <message>
       <source>Initializing first hydraulic network in private draft…</source>
       <translation>Erstes hydraulisches Netz wird im privaten Entwurf initialisiert…</translation>
     </message>
@@ -5619,20 +5579,12 @@ Geladene Kandidatendatensätze: %6</translation>
       <translation>Für diesen Branch gibt es mehrere Arbeitsentwürfe. Wählen Sie den Entwurf zum Anzeigen oder Bearbeiten; die Änderungen können unterschiedlich sein.</translation>
     </message>
     <message>
-      <source>Network</source>
-      <translation>Netzwerk</translation>
-    </message>
-    <message>
       <source>Network initialization was not confirmed: %1 Reopen the draft to check whether it succeeded. %2</source>
       <translation>Netzwerkinitialisierung wurde nicht bestätigt: %1 Öffnen Sie den Entwurf erneut, um den Erfolg zu prüfen. %2</translation>
     </message>
     <message>
       <source>Network initialized, but lease release is unconfirmed: %1</source>
       <translation>Netz initialisiert, aber Freigabe der Schreibsperre nicht bestätigt: %1</translation>
-    </message>
-    <message>
-      <source>Network name:</source>
-      <translation>Netzwerkname:</translation>
     </message>
     <message>
       <source>Open older draft</source>
@@ -5659,10 +5611,6 @@ Geladene Kandidatendatensätze: %6</translation>
       <translation>Der erneut geöffnete Entwurf gehört zu einem anderen Projekt oder Branch.</translation>
     </message>
     <message>
-      <source>Reopening private draft…</source>
-      <translation>Privater Entwurf wird erneut geöffnet…</translation>
-    </message>
-    <message>
       <source>Replacing the unmodified draft with one at the current HEAD…</source>
       <translation>Unveränderter Entwurf wird durch einen Entwurf zum aktuellen HEAD ersetzt…</translation>
     </message>
@@ -5677,10 +5625,6 @@ Geladene Kandidatendatensätze: %6</translation>
     <message>
       <source>Select a personal database in Projects → Server Inspector first.</source>
       <translation>Wählen Sie zuerst eine persönliche Datenbank unter Projekte → Server-Inspektor.</translation>
-    </message>
-    <message>
-      <source>Selected database and personal DVMDB are different repositories. Checkout the selected branch before creating its private draft.</source>
-      <translation>Die ausgewählte Datenbank und die persönliche DVMDB sind verschiedene Repositorys. Checken Sie den ausgewählten Branch aus, bevor Sie seinen privaten Entwurf erstellen.</translation>
     </message>
     <message>
       <source>The branch could not be updated from its source (%1). Your personal HEAD is used.</source>
@@ -5737,6 +5681,10 @@ Geladene Kandidatendatensätze: %6</translation>
     <message>
       <source>unsaved queued edits are</source>
       <translation>ungespeicherten ausstehenden Änderungen</translation>
+    </message>
+    <message>
+      <source>The project needs a name before initializing a network.</source>
+      <translation>Das Projekt benötigt einen Namen, bevor ein Netzwerk initialisiert werden kann.</translation>
     </message>
   </context>
   <context>

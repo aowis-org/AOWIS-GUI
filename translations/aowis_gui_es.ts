@@ -5423,28 +5423,12 @@ La rama remota se obtendrá primero en %1.</translation>
       <translation>Abrir la red hidráulica en el editor</translation>
     </message>
     <message>
-      <source>Personal working copies</source>
-      <translation>Copias de trabajo personales</translation>
-    </message>
-    <message>
       <source>Refresh drafts</source>
       <translation>Actualizar borradores</translation>
     </message>
     <message>
-      <source>Checkout branch privately</source>
-      <translation>Obtener rama de forma privada</translation>
-    </message>
-    <message>
-      <source>Create draft at HEAD</source>
-      <translation>Crear borrador en HEAD</translation>
-    </message>
-    <message>
       <source>Reopen selected draft</source>
       <translation>Reabrir el borrador seleccionado</translation>
-    </message>
-    <message>
-      <source>Initialize empty network</source>
-      <translation>Inicializar red vacía</translation>
     </message>
     <message>
       <source>View in Distribution Monitor</source>
@@ -5465,18 +5449,6 @@ Branch: %2</source>
 Rama: %2</translation>
     </message>
     <message>
-      <source>Project: %1
-Branch: %2
-Pinned base: %3</source>
-      <translation>Proyecto: %1
-Rama: %2
-Base fijada: %3</translation>
-    </message>
-    <message>
-      <source>No commits yet</source>
-      <translation>Todavía no hay commits</translation>
-    </message>
-    <message>
       <source>Unborn</source>
       <translation>Sin revisión inicial</translation>
     </message>
@@ -5495,10 +5467,6 @@ Base fijada: %3</translation>
     <message>
       <source>%1 · generation %2%3</source>
       <translation>%1 · generación %2%3</translation>
-    </message>
-    <message>
-      <source>No private draft for this branch. Create one only after this project and branch exist in the personal DVMDB.</source>
-      <translation>No hay borrador privado para esta rama. Créelo solo cuando el proyecto y la rama existan en su DVMDB personal.</translation>
     </message>
     <message>
       <source>Personal draft record loaded successfully.</source>
@@ -5553,10 +5521,6 @@ Conexiones: %3 · Tuberías: %4 · Embalses: %5 · Depósitos: %6</translation>
       <translation>Comprobando el borrador privado frente a HEAD de la rama…</translation>
     </message>
     <message>
-      <source>Checkout and first-network initialization change only your personal DVMDB draft, never the committed branch. Verified networks can be viewed in Distribution Monitor. Supported Distribution Editor transactions can be saved through an explicitly opened fenced private session. Local Commit and uncaptured model operations are not yet supported.</source>
-      <translation>La descarga de la rama y la inicialización de la primera red solo modifican el borrador de su DVMDB personal, nunca la rama confirmada. Las redes verificadas se pueden consultar en el Monitor de distribución. Las operaciones compatibles del Editor de distribución pueden guardarse en una sesión privada protegida, abierta expresamente. Aún no se admiten commits locales ni operaciones del modelo no registradas.</translation>
-    </message>
-    <message>
       <source>Checkout failed: %1</source>
       <translation>Falló la descarga de la rama: %1</translation>
     </message>
@@ -5603,10 +5567,6 @@ Registros candidatos cargados: %6</translation>
       <translation>Borrador cargado, pero falló la reconstrucción de la red hidráulica: %1</translation>
     </message>
     <message>
-      <source>Initialize first hydraulic network</source>
-      <translation>Inicializar primera red hidráulica</translation>
-    </message>
-    <message>
       <source>Initializing first hydraulic network in private draft…</source>
       <translation>Inicializando la primera red hidráulica en el borrador privado…</translation>
     </message>
@@ -5619,20 +5579,12 @@ Registros candidatos cargados: %6</translation>
       <translation>Existen varios borradores de trabajo para esta rama. Elige el que quieras ver o editar; pueden contener cambios diferentes.</translation>
     </message>
     <message>
-      <source>Network</source>
-      <translation>Red</translation>
-    </message>
-    <message>
       <source>Network initialization was not confirmed: %1 Reopen the draft to check whether it succeeded. %2</source>
       <translation>No se confirmó la inicialización de la red: %1 Vuelva a abrir el borrador para comprobar si se completó. %2</translation>
     </message>
     <message>
       <source>Network initialized, but lease release is unconfirmed: %1</source>
       <translation>Red inicializada, pero no se confirmó la liberación del permiso de escritura: %1</translation>
-    </message>
-    <message>
-      <source>Network name:</source>
-      <translation>Nombre de la red:</translation>
     </message>
     <message>
       <source>Open older draft</source>
@@ -5659,10 +5611,6 @@ Registros candidatos cargados: %6</translation>
       <translation>El borrador reabierto pertenece a otro proyecto o rama.</translation>
     </message>
     <message>
-      <source>Reopening private draft…</source>
-      <translation>Reabriendo el borrador privado…</translation>
-    </message>
-    <message>
       <source>Replacing the unmodified draft with one at the current HEAD…</source>
       <translation>Sustituyendo el borrador sin modificar por otro basado en el HEAD actual…</translation>
     </message>
@@ -5677,10 +5625,6 @@ Registros candidatos cargados: %6</translation>
     <message>
       <source>Select a personal database in Projects → Server Inspector first.</source>
       <translation>Seleccione primero una base de datos personal en Proyectos → Inspector del servidor.</translation>
-    </message>
-    <message>
-      <source>Selected database and personal DVMDB are different repositories. Checkout the selected branch before creating its private draft.</source>
-      <translation>La base de datos seleccionada y la DVMDB personal son repositorios distintos. Descargue la rama seleccionada antes de crear su borrador privado.</translation>
     </message>
     <message>
       <source>The branch could not be updated from its source (%1). Your personal HEAD is used.</source>
@@ -5737,6 +5681,10 @@ Registros candidatos cargados: %6</translation>
     <message>
       <source>unsaved queued edits are</source>
       <translation>los cambios locales pendientes sin guardar</translation>
+    </message>
+    <message>
+      <source>The project needs a name before initializing a network.</source>
+      <translation>El proyecto necesita un nombre antes de inicializar una red.</translation>
     </message>
   </context>
   <context>

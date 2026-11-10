@@ -5443,28 +5443,12 @@ The remote branch will first be checked out into %1.</source>
       <translation>فتح الشبكة الهيدروليكية في المحرر</translation>
     </message>
     <message>
-      <source>Personal working copies</source>
-      <translation>نسخ العمل الشخصية</translation>
-    </message>
-    <message>
       <source>Refresh drafts</source>
       <translation>تحديث المسودات</translation>
     </message>
     <message>
-      <source>Checkout branch privately</source>
-      <translation>سحب الفرع بشكل خاص</translation>
-    </message>
-    <message>
-      <source>Create draft at HEAD</source>
-      <translation>إنشاء مسودة عند HEAD</translation>
-    </message>
-    <message>
       <source>Reopen selected draft</source>
       <translation>إعادة فتح المسودة المحددة</translation>
-    </message>
-    <message>
-      <source>Initialize empty network</source>
-      <translation>تهيئة شبكة فارغة</translation>
     </message>
     <message>
       <source>View in Distribution Monitor</source>
@@ -5485,18 +5469,6 @@ Branch: %2</source>
 الفرع: %2</translation>
     </message>
     <message>
-      <source>Project: %1
-Branch: %2
-Pinned base: %3</source>
-      <translation>المشروع: %1
-الفرع: %2
-الأساس المثبت: %3</translation>
-    </message>
-    <message>
-      <source>No commits yet</source>
-      <translation>لا توجد تسجيلات بعد</translation>
-    </message>
-    <message>
       <source>Unborn</source>
       <translation>غير منشأ</translation>
     </message>
@@ -5515,10 +5487,6 @@ Pinned base: %3</source>
     <message>
       <source>%1 · generation %2%3</source>
       <translation>%1 · الجيل %2%3</translation>
-    </message>
-    <message>
-      <source>No private draft for this branch. Create one only after this project and branch exist in the personal DVMDB.</source>
-      <translation>لا توجد مسودة خاصة لهذا الفرع. أنشئ واحدة فقط بعد وجود المشروع والفرع في قاعدة DVMDB الشخصية.</translation>
     </message>
     <message>
       <source>Personal draft record loaded successfully.</source>
@@ -5573,10 +5541,6 @@ Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6</source>
       <translation>جارٍ التحقق من المسودة الخاصة مقابل HEAD للفرع…</translation>
     </message>
     <message>
-      <source>Checkout and first-network initialization change only your personal DVMDB draft, never the committed branch. Verified networks can be viewed in Distribution Monitor. Supported Distribution Editor transactions can be saved through an explicitly opened fenced private session. Local Commit and uncaptured model operations are not yet supported.</source>
-      <translation>لا يؤثر نسخ الفرع وتهيئة الشبكة الأولى إلا على المسودة في قاعدة DVMDB الشخصية، وليس على الفرع المثبّت. يمكن عرض الشبكات المُتحقّق منها في مراقب التوزيع. يمكن حفظ عمليات محرر التوزيع المدعومة ضمن جلسة خاصة محمية تُفتح صراحةً. لا تتوفر حاليًا عمليات التثبيت المحلي أو عمليات النموذج التي لم تُسجّل.</translation>
-    </message>
-    <message>
       <source>Checkout failed: %1</source>
       <translation>فشل نسخ الفرع: %1</translation>
     </message>
@@ -5623,10 +5587,6 @@ Loaded candidate records: %6</source>
       <translation>تم تحميل المسودة، لكن تعذّر تكوين شبكة المياه من البيانات: %1</translation>
     </message>
     <message>
-      <source>Initialize first hydraulic network</source>
-      <translation>تهيئة شبكة المياه الأولى</translation>
-    </message>
-    <message>
       <source>Initializing first hydraulic network in private draft…</source>
       <translation>جارٍ تهيئة شبكة المياه الأولى في المسودة الخاصة…</translation>
     </message>
@@ -5639,20 +5599,12 @@ Loaded candidate records: %6</source>
       <translation>توجد عدة مسودات عمل لهذا الفرع. اختر المسودة لعرضها أو تحريرها؛ فقد تختلف التغييرات بينها.</translation>
     </message>
     <message>
-      <source>Network</source>
-      <translation>شبكة</translation>
-    </message>
-    <message>
       <source>Network initialization was not confirmed: %1 Reopen the draft to check whether it succeeded. %2</source>
       <translation>لم يتم تأكيد تهيئة الشبكة: %1 أعد فتح المسودة للتحقق مما إذا نجحت. %2</translation>
     </message>
     <message>
       <source>Network initialized, but lease release is unconfirmed: %1</source>
       <translation>تمت تهيئة الشبكة، لكن لم يتأكد تحرير ترخيص الكتابة: %1</translation>
-    </message>
-    <message>
-      <source>Network name:</source>
-      <translation>اسم الشبكة:</translation>
     </message>
     <message>
       <source>Open older draft</source>
@@ -5679,10 +5631,6 @@ Loaded candidate records: %6</source>
       <translation>تنتمي المسودة المعاد فتحها إلى مشروع أو فرع مختلف.</translation>
     </message>
     <message>
-      <source>Reopening private draft…</source>
-      <translation>جارٍ إعادة فتح المسودة الخاصة…</translation>
-    </message>
-    <message>
       <source>Replacing the unmodified draft with one at the current HEAD…</source>
       <translation>جارٍ استبدال المسودة غير المعدلة بأخرى تستند إلى HEAD الحالي…</translation>
     </message>
@@ -5697,10 +5645,6 @@ Loaded candidate records: %6</source>
     <message>
       <source>Select a personal database in Projects → Server Inspector first.</source>
       <translation>اختر أولاً قاعدة بيانات شخصية من المشاريع ← فاحص الخادم.</translation>
-    </message>
-    <message>
-      <source>Selected database and personal DVMDB are different repositories. Checkout the selected branch before creating its private draft.</source>
-      <translation>قاعدة البيانات المحددة وقاعدة DVMDB الشخصية مستودعان مختلفان. انسخ الفرع المحدد قبل إنشاء مسودته الخاصة.</translation>
     </message>
     <message>
       <source>The branch could not be updated from its source (%1). Your personal HEAD is used.</source>
@@ -5757,6 +5701,10 @@ Loaded candidate records: %6</source>
     <message>
       <source>unsaved queued edits are</source>
       <translation>التعديلات المحلية المعلّقة غير المحفوظة</translation>
+    </message>
+    <message>
+      <source>The project needs a name before initializing a network.</source>
+      <translation>يجب تسمية المشروع قبل تهيئة شبكة.</translation>
     </message>
   </context>
   <context>

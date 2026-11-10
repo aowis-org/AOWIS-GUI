@@ -14,8 +14,8 @@ class QEvent;
 class QListWidget;
 class QPushButton;
 
-// First VC-04 Projects-tab surface: create/reopen a durable private draft.
-// Editing and Commit are intentionally not presented as available yet.
+// Open Network operation. Normally invisible; shows a chooser only when
+// several private drafts exist for the selected branch.
 class PersonalWorkingCopyDialog final : public QDialog
 {
     Q_OBJECT
@@ -24,11 +24,15 @@ public:
                               const QString &branch_name, const QString &head,
                               const QString &source_repository_id,
                               const QString &source_endpoint, const QString &project_name,
-                              QWidget *parent = nullptr, bool open_editor_directly = false,
+                              QWidget *parent = nullptr,
                               std::function<void(const QString &, bool)> on_status = {});
 
+    // Must start after the caller connects finished(), including for failures.
+    void start();
+
     // Available only after a generation-checked canonical network load.
-    // The caller may display it, but editing is NOT bound to autosave yet.
+    // The caller opens the verified editor session, or previews the chosen
+    // draft in Monitor when the conflict chooser requests read-only viewing.
     const std::optional<NetworkHydraulic> &selectedPreviewNetwork() const;
     QString selectedPreviewDraftId() const;
     QString selectedPreviewGeneration() const;
@@ -50,8 +54,8 @@ private:
     void createDraft(const QString &base);
     void inspectDraft();
     void checkoutBranch();
-    // Direct edit of the branch's single draft: make sure it is based on the
-    // branch's current personal HEAD before it is opened (see .cpp).
+    // A selected draft must be verified against the branch's personal HEAD,
+    // including when chosen from the multiple-draft recovery dialog.
     void verifyDirectDraft(const QString &draft_id);
     void replaceStaleDraft(const PersonalWorkingCopyInfo &draft, const QString &personal_head);
     int queuedLocalEdits(const QString &draft_id) const;
@@ -71,7 +75,6 @@ private:
     QString source_endpoint;
     QString project_name;
     QLabel *context_label = nullptr;
-    QLabel *repository_warning_label = nullptr;
     QLabel *scope_label = nullptr;
     QDialogButtonBox *close_buttons = nullptr;
     QLabel *status = nullptr;
@@ -82,10 +85,7 @@ private:
     QLabel *details = nullptr;
     QListWidget *drafts = nullptr;
     QPushButton *refresh_button = nullptr;
-    QPushButton *create_button = nullptr;
-    QPushButton *checkout_button = nullptr;
     QPushButton *reopen_button = nullptr;
-    QPushButton *initialize_button = nullptr;
     QPushButton *view_button = nullptr;
     QPushButton *edit_button = nullptr;
     std::optional<PersonalWorkingCopyInfo> active_draft;
@@ -96,11 +96,10 @@ private:
     QString accepted_generation;
     QString accepted_network_id;
     bool accepted_edit = false;
-    bool direct_edit = false;
+    bool choosing_draft = false;
     std::function<void(const QString &, bool)> on_status;
     bool busy = false;
-    bool draft_list_empty_notice = false;
-    // Direct edit pulls newer source commits at most once per dialog.
+    // Source synchronization is attempted at most once per Open operation.
     bool source_pull_attempted = false;
     // A modified draft on an older base is opened only after confirmation.
     bool confirm_before_editing = false;

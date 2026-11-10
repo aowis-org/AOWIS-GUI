@@ -68,10 +68,13 @@ chosen branch into the configured personal DVMDB, retaining the logical
 project/branch UUIDs and immutable history, while local and remote committed
 HEAD refs remain independent.
 
-The advanced branch inspector action **Personal working copies…** handles
-branch-level checkout, draft creation/reopen and editing. A straightforward
-whole-project **Clone to personal database** action has **not** been
-implemented; it must not be described as a current GUI button.
+**Open network** performs checkout, draft creation/reopen, network loading and
+editing automatically. There is no general-purpose **Personal working
+copies…** inspector dialog. If a branch has multiple saved private drafts,
+the Open workflow presents a chooser so the user can verify and select the
+draft to view or edit. A straightforward whole-project **Clone to personal
+database** action has **not** been implemented; it must not be described as
+a current GUI button.
 
 ## 4. Session and recovery contract
 

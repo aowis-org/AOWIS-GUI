@@ -7,7 +7,6 @@
 #include <QEvent>
 #include <QLabel>
 #include <QMessageBox>
-#include <QInputDialog>
 #include <QSignalBlocker>
 #include <QListWidget>
 #include <QPushButton>
@@ -45,37 +44,25 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
         const QString &project_id, const QString &branch_id,
         const QString &branch_name, const QString &head,
         const QString &source_repository_id, const QString &source_endpoint,
-        const QString &project_name, QWidget *parent, bool open_editor_directly,
+        const QString &project_name, QWidget *parent,
         std::function<void(const QString &, bool)> on_status)
     : QDialog(parent), target(resolvePersonalRepositoryTarget()), client(this),
       project_id(project_id), branch_id(branch_id), branch_name(branch_name),
       head(head), source_repository_id(source_repository_id),
       source_endpoint(source_endpoint), project_name(project_name),
-      direct_edit(open_editor_directly), on_status(std::move(on_status))
+      on_status(std::move(on_status))
 {
+    // This is an asynchronous Open Network operation, not a working-copy
+    // management dialog. It is displayed only to disambiguate saved drafts.
     setObjectName(QStringLiteral("projectsWorkingCopiesDialog"));
-    setWindowTitle(this->direct_edit ? tr("Open hydraulic network in editor")
-                                      : tr("Personal working copies"));
-    resize(580, 440);
+    setWindowTitle(tr("Open hydraulic network in editor"));
+    resize(580, 360);
     QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *context = new QLabel(this->direct_edit
-        ? tr("Project: %1\nBranch: %2").arg(this->project_name, this->branch_name)
-        : tr("Project: %1\nBranch: %2\nPinned base: %3")
-            .arg(this->project_id, this->branch_name,
-                 this->head.isEmpty() ? tr("No commits yet") : this->head), this);
-    this->context_label = context;
-    context->setWordWrap(true);
-    context->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    layout->addWidget(context);
-    if (this->target.kind != PersonalRepositoryTarget::Kind::Unavailable
-        && this->source_repository_id != this->target.repository_id)
-    {
-        QLabel *different = new QLabel(tr("Selected database and personal DVMDB are different repositories. "
-            "Checkout the selected branch before creating its private draft."), this);
-        this->repository_warning_label = different;
-        different->setWordWrap(true);
-        layout->addWidget(different);
-    }
+    this->context_label = new QLabel(tr("Project: %1\nBranch: %2")
+        .arg(this->project_name, this->branch_name), this);
+    this->context_label->setWordWrap(true);
+    this->context_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(this->context_label);
     this->status = new QLabel(this);
     this->status->setObjectName(QStringLiteral("projectsWorkingCopiesStatus"));
     this->status->setWordWrap(true);
@@ -88,95 +75,67 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     this->details->setWordWrap(true);
     this->details->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(this->details);
-    QLabel *scope = new QLabel(this->direct_edit
-        ? tr("Opening the project's working network. Supported changes will be "
-             "autosaved to a private DVMDB draft. This does not create a commit.")
-        : tr("Checkout and first-network initialization change only your personal DVMDB "
-             "draft, never the committed branch. Verified networks can be viewed "
-             "in Distribution Monitor. Supported Distribution Editor transactions can "
-             "be saved through an explicitly opened fenced private session. "
-             "Local Commit and uncaptured model operations are not yet supported."), this);
-    this->scope_label = scope;
-    scope->setWordWrap(true);
-    layout->addWidget(scope);
+    this->scope_label = new QLabel(tr("Opening the project's working network. Supported changes will be "
+        "autosaved to a private DVMDB draft. This does not create a commit."), this);
+    this->scope_label->setWordWrap(true);
+    layout->addWidget(this->scope_label);
     QHBoxLayout *actions = new QHBoxLayout();
     this->refresh_button = new QPushButton(tr("Refresh drafts"), this);
     this->refresh_button->setObjectName(QStringLiteral("projectsWorkingCopiesRefresh"));
-    this->checkout_button = new QPushButton(tr("Checkout branch privately"), this);
-    this->checkout_button->setObjectName(QStringLiteral("projectsWorkingCopiesCheckout"));
-    this->create_button = new QPushButton(tr("Create draft at HEAD"), this);
-    this->create_button->setObjectName(QStringLiteral("projectsWorkingCopiesCreate"));
     this->reopen_button = new QPushButton(tr("Reopen selected draft"), this);
     this->reopen_button->setObjectName(QStringLiteral("projectsWorkingCopiesReopen"));
-    this->initialize_button = new QPushButton(tr("Initialize empty network"), this);
-    this->initialize_button->setObjectName(QStringLiteral("projectsWorkingCopiesInitializeNetwork"));
+    actions->addWidget(this->refresh_button);
+    actions->addWidget(this->reopen_button);
+    layout->addLayout(actions);
+    QHBoxLayout *network_actions = new QHBoxLayout();
     this->view_button = new QPushButton(tr("View in Distribution Monitor"), this);
     this->view_button->setObjectName(QStringLiteral("projectsWorkingCopiesViewNetwork"));
     this->edit_button = new QPushButton(tr("Edit in Distribution Editor"), this);
     this->edit_button->setObjectName(QStringLiteral("projectsWorkingCopiesEditNetwork"));
-    actions->addWidget(this->checkout_button);
-    actions->addWidget(this->refresh_button);
-    actions->addWidget(this->create_button);
-    actions->addWidget(this->reopen_button);
-    layout->addLayout(actions);
-    QHBoxLayout *network_actions = new QHBoxLayout();
-    network_actions->addWidget(this->initialize_button);
     network_actions->addWidget(this->view_button);
     network_actions->addWidget(this->edit_button);
     layout->addLayout(network_actions);
-    if (this->direct_edit)
-    {
-        // Normal project editing is one operation. If multiple private drafts
-        // need disambiguation, refresh() reveals the advanced chooser on demand.
-        this->checkout_button->hide();
-        this->refresh_button->hide();
-        this->create_button->hide();
-        this->reopen_button->hide();
-        this->initialize_button->hide();
-        this->view_button->hide();
-        this->edit_button->hide();
-        this->drafts->hide();
-    }
-    QDialogButtonBox *close = new WorkingCopyCloseButtonBox(this);
-    this->close_buttons = close;
-    if (QPushButton *close_button = close->button(QDialogButtonBox::Close))
+    this->close_buttons = new WorkingCopyCloseButtonBox(this);
+    if (QPushButton *close_button = this->close_buttons->button(QDialogButtonBox::Close))
         close_button->setText(tr("Close"));
-    connect(close, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    layout->addWidget(close);
+    connect(this->close_buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(this->close_buttons);
+    // The automatic path never displays a dialog. These controls exist only
+    // for the exceptional multiple-draft chooser.
+    this->drafts->hide();
+    this->details->hide();
+    this->refresh_button->hide();
+    this->reopen_button->hide();
+    this->view_button->hide();
+    this->edit_button->hide();
+    this->close_buttons->hide();
     connect(this->refresh_button, &QPushButton::clicked, this,
             [this] { refresh(); });
-    connect(this->checkout_button, &QPushButton::clicked, this,
-            [this] { checkoutBranch(); });
-    connect(this->create_button, &QPushButton::clicked, this,
-            [this] { createDraft(this->head); });
     connect(this->reopen_button, &QPushButton::clicked, this,
             [this] { inspectDraft(); });
-    connect(this->initialize_button, &QPushButton::clicked, this,
-            [this] { initializeNetwork(); });
     connect(this->view_button, &QPushButton::clicked, this,
             [this] { viewDraftNetwork(); });
     connect(this->edit_button, &QPushButton::clicked, this,
             [this] { editDraftNetwork(); });
     connect(this->drafts, &QListWidget::currentRowChanged, this, [this](int)
     {
-        // A previously inspected network must never be opened after switching
-        // to another draft, even if the asynchronous response arrives later.
+        // Changing the selected draft invalidates even a previously verified
+        // model while an HTTP response for another draft is in flight.
         this->active_draft.reset();
         this->preview_network.reset();
+        this->confirm_before_editing = false;
+        this->stale_notice.clear();
         setBusy(this->busy);
     });
     setBusy(false);
+}
+
+void PersonalWorkingCopyDialog::start()
+{
     if (this->target.kind == PersonalRepositoryTarget::Kind::Unavailable)
-    {
         reportFailure(tr("Select a personal database in Projects → Server Inspector first."));
-        this->create_button->setEnabled(false);
-        this->refresh_button->setEnabled(false);
-        this->checkout_button->setEnabled(false);
-    }
     else
-    {
         refresh();
-    }
 }
 
 void PersonalWorkingCopyDialog::changeEvent(QEvent *event)
@@ -215,39 +174,17 @@ void PersonalWorkingCopyDialog::refreshDraftDetailsText()
 
 void PersonalWorkingCopyDialog::refreshStaticText()
 {
-    setWindowTitle(this->direct_edit ? tr("Open hydraulic network in editor")
-                                     : tr("Personal working copies"));
-    if (this->context_label != nullptr)
-        this->context_label->setText(this->direct_edit
-            ? tr("Project: %1\nBranch: %2").arg(this->project_name, this->branch_name)
-            : tr("Project: %1\nBranch: %2\nPinned base: %3")
-                .arg(this->project_id, this->branch_name,
-                     this->head.isEmpty() ? tr("No commits yet") : this->head));
-    if (this->repository_warning_label != nullptr)
-        this->repository_warning_label->setText(tr("Selected database and personal DVMDB are different repositories. "
-            "Checkout the selected branch before creating its private draft."));
-    if (this->scope_label != nullptr)
-        this->scope_label->setText(this->direct_edit
-            ? tr("Opening the project's working network. Supported changes will be "
-                 "autosaved to a private DVMDB draft. This does not create a commit.")
-            : tr("Checkout and first-network initialization change only your personal DVMDB "
-                 "draft, never the committed branch. Verified networks can be viewed "
-                 "in Distribution Monitor. Supported Distribution Editor transactions can "
-                 "be saved through an explicitly opened fenced private session. "
-                 "Local Commit and uncaptured model operations are not yet supported."));
+    setWindowTitle(tr("Open hydraulic network in editor"));
+    this->context_label->setText(tr("Project: %1\nBranch: %2")
+        .arg(this->project_name, this->branch_name));
+    this->scope_label->setText(tr("Opening the project's working network. Supported changes will be "
+        "autosaved to a private DVMDB draft. This does not create a commit."));
     this->refresh_button->setText(tr("Refresh drafts"));
-    this->checkout_button->setText(tr("Checkout branch privately"));
-    this->create_button->setText(tr("Create draft at HEAD"));
     this->reopen_button->setText(tr("Reopen selected draft"));
-    this->initialize_button->setText(tr("Initialize empty network"));
     this->view_button->setText(tr("View in Distribution Monitor"));
     this->edit_button->setText(tr("Edit in Distribution Editor"));
-    if (this->close_buttons != nullptr)
-    {
-        QPushButton *close = this->close_buttons->button(QDialogButtonBox::Close);
-        if (close != nullptr)
-            close->setText(tr("Close"));
-    }
+    if (QPushButton *close = this->close_buttons->button(QDialogButtonBox::Close))
+        close->setText(tr("Close"));
     for (int index = 0; index < this->drafts->count(); ++index)
     {
         QListWidgetItem *item = this->drafts->item(index);
@@ -256,13 +193,9 @@ void PersonalWorkingCopyDialog::refreshStaticText()
                  item->data(Qt::UserRole + 1).toString(),
                  item->data(Qt::UserRole + 2).toBool() ? tr(" · modified") : QString()));
     }
-    if (this->draft_list_empty_notice)
-        this->details->setText(tr("No private draft for this branch. "
-            "Create one only after this project and branch exist in the personal DVMDB."));
-    else if (this->active_draft.has_value())
+    if (this->active_draft.has_value())
         refreshDraftDetailsText();
-    // Reformat active progress from its source key, without restarting the
-    // operation. Backend-supplied errors are not translated or overwritten.
+    // Retranslate retained progress without restarting an in-flight request.
     if (this->operation_status_key != nullptr)
         refreshOperationStatus();
 }
@@ -270,7 +203,7 @@ void PersonalWorkingCopyDialog::refreshStaticText()
 void PersonalWorkingCopyDialog::setOperationStatus(const QString &message)
 {
     this->status->setText(message);
-    if (this->direct_edit && this->on_status)
+    if (this->on_status)
         this->on_status(message, false);
 }
 
@@ -297,29 +230,28 @@ void PersonalWorkingCopyDialog::reportFailure(const QString &message)
     this->operation_status_key = nullptr;
     this->operation_status_argument.clear();
     this->status->setText(message);
-    if (this->direct_edit)
+    if (this->on_status) this->on_status(message, true);
+    if (this->choosing_draft)
     {
-        if (this->on_status) this->on_status(message, true);
-        reject();
+        // A broken or stale draft must not close the only recovery UI;
+        // the user can refresh the list or choose a different saved draft.
+        this->active_draft.reset();
+        this->preview_network.reset();
+        setBusy(false);
+        return;
     }
+    reject();
 }
 
 void PersonalWorkingCopyDialog::setBusy(bool busy)
 {
     this->busy = busy;
-    this->refresh_button->setEnabled(!busy);
-    this->checkout_button->setEnabled(!busy &&
-        !this->source_endpoint.isEmpty() &&
-        this->source_repository_id != this->target.repository_id &&
-        this->target.kind != PersonalRepositoryTarget::Kind::Unavailable);
-    this->create_button->setEnabled(!busy);
-    this->reopen_button->setEnabled(!busy && this->drafts->currentItem() != nullptr);
-    this->initialize_button->setEnabled(!busy && this->active_draft.has_value()
-        && this->active_draft->base_revision.isEmpty()
-        && this->active_draft->changes.isEmpty() && !this->active_draft->dirty
-        && this->target.kind != PersonalRepositoryTarget::Kind::Unavailable);
-    const bool verified_preview = !busy && this->active_draft.has_value()
-        && this->preview_network.has_value()
+    this->drafts->setEnabled(!busy && this->choosing_draft);
+    this->refresh_button->setEnabled(!busy && this->choosing_draft);
+    this->reopen_button->setEnabled(!busy && this->choosing_draft
+        && this->drafts->currentItem() != nullptr);
+    const bool verified_preview = !busy && this->choosing_draft
+        && this->active_draft.has_value() && this->preview_network.has_value()
         && this->preview_draft_id == this->active_draft->id
         && this->preview_generation == this->active_draft->generation;
     this->view_button->setEnabled(verified_preview);
@@ -342,6 +274,7 @@ void PersonalWorkingCopyDialog::refresh()
         this->preview_network.reset();
         this->preview_draft_id.clear();
         this->preview_generation.clear();
+        this->details->clear();
         this->drafts->clear();
         for (const PersonalWorkingCopyInfo &draft : items)
         {
@@ -357,39 +290,33 @@ void PersonalWorkingCopyDialog::refresh()
         setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog",
             "%1 saved draft(s) for this branch in your personal DVMDB."),
             QString::number(this->drafts->count()));
-        this->draft_list_empty_notice = !this->drafts->count();
-        if (this->draft_list_empty_notice)
-            this->details->setText(tr("No private draft for this branch. "
-                "Create one only after this project and branch exist in the personal DVMDB."));
-        this->reopen_button->setEnabled(false);
         setBusy(false);
-        if (!this->direct_edit) return;
         if (this->drafts->count() > 1)
         {
-            // Never guess which private draft contains the user's edits.
-            // Reveal the existing recovery/selection UI only for this conflict,
-            // rather than placing a permanent management button in Inspectors.
-            if (this->on_status)
-                this->on_status(tr("Multiple saved drafts: select the one to open."), false);
-            this->direct_edit = false;
-            this->checkout_button->show();
+            // Do not guess which saved draft contains the user's edits.
+            // Only the conflict-resolution controls are presented; checkout,
+            // draft creation and initialization remain automatic operations.
+            this->choosing_draft = true;
             this->refresh_button->show();
-            this->create_button->show();
             this->reopen_button->show();
-            this->initialize_button->show();
             this->view_button->show();
             this->edit_button->show();
             this->drafts->show();
-            refreshStaticText();
+            this->details->show();
+            this->close_buttons->show();
+            if (this->on_status)
+                this->on_status(tr("Multiple saved drafts: select the one to open."), false);
             setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog",
                 "Multiple working drafts exist for this branch. "
                 "Select the draft to view or edit; their changes may differ."));
             // Non-blocking modal recovery keeps the selected project/HEAD
             // stable while the user chooses an existing private draft.
+            setBusy(false);
             setWindowModality(Qt::WindowModal);
-            open();
+            if (!isVisible()) open();
             return;
         }
+        this->choosing_draft = false;
         if (this->drafts->count() == 1)
         {
             this->drafts->setCurrentRow(0);
@@ -444,31 +371,17 @@ void PersonalWorkingCopyDialog::createDraft(const QString &base)
 
 void PersonalWorkingCopyDialog::inspectDraft()
 {
-    if (this->drafts->currentItem() == nullptr) return;
-    this->active_draft.reset();
-    this->preview_network.reset();
+    // This is the conflict-only "Reopen selected draft" action. Use the same
+    // HEAD/generation checks as normal Open Network, never a weaker path.
+    if (this->busy || !this->choosing_draft || this->drafts->currentItem() == nullptr)
+        return;
     const QString id = this->drafts->currentItem()->data(Qt::UserRole).toString();
-    if (!DvmdbIdentity::isUuidV7(id)) return;
-    setBusy(true);
-    setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Reopening private draft…"));
-    this->client.reopen(this->target, id,
-                        [this](const PersonalWorkingCopyInfo &draft, const QString &error)
-    {
-        setBusy(false);
-        if (!error.isEmpty()) { reportFailure(error); return; }
-        if (draft.project_id != this->project_id || draft.branch_id != this->branch_id)
-        {
-            reportFailure(tr("Reopened draft belongs to a different project or branch."));
-            return;
-        }
-        showDraft(draft);
-    });
+    verifyDirectDraft(id);
 }
 
 void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
 {
     this->active_draft = draft;
-    this->draft_list_empty_notice = false;
     this->preview_network.reset();
     this->preview_draft_id.clear();
     this->preview_generation.clear();
@@ -526,7 +439,10 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
         if (networks.isEmpty())
         {
             setBusy(false);
-            if (this->direct_edit && this->initialize_button->isEnabled())
+            if (!this->choosing_draft && this->active_draft.has_value()
+                && this->active_draft->base_revision.isEmpty()
+                && this->active_draft->changes.isEmpty() && !this->active_draft->dirty
+                && this->target.kind != PersonalRepositoryTarget::Kind::Unavailable)
                 initializeNetwork();
             else
                 reportFailure(tr("This saved draft contains no hydraulic network."));
@@ -572,24 +488,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             setBusy(false);
             refreshDraftDetailsText();
             setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Hydraulic model verified and ready for private editing."));
-            if (this->direct_edit && this->confirm_before_editing)
-            {
-                QMessageBox *warning = new QMessageBox(QMessageBox::Warning,
-                    tr("Working draft based on older HEAD"), this->stale_notice,
-                    QMessageBox::NoButton, parentWidget());
-                warning->setAttribute(Qt::WA_DeleteOnClose);
-                QPushButton *proceed = warning->addButton(tr("Open older draft"), QMessageBox::AcceptRole);
-                QPushButton *cancel = warning->addButton(tr("Cancel"), QMessageBox::RejectRole);
-                warning->setDefaultButton(cancel);
-                connect(warning, &QMessageBox::finished, this,
-                    [this, warning, proceed](int)
-                {
-                    if (warning->clickedButton() == proceed) editDraftNetwork();
-                    else reportFailure(tr("Opening the older draft was cancelled."));
-                });
-                warning->open();
-            }
-            else if (this->direct_edit)
+            if (!this->choosing_draft)
                 editDraftNetwork();
         });
     });
@@ -627,8 +526,42 @@ QString PersonalWorkingCopyDialog::targetRepositoryId() const
 
 void PersonalWorkingCopyDialog::editDraftNetwork()
 {
-    if (!this->edit_button->isEnabled() || !this->preview_network.has_value())
+    if (this->busy || !this->active_draft.has_value()
+        || !this->preview_network.has_value()
+        || this->preview_draft_id != this->active_draft->id
+        || this->preview_generation != this->active_draft->generation
+        || this->target.kind == PersonalRepositoryTarget::Kind::Unavailable)
         return;
+    if (this->confirm_before_editing)
+    {
+        // A draft on an older HEAD may contain important unsaved edits.
+        // Even the conflict chooser must not bypass this confirmation.
+        QMessageBox *warning = new QMessageBox(QMessageBox::Warning,
+            tr("Working draft based on older HEAD"), this->stale_notice,
+            QMessageBox::NoButton, parentWidget());
+        warning->setAttribute(Qt::WA_DeleteOnClose);
+        QPushButton *proceed = warning->addButton(tr("Open older draft"), QMessageBox::AcceptRole);
+        QPushButton *cancel = warning->addButton(tr("Cancel"), QMessageBox::RejectRole);
+        warning->setDefaultButton(cancel);
+        const QString draft_id = this->active_draft->id;
+        const QString generation = this->active_draft->generation;
+        connect(warning, &QMessageBox::finished, this,
+            [this, warning, proceed, draft_id, generation](int)
+        {
+            if (warning->clickedButton() == proceed
+                && this->active_draft.has_value()
+                && this->active_draft->id == draft_id
+                && this->active_draft->generation == generation)
+            {
+                this->confirm_before_editing = false;
+                editDraftNetwork();
+            }
+            else if (!this->choosing_draft)
+                reportFailure(tr("Opening the older draft was cancelled."));
+        });
+        warning->open();
+        return;
+    }
     this->accepted_draft_id = this->preview_draft_id;
     this->accepted_generation = this->preview_generation;
     this->accepted_network_id = this->preview_network->uuid.toString(QUuid::WithoutBraces);
@@ -654,11 +587,12 @@ void PersonalWorkingCopyDialog::initializeNetwork()
     const PersonalWorkingCopyInfo draft = *this->active_draft;
     if (!draft.base_revision.isEmpty() || draft.dirty || !draft.changes.isEmpty()
         || !DvmdbIdentity::isUuidV7(draft.session_id)) return;
-    bool accepted = this->direct_edit;
-    const QString name = this->direct_edit ? this->project_name.trimmed()
-        : QInputDialog::getText(this, tr("Initialize first hydraulic network"),
-            tr("Network name:"), QLineEdit::Normal, tr("Network"), &accepted).trimmed();
-    if (!accepted || name.isEmpty()) return;
+    const QString name = this->project_name.trimmed();
+    if (name.isEmpty())
+    {
+        reportFailure(tr("The project needs a name before initializing a network."));
+        return;
+    }
     const QString network_id = DvmdbIdentity::newUuidV7();
     setBusy(true);
     setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Acquiring private draft writer lease…"));
@@ -864,7 +798,6 @@ void PersonalWorkingCopyDialog::checkoutBranch()
             return;
         }
         setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog", "Branch checked out to personal DVMDB."));
-        if (this->direct_edit)
-            createDraft(this->head);
+        createDraft(this->head);
     });
 }

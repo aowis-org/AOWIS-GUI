@@ -224,41 +224,53 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    // Network initialization and Monitor preview must not be available until
-    // a real private draft has been reopened and canonically hydrated.
+    // Open Network has no public working-copy management wizard anymore.
+    // Its recovery chooser exists only for multiple saved drafts, and a
+    // verified network is required before either View or Edit may proceed.
     {
-        PersonalWorkingCopyDialog dialog(QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371"),
+        PersonalWorkingCopyDialog operation(QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371"),
             QStringLiteral("019a47b1-2042-7af9-8d1c-2670badb6371"),
             QStringLiteral("main"), {}, {}, {}, QStringLiteral("Test"));
-        QPushButton *initialize = dialog.findChild<QPushButton *>(
-            QStringLiteral("projectsWorkingCopiesInitializeNetwork"));
-        QPushButton *view = dialog.findChild<QPushButton *>(
+        QPushButton *refresh = operation.findChild<QPushButton *>(
+            QStringLiteral("projectsWorkingCopiesRefresh"));
+        QPushButton *reopen = operation.findChild<QPushButton *>(
+            QStringLiteral("projectsWorkingCopiesReopen"));
+        QPushButton *view = operation.findChild<QPushButton *>(
             QStringLiteral("projectsWorkingCopiesViewNetwork"));
-        QPushButton *edit = dialog.findChild<QPushButton *>(
+        QPushButton *edit = operation.findChild<QPushButton *>(
             QStringLiteral("projectsWorkingCopiesEditNetwork"));
-        if (!require(initialize != nullptr && view != nullptr && edit != nullptr
-                         && !initialize->isEnabled() && !view->isEnabled()
-                         && !edit->isEnabled() && !dialog.selectedEditRequested()
-                         && dialog.selectedEditNetworkId().isEmpty()
-                         && !dialog.selectedPreviewNetwork().has_value(),
-                     "private draft network actions enabled without a verified draft"))
+        QListWidget *drafts = operation.findChild<QListWidget *>(
+            QStringLiteral("projectsWorkingCopiesList"));
+        if (!require(refresh != nullptr && reopen != nullptr
+                         && view != nullptr && edit != nullptr && drafts != nullptr
+                         && refresh->isHidden() && reopen->isHidden()
+                         && view->isHidden() && edit->isHidden() && drafts->isHidden()
+                         && !view->isEnabled() && !edit->isEnabled()
+                         && !operation.selectedEditRequested()
+                         && operation.selectedEditNetworkId().isEmpty()
+                         && !operation.selectedPreviewNetwork().has_value(),
+                     "Open Network exposed recovery actions without multiple drafts"))
             return 1;
-    }
-
-    // The direct project-to-editor action must never open an unverified
-    // repository or expose manual wizard operations as a replacement.
-    {
-        PersonalWorkingCopyDialog direct(QStringLiteral("019a47b1-2041-7af9-8d1c-2670badb6371"),
-            QStringLiteral("019a47b1-2042-7af9-8d1c-2670badb6371"),
-            QStringLiteral("main"), {}, {}, {}, QStringLiteral("Test"), nullptr, true);
-        QPushButton *checkout = direct.findChild<QPushButton *>(
-            QStringLiteral("projectsWorkingCopiesCheckout"));
-        QPushButton *create = direct.findChild<QPushButton *>(
-            QStringLiteral("projectsWorkingCopiesCreate"));
-        if (!require(checkout != nullptr && create != nullptr
-                         && checkout->isHidden() && create->isHidden()
-                         && !direct.selectedEditRequested(),
-                     "direct project edit exposed a manual checkout or opened an unverified writer"))
+        if (!require(operation.findChild<QPushButton *>(
+                         QStringLiteral("projectsWorkingCopiesCheckout")) == nullptr
+                         && operation.findChild<QPushButton *>(
+                             QStringLiteral("projectsWorkingCopiesCreate")) == nullptr
+                         && operation.findChild<QPushButton *>(
+                             QStringLiteral("projectsWorkingCopiesInitializeNetwork")) == nullptr,
+                     "obsolete working-copy management buttons are still constructed"))
+            return 1;
+        // In a fresh profile the personal repository is unavailable. The
+        // failure must reach a listener connected after construction (the
+        // caller needs finished() to release this asynchronous operation).
+        int finished_count = 0;
+        QObject::connect(&operation, &QDialog::finished, &operation,
+            [&finished_count](int) { ++finished_count; });
+        if (!require(finished_count == 0,
+                     "Open Network unexpectedly finished during construction"))
+            return 1;
+        operation.start();
+        if (!require(finished_count == 1 && !operation.selectedEditRequested(),
+                     "Open Network did not report unavailable repository after start"))
             return 1;
     }
 

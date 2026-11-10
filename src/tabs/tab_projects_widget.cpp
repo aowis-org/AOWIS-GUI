@@ -4306,12 +4306,11 @@ void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
         source_endpoint = embeddedDvmdbEndpoint(source->local_path, source->personal,
                                                 nullptr, nullptr);
 #endif
-    // The previous intermediary dialog performed real work. Keep its verified
-    // checkout, draft, and network-loading logic, but run it invisibly and
-    // asynchronously AFTER the visible Open Network confirmation.
+    // Reuse the verified checkout/draft/network Open workflow. It remains
+    // invisible unless multiple saved drafts need explicit disambiguation.
     PersonalWorkingCopyDialog *operation = new PersonalWorkingCopyDialog(
         project->backend_id, branch_uuid, branch->name, branch->head,
-        project->repository_id, source_endpoint, project->name, this, true,
+        project->repository_id, source_endpoint, project->name, this,
         [this](const QString &status, bool failed)
         {
             emit networkOpenProgress(status, failed);
@@ -4342,6 +4341,9 @@ void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
             emit networkOpenProgress(tr("Prepared network was not approved for editing."), true);
         operation->deleteLater();
     });
+    // Start only after finished() is connected: even an unavailable personal
+    // repository must report failure and clean up the operation correctly.
+    operation->start();
 }
 
 void ProjectsWidget::createBranch()

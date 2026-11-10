@@ -5423,28 +5423,12 @@ La branche distante sera d’abord extraite vers %1.</translation>
       <translation>Ouvrir le réseau hydraulique dans l’éditeur</translation>
     </message>
     <message>
-      <source>Personal working copies</source>
-      <translation>Copies de travail personnelles</translation>
-    </message>
-    <message>
       <source>Refresh drafts</source>
       <translation>Actualiser les brouillons</translation>
     </message>
     <message>
-      <source>Checkout branch privately</source>
-      <translation>Extraire la branche en privé</translation>
-    </message>
-    <message>
-      <source>Create draft at HEAD</source>
-      <translation>Créer un brouillon à HEAD</translation>
-    </message>
-    <message>
       <source>Reopen selected draft</source>
       <translation>Rouvrir le brouillon sélectionné</translation>
-    </message>
-    <message>
-      <source>Initialize empty network</source>
-      <translation>Initialiser un réseau vide</translation>
     </message>
     <message>
       <source>View in Distribution Monitor</source>
@@ -5465,18 +5449,6 @@ Branch: %2</source>
 Branche : %2</translation>
     </message>
     <message>
-      <source>Project: %1
-Branch: %2
-Pinned base: %3</source>
-      <translation>Projet : %1
-Branche : %2
-Base épinglée : %3</translation>
-    </message>
-    <message>
-      <source>No commits yet</source>
-      <translation>Aucun commit pour le moment</translation>
-    </message>
-    <message>
       <source>Unborn</source>
       <translation>Sans révision initiale</translation>
     </message>
@@ -5495,10 +5467,6 @@ Base épinglée : %3</translation>
     <message>
       <source>%1 · generation %2%3</source>
       <translation>%1 · génération %2%3</translation>
-    </message>
-    <message>
-      <source>No private draft for this branch. Create one only after this project and branch exist in the personal DVMDB.</source>
-      <translation>Aucun brouillon privé pour cette branche. Créez-en un uniquement lorsque le projet et la branche existent dans votre DVMDB personnelle.</translation>
     </message>
     <message>
       <source>Personal draft record loaded successfully.</source>
@@ -5553,10 +5521,6 @@ Jonctions : %3 · Conduites : %4 · Réservoirs : %5 · Cuves : %6</translation>
       <translation>Vérification du brouillon privé par rapport au HEAD de la branche…</translation>
     </message>
     <message>
-      <source>Checkout and first-network initialization change only your personal DVMDB draft, never the committed branch. Verified networks can be viewed in Distribution Monitor. Supported Distribution Editor transactions can be saved through an explicitly opened fenced private session. Local Commit and uncaptured model operations are not yet supported.</source>
-      <translation>L'extraction et l'initialisation du premier réseau ne modifient que le brouillon de votre DVMDB personnel, jamais la branche validée. Les réseaux vérifiés peuvent être consultés dans le Moniteur de distribution. Les opérations prises en charge dans l'Éditeur de distribution peuvent être enregistrées dans une session privée explicitement ouverte et protégée. Le commit local et les opérations sur le modèle non capturées ne sont pas encore pris en charge.</translation>
-    </message>
-    <message>
       <source>Checkout failed: %1</source>
       <translation>Échec de l'extraction : %1</translation>
     </message>
@@ -5603,10 +5567,6 @@ Enregistrements candidats chargés : %6</translation>
       <translation>Brouillon chargé, mais échec de l'hydratation du réseau hydraulique : %1</translation>
     </message>
     <message>
-      <source>Initialize first hydraulic network</source>
-      <translation>Initialiser le premier réseau hydraulique</translation>
-    </message>
-    <message>
       <source>Initializing first hydraulic network in private draft…</source>
       <translation>Initialisation du premier réseau hydraulique dans le brouillon privé…</translation>
     </message>
@@ -5619,20 +5579,12 @@ Enregistrements candidats chargés : %6</translation>
       <translation>Plusieurs brouillons de travail existent pour cette branche. Choisissez celui à consulter ou modifier ; leurs changements peuvent différer.</translation>
     </message>
     <message>
-      <source>Network</source>
-      <translation>Réseau</translation>
-    </message>
-    <message>
       <source>Network initialization was not confirmed: %1 Reopen the draft to check whether it succeeded. %2</source>
       <translation>L'initialisation du réseau n'a pas été confirmée : %1 Rouvrez le brouillon pour vérifier si elle a réussi. %2</translation>
     </message>
     <message>
       <source>Network initialized, but lease release is unconfirmed: %1</source>
       <translation>Réseau initialisé, mais libération du bail non confirmée : %1</translation>
-    </message>
-    <message>
-      <source>Network name:</source>
-      <translation>Nom du réseau :</translation>
     </message>
     <message>
       <source>Open older draft</source>
@@ -5659,10 +5611,6 @@ Enregistrements candidats chargés : %6</translation>
       <translation>Le brouillon rouvert appartient à un autre projet ou à une autre branche.</translation>
     </message>
     <message>
-      <source>Reopening private draft…</source>
-      <translation>Réouverture du brouillon privé…</translation>
-    </message>
-    <message>
       <source>Replacing the unmodified draft with one at the current HEAD…</source>
       <translation>Remplacement du brouillon non modifié par un brouillon basé sur le HEAD actuel…</translation>
     </message>
@@ -5677,10 +5625,6 @@ Enregistrements candidats chargés : %6</translation>
     <message>
       <source>Select a personal database in Projects → Server Inspector first.</source>
       <translation>Sélectionnez d'abord une base personnelle dans Projets → Inspecteur du serveur.</translation>
-    </message>
-    <message>
-      <source>Selected database and personal DVMDB are different repositories. Checkout the selected branch before creating its private draft.</source>
-      <translation>La base sélectionnée et le DVMDB personnel sont deux dépôts différents. Extrayez la branche sélectionnée avant de créer son brouillon privé.</translation>
     </message>
     <message>
       <source>The branch could not be updated from its source (%1). Your personal HEAD is used.</source>
@@ -5737,6 +5681,10 @@ Enregistrements candidats chargés : %6</translation>
     <message>
       <source>unsaved queued edits are</source>
       <translation>modifications locales en attente non enregistrées</translation>
+    </message>
+    <message>
+      <source>The project needs a name before initializing a network.</source>
+      <translation>Le projet doit avoir un nom avant l’initialisation d’un réseau.</translation>
     </message>
   </context>
   <context>
