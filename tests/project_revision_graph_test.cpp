@@ -145,10 +145,12 @@ int main(int argc, char **argv)
 
     QString revision_clicked;
     QString head_clicked;
+    int revision_activation_count = 0;
     QObject::connect(&graph, &ProjectRevisionGraph::revisionActivated,
-                     &graph, [&revision_clicked](const QString &id)
+                     &graph, [&revision_clicked, &revision_activation_count](const QString &id)
     {
         revision_clicked = id;
+        ++revision_activation_count;
     });
     QObject::connect(&graph, &ProjectRevisionGraph::headActivated,
                      &graph, [&head_clicked](const QString &id)
@@ -156,6 +158,22 @@ int main(int argc, char **argv)
         head_clicked = id;
     });
 
+    // A native graph viewport must activate a card on the very first mouse
+    // press, even when the graph did not previously have keyboard focus.
+    graph.clearFocus();
+    const QPointF first_card_position = graph.nodeViewportPosition(node.id);
+    sendMouse(graph, QEvent::MouseButtonPress, first_card_position, Qt::LeftButton);
+    if (!require(revision_clicked == node.id && revision_activation_count == 1,
+                 "first unfocused graph-card press did not activate immediately")) return 1;
+    // A second press delivered by the embedded window/container must not
+    // activate the card twice, and mouse release must never activate it.
+    sendMouse(graph, QEvent::MouseButtonPress, first_card_position, Qt::LeftButton);
+    if (!require(revision_activation_count == 1,
+                 "duplicate native press activated the same card twice")) return 1;
+    sendMouse(graph, QEvent::MouseButtonRelease, first_card_position, Qt::NoButton);
+    if (!require(revision_activation_count == 1,
+                 "graph-card release reactivated a card")) return 1;
+    revision_clicked.clear();
     click(graph, QPointF(400, 250));
     if (!require(revision_clicked == node.id, "revision click did not emit selected hash"))
         return 1;
@@ -641,15 +659,34 @@ int main(int argc, char **argv)
         &graph, [&selected_project](const QString &id) { selected_project = id; });
     QObject::connect(&graph, &ProjectRevisionGraph::headActivated,
         &graph, [&selected_head](const QString &id) { selected_head = id; });
-    click(graph, graph.nodeViewportPosition(server_card.id));
-    click(graph, graph.nodeViewportPosition(project_card.id));
+    const QPointF server_position = graph.nodeViewportPosition(server_card.id);
+    const QPointF project_position = graph.nodeViewportPosition(project_card.id);
+    sendMouse(graph, QEvent::MouseButtonPress, server_position, Qt::LeftButton);
+    if (!require(selected_source == QStringLiteral("test-source"),
+                 "database card did not activate on press")) return 1;
+    // Releasing on a *different* card must not activate that second card.
+    sendMouse(graph, QEvent::MouseButtonRelease, project_position, Qt::NoButton);
+    if (!require(selected_project.isEmpty(),
+                 "mouse release activated a different graph card")) return 1;
+    sendMouse(graph, QEvent::MouseButtonPress, project_position, Qt::LeftButton);
+    if (!require(selected_project == QStringLiteral("test-project"),
+                 "project card did not activate on press")) return 1;
+    sendMouse(graph, QEvent::MouseButtonRelease, project_position, Qt::NoButton);
     if (!require(selected_source == QStringLiteral("test-source")
                      && selected_project == QStringLiteral("test-project"),
                  "server/project cards did not open their inspectors")) return 1;
     selected_head.clear();
-    click(graph, graph.nodeViewportPosition(inspector_head.id));
+    const QPointF head_position = graph.nodeViewportPosition(inspector_head.id);
+    sendMouse(graph, QEvent::MouseButtonPress, head_position, Qt::LeftButton);
     if (!require(selected_head == QStringLiteral("test-branch"),
-                 "standalone HEAD did not activate its HEAD inspector")) return 1;
+                 "standalone HEAD did not activate on press")) return 1;
+    sendMouse(graph, QEvent::MouseButtonRelease, head_position, Qt::NoButton);
+    selected_head.clear();
+    // Starting on the graph background must not select the card at release.
+    sendMouse(graph, QEvent::MouseButtonPress, QPointF(8, 8), Qt::LeftButton);
+    sendMouse(graph, QEvent::MouseButtonRelease, head_position, Qt::NoButton);
+    if (!require(selected_head.isEmpty(),
+                 "background press selected a card only on release")) return 1;
     graph.setSelection(inspector_head.id);
     if (!require(graph.selectionId() == inspector_head.id,
                  "sidebar branch selection did not highlight its HEAD card")) return 1;

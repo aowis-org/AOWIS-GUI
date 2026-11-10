@@ -52,6 +52,8 @@ ProjectGraphBgfxViewport::~ProjectGraphBgfxViewport()
     detach();
     if (this->window != nullptr)
         this->window->removeEventFilter(this);
+    if (this->container != nullptr)
+        this->container->removeEventFilter(this);
     // Qt's createWindowContainer() owns the QWindow once it is embedded.
 }
 
@@ -130,6 +132,10 @@ void ProjectGraphBgfxViewport::checkAvailability()
         this->container = QWidget::createWindowContainer(this->window, this->graph);
         this->container->setObjectName(QStringLiteral("projectGraphBgfxContainer"));
         this->container->setFocusPolicy(Qt::NoFocus);
+        // Qt may send the first click to the container while activating its
+        // embedded native QWindow. Forward that press too, so the graph can
+        // select on the very first interaction instead of requiring another.
+        this->container->installEventFilter(this);
         this->container->setGeometry(this->graph->rect());
     }
     this->container->show();
@@ -436,9 +442,11 @@ void ProjectGraphBgfxViewport::render()
 
 bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched != this->window)
+    const bool from_window = watched == this->window;
+    const bool from_container = watched == this->container;
+    if (!from_window && !from_container)
         return QObject::eventFilter(watched, event);
-    if (event->type() == QEvent::PlatformSurface)
+    if (from_window && event->type() == QEvent::PlatformSurface)
     {
         QPlatformSurfaceEvent *surface_event = static_cast<QPlatformSurfaceEvent *>(event);
         if (surface_event->surfaceEventType() == QPlatformSurfaceEvent::SurfaceAboutToBeDestroyed)
@@ -448,7 +456,7 @@ bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
             return false;
         }
     }
-    if (event->type() == QEvent::Expose || event->type() == QEvent::Resize)
+    if (from_window && (event->type() == QEvent::Expose || event->type() == QEvent::Resize))
     {
         QTimer::singleShot(0, this, [this]() { tryAttach(); requestRedraw(); });
         return false;
@@ -462,9 +470,10 @@ bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
         case QEvent::Wheel:
         case QEvent::KeyPress:
         case QEvent::KeyRelease:
-            // The child fills the parent graph. Mouse and wheel coordinates
-            // therefore match, and its existing selection/inertia handlers
-            // remain the *only* source of interaction semantics.
+            // The embedded window and its container fill the graph. Their
+            // mouse/wheel positions match graph-local coordinates; the graph
+            // alone owns activation, dragging, and keyboard navigation.
+            // The graph also suppresses duplicate native/container presses.
             QCoreApplication::sendEvent(this->graph, event);
             return true;
         default:

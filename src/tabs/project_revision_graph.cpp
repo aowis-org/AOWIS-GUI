@@ -1363,6 +1363,15 @@ void ProjectRevisionGraph::mousePressEvent(QMouseEvent *event)
         QWidget::mousePressEvent(event);
         return;
     }
+    // The native bgfx QWindow and its QWidget container can both deliver an
+    // initial press while focus changes. Only activate the card once per
+    // press/release sequence, even if that event is forwarded twice.
+    if (this->mouse_pressed)
+    {
+        event->accept();
+        return;
+    }
+
     setFocus(Qt::MouseFocusReason);
     this->mouse_pressed = true;
     this->last_pointer = event->position();
@@ -1373,6 +1382,29 @@ void ProjectRevisionGraph::mousePressEvent(QMouseEvent *event)
     this->mouse_pan_velocity = QPointF();
     this->drag_elapsed.start();
     setCursor(Qt::ClosedHandCursor);
+
+    // Select on the first mouse press, not its release. Focus acquisition of
+    // the embedded bgfx window must not consume a graph-card click. Save the
+    // ID before emitting: the Projects inspector can synchronously rebuild
+    // the graph in response to these signals.
+    const QPointF point = mapToGraph(event->position());
+    if (const Omission *omission = hitOmission(point))
+    {
+        const QString parent_id = omission->hidden_parent_id;
+        expandHiddenAncestors(parent_id);
+    }
+    else if (const ProjectGraphNode *node = hitNode(point))
+    {
+        const QString node_id = node->id;
+        if (node->kind == ProjectGraphNode::Kind::Server)
+            emit serverActivated(node_id.mid(QStringLiteral("group:server:").size()));
+        else if (node->kind == ProjectGraphNode::Kind::Project)
+            emit projectActivated(node_id.mid(QStringLiteral("group:project:").size()));
+        else if (node->kind == ProjectGraphNode::Kind::Branch)
+            emit headActivated(node_id.mid(QStringLiteral("group:branch:").size()));
+        else
+            emit revisionActivated(node_id);
+    }
     event->accept();
 }
 
@@ -1421,27 +1453,9 @@ void ProjectRevisionGraph::mouseReleaseEvent(QMouseEvent *event)
     {
         this->mouse_pressed = false;
         setCursor(Qt::OpenHandCursor);
-        if (!this->dragging)
-        {
-            const QPointF point = mapToGraph(event->position());
-            if (const Omission *omission = hitOmission(point))
-            {
-                const QString parent_id = omission->hidden_parent_id;
-                expandHiddenAncestors(parent_id);
-            }
-            else if (const ProjectGraphNode *node = hitNode(point))
-            {
-                if (node->kind == ProjectGraphNode::Kind::Server)
-                    emit serverActivated(node->id.mid(QStringLiteral("group:server:").size()));
-                else if (node->kind == ProjectGraphNode::Kind::Project)
-                    emit projectActivated(node->id.mid(QStringLiteral("group:project:").size()));
-                else if (node->kind == ProjectGraphNode::Kind::Branch)
-                    emit headActivated(node->id.mid(QStringLiteral("group:branch:").size()));
-                else
-                    emit revisionActivated(node->id);
-            }
-        }
-        else if (this->drag_elapsed.isValid()
+        // Card activation has already happened on press. Releasing over a
+        // different card must not select it, including after a pan gesture.
+        if (this->dragging && this->drag_elapsed.isValid()
                  && this->drag_elapsed.elapsed() <= release_timeout_ms
                  && vectorLength(this->mouse_pan_velocity) >= mouse_inertia_minimum_speed)
         {
