@@ -107,8 +107,9 @@ public:
         this->verify_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Verify repository"), wireguard);
         profile_layout->addWidget(this->choose_wireguard);
         profile_layout->addWidget(this->clear_wireguard);
+        this->verify_wireguard->setObjectName(QStringLiteral("projectsVerifyRepository"));
         profile_layout->addWidget(this->verify_wireguard);
-        QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "This profile is used for repository verification. Catalogue refresh and project operations use the direct connection."), wireguard);
+        QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection."), wireguard);
         wrapLabel(scope);
         profile_layout->addWidget(scope);
         wireguard->setCollapsed(true);

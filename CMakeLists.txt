@@ -1052,6 +1052,23 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-projects-multi-source PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    if(TARGET AOWIS::NetworkQt AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
+        set(catalogue_peer "${CMAKE_CURRENT_BINARY_DIR}/aowis-catalogue-test-peer")
+        set(peer_source "${CMAKE_CURRENT_SOURCE_DIR}/tests/wireguard_catalogue_peer.go")
+        set(network_bridge "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-NETWORK/bridge")
+        add_custom_command(OUTPUT "${catalogue_peer}"
+            COMMAND "${CMAKE_COMMAND}" -E env GOWORK=off "${AOWIS_GO_EXECUTABLE}"
+                build -mod=readonly -o "${catalogue_peer}" "${peer_source}"
+            WORKING_DIRECTORY "${network_bridge}"
+            DEPENDS "${peer_source}" "${network_bridge}/go.mod" "${network_bridge}/go.sum"
+            VERBATIM)
+        add_custom_target(aowis-catalogue-peer-fixture DEPENDS "${catalogue_peer}")
+        add_dependencies(aowis-projects-multi-source-tests aowis-catalogue-peer-fixture)
+        add_test(NAME aowis-wireguard-catalogue COMMAND aowis-projects-multi-source-tests "${catalogue_peer}")
+        set_tests_properties(aowis-wireguard-catalogue PROPERTIES LABELS "aowis;integration"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+    endif()
+
     # Native Windows tab padding must not widen the five-icon map sidebar.
     add_executable(aowis-map-mode-tab-bar-tests
         tests/map_mode_tab_bar_test.cpp)

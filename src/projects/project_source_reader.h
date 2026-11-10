@@ -12,6 +12,7 @@
 #include <QStringList>
 
 #include <functional>
+#include <memory>
 
 class QNetworkReply;
 
@@ -67,7 +68,8 @@ class ProjectSourceReader final : public QObject
 public:
     using Completion = std::function<void(const SourceSnapshot &, const QString &)>;
 
-    explicit ProjectSourceReader(QObject *parent = nullptr);
+    using Get = std::function<QNetworkReply *(const QNetworkRequest &)>;
+    explicit ProjectSourceReader(QObject *parent = nullptr, Get get = {});
     void load(const ProjectServerProfile &profile, Completion completion);
     void cancel();
 
@@ -77,7 +79,8 @@ private:
     void complete(quint64 generation, const QString &error = QString());
     bool processRestDocument(const QByteArray &json, QString &error);
 
-    QNetworkAccessManager manager;
+    Get get;
+    std::unique_ptr<QNetworkAccessManager> manager;
     QPointer<QNetworkReply> reply;
     Completion completion;
     ProjectServerProfile profile;

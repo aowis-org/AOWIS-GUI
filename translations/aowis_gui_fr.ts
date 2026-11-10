@@ -2276,8 +2276,8 @@ Clic droit : revenir à 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
-      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
-      <translation>Ce profil sert à vérifier le dépôt. L’actualisation du catalogue et les opérations sur les projets utilisent la connexion directe.</translation>
+      <source>WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection.</source>
+      <translation>WireGuard sert à vérifier le dépôt, à surveiller sa disponibilité et à actualiser le catalogue. L’ouverture et la modification des projets utilisent toujours la connexion directe.</translation>
     </message>
     <message>
       <source>Verify repository</source>

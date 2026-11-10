@@ -161,6 +161,8 @@ private:
     void updateButtons();
     struct SourceSession;
     void startSource(const ProjectServerProfile &profile);
+    void openRemoteSource(const ProjectServerProfile &profile);
+    void startRemoteHealth(const ProjectServerProfile &profile);
     void resetSource(const QString &id);
     void loadSource(const QString &id);
     void connectSource(); // explicit refresh of selected source (inspector only)

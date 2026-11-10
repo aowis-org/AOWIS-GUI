@@ -157,9 +157,10 @@ bool validateCompleteGraph(const SourceProject &project)
 
 }
 
-ProjectSourceReader::ProjectSourceReader(QObject *parent)
-    : QObject(parent), manager(this)
+ProjectSourceReader::ProjectSourceReader(QObject *parent, Get get)
+    : QObject(parent), get(std::move(get))
 {
+    if (!this->get) this->manager = std::make_unique<QNetworkAccessManager>();
 }
 
 void ProjectSourceReader::cancel()
@@ -172,7 +173,7 @@ void ProjectSourceReader::cancel()
         this->reply.clear();
         previous->abort();
     }
-    this->manager.clearConnectionCache();
+    if (this->manager) this->manager->clearConnectionCache();
 }
 
 void ProjectSourceReader::load(const ProjectServerProfile &source_profile, Completion completion)
@@ -256,7 +257,12 @@ void ProjectSourceReader::nextRestRequest(quint64 requested)
     request.setTransferTimeout(12000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
         QNetworkRequest::ManualRedirectPolicy);
-    this->reply = this->manager.get(request);
+    if (!this->get && !this->profile.wireguard_profile_path.isEmpty())
+    {
+        complete(requested, QObject::tr("WireGuard is unavailable in this build."));
+        return;
+    }
+    this->reply = this->get ? this->get(request) : this->manager->get(request);
     QNetworkReply *pending = this->reply;
     const QPointer<QNetworkReply> deadline_reply(pending);
     QTimer::singleShot(15000, this, [this, requested, deadline_reply]

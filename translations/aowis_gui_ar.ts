@@ -2296,8 +2296,8 @@ Right-click: animate back to 1.0×</source>
   <context>
     <name>LiveUiText</name>
     <message>
-      <source>This profile is used for repository verification. Catalogue refresh and project operations use the direct connection.</source>
-      <translation>يُستخدم هذا الملف للتحقق من المستودع. يستخدم تحديث الفهرس وعمليات المشاريع الاتصال المباشر.</translation>
+      <source>WireGuard is used for verification, health checks and catalogue refresh. Opening and editing projects still use the direct connection.</source>
+      <translation>يُستخدم WireGuard للتحقق من المستودع ومراقبة توفره وتحديث الفهرس. لا يزال فتح المشاريع وتحريرها يستخدمان الاتصال المباشر.</translation>
     </message>
     <message>
       <source>Verify repository</source>
