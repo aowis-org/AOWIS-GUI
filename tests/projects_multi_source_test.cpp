@@ -229,6 +229,9 @@ int main(int argc, char **argv)
     QTemporaryDir config;
     if (!require(config.isValid(), "temporary profile store failed")) return 1;
     qputenv("XDG_DATA_HOME", config.path().toUtf8());
+    // Configured connections live in the AOWIS-CONFIG store under the user
+    // configuration location; never touch the developer's real one.
+    qputenv("XDG_CONFIG_HOME", config.path().toUtf8());
     QApplication app(argc, argv);
     FakeDvmdb first;
     FakeDvmdb second;

@@ -83,6 +83,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
     endif()
 endif()
 
+# Configuration storage (AOWIS-CONFIG) on every platform, including WASM:
+# native POSIX files, browser localStorage. Its tests are not built here.
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-CONFIG/CMakeLists.txt")
+    message(FATAL_ERROR "Missing AOWIS-CONFIG sources. Run ./git_submodule_init.sh --config and verify the GUI gitlink.")
+endif()
+add_subdirectory(external/AOWIS-CONFIG EXCLUDE_FROM_ALL)
+
 # GeographicLib submodule
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_BOTH_LIBS OFF CACHE BOOL "" FORCE)
@@ -310,6 +317,8 @@ qt_add_executable(aowis-server-gui
     src/config/map_server_client_configuration.h
     src/config/project_server_profile_storage.cpp
     src/config/project_server_profile_storage.h
+    src/config/gui_config_store.cpp
+    src/config/gui_config_store.h
     src/config/personal_repository_storage.cpp
     src/config/personal_repository_storage.h
     src/config/shortcut_registry.cpp
@@ -564,6 +573,7 @@ target_link_libraries(aowis-server-gui
         Qt6::Widgets
         Qt6::Network
         Qt6::Sql
+        aowis::config
         aowis-epanet-js-import
         AOWIS::ServerModel
         AOWIS::ServerEpanet
@@ -930,6 +940,20 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-wireguard-vpn-settings PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # Configured DVMDB connections in the GUI's AOWIS-CONFIG store.
+    add_executable(aowis-project-server-profile-storage-tests
+        tests/project_server_profile_storage_test.cpp
+        src/config/project_server_profile_storage.cpp
+        src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h)
+    target_include_directories(aowis-project-server-profile-storage-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-server-profile-storage-tests PRIVATE Qt6::Core aowis::config)
+    add_test(NAME aowis-project-server-profile-storage
+        COMMAND aowis-project-server-profile-storage-tests)
+    set_tests_properties(aowis-project-server-profile-storage PROPERTIES LABELS "aowis")
+
     # VC-03: personal repository is selected in the Projects Server Inspector.
     # UUIDs are discovered and pinned automatically; no separate settings page.
     add_executable(aowis-personal-repository-settings-tests
@@ -938,11 +962,13 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/personal_repository_storage.h
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
         src/config/gui_configuration.cpp)
     target_include_directories(aowis-personal-repository-settings-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-personal-repository-settings-tests PRIVATE
-        Qt6::Widgets Qt6::Network)
+        Qt6::Widgets Qt6::Network aowis::config)
     add_test(NAME aowis-personal-repository-settings
         COMMAND aowis-personal-repository-settings-tests)
     set_tests_properties(aowis-personal-repository-settings PROPERTIES
@@ -982,12 +1008,14 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/personal_repository_storage.h
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
         src/config/gui_configuration.cpp)
     target_include_directories(aowis-personal-working-copy-client-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-personal-working-copy-client-tests PRIVATE
         Qt6::Core Qt6::Gui Qt6::Network AOWIS::ServerModel
-        aowis-hydraulic-test-support)
+        aowis-hydraulic-test-support aowis::config)
     add_test(NAME aowis-personal-working-copy-client
         COMMAND aowis-personal-working-copy-client-tests)
     set_tests_properties(aowis-personal-working-copy-client PROPERTIES LABELS "aowis")
@@ -1019,6 +1047,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/app/builtin_examples.cpp
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
         src/widgets/group_box_collapsible.cpp
         src/widgets/group_box_collapsible.h
         src/config/gui_configuration.cpp
@@ -1026,7 +1056,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/shortcut_registry.h)
     target_include_directories(aowis-projects-inspector-dock-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-projects-inspector-dock-tests PRIVATE Qt6::Widgets Qt6::Network AOWIS::ServerModel)
+    target_link_libraries(aowis-projects-inspector-dock-tests PRIVATE Qt6::Widgets Qt6::Network AOWIS::ServerModel
+        aowis::config)
     add_test(NAME aowis-projects-inspector-dock
         COMMAND aowis-projects-inspector-dock-tests)
     set_tests_properties(aowis-projects-inspector-dock PROPERTIES
@@ -1059,6 +1090,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/app/builtin_examples.cpp
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
         src/widgets/group_box_collapsible.cpp
         src/widgets/group_box_collapsible.h
         src/config/gui_configuration.cpp
@@ -1066,7 +1099,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/shortcut_registry.h)
     target_include_directories(aowis-projects-multi-source-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-projects-multi-source-tests PRIVATE Qt6::Widgets Qt6::Network AOWIS::ServerModel)
+    target_link_libraries(aowis-projects-multi-source-tests PRIVATE Qt6::Widgets Qt6::Network AOWIS::ServerModel
+        aowis::config)
     add_test(NAME aowis-projects-multi-source COMMAND aowis-projects-multi-source-tests)
     set_tests_properties(aowis-projects-multi-source PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QSettings>
 
@@ -25,6 +26,9 @@ int main(int argc, char **argv)
     QTemporaryDir root;
     if (!check(root.isValid(), "settings directory unavailable")) return 1;
     qputenv("XDG_DATA_HOME", root.path().toUtf8());
+    // Configured connections live in the AOWIS-CONFIG store under the user
+    // configuration location; never touch the developer's real one.
+    qputenv("XDG_CONFIG_HOME", root.path().toUtf8());
     QApplication app(argc, argv);
 
     ProjectServerProfile a;
@@ -35,17 +39,12 @@ int main(int argc, char **argv)
     b.id = known_id;
     b.name = QStringLiteral("My working server");
     b.endpoint = QStringLiteral("https://private.example.invalid");
-    // Saving the new server list removes the obsolete Projects-section key.
-    {
-        QSettings obsolete_settings(guiConfigurationFilePath(), QSettings::IniFormat);
-        obsolete_settings.setValue(QStringLiteral("projects/servers"), QStringLiteral("[]"));
-        obsolete_settings.sync();
-    }
+    // Connections are AOWIS-CONFIG records, never GUI INI keys.
     if (!check(saveProjectServerProfiles({a, b}), "unable to save initial server profiles")) return 1;
     QSettings saved_settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    if (!check(saved_settings.contains(QStringLiteral("servers/profiles"))
-               && !saved_settings.contains(QStringLiteral("projects/servers")),
-               "database profiles must be stored in the servers section")) return 1;
+    if (!check(QFileInfo(QDir(root.path()).filePath(QStringLiteral("aowis/gui/connections"))).isDir()
+               && !saved_settings.contains(QStringLiteral("servers/profiles")),
+               "database profiles must be stored in the AOWIS-CONFIG connections collection")) return 1;
     if (!check(resolvePersonalRepositoryTarget().kind == PersonalRepositoryTarget::Kind::Unavailable,
                "an unmarked source was used implicitly")) return 1;
 

@@ -9,6 +9,10 @@
 // are not part of the stored profile.
 struct ProjectServerProfile
 {
+    // Identity of this configured connection (AOWIS-CONFIG record UUIDv7).
+    // Distinct from the repository identity below: it survives verification
+    // (pending -> real repository id) and endpoint changes. Empty until saved.
+    QString connection_id;
     QString id; // Actual DVMDB repository UUIDv7, or temporary UUIDv7 while pending
     bool pending = false; // Unverified connection; never treated as a repository identity
     QString name;
@@ -23,7 +27,16 @@ struct ProjectServerProfile
     QString wireguard_profile_path; // Empty selects direct HTTP for catalogue reads and metadata writes.
 };
 
+// Configured connections are records of the GUI's AOWIS-CONFIG
+// "connections" collection; list order is persisted. Records that cannot be
+// read, or that belong to a newer connection_version or another service type,
+// are skipped with a warning and never modified or deleted by a save.
 QList<ProjectServerProfile> loadProjectServerProfiles();
+// Replaces the stored list with profiles in one owner session: changed
+// records are updated, new ones created, missing ones deleted. The non-const
+// overload writes the connection_id of newly created records back into
+// profiles, so later saves keep updating the same records.
+bool saveProjectServerProfiles(QList<ProjectServerProfile> &profiles);
 bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles);
 QString defaultLocalDvmdbPath();
 // The embedded source exists only in builds with the native DVMDB backend.

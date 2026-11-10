@@ -3,12 +3,13 @@ set -euo pipefail
 
 # Initialize every pinned submodule revision.
 #
-# Usage: ./git_submodule_init.sh [--shader-tools | --render | --network]
+# Usage: ./git_submodule_init.sh [--shader-tools | --render | --network | --config]
 #
 #   --shader-tools  also check out the bgfx shader-compiler sources
 #                   (only for regenerating AOWIS-GUI-Render shaders).
 #   --render        initialize just the pinned AOWIS-GUI-Render submodule.
 #   --network       initialize just the pinned AOWIS-NETWORK submodule.
+#   --config        initialize just the pinned AOWIS-CONFIG submodule.
 #
 # bx, bimg and bgfx are fetched shallow (only the pinned commit) and checked
 # out sparse (only what Render/cmake/aowis_bgfx.cmake builds), see
@@ -19,26 +20,40 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 sparse_option=""
 network_path=external/AOWIS-NETWORK
+config_path=external/AOWIS-CONFIG
 render_only=false
 network_only=false
+config_only=false
 case "${1:-}" in
     '') ;;
     --shader-tools) sparse_option="--shader-tools" ;;
     --render) render_only=true ;;
     --network) network_only=true ;;
+    --config) config_only=true ;;
     *)
-        printf 'Usage: %s [--shader-tools | --render | --network]\n' "$0" >&2
+        printf 'Usage: %s [--shader-tools | --render | --network | --config]\n' "$0" >&2
         exit 2
         ;;
 esac
 if [[ $# -gt 1 ]]; then
-    printf 'Usage: %s [--shader-tools | --render | --network]\n' "$0" >&2
+    printf 'Usage: %s [--shader-tools | --render | --network | --config]\n' "$0" >&2
     exit 2
 fi
 
 if "$network_only"; then
     git submodule sync -- "$network_path"
     git submodule update --init --recursive --checkout -- "$network_path"
+    exit 0
+fi
+
+if [[ "$(git ls-files --stage -- "$config_path")" != '160000 '* ]]; then
+    printf 'Missing CONFIG Git submodule gitlink: %s\n' "$config_path" >&2
+    printf 'Register with: git submodule add https://github.com/aowis-org/AOWIS-CONFIG.git %s\n' "$config_path" >&2
+    exit 1
+fi
+if "$config_only"; then
+    git submodule sync -- "$config_path"
+    git submodule update --init --checkout -- "$config_path"
     exit 0
 fi
 
@@ -76,6 +91,7 @@ git submodule sync --recursive
 git submodule update --init --recursive -- \
     "$render_path" \
     "$network_path" \
+    "$config_path" \
     external/GeographicLib \
     external/AOWIS-SERVER-MODEL \
     external/AOWIS-SERVER-EPANET

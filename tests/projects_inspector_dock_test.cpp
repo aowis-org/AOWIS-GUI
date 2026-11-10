@@ -149,6 +149,9 @@ int main(int argc, char **argv)
     if (!require(configuration_dir.isValid(), "could not create a temporary configuration"))
         return 1;
     qputenv("XDG_DATA_HOME", configuration_dir.path().toUtf8());
+    // Configured connections live in the AOWIS-CONFIG store under the user
+    // configuration location; never touch the developer's real one.
+    qputenv("XDG_CONFIG_HOME", configuration_dir.path().toUtf8());
     QApplication app(argc, argv);
 
     // Domain presentation must preserve identity, branch provenance and
@@ -885,9 +888,8 @@ int main(int argc, char **argv)
                      && saved_profiles.at(1).auth_mode == QStringLiteral("User login")
                      && saved_profiles.at(1).description == QStringLiteral("Persisted remote server description")
                      && saved_profiles.at(1).tags == QStringList({QStringLiteral("remote"), QStringLiteral("study")})
-                     && saved_ini.contains(QStringLiteral("servers/profiles"))
-                     && !saved_ini.contains(QStringLiteral("projects/servers")),
-                 "inspector modifications were not saved in the GUI INI file"))
+                     && !saved_ini.contains(QStringLiteral("servers/profiles")),
+                 "inspector modifications were not saved in the AOWIS-CONFIG store"))
         return 1;
     servers->setCurrentItem(servers->topLevelItem(0));
     projects.selectBranchByName(QStringLiteral("main"));

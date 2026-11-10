@@ -138,10 +138,12 @@ cd AOWIS-GUI
 ```
 
 `git_submodule_init.sh` initializes all submodules at the revisions this
-repository records: AOWIS-GUI-Render, AOWIS-SERVER-EPANET, AOWIS-SERVER-MODEL
-and GeographicLib (recursively), and the bgfx libraries `bgfx`, `bx` and
-`bimg`. It does not update them to newer upstream commits.
-`./git_submodule_init.sh --render` initializes only Render.
+repository records: AOWIS-GUI-Render, AOWIS-NETWORK, AOWIS-CONFIG,
+AOWIS-SERVER-EPANET, AOWIS-SERVER-MODEL and GeographicLib (recursively), and
+the bgfx libraries `bgfx`, `bx` and `bimg`. It does not update them to newer
+upstream commits. `./git_submodule_init.sh --render` initializes only Render;
+`--network` and `--config` likewise initialize only AOWIS-NETWORK or
+AOWIS-CONFIG.
 
 The bgfx libraries are fetched **shallow** (only the pinned commit) and checked
 out **sparse** (`tools/bgfx_sparse_checkout.sh`): only what AOWIS builds,
@@ -155,8 +157,9 @@ sources, needed only to regenerate those shaders.
 To **update** submodules to their remote-tracking branches:
 
 ```bash
-./git_submodule_update.sh                 # MODEL, EPANET and Render
+./git_submodule_update.sh                 # MODEL, EPANET, Render, NETWORK and CONFIG
 ./git_submodule_update.sh --render        # Render only (plus its pinned nested submodules)
+./git_submodule_update.sh --config        # AOWIS-CONFIG only (likewise --network)
 ./git_submodule_update.sh --model         # likewise --epanet, --epanet-deps, --geographiclib
 ./git_submodule_update.sh --bgfx          # bgfx, bx and bimg only
 ./git_submodule_update.sh --all           # everything
@@ -214,7 +217,23 @@ Usually as a Desktop-Client, you might want to prefer [AOWIS-SERVER-Standalone](
 
 ## GUI configuration
 
-Native builds create the configuration file automatically on first startup. The default location is platform-specific:
+Configured DVMDB connections (Projects → servers) are stored with
+[AOWIS-CONFIG](https://github.com/aowis-org/AOWIS-CONFIG) in the GUI's owner
+root, one record per connection in the `connections` collection:
+
+```text
+Linux:   ${XDG_CONFIG_HOME:-~/.config}/aowis/gui/connections/<uuidv7>.json
+Windows: %LOCALAPPDATA%\aowis\gui\connections\   (needs the AOWIS-CONFIG Windows backend; not yet implemented)
+Browser: localStorage keys aowis-config:/aowis/gui/connections/<uuidv7>.json
+```
+
+The former `servers/profiles` INI key and the browser's
+`aowis.servers.profiles` item are no longer read. In the browser only one
+tab per origin can change connections at a time (the others show a save
+error until that tab is closed).
+
+The remaining settings still use the INI file below until they move to
+AOWIS-CONFIG. Native builds create it automatically on first startup. The default location is platform-specific:
 
 ```text
 Windows: %APPDATA%\aowis-server-gui\aowis-server-gui.ini

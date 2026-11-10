@@ -6,15 +6,16 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 usage() {
     cat <<'HELP'
-Usage: ./git_submodule_update.sh [--model | --epanet | --render | --network | --epanet-deps | --geographiclib | --bgfx | --all | --help]
+Usage: ./git_submodule_update.sh [--model | --epanet | --render | --network | --config | --epanet-deps | --geographiclib | --bgfx | --all | --help]
 
-  (no option)  Update AOWIS-owned direct submodules (MODEL, EPANET, Render, NETWORK)
+  (no option)  Update AOWIS-owned direct submodules (MODEL, EPANET, Render, NETWORK, CONFIG)
                to their tracked remote branches. Do not recurse into EPANET's
                third-party submodules or update GeographicLib/bgfx.
   --model      Update only AOWIS-SERVER-MODEL.
   --epanet     Update only AOWIS-SERVER-EPANET, not its nested dependencies.
   --render     Update only AOWIS-GUI-Render, not its nested dependencies.
   --network    Update only AOWIS-NETWORK and initialize its pinned dependencies.
+  --config     Update only AOWIS-CONFIG (no nested dependencies).
   --epanet-deps
                Update AOWIS-SERVER-EPANET, then check out its nested third-party
                submodules at the exact versions pinned by EPANET (not remote tip).
@@ -39,6 +40,7 @@ HELP
 model_path="external/AOWIS-SERVER-MODEL"
 epanet_path="external/AOWIS-SERVER-EPANET"
 network_path="external/AOWIS-NETWORK"
+config_path="external/AOWIS-CONFIG"
 render_path="external/AOWIS-GUI-Render"
 
 # Deliberate release pin: a new GeographicLib version requires an explicit
@@ -145,6 +147,11 @@ update_network() {
     git -C "$network_path" submodule update --init --recursive --checkout
 }
 
+update_config() {
+    git submodule sync -- "$config_path"
+    git submodule update --init --remote --checkout -- "$config_path"
+}
+
 update_epanet_deps() {
     update_epanet
     # Explicitly synchronize third-party dependencies to EPANET's recorded
@@ -157,6 +164,7 @@ update_standard() {
     update_epanet
     update_render
     update_network
+    update_config
 }
 
 update_bgfx() {
@@ -187,6 +195,10 @@ case "${1:-}" in
     --network)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
         update_network
+        ;;
+    --config)
+        [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+        update_config
         ;;
     --epanet-deps)
         [[ $# -eq 1 ]] || { usage >&2; exit 2; }
