@@ -294,6 +294,18 @@
       <source>Units</source>
       <translation>الوحدات</translation>
     </message>
+    <message>
+      <source>WireGuard VPN</source>
+      <translation>شبكة WireGuard الخاصة</translation>
+    </message>
+    <message>
+      <source>Manage shared WireGuard VPN profiles and view their usage and tunnel status.</source>
+      <translation>إدارة ملفات WireGuard المشتركة وعرض استخدامها وحالة النفق.</translation>
+    </message>
+    <message>
+      <source>WireGuard VPN is unavailable in WebAssembly: browser networking does not provide the required UDP/TUN access.</source>
+      <translation>شبكة WireGuard غير متاحة في WebAssembly: المتصفح لا يوفر وصول UDP/TUN المطلوب.</translation>
+    </message>
   </context>
   <context>
     <name>MapWorkspaceWidget</name>
@@ -8271,6 +8283,234 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>يجب أن يحتوي ملف تعريف WireGuard على واجهة واحدة ونظير واحد.</translation>
+    </message>
+  </context>
+
+  <context>
+    <name>WireGuardVpnSettingsWidget</name>
+    <message>
+      <source>WireGuard VPN</source>
+      <translation>شبكة WireGuard الخاصة</translation>
+    </message>
+    <message>
+      <source>Import and manage reusable WireGuard profiles. Services can share a profile without creating separate configurations.</source>
+      <translation>استيراد ملفات WireGuard القابلة لإعادة الاستخدام وإدارتها. يمكن للخدمات مشاركة ملف واحد.</translation>
+    </message>
+    <message>
+      <source>GUI preview: profiles exist only for this session. Configuration storage, service assignment and runtime integration will follow. Private keys are not written to disk.</source>
+      <translation>معاينة للواجهة: الملفات موجودة خلال هذه الجلسة فقط. سيُضاف التخزين وربط الخدمات والتكامل لاحقًا. لا تُحفظ المفاتيح الخاصة على القرص.</translation>
+    </message>
+    <message>
+      <source>No profile selected. Import a .conf file or create a new profile.</source>
+      <translation>لم يُحدَّد ملف. استورد ملف .conf أو أنشئ ملفًا جديدًا.</translation>
+    </message>
+    <message>
+      <source>New</source>
+      <translation>جديد</translation>
+    </message>
+    <message>
+      <source>Import…</source>
+      <translation>استيراد…</translation>
+    </message>
+    <message>
+      <source>Delete</source>
+      <translation>حذف</translation>
+    </message>
+    <message>
+      <source>Save changes</source>
+      <translation>حفظ التغييرات</translation>
+    </message>
+    <message>
+      <source>Revert</source>
+      <translation>تراجع</translation>
+    </message>
+    <message>
+      <source>Configuration</source>
+      <translation>الإعدادات</translation>
+    </message>
+    <message>
+      <source>Used by</source>
+      <translation>مُستخدَم بواسطة</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>الحالة</translation>
+    </message>
+    <message>
+      <source>Profile name</source>
+      <translation>اسم الملف</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>الوصف</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (private keys are visible while editing)</source>
+      <translation>ملف WireGuard .conf (تظهر المفاتيح الخاصة أثناء التحرير)</translation>
+    </message>
+    <message>
+      <source>Tunnel</source>
+      <translation>النفق</translation>
+    </message>
+    <message>
+      <source>Active services</source>
+      <translation>الخدمات النشطة</translation>
+    </message>
+    <message>
+      <source>Traffic</source>
+      <translation>حركة البيانات</translation>
+    </message>
+    <message>
+      <source>Service</source>
+      <translation>الخدمة</translation>
+    </message>
+    <message>
+      <source>Type</source>
+      <translation>النوع</translation>
+    </message>
+    <message>
+      <source>Endpoint</source>
+      <translation>نقطة الاتصال</translation>
+    </message>
+    <message>
+      <source>Peer endpoint</source>
+      <translation>نقطة اتصال النظير</translation>
+    </message>
+    <message>
+      <source>Last handshake</source>
+      <translation>آخر مصافحة</translation>
+    </message>
+    <message>
+      <source>Received</source>
+      <translation>مستقبَل</translation>
+    </message>
+    <message>
+      <source>Sent</source>
+      <translation>مرسَل</translation>
+    </message>
+    <message>
+      <source>New profile</source>
+      <translation>ملف جديد</translation>
+    </message>
+    <message>
+      <source>Service usage unavailable</source>
+      <translation>استخدام الخدمات غير متاح</translation>
+    </message>
+    <message>
+      <source>Status unavailable</source>
+      <translation>الحالة غير متاحة</translation>
+    </message>
+    <message>
+      <source>Stopped</source>
+      <translation>متوقف</translation>
+    </message>
+    <message>
+      <source>Starting</source>
+      <translation>جارٍ البدء</translation>
+    </message>
+    <message>
+      <source>Running</source>
+      <translation>قيد التشغيل</translation>
+    </message>
+    <message>
+      <source>Error</source>
+      <translation>خطأ</translation>
+    </message>
+    <message>
+      <source>Unavailable</source>
+      <translation>غير متاح</translation>
+    </message>
+    <message>
+      <source>Unknown</source>
+      <translation>غير معروف</translation>
+    </message>
+    <message>
+      <source> (draft)</source>
+      <translation> (مسودة)</translation>
+    </message>
+    <message>
+      <source>Latest status reported by the WireGuard runtime.</source>
+      <translation>آخر حالة أبلغ عنها محرّك WireGuard.</translation>
+    </message>
+    <message>
+      <source>Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page.</source>
+      <translation>مراقبة النفق المباشرة غير متصلة بعد. لم تبدأ هذه الصفحة أي نفق WireGuard.</translation>
+    </message>
+    <message>
+      <source>Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged.</source>
+      <translation>مراجع الخدمات غير مرتبطة بعد بالمدير المركزي للملفات. الاتصالات القائمة على مسارات الملفات لم تتغير.</translation>
+    </message>
+    <message>
+      <source>No services use this profile.</source>
+      <translation>لا تستخدم أي خدمة هذا الملف.</translation>
+    </message>
+    <message>
+      <source>Configuration structure looks valid. This is not a tunnel connectivity check.</source>
+      <translation>تبدو بنية الإعدادات صحيحة. هذا ليس اختبارًا لاتصال النفق.</translation>
+    </message>
+    <message>
+      <source>Discard changes?</source>
+      <translation>تجاهل التغييرات؟</translation>
+    </message>
+    <message>
+      <source>This profile has unsaved changes. Discard them?</source>
+      <translation>يحتوي هذا الملف على تغييرات غير محفوظة. هل تريد تجاهلها؟</translation>
+    </message>
+    <message>
+      <source>Import WireGuard configuration</source>
+      <translation>استيراد إعدادات WireGuard</translation>
+    </message>
+    <message>
+      <source>Import failed</source>
+      <translation>فشل الاستيراد</translation>
+    </message>
+    <message>
+      <source>Invalid profile</source>
+      <translation>ملف غير صالح</translation>
+    </message>
+    <message>
+      <source>Invalid configuration</source>
+      <translation>إعدادات غير صالحة</translation>
+    </message>
+    <message>
+      <source>Profile in use</source>
+      <translation>الملف قيد الاستخدام</translation>
+    </message>
+    <message>
+      <source>Delete WireGuard profile?</source>
+      <translation>حذف ملف WireGuard؟</translation>
+    </message>
+    <message>
+      <source>Enter a profile name.</source>
+      <translation>أدخل اسم الملف.</translation>
+    </message>
+    <message>
+      <source>Another profile already uses this name.</source>
+      <translation>يوجد ملف آخر بهذا الاسم.</translation>
+    </message>
+    <message>
+      <source>This profile is referenced by configured services. Remove those references before deleting it.</source>
+      <translation>تُشير خدمات مهيّأة إلى هذا الملف. أزل هذه المراجع قبل حذفه.</translation>
+    </message>
+      <message>
+      <source>Used by 1 service</source>
+      <translation>مُستخدَم بواسطة خدمة واحدة</translation>
+    </message>
+    <message>
+      <source>Used by %1 services</source>
+      <translation>مُستخدَم بواسطة %1 خدمات</translation>
+    </message>
+    <message>
+      <source>Used by 1 configured service. This does not imply an active tunnel.</source>
+      <translation>تستخدمه خدمة واحدة مهيأة. هذا لا يعني أن هناك نفقًا نشطًا.</translation>
+    </message>
+    <message>
+      <source>Used by %1 configured services. This does not imply an active tunnel.</source>
+      <translation>تستخدمه %1 خدمات مهيأة. هذا لا يعني أن هناك نفقًا نشطًا.</translation>
+    </message>
+    <message>
+      <source>Each [Peer] section requires a PublicKey.</source>
+      <translation>يتطلب كل قسم [Peer] مفتاح PublicKey.</translation>
     </message>
   </context>
 </TS>

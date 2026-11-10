@@ -286,6 +286,18 @@
       <source>Units</source>
       <translation>Unidades</translation>
     </message>
+    <message>
+      <source>WireGuard VPN</source>
+      <translation>WireGuard VPN</translation>
+    </message>
+    <message>
+      <source>Manage shared WireGuard VPN profiles and view their usage and tunnel status.</source>
+      <translation>Administrar perfiles WireGuard compartidos y consultar su uso y el estado del túnel.</translation>
+    </message>
+    <message>
+      <source>WireGuard VPN is unavailable in WebAssembly: browser networking does not provide the required UDP/TUN access.</source>
+      <translation>WireGuard VPN no está disponible en WebAssembly: el navegador no permite el acceso UDP/TUN necesario.</translation>
+    </message>
   </context>
   <context>
     <name>MapWorkspaceWidget</name>
@@ -8219,6 +8231,234 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>El perfil de WireGuard debe contener una sola interfaz y un solo par.</translation>
+    </message>
+  </context>
+
+  <context>
+    <name>WireGuardVpnSettingsWidget</name>
+    <message>
+      <source>WireGuard VPN</source>
+      <translation>WireGuard VPN</translation>
+    </message>
+    <message>
+      <source>Import and manage reusable WireGuard profiles. Services can share a profile without creating separate configurations.</source>
+      <translation>Importa y administra perfiles WireGuard reutilizables. Varios servicios pueden compartir un mismo perfil.</translation>
+    </message>
+    <message>
+      <source>GUI preview: profiles exist only for this session. Configuration storage, service assignment and runtime integration will follow. Private keys are not written to disk.</source>
+      <translation>Vista previa: los perfiles solo existen durante esta sesión. El almacenamiento, la asignación y la integración vendrán después. Las claves privadas no se guardan en disco.</translation>
+    </message>
+    <message>
+      <source>No profile selected. Import a .conf file or create a new profile.</source>
+      <translation>No hay ningún perfil seleccionado. Importa un archivo .conf o crea uno nuevo.</translation>
+    </message>
+    <message>
+      <source>New</source>
+      <translation>Nuevo</translation>
+    </message>
+    <message>
+      <source>Import…</source>
+      <translation>Importar…</translation>
+    </message>
+    <message>
+      <source>Delete</source>
+      <translation>Eliminar</translation>
+    </message>
+    <message>
+      <source>Save changes</source>
+      <translation>Guardar cambios</translation>
+    </message>
+    <message>
+      <source>Revert</source>
+      <translation>Revertir</translation>
+    </message>
+    <message>
+      <source>Configuration</source>
+      <translation>Configuración</translation>
+    </message>
+    <message>
+      <source>Used by</source>
+      <translation>Usado por</translation>
+    </message>
+    <message>
+      <source>Status</source>
+      <translation>Estado</translation>
+    </message>
+    <message>
+      <source>Profile name</source>
+      <translation>Nombre del perfil</translation>
+    </message>
+    <message>
+      <source>Description</source>
+      <translation>Descripción</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (private keys are visible while editing)</source>
+      <translation>WireGuard .conf (las claves privadas son visibles al editar)</translation>
+    </message>
+    <message>
+      <source>Tunnel</source>
+      <translation>Túnel</translation>
+    </message>
+    <message>
+      <source>Active services</source>
+      <translation>Servicios activos</translation>
+    </message>
+    <message>
+      <source>Traffic</source>
+      <translation>Tráfico</translation>
+    </message>
+    <message>
+      <source>Service</source>
+      <translation>Servicio</translation>
+    </message>
+    <message>
+      <source>Type</source>
+      <translation>Tipo</translation>
+    </message>
+    <message>
+      <source>Endpoint</source>
+      <translation>Destino</translation>
+    </message>
+    <message>
+      <source>Peer endpoint</source>
+      <translation>Destino del par</translation>
+    </message>
+    <message>
+      <source>Last handshake</source>
+      <translation>Último intercambio</translation>
+    </message>
+    <message>
+      <source>Received</source>
+      <translation>Recibido</translation>
+    </message>
+    <message>
+      <source>Sent</source>
+      <translation>Enviado</translation>
+    </message>
+    <message>
+      <source>New profile</source>
+      <translation>Nuevo perfil</translation>
+    </message>
+    <message>
+      <source>Service usage unavailable</source>
+      <translation>Uso no disponible</translation>
+    </message>
+    <message>
+      <source>Status unavailable</source>
+      <translation>Estado no disponible</translation>
+    </message>
+    <message>
+      <source>Stopped</source>
+      <translation>Detenido</translation>
+    </message>
+    <message>
+      <source>Starting</source>
+      <translation>Iniciando</translation>
+    </message>
+    <message>
+      <source>Running</source>
+      <translation>En ejecución</translation>
+    </message>
+    <message>
+      <source>Error</source>
+      <translation>Error</translation>
+    </message>
+    <message>
+      <source>Unavailable</source>
+      <translation>No disponible</translation>
+    </message>
+    <message>
+      <source>Unknown</source>
+      <translation>Desconocido</translation>
+    </message>
+    <message>
+      <source> (draft)</source>
+      <translation> (borrador)</translation>
+    </message>
+    <message>
+      <source>Latest status reported by the WireGuard runtime.</source>
+      <translation>Último estado comunicado por el motor de WireGuard.</translation>
+    </message>
+    <message>
+      <source>Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page.</source>
+      <translation>La supervisión del túnel aún no está conectada. Esta página no ha iniciado ningún túnel WireGuard.</translation>
+    </message>
+    <message>
+      <source>Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged.</source>
+      <translation>Las referencias de los servicios aún no están conectadas al gestor de perfiles. Las conexiones basadas en rutas no cambian.</translation>
+    </message>
+    <message>
+      <source>No services use this profile.</source>
+      <translation>Ningún servicio usa este perfil.</translation>
+    </message>
+    <message>
+      <source>Configuration structure looks valid. This is not a tunnel connectivity check.</source>
+      <translation>La estructura parece válida. Esto no comprueba la conectividad del túnel.</translation>
+    </message>
+    <message>
+      <source>Discard changes?</source>
+      <translation>¿Descartar los cambios?</translation>
+    </message>
+    <message>
+      <source>This profile has unsaved changes. Discard them?</source>
+      <translation>Este perfil tiene cambios sin guardar. ¿Descartarlos?</translation>
+    </message>
+    <message>
+      <source>Import WireGuard configuration</source>
+      <translation>Importar configuración WireGuard</translation>
+    </message>
+    <message>
+      <source>Import failed</source>
+      <translation>Error de importación</translation>
+    </message>
+    <message>
+      <source>Invalid profile</source>
+      <translation>Perfil no válido</translation>
+    </message>
+    <message>
+      <source>Invalid configuration</source>
+      <translation>Configuración no válida</translation>
+    </message>
+    <message>
+      <source>Profile in use</source>
+      <translation>Perfil en uso</translation>
+    </message>
+    <message>
+      <source>Delete WireGuard profile?</source>
+      <translation>¿Eliminar perfil WireGuard?</translation>
+    </message>
+    <message>
+      <source>Enter a profile name.</source>
+      <translation>Introduce un nombre de perfil.</translation>
+    </message>
+    <message>
+      <source>Another profile already uses this name.</source>
+      <translation>Otro perfil ya tiene ese nombre.</translation>
+    </message>
+    <message>
+      <source>This profile is referenced by configured services. Remove those references before deleting it.</source>
+      <translation>Hay servicios que hacen referencia a este perfil. Elimina esas referencias antes de borrarlo.</translation>
+    </message>
+      <message>
+      <source>Used by 1 service</source>
+      <translation>Usado por 1 servicio</translation>
+    </message>
+    <message>
+      <source>Used by %1 services</source>
+      <translation>Usado por %1 servicios</translation>
+    </message>
+    <message>
+      <source>Used by 1 configured service. This does not imply an active tunnel.</source>
+      <translation>Usado por 1 servicio configurado. Esto no implica que haya un túnel activo.</translation>
+    </message>
+    <message>
+      <source>Used by %1 configured services. This does not imply an active tunnel.</source>
+      <translation>Usado por %1 servicios configurados. Esto no implica que haya un túnel activo.</translation>
+    </message>
+    <message>
+      <source>Each [Peer] section requires a PublicKey.</source>
+      <translation>Cada sección [Peer] requiere PublicKey.</translation>
     </message>
   </context>
 </TS>

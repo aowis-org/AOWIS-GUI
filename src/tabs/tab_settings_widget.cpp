@@ -3,6 +3,7 @@
 #include "settings/keyboard_shortcuts_settings_widget.h"
 #include "settings/map_settings_widget.h"
 #include "settings/units_settings_widget.h"
+#include "settings/wireguard_vpn_settings_widget.h"
 
 #include <QEvent>
 #include <QFrame>
@@ -42,6 +43,17 @@ SettingsWidget::SettingsWidget(QWidget *parent)
     this->table_of_contents->addItem(tr("Units"));
     this->pages->addWidget(this->units_settings_page);
 
+    this->wireguard_vpn_page = new WireGuardVpnSettingsWidget(this->pages);
+    QListWidgetItem *wireguard_entry = new QListWidgetItem(tr("WireGuard VPN"), this->table_of_contents);
+    wireguard_entry->setToolTip(tr("Manage shared WireGuard VPN profiles and view their usage and tunnel status."));
+    this->pages->addWidget(this->wireguard_vpn_page);
+#if defined(__EMSCRIPTEN__) || defined(Q_OS_WASM)
+    // A browser cannot establish the native UDP/TUN WireGuard tunnel used by
+    // AOWIS-NETWORK. Keep the option discoverable, but do not open a dead UI.
+    wireguard_entry->setFlags(wireguard_entry->flags() & ~Qt::ItemIsEnabled);
+    wireguard_entry->setToolTip(tr("WireGuard VPN is unavailable in WebAssembly: browser networking does not provide the required UDP/TUN access."));
+#endif
+
     connect(this->table_of_contents, &QListWidget::currentRowChanged,
             this, [this](int row)
     {
@@ -66,10 +78,17 @@ void SettingsWidget::focusUnits()
 void SettingsWidget::changeEvent(QEvent *event)
 {
     QWidget::changeEvent(event);
-    if (event->type() == QEvent::LanguageChange && this->table_of_contents->count() == 3)
+    if (event->type() == QEvent::LanguageChange && this->table_of_contents->count() == 4)
     {
         this->table_of_contents->item(0)->setText(tr("Keyboard Shortcuts"));
         this->table_of_contents->item(1)->setText(tr("Map Settings"));
         this->table_of_contents->item(2)->setText(tr("Units"));
+        QListWidgetItem *entry = this->table_of_contents->item(3);
+        entry->setText(tr("WireGuard VPN"));
+#if defined(__EMSCRIPTEN__) || defined(Q_OS_WASM)
+        entry->setToolTip(tr("WireGuard VPN is unavailable in WebAssembly: browser networking does not provide the required UDP/TUN access."));
+#else
+        entry->setToolTip(tr("Manage shared WireGuard VPN profiles and view their usage and tunnel status."));
+#endif
     }
 }

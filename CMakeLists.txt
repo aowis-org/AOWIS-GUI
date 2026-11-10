@@ -355,6 +355,8 @@ qt_add_executable(aowis-server-gui
     src/settings/map_settings_widget.h
     src/settings/units_settings_widget.cpp
     src/settings/units_settings_widget.h
+    src/settings/wireguard_vpn_settings_widget.cpp
+    src/settings/wireguard_vpn_settings_widget.h
 
     # Tabs
     src/tabs/tab_alarms_widget.cpp
@@ -912,6 +914,20 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     endif()
     add_test(NAME aowis-gui-language COMMAND aowis-gui-language-tests)
     set_tests_properties(aowis-gui-language PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Session-local WireGuard VPN GUI: CRUD, service reference and runtime
+    # diagnostics views. Does not require the native WireGuard engine.
+    add_executable(aowis-wireguard-vpn-settings-tests
+        tests/wireguard_vpn_settings_test.cpp
+        src/settings/wireguard_vpn_settings_widget.cpp
+        src/settings/wireguard_vpn_settings_widget.h)
+    target_include_directories(aowis-wireguard-vpn-settings-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-wireguard-vpn-settings-tests PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-wireguard-vpn-settings
+        COMMAND aowis-wireguard-vpn-settings-tests)
+    set_tests_properties(aowis-wireguard-vpn-settings PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # VC-03: personal repository is selected in the Projects Server Inspector.
