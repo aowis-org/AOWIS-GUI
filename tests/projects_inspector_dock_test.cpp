@@ -1664,7 +1664,7 @@ int main(int argc, char **argv)
                      && activeInspectorName(projects)->text() == QStringLiteral("NET3 Remote Experiment")
                      && project_tree->topLevelItemCount() == 2
                      && project_tree->topLevelItem(1)->childCount() == 1
-                     && revisions->topLevelItemCount() == 0),
+                     && revisions->topLevelItemCount() == 0,
                  "creating a project from an example did not create a remote-scoped preview"))
         return 1;
     QLabel *metadata = activeInspectorMetadata(projects);
