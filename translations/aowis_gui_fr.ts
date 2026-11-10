@@ -772,8 +772,8 @@ Chaque commit demande un court message décrivant vos modifications. Vous pouvez
       <translation>Impossible de lire les copies de travail personnelles enregistrées : %1</translation>
     </message>
     <message>
-      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
-      <translation>Plusieurs copies de travail privées existent pour ce HEAD. Ouvrez les copies de travail personnelles et choisissez-en une. Leur contenu peut varier.</translation>
+      <source>Multiple private working copies exist for this HEAD. Open the network to inspect and choose a draft; their contents may differ.</source>
+      <translation>Plusieurs copies de travail privées existent pour ce HEAD. Ouvrez le réseau pour examiner et choisir un brouillon ; leurs contenus peuvent différer.</translation>
     </message>
     <message>
       <source>No hydraulic network in this unborn HEAD.</source>
@@ -1837,8 +1837,8 @@ Enregistrer malgré tout une connexion en attente non vérifiée ?</translation>
       <translation>Plusieurs brouillons modifiés existent. Résolvez les brouillons concurrents avant de valider.</translation>
     </message>
     <message>
-      <source>Multiple private drafts exist for this HEAD. Choose one in Personal working copies.</source>
-      <translation>Plusieurs brouillons privés existent pour ce HEAD. Choisissez-en un dans Copies de travail personnelles.</translation>
+      <source>Multiple private drafts exist for this HEAD. Resolve competing drafts before importing.</source>
+      <translation>Plusieurs brouillons privés existent pour ce HEAD. Résolvez leurs différences avant l’importation.</translation>
     </message>
     <message>
       <source>Multiple working copies</source>
@@ -2141,8 +2141,8 @@ Enregistrer cette connexion comme en attente ?</translation>
       <translation>Ce DVMDB est déjà configuré comme dépôt partagé. Son rôle ne peut pas devenir privé. Sélectionnez un autre serveur.</translation>
     </message>
     <message>
-      <source>This HEAD has multiple private working copies. Resolve them in Personal working copies before deleting any HEAD state.</source>
-      <translation>Ce HEAD possède plusieurs copies de travail privées. Résolvez-les dans Copies de travail personnelles avant de supprimer un état HEAD.</translation>
+      <source>This HEAD has multiple private working copies. Open its network to inspect the competing drafts; deletion is blocked until they are resolved.</source>
+      <translation>Ce HEAD possède plusieurs copies de travail privées. Ouvrez son réseau pour examiner les brouillons concurrents ; la suppression reste bloquée tant que le conflit persiste.</translation>
     </message>
     <message>
       <source>This application was built without embedded DVMDB support.</source>
@@ -5415,6 +5415,10 @@ La branche distante sera d’abord extraite vers %1.</translation>
   <context>
     <name>PersonalWorkingCopyDialog</name>
     <message>
+      <source>Multiple saved drafts: select the one to open.</source>
+      <translation>Plusieurs brouillons enregistrés : choisissez celui à ouvrir.</translation>
+    </message>
+    <message>
       <source>Open hydraulic network in editor</source>
       <translation>Ouvrir le réseau hydraulique dans l’éditeur</translation>
     </message>
@@ -5611,8 +5615,8 @@ Enregistrements candidats chargés : %6</translation>
       <translation>Ce brouillon contient plusieurs réseaux hydrauliques. Choisissez explicitement un réseau avant de le modifier.</translation>
     </message>
     <message>
-      <source>Multiple working drafts exist for this branch. Open Personal working copies and select the draft to edit.</source>
-      <translation>Plusieurs brouillons de travail existent pour cette branche. Ouvrez « Copies de travail personnelles » et choisissez celui à modifier.</translation>
+      <source>Multiple working drafts exist for this branch. Select the draft to view or edit; their changes may differ.</source>
+      <translation>Plusieurs brouillons de travail existent pour cette branche. Choisissez celui à consulter ou modifier ; leurs changements peuvent différer.</translation>
     </message>
     <message>
       <source>Network</source>

@@ -747,24 +747,17 @@ public:
     explicit BranchInspector(QWidget *parent = nullptr) : ProjectsInspectorPanel(parent)
     {
         this->setObjectName(QStringLiteral("projectsBranchInspector"));
-        this->working_copies = addButton(tr("Personal working copies…"),
-            QStringLiteral("projectsInspectorWorkingCopies"),
-            tr("Create or reopen a durable private draft for this exact branch HEAD"));
         this->create_branch = addButton(tr("Create branch"),
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from an explicitly chosen revision"));
         this->delete_branch = addButton(tr("Delete branch…"),
             QStringLiteral("projectInspectorDeleteButton"), tr("Delete the selected branch and its unshared branch history"));
-        moveToFullWidth(this->working_copies);
     }
-    QPushButton *working_copies = nullptr;
     QPushButton *create_branch = nullptr;
     QPushButton *delete_branch = nullptr;
 
     void update(bool creating, bool busy, bool ready, bool backed, bool preview, bool valid)
     {
-        this->working_copies->setVisible(!creating && backed);
-        this->working_copies->setEnabled(!busy);
         this->create_branch->setVisible(!creating);
         this->create_branch->setEnabled(ready);
         this->delete_branch->setVisible(!creating && (preview || backed));
@@ -782,8 +775,6 @@ protected:
 private:
     void refreshLanguage()
     {
-        this->working_copies->setText(tr("Personal working copies…"));
-        this->working_copies->setToolTip(tr("Create or reopen a durable private draft for this exact branch HEAD"));
         this->create_branch->setText(tr("Create branch"));
         this->create_branch->setToolTip(tr("Create a named branch from an explicitly chosen revision"));
         this->delete_branch->setText(tr("Delete branch…"));
@@ -801,9 +792,6 @@ public:
             QStringLiteral("projectsInspectorCreateBranch"),
             tr("Create a named branch from this selected revision or HEAD"));
         this->create_branch->setAttribute(Qt::WA_AlwaysShowToolTips);
-        this->head_working_copies = addButton(tr("Personal working copies…"),
-            QStringLiteral("projectsHeadInspectorWorkingCopies"),
-            tr("Create or reopen a private working copy of this branch HEAD"));
         this->commit_head = addButton(tr("Commit"),
             QStringLiteral("projectsHeadInspectorCommit"),
             tr("Commit the saved private working copy with the entered message"));
@@ -814,10 +802,8 @@ public:
         this->identity_footer->setMinimumWidth(0);
         this->identity_footer->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         this->column->addWidget(this->identity_footer);
-        moveToFullWidth(this->head_working_copies);
     }
     QPushButton *create_branch = nullptr;
-    QPushButton *head_working_copies = nullptr;
     QPushButton *commit_head = nullptr;
     QLabel *identity_footer = nullptr;
     void placePrimaryActions(RevisionInspectorOverview *overview)
@@ -838,8 +824,6 @@ public:
             : tr("Create a new branch from this immutable revision"));
         this->commit_head->setVisible(!creating && head);
         this->commit_head->setEnabled(ready && database_backed && has_branch && has_commit_message);
-        this->head_working_copies->setVisible(!creating && head && database_backed);
-        this->head_working_copies->setEnabled(!busy);
         // HEAD's details tab explains committing instead of repeating UUIDs.
         // Immutable revision identities remain visible in the Revision inspector.
         this->identity_footer->setVisible(!creating && !head);

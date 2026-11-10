@@ -772,8 +772,8 @@ Cada commit requiere un mensaje breve que describa los cambios. Puede seguir edi
       <translation>No se pueden leer las copias de trabajo personales guardadas: %1</translation>
     </message>
     <message>
-      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
-      <translation>Este HEAD tiene varias copias de trabajo privadas. Abra las copias personales y elija una. Su contenido puede variar.</translation>
+      <source>Multiple private working copies exist for this HEAD. Open the network to inspect and choose a draft; their contents may differ.</source>
+      <translation>Existen varias copias de trabajo privadas para este HEAD. Abre la red para revisar y elegir un borrador; su contenido puede ser diferente.</translation>
     </message>
     <message>
       <source>No hydraulic network in this unborn HEAD.</source>
@@ -1837,8 +1837,8 @@ Save it as an unverified pending connection anyway?</source>
       <translation>Existen varios borradores modificados. Resuelva los borradores en conflicto antes de confirmar.</translation>
     </message>
     <message>
-      <source>Multiple private drafts exist for this HEAD. Choose one in Personal working copies.</source>
-      <translation>Existen varios borradores privados para este HEAD. Elija uno en Copias de trabajo personales.</translation>
+      <source>Multiple private drafts exist for this HEAD. Resolve competing drafts before importing.</source>
+      <translation>Existen varios borradores privados para este HEAD. Resuelve los conflictos entre borradores antes de importar.</translation>
     </message>
     <message>
       <source>Multiple working copies</source>
@@ -2141,8 +2141,8 @@ Save this connection as pending?</source>
       <translation>Esta DVMDB ya está configurada como repositorio compartido. Su rol no puede cambiarse a privado. Seleccione otro servidor.</translation>
     </message>
     <message>
-      <source>This HEAD has multiple private working copies. Resolve them in Personal working copies before deleting any HEAD state.</source>
-      <translation>Este HEAD tiene varias copias de trabajo privadas. Resuélvalas en Copias de trabajo personales antes de eliminar cualquier estado de HEAD.</translation>
+      <source>This HEAD has multiple private working copies. Open its network to inspect the competing drafts; deletion is blocked until they are resolved.</source>
+      <translation>Este HEAD tiene varias copias de trabajo privadas. Abre su red para examinar los borradores en conflicto; no se permite eliminarlo hasta resolverlos.</translation>
     </message>
     <message>
       <source>This application was built without embedded DVMDB support.</source>
@@ -5415,6 +5415,10 @@ La rama remota se obtendrá primero en %1.</translation>
   <context>
     <name>PersonalWorkingCopyDialog</name>
     <message>
+      <source>Multiple saved drafts: select the one to open.</source>
+      <translation>Varios borradores guardados: elige cuál abrir.</translation>
+    </message>
+    <message>
       <source>Open hydraulic network in editor</source>
       <translation>Abrir la red hidráulica en el editor</translation>
     </message>
@@ -5611,8 +5615,8 @@ Registros candidatos cargados: %6</translation>
       <translation>Este borrador contiene varias redes hidráulicas. Seleccione una red antes de editar.</translation>
     </message>
     <message>
-      <source>Multiple working drafts exist for this branch. Open Personal working copies and select the draft to edit.</source>
-      <translation>Existen varios borradores de trabajo para esta rama. Abra «Copias de trabajo personales» y seleccione el borrador que desea editar.</translation>
+      <source>Multiple working drafts exist for this branch. Select the draft to view or edit; their changes may differ.</source>
+      <translation>Existen varios borradores de trabajo para esta rama. Elige el que quieras ver o editar; pueden contener cambios diferentes.</translation>
     </message>
     <message>
       <source>Network</source>

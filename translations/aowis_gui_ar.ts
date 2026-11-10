@@ -780,8 +780,8 @@ You can continue editing afterward. Your HEAD remains writable, and changes are 
       <translation>تعذّرت قراءة نسخ العمل الشخصية المحفوظة: %1</translation>
     </message>
     <message>
-      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
-      <translation>توجد عدة نسخ عمل خاصة لهذا الرأس. افتح نسخ العمل الشخصية واختر إحداها، فقد تختلف محتوياتها.</translation>
+      <source>Multiple private working copies exist for this HEAD. Open the network to inspect and choose a draft; their contents may differ.</source>
+      <translation>توجد عدة نسخ عمل خاصة لهذا الرأس. افتح الشبكة لفحص إحدى المسودات واختيارها؛ فقد تختلف محتوياتها.</translation>
     </message>
     <message>
       <source>No hydraulic network in this unborn HEAD.</source>
@@ -1857,8 +1857,8 @@ Save it as an unverified pending connection anyway?</source>
       <translation>توجد عدة مسودات معدّلة. عالج المسودات المتعارضة قبل الاعتماد.</translation>
     </message>
     <message>
-      <source>Multiple private drafts exist for this HEAD. Choose one in Personal working copies.</source>
-      <translation>توجد عدة مسودات خاصة لهذا HEAD. اختر واحدة من نسخ العمل الشخصية.</translation>
+      <source>Multiple private drafts exist for this HEAD. Resolve competing drafts before importing.</source>
+      <translation>توجد عدة مسودات خاصة لهذا الرأس. عالج تعارض المسودات قبل الاستيراد.</translation>
     </message>
     <message>
       <source>Multiple working copies</source>
@@ -2161,8 +2161,8 @@ Save this connection as pending?</source>
       <translation>تم تكوين DVMDB هذه بالفعل كمستودع مشترك. لا يمكن تغيير دورها إلى خاص. اختر خادمًا آخر.</translation>
     </message>
     <message>
-      <source>This HEAD has multiple private working copies. Resolve them in Personal working copies before deleting any HEAD state.</source>
-      <translation>يمتلك HEAD هذا عدة نسخ عمل خاصة. عالجها في نسخ العمل الشخصية قبل حذف أي حالة من HEAD.</translation>
+      <source>This HEAD has multiple private working copies. Open its network to inspect the competing drafts; deletion is blocked until they are resolved.</source>
+      <translation>لهذا الرأس عدة نسخ عمل خاصة. افتح شبكته لفحص المسودات المتعارضة؛ ويظل الحذف معطلاً حتى معالجة التعارض.</translation>
     </message>
     <message>
       <source>This application was built without embedded DVMDB support.</source>
@@ -5435,6 +5435,10 @@ The remote branch will first be checked out into %1.</source>
   <context>
     <name>PersonalWorkingCopyDialog</name>
     <message>
+      <source>Multiple saved drafts: select the one to open.</source>
+      <translation>توجد عدة مسودات محفوظة: اختر المسودة التي تريد فتحها.</translation>
+    </message>
+    <message>
       <source>Open hydraulic network in editor</source>
       <translation>فتح الشبكة الهيدروليكية في المحرر</translation>
     </message>
@@ -5631,8 +5635,8 @@ Loaded candidate records: %6</source>
       <translation>تحتوي هذه المسودة على عدة شبكات مياه. اختر شبكة محددة قبل التحرير.</translation>
     </message>
     <message>
-      <source>Multiple working drafts exist for this branch. Open Personal working copies and select the draft to edit.</source>
-      <translation>توجد عدة مسودات عمل لهذا الفرع. افتح «نسخ العمل الشخصية» واختر المسودة المراد تحريرها.</translation>
+      <source>Multiple working drafts exist for this branch. Select the draft to view or edit; their changes may differ.</source>
+      <translation>توجد عدة مسودات عمل لهذا الفرع. اختر المسودة لعرضها أو تحريرها؛ فقد تختلف التغييرات بينها.</translation>
     </message>
     <message>
       <source>Network</source>

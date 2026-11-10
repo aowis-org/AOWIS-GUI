@@ -189,9 +189,7 @@ private:
     void deleteConnection();
     void createProject();
     void createBranch();
-    void showWorkingCopies();
     void editProjectNetwork();
-    void openWorkingCopy(bool direct_edit);
     void requestNetworkOpen(const ProjectPreviewData &project, const ProjectPreviewBranch &branch);
     void beginCreation(bool branch);
     ProjectsInspectorCreationForm *currentCreationForm() const;

@@ -550,12 +550,13 @@ int main(int argc, char **argv)
                      && action_stack->currentWidget()->objectName()
                          == QStringLiteral("projectsBranchInspector"),
                  "Projects Inspector does not route to four independent domain action panels")) return 1;
-    QPushButton *working_copies = projects.findChild<QPushButton *>(
-        QStringLiteral("projectsInspectorWorkingCopies"));
-    if (!require(working_copies != nullptr && !working_copies->isVisible()
+    if (!require(projects.findChild<QPushButton *>(
+                         QStringLiteral("projectsInspectorWorkingCopies")) == nullptr
+                     && projects.findChild<QPushButton *>(
+                         QStringLiteral("projectsHeadInspectorWorkingCopies")) == nullptr
                      && projects.findChild<QPushButton *>(
                          QStringLiteral("projectsInspectorEditNetwork")) == nullptr,
-                 "preview-only branch must not expose legacy network editing")) return 1;
+                 "Inspector must not expose working-copy management or legacy editing buttons")) return 1;
     if (!require(projects.findChild<QPushButton *>(QStringLiteral("serversRenameButton")) == nullptr
                      && projects.findChild<QPushButton *>(QStringLiteral("serversDeleteButton")) == nullptr,
                  "redundant server rename/delete controls remain in the sidebar"))
@@ -1472,8 +1473,10 @@ int main(int argc, char **argv)
                      && inspector_tabs->tabText(1) == QStringLiteral("HEAD")
                      && inspector_tabs->tabText(2) == QStringLiteral("Branch")
                      && activeInspectorAction(projects,
-                         QStringLiteral("projectsHeadInspectorEditNetwork")) == nullptr,
-                 "selecting a HEAD card did not open its HEAD/Revision Inspector"))
+                         QStringLiteral("projectsHeadInspectorEditNetwork")) == nullptr
+                     && activeInspectorAction(projects,
+                         QStringLiteral("projectsHeadInspectorWorkingCopies")) == nullptr,
+                 "selecting a HEAD card did not open its HEAD/Revision Inspector or retained the working-copy button"))
         return 1;
     if (!require(revision_delete != nullptr && branch_delete != nullptr
                      && revision_delete->text().contains(QStringLiteral("HEAD"))

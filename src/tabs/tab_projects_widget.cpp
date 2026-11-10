@@ -779,10 +779,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                                 this->branch_inspector->create_branch,
                                 this->revision_inspector->create_branch})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(true); });
-    connect(this->branch_inspector->working_copies, &QPushButton::clicked,
-            this, &ProjectsWidget::showWorkingCopies);
-    connect(this->revision_inspector->head_working_copies, &QPushButton::clicked,
-            this, &ProjectsWidget::showWorkingCopies);
     connect(this->revision_network_overview->open_network, &QPushButton::clicked,
             this, &ProjectsWidget::openInspectedNetwork);
     connect(this->revision_network_overview->export_network, &QPushButton::clicked,
@@ -2569,8 +2565,6 @@ void ProjectsWidget::refreshRevisionInspectorLanguage()
     this->revision_inspector->create_branch->setToolTip(head
         ? tr("Commit HEAD first, then select the finalized revision to create a branch.")
         : tr("Create a new branch from this immutable revision"));
-    this->revision_inspector->head_working_copies->setText(tr("Personal working copies…"));
-    this->revision_inspector->head_working_copies->setToolTip(tr("Create or reopen a private working copy of this branch HEAD"));
     this->revision_network_overview->state->setText(head ? tr("Writable HEAD") : tr("Immutable revision"));
     this->revision_network_overview->branch->setText(tr("Branch: %1").arg(this->revision_overview->branch_label->text()));
     refreshCommitLabels();
@@ -3721,7 +3715,7 @@ void ProjectsWidget::refreshNetworkSummary()
         if (matches > 1) {
             this->revision_network_overview->setStatus(
                 {QT_TRANSLATE_NOOP("ProjectsWidget", "Multiple private working copies exist for this HEAD. "
-                   "Open Personal working copies and choose one; their contents may differ."), {}});
+                   "Open the network to inspect and choose a draft; their contents may differ."), {}});
             client->deleteLater(); return;
         }
         if (matches == 0) {
@@ -4092,7 +4086,7 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
             for (const PersonalWorkingCopyInfo &draft : drafts) {
                 if (draft.project_id != project_uuid || draft.branch_id != branch_uuid) continue;
                 if (!matched.isEmpty()) {
-                    failed(tr("Multiple private drafts exist for this HEAD. Choose one in Personal working copies."));
+                    failed(tr("Multiple private drafts exist for this HEAD. Resolve competing drafts before importing."));
                     return;
                 }
                 matched = draft.id;
@@ -4255,58 +4249,19 @@ void ProjectsWidget::openInspectedNetwork()
     dialog->open();
 }
 
-void ProjectsWidget::showWorkingCopies()
-{
-    openWorkingCopy(false);
-}
-
 void ProjectsWidget::editProjectNetwork()
-{
-    openWorkingCopy(true);
-}
-
-void ProjectsWidget::openWorkingCopy(bool direct_edit)
 {
     const ProjectPreviewData *project = currentProject();
     if (project == nullptr || !project->database_backed) return;
     const ProjectPreviewBranch *branch = currentBranch();
-    if (direct_edit)
-    {
-        // Inspector and toolbar share exactly the same confirmed open path.
-        // A project with several branches never implicitly selects main.
-        if (this->selection_kind == SelectionKind::Project)
-            branch = project->branches.size() == 1 ? &project->branches.first() : nullptr;
-        if (branch != nullptr)
-            requestNetworkOpen(*project, *branch);
-        else
-            emit networkOpenProgress(tr("Select a branch in the toolbar to open its network."), false);
-        return;
-    }
-    if ((this->selection_kind != SelectionKind::Branch
-        && this->selection_kind != SelectionKind::Head) || branch == nullptr)
-        return;
-    const ProjectServerProfile *source = nullptr;
-    for (const ProjectServerProfile &candidate : this->servers)
-        if (candidate.id == project->server_id) { source = &candidate; break; }
-    QString source_endpoint = source != nullptr &&
-        source->connection_type == QStringLiteral("remote") ? source->endpoint : QString();
-#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
-    if (source != nullptr && source->connection_type == QStringLiteral("local"))
-        source_endpoint = embeddedDvmdbEndpoint(source->local_path, source->personal,
-                                                nullptr, nullptr);
-#endif
-    PersonalWorkingCopyDialog dialog(project->backend_id,
-        branch->id.mid(project->id.size() + 1), branch->name, branch->head,
-        project->repository_id, source_endpoint, project->name, this, false);
-    if (dialog.exec() == QDialog::Accepted && dialog.selectedPreviewNetwork().has_value())
-    {
-        if (dialog.selectedEditRequested())
-            emit draftNetworkEditRequested(dialog.selectedPreviewDraftId(),
-                                           dialog.selectedEditNetworkId());
-        else
-            emit draftNetworkPreviewRequested(*dialog.selectedPreviewNetwork(),
-                dialog.selectedPreviewDraftId(), dialog.selectedPreviewGeneration());
-    }
+    // The Inspector and toolbar both follow the normal confirmed Open path.
+    // A project with several branches never implicitly selects main.
+    if (this->selection_kind == SelectionKind::Project)
+        branch = project->branches.size() == 1 ? &project->branches.first() : nullptr;
+    if (branch != nullptr)
+        requestNetworkOpen(*project, *branch);
+    else
+        emit networkOpenProgress(tr("Select a branch in the toolbar to open its network."), false);
 }
 
 void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
@@ -4374,6 +4329,14 @@ void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
             else
                 emit draftNetworkEditRequested(operation->selectedPreviewDraftId(),
                                                operation->selectedEditNetworkId());
+        }
+        else if (result == QDialog::Accepted && operation->selectedPreviewNetwork().has_value())
+        {
+            // When several private drafts exist, the automatic Open path
+            // presents the existing draft chooser. Its View action must still
+            // open the selected verified network in Distribution Monitor.
+            emit draftNetworkPreviewRequested(*operation->selectedPreviewNetwork(),
+                operation->selectedPreviewDraftId(), operation->selectedPreviewGeneration());
         }
         else if (result == QDialog::Accepted)
             emit networkOpenProgress(tr("Prepared network was not approved for editing."), true);
@@ -4611,8 +4574,8 @@ void ProjectsWidget::discardInspectedHead() {
         }
         if (matches.size() != 1) {
             QMessageBox::warning(this, tr("Multiple working copies"),
-                tr("This HEAD has multiple private working copies. Resolve them in "
-                   "Personal working copies before deleting any HEAD state."));
+                tr("This HEAD has multiple private working copies. Open its network to inspect "
+                   "the competing drafts; deletion is blocked until they are resolved."));
             client->deleteLater();
             return;
         }

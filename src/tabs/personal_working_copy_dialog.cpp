@@ -126,8 +126,8 @@ PersonalWorkingCopyDialog::PersonalWorkingCopyDialog(
     layout->addLayout(network_actions);
     if (this->direct_edit)
     {
-        // Normal project editing is one operation. The advanced working-copy
-        // controls remain available through the separate Inspector action.
+        // Normal project editing is one operation. If multiple private drafts
+        // need disambiguation, refresh() reveals the advanced chooser on demand.
         this->checkout_button->hide();
         this->refresh_button->hide();
         this->create_button->hide();
@@ -366,10 +366,28 @@ void PersonalWorkingCopyDialog::refresh()
         if (!this->direct_edit) return;
         if (this->drafts->count() > 1)
         {
-            // Never guess which competing private draft contains the user's
-            // edits. The advanced working-copy action permits selecting one.
-            reportFailure(tr("Multiple working drafts exist for this branch. "
-                "Open Personal working copies and select the draft to edit."));
+            // Never guess which private draft contains the user's edits.
+            // Reveal the existing recovery/selection UI only for this conflict,
+            // rather than placing a permanent management button in Inspectors.
+            if (this->on_status)
+                this->on_status(tr("Multiple saved drafts: select the one to open."), false);
+            this->direct_edit = false;
+            this->checkout_button->show();
+            this->refresh_button->show();
+            this->create_button->show();
+            this->reopen_button->show();
+            this->initialize_button->show();
+            this->view_button->show();
+            this->edit_button->show();
+            this->drafts->show();
+            refreshStaticText();
+            setOperationStatusKey(QT_TRANSLATE_NOOP("PersonalWorkingCopyDialog",
+                "Multiple working drafts exist for this branch. "
+                "Select the draft to view or edit; their changes may differ."));
+            // Non-blocking modal recovery keeps the selected project/HEAD
+            // stable while the user chooses an existing private draft.
+            setWindowModality(Qt::WindowModal);
+            open();
             return;
         }
         if (this->drafts->count() == 1)

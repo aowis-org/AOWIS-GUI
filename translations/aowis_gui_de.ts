@@ -772,8 +772,8 @@ Beschreiben Sie Ihre Änderungen in einer kurzen Commit-Nachricht. Anschließend
       <translation>Gespeicherte persönliche Arbeitskopien können nicht gelesen werden: %1</translation>
     </message>
     <message>
-      <source>Multiple private working copies exist for this HEAD. Open Personal working copies and choose one; their contents may differ.</source>
-      <translation>Für diesen HEAD gibt es mehrere private Arbeitskopien. Öffnen Sie die persönlichen Arbeitskopien und wählen Sie eine aus. Die Inhalte können sich unterscheiden.</translation>
+      <source>Multiple private working copies exist for this HEAD. Open the network to inspect and choose a draft; their contents may differ.</source>
+      <translation>Für diesen HEAD gibt es mehrere private Arbeitskopien. Öffnen Sie das Netzwerk, um einen Entwurf zu prüfen und auszuwählen; die Inhalte können sich unterscheiden.</translation>
     </message>
     <message>
       <source>No hydraulic network in this unborn HEAD.</source>
@@ -1837,8 +1837,8 @@ Trotzdem als ungeprüfte, ausstehende Verbindung speichern?</translation>
       <translation>Mehrere geänderte Entwürfe vorhanden. Lösen Sie die konkurrierenden Entwürfe vor dem Commit auf.</translation>
     </message>
     <message>
-      <source>Multiple private drafts exist for this HEAD. Choose one in Personal working copies.</source>
-      <translation>Mehrere private Entwürfe für diesen HEAD vorhanden. Wählen Sie einen unter „Persönliche Arbeitskopien“ aus.</translation>
+      <source>Multiple private drafts exist for this HEAD. Resolve competing drafts before importing.</source>
+      <translation>Für diesen HEAD gibt es mehrere private Entwürfe. Klären Sie die konkurrierenden Entwürfe vor dem Import.</translation>
     </message>
     <message>
       <source>Multiple working copies</source>
@@ -2141,8 +2141,8 @@ Diese Verbindung als ausstehend speichern?</translation>
       <translation>Diese DVMDB ist bereits als gemeinsames Repository konfiguriert. Ihre Rolle kann nicht auf privat geändert werden. Wählen Sie einen anderen Server.</translation>
     </message>
     <message>
-      <source>This HEAD has multiple private working copies. Resolve them in Personal working copies before deleting any HEAD state.</source>
-      <translation>Dieser HEAD hat mehrere private Arbeitskopien. Lösen Sie diese unter „Persönliche Arbeitskopien“ auf, bevor Sie einen HEAD-Zustand löschen.</translation>
+      <source>This HEAD has multiple private working copies. Open its network to inspect the competing drafts; deletion is blocked until they are resolved.</source>
+      <translation>Dieser HEAD hat mehrere private Arbeitskopien. Öffnen Sie das Netzwerk, um die konkurrierenden Entwürfe zu prüfen; das Löschen bleibt bis zur Klärung gesperrt.</translation>
     </message>
     <message>
       <source>This application was built without embedded DVMDB support.</source>
@@ -5415,6 +5415,10 @@ Der entfernte Branch wird zuerst nach %1 ausgecheckt.</translation>
   <context>
     <name>PersonalWorkingCopyDialog</name>
     <message>
+      <source>Multiple saved drafts: select the one to open.</source>
+      <translation>Mehrere gespeicherte Entwürfe: Wählen Sie den zu öffnenden Entwurf.</translation>
+    </message>
+    <message>
       <source>Open hydraulic network in editor</source>
       <translation>Hydrauliknetz im Editor öffnen</translation>
     </message>
@@ -5611,8 +5615,8 @@ Geladene Kandidatendatensätze: %6</translation>
       <translation>Dieser Entwurf enthält mehrere hydraulische Netze. Wählen Sie vor dem Bearbeiten ausdrücklich ein Netz aus.</translation>
     </message>
     <message>
-      <source>Multiple working drafts exist for this branch. Open Personal working copies and select the draft to edit.</source>
-      <translation>Für diesen Branch gibt es mehrere Arbeitsentwürfe. Öffnen Sie „Persönliche Arbeitskopien“ und wählen Sie den zu bearbeitenden Entwurf.</translation>
+      <source>Multiple working drafts exist for this branch. Select the draft to view or edit; their changes may differ.</source>
+      <translation>Für diesen Branch gibt es mehrere Arbeitsentwürfe. Wählen Sie den Entwurf zum Anzeigen oder Bearbeiten; die Änderungen können unterschiedlich sein.</translation>
     </message>
     <message>
       <source>Network</source>
