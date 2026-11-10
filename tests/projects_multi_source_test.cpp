@@ -6,6 +6,7 @@
 #include "widgets/group_box_collapsible.h"
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHostAddress>
@@ -55,6 +56,8 @@ struct FakeDvmdb
     bool catalogue_valid = true;
     int catalogue_requests = 0;
     int tracking_requests = 0;
+    int role_posts = 0;
+    QString role = QStringLiteral("unconfigured");
     QJsonObject created_project;
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
     const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
@@ -90,12 +93,13 @@ struct FakeDvmdb
                         {
                             ++this->tracking_requests;
                             data = QJsonDocument(QJsonObject{
-                                {QStringLiteral("role"), QStringLiteral("shared")},
+                                {QStringLiteral("role"), this->role},
                                 {QStringLiteral("repositoryId"), this->repository_id},
                                 {QStringLiteral("modelCodecFingerprint"), ModelCodecCompatibility::fingerprint()}
                             }).toJson();
                         }
-                        else if (path == "/dvmdb/v1/projects" && buffer->startsWith("POST "))
+                        else if ((path == "/dvmdb/v1/projects" || path == "/dvmdb/v1/repository/role")
+                                 && buffer->startsWith("POST "))
                         {
                             const qsizetype header_end = buffer->indexOf("\r\n\r\n");
                             const QList<QByteArray> headers = buffer->left(header_end).split('\n');
@@ -110,14 +114,28 @@ struct FakeDvmdb
                             }
                             const QByteArray body = buffer->mid(header_end + 4);
                             if (body.size() < length) return;
-                            const QJsonObject project = QJsonDocument::fromJson(body).object();
-                            if (length != body.size() || expected_id != this->repository_id.toUtf8()
-                                || !DvmdbIdentity::isUuidV7(project.value(QStringLiteral("id")).toString()))
+                            const QJsonObject json = QJsonDocument::fromJson(body).object();
+                            if (path == "/dvmdb/v1/repository/role")
+                            {
+                                ++this->role_posts;
+                                if (length != body.size() || this->role != QStringLiteral("unconfigured")
+                                    || json.value(QStringLiteral("expectedRepositoryId")).toString() != this->repository_id
+                                    || json.value(QStringLiteral("role")).toString() != QStringLiteral("private"))
+                                    status = "400 Bad Request";
+                                else
+                                {
+                                    this->role = QStringLiteral("private");
+                                    data = QJsonDocument(QJsonObject{{QStringLiteral("repositoryId"), this->repository_id},
+                                        {QStringLiteral("role"), this->role}}).toJson();
+                                }
+                            }
+                            else if (length != body.size() || expected_id != this->repository_id.toUtf8()
+                                || !DvmdbIdentity::isUuidV7(json.value(QStringLiteral("id")).toString()))
                                 status = "400 Bad Request";
                             else
                             {
-                                this->created_project = project;
-                                data = QJsonDocument(project).toJson();
+                                this->created_project = json;
+                                data = QJsonDocument(json).toJson();
                                 status = "201 Created";
                             }
                         }
@@ -498,6 +516,23 @@ int main(int argc, char **argv)
         if (!require(second.created_project.isEmpty(), "write reached the other repository")) return 1;
         sources->setCurrentItem(sources->topLevelItem(0));
         sources->itemClicked(sources->topLevelItem(0), 0);
+        QCheckBox *personal = projects.findChild<QCheckBox *>(QStringLiteral("projectsPersonalServerCheckbox"));
+        if (!require(personal != nullptr && personal->isEnabled(), "personal designation unavailable")) return 1;
+        const std::function<bool()> saved_personal = [&first] {
+            for (const ProjectServerProfile &profile : loadProjectServerProfiles())
+                if (profile.id == first.repository_id) return profile.personal;
+            return false;
+        };
+        const int previous_tracking = first.tracking_requests;
+        personal->click();
+        if (!require(waitUntil(app, saved_personal) && first.role_posts == 1
+                     && first.tracking_requests > previous_tracking && second.role_posts == 0,
+                     "personal designation must verify and configure only the tunneled repository")) return 1;
+        personal->click();
+        if (!require(!saved_personal(), "personal designation was not cleared locally")) return 1;
+        personal->click();
+        if (!require(waitUntil(app, saved_personal) && first.role_posts == 1,
+                     "already-private tunneled repository was reconfigured")) return 1;
         peer.closeWriteChannel();
         if (!require(peer.waitForFinished(5000) && peer.exitCode() == 0, "test peer did not stop")) return 1;
         if (!waitUntil(app, [&] { return health_label->text() == QStringLiteral("Unavailable"); }, 25000))

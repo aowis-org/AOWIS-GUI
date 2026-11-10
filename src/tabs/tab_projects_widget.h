@@ -160,6 +160,7 @@ private:
     void updateSourceFields();
     void updateButtons();
     struct SourceSession;
+    std::shared_ptr<DvmdbConnection> connectionFor(const ProjectServerProfile &profile) const;
     void startSource(const ProjectServerProfile &profile);
     void openRemoteSource(const ProjectServerProfile &profile);
     void startRemoteHealth(const ProjectServerProfile &profile);

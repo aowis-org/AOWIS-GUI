@@ -234,12 +234,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     : QWidget(parent)
 {
     setObjectName(QStringLiteral("projectsWorkspace"));
-    this->source_writer = new ProjectSourceWriter(this, [this](const ProjectServerProfile &profile)
-        -> std::shared_ptr<DvmdbConnection> {
-        SourceSession *session = this->source_sessions.value(profile.id, nullptr);
-        if (session == nullptr || !session->connection
-            || !session->connection->matches(QUrl(profile.endpoint), profile.wireguard_profile_path)) return {};
-        return session->connection;
+    this->source_writer = new ProjectSourceWriter(this, [this](const ProjectServerProfile &profile) {
+        return this->connectionFor(profile);
     });
     seedPreview();
     this->servers = loadProjectServerProfiles();
@@ -5057,6 +5053,14 @@ void ProjectsWidget::createProjectFromExample(const BuiltinExampleRevision &exam
     select(SelectionKind::Project, id);
 }
 
+std::shared_ptr<DvmdbConnection> ProjectsWidget::connectionFor(const ProjectServerProfile &profile) const
+{
+    const SourceSession *session = this->source_sessions.value(profile.id, nullptr);
+    if (session == nullptr || !session->connection
+        || !session->connection->matches(QUrl(profile.endpoint), profile.wireguard_profile_path)) return {};
+    return session->connection;
+}
+
 void ProjectsWidget::setPersonalServer(bool enabled)
 {
     if (this->updating_ui || this->selection_kind != SelectionKind::Server) return;
@@ -5132,20 +5136,27 @@ void ProjectsWidget::setPersonalServer(bool enabled)
     if (!endpoint.endsWith(QStringLiteral("/dvmdb/v1")))
         endpoint += QStringLiteral("/dvmdb/v1");
     this->database_connection->personal_server_checkbox->setEnabled(false);
-    QNetworkAccessManager *manager = new QNetworkAccessManager(this);
-    const std::function<bool()> stillSelected = [this, selected_id, selected_endpoint, request_id]()
+    const std::shared_ptr<DvmdbConnection> route = this->connectionFor(*server);
+    if (!route)
     {
-        if (request_id != this->personal_designation_request) return false;
-        for (const ProjectServerProfile &candidate : this->servers)
-            if (candidate.id == selected_id && candidate.endpoint == selected_endpoint)
-                return true;
-        return false;
+        this->updateInspector();
+        openSourceMessage(this, QMessageBox::Warning, tr("Cannot select personal database"),
+            QCoreApplication::translate("ProjectSourceWriter", "DVMDB repository identity could not be verified. No write was sent."));
+        return;
+    }
+    const QPointer<DvmdbConnection> connection(route.get());
+    const std::function<bool()> stillSelected =
+        [this, owner = QPointer<ProjectsWidget>(this), connection, selected_id, request_id]()
+    {
+        if (!owner || !connection || request_id != this->personal_designation_request) return false;
+        const SourceSession *session = this->source_sessions.value(selected_id, nullptr);
+        return session != nullptr && session->connection.get() == connection.data();
     };
     const std::function<void(const QString &)> rejectSelection = [this, stillSelected](const QString &reason)
     {
         if (!stillSelected()) return;
-        QMessageBox::warning(this, tr("Cannot select personal database"), reason);
         if (this->selection_kind == SelectionKind::Server) updateInspector();
+        openSourceMessage(this, QMessageBox::Warning, tr("Cannot select personal database"), reason);
     };
     const std::function<void(const QString &, const QString &)> acceptRole =
         [this, selected_id, persistSelection, stillSelected, rejectSelection](const QString &id, const QString &role)
@@ -5161,57 +5172,51 @@ void ProjectsWidget::setPersonalServer(bool enabled)
     };
     QNetworkRequest request(QUrl(endpoint + QStringLiteral("/repository/tracking")));
     request.setTransferTimeout(8000);
-    QNetworkReply *reply = manager->get(request);
-    connect(reply, &QNetworkReply::finished, this,
-            [this, manager, reply, endpoint, stillSelected, rejectSelection, acceptRole]()
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    connection->verify(request, [this, connection, selected_id, endpoint, stillSelected, rejectSelection, acceptRole]
+                       (RepositoryProbeResult result)
     {
-        const QByteArray body = reply->readAll();
-        const QString networkError = reply->errorString();
-        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const bool success = reply->error() == QNetworkReply::NoError && status == 200;
-        reply->deleteLater();
-        if (!stillSelected()) { manager->deleteLater(); return; }
-        if (!success)
+        if (!stillSelected()) return;
+        if (!result.transport_ok || result.status != 200)
         {
-            manager->deleteLater();
             rejectSelection(tr("Could not read DVMDB repository identity (%1, HTTP %2). "
                                "Check the selected server URL and whether DVMDB is running.")
-                            .arg(networkError).arg(status));
+                            .arg(result.error).arg(result.status));
             return;
         }
-        const QJsonDocument document = QJsonDocument::fromJson(body);
+        const QJsonDocument document = QJsonDocument::fromJson(result.body);
         const QJsonObject data = document.isObject() ? document.object() : QJsonObject();
         const QString id = data.value(QStringLiteral("repositoryId")).toString();
         const QString role = data.value(QStringLiteral("role")).toString();
         const QString codec_error = ModelCodecCompatibility::error(data);
         if (!codec_error.isEmpty())
         {
-            manager->deleteLater();
             rejectSelection(codec_error);
             return;
         }
         if (!DvmdbIdentity::isUuidV7(id))
         {
-            manager->deleteLater();
             rejectSelection(tr("DVMDB returned an invalid repository UUIDv7."));
+            return;
+        }
+        if (id != selected_id)
+        {
+            rejectSelection(tr("DVMDB repository identity changed while configuring its role."));
             return;
         }
         if (role == QStringLiteral("private"))
         {
-            manager->deleteLater();
             acceptRole(id, role);
             return;
         }
         if (role == QStringLiteral("shared"))
         {
-            manager->deleteLater();
             rejectSelection(tr("This DVMDB is already configured as a shared repository. "
                                "Its role cannot be changed to private. Select a different server."));
             return;
         }
         if (role != QStringLiteral("unconfigured"))
         {
-            manager->deleteLater();
             rejectSelection(tr("DVMDB returned an unknown repository role: %1.").arg(role));
             return;
         }
@@ -5224,16 +5229,21 @@ void ProjectsWidget::setPersonalServer(bool enabled)
             {QStringLiteral("expectedRepositoryId"), id},
             {QStringLiteral("role"), QStringLiteral("private")}
         }).toJson(QJsonDocument::Compact);
-        QNetworkReply *configured = manager->post(configure, payload);
-        connect(configured, &QNetworkReply::finished, this,
-                [this, manager, configured, id, stillSelected, rejectSelection, acceptRole]()
+        configure.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        QNetworkReply *configured = connection->write(configure, "POST", payload);
+        if (!configured)
         {
-            const QByteArray response = configured->readAll();
+            rejectSelection(tr("The server did not confirm its private role and UUIDv7 identity."));
+            return;
+        }
+        connect(configured, &QNetworkReply::finished, this,
+                [this, configured, id, stillSelected, rejectSelection, acceptRole]()
+        {
+            const QByteArray response = configured->isReadable() ? configured->readAll() : QByteArray();
             const QString networkError = configured->errorString();
             const int status = configured->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const bool success = configured->error() == QNetworkReply::NoError && status == 200;
             configured->deleteLater();
-            manager->deleteLater();
             if (!stillSelected()) return;
             if (!success)
             {
