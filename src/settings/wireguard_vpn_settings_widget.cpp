@@ -1,6 +1,7 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 
 #include <QAbstractItemView>
+#include <QColor>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
@@ -14,6 +15,10 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QSet>
+#include <QSyntaxHighlighter>
+#include <QTextCharFormat>
+#include <QTextDocument>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -25,6 +30,153 @@
 namespace
 {
 constexpr qint64 MaximumImportBytes = 128 * 1024;
+
+
+// Pure Qt text formatting: no native networking, third-party editor, or
+// configuration normalization. In particular, secrets are never inspected
+// beyond recognizing their directive names.
+class WireGuardSyntaxHighlighter final : public QSyntaxHighlighter
+{
+public:
+    explicit WireGuardSyntaxHighlighter(QTextDocument *document)
+        : QSyntaxHighlighter(document)
+    {
+    }
+
+    void updatePalette(const QPalette &palette)
+    {
+        const bool dark = palette.color(QPalette::Base).lightness() < 128;
+        this->section_format = QTextCharFormat();
+        this->section_format.setForeground(QColor(dark ? "#c5adff" : "#7035a7"));
+        this->section_format.setFontWeight(QFont::Bold);
+        this->directive_format = QTextCharFormat();
+        this->directive_format.setForeground(QColor(dark ? "#86bcff" : "#0755a5"));
+        this->directive_format.setFontWeight(QFont::DemiBold);
+        this->unrecognized_format = QTextCharFormat();
+        this->unrecognized_format.setForeground(QColor(dark ? "#edcb8d" : "#865619"));
+        this->value_format = QTextCharFormat();
+        this->value_format.setForeground(QColor(dark ? "#8dd6b2" : "#176c4b"));
+        this->separator_format = QTextCharFormat();
+        this->separator_format.setForeground(QColor(dark ? "#b5c1d1" : "#657082"));
+        this->comment_format = QTextCharFormat();
+        this->comment_format.setForeground(QColor(dark ? "#9daabb" : "#687587"));
+        this->comment_format.setFontItalic(true);
+        this->invalid_format = QTextCharFormat();
+        this->invalid_format.setForeground(QColor(dark ? "#ff9999" : "#ad2828"));
+        this->invalid_format.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+        this->invalid_format.setUnderlineColor(QColor(dark ? "#ff9999" : "#ad2828"));
+        this->rehighlight();
+    }
+
+protected:
+    void highlightBlock(const QString &line) override
+    {
+        // Carry [Interface]/[Peer] context over blank lines and comments.
+        this->setCurrentBlockState(this->previousBlockState());
+        const qsizetype length = line.size();
+        qsizetype begin = 0;
+        while (begin < length && line.at(begin).isSpace()) ++begin;
+        if (begin == length) return;
+        if (line.at(begin) == QLatin1Char('#') || line.at(begin) == QLatin1Char(';'))
+        {
+            this->setFormat(begin, length - begin, this->comment_format);
+            return;
+        }
+
+        if (line.at(begin) == QLatin1Char('['))
+        {
+            const qsizetype close = line.indexOf(QLatin1Char(']'), begin + 1);
+            if (close < 0)
+            {
+                this->setCurrentBlockState(0);
+                this->setFormat(begin, length - begin, this->invalid_format);
+                return;
+            }
+            const QString section = line.mid(begin + 1, close - begin - 1).trimmed();
+            const bool recognized = section == QStringLiteral("Interface")
+                || section == QStringLiteral("Peer");
+            this->setCurrentBlockState(section == QStringLiteral("Interface") ? 1
+                                       : section == QStringLiteral("Peer") ? 2 : 0);
+            this->setFormat(begin, close - begin + 1,
+                            recognized ? this->section_format : this->unrecognized_format);
+            qsizetype trailing = close + 1;
+            while (trailing < length && line.at(trailing).isSpace()) ++trailing;
+            if (trailing < length)
+            {
+                if (line.at(trailing) == QLatin1Char('#') || line.at(trailing) == QLatin1Char(';'))
+                    this->setFormat(trailing, length - trailing, this->comment_format);
+                else
+                    this->setFormat(trailing, length - trailing, this->invalid_format);
+            }
+            return;
+        }
+
+        const qsizetype separator = line.indexOf(QLatin1Char('='), begin);
+        if (separator < 0)
+        {
+            this->setFormat(begin, length - begin, this->invalid_format);
+            return;
+        }
+        qsizetype key_end = separator;
+        while (key_end > begin && line.at(key_end - 1).isSpace()) --key_end;
+        if (key_end == begin)
+        {
+            this->setFormat(begin, length - begin, this->invalid_format);
+            return;
+        }
+        const QString key = line.mid(begin, key_end - begin);
+        static const QSet<QString> interface_keys = {
+            QStringLiteral("PrivateKey"), QStringLiteral("Address"),
+            QStringLiteral("ListenPort"), QStringLiteral("DNS"),
+            QStringLiteral("MTU"), QStringLiteral("Table"),
+            QStringLiteral("PreUp"), QStringLiteral("PostUp"),
+            QStringLiteral("PreDown"), QStringLiteral("PostDown"),
+            QStringLiteral("SaveConfig"), QStringLiteral("FwMark")
+        };
+        static const QSet<QString> peer_keys = {
+            QStringLiteral("PublicKey"), QStringLiteral("PresharedKey"),
+            QStringLiteral("AllowedIPs"), QStringLiteral("Endpoint"),
+            QStringLiteral("PersistentKeepalive")
+        };
+        const bool recognized = (this->previousBlockState() == 1 && interface_keys.contains(key))
+            || (this->previousBlockState() == 2 && peer_keys.contains(key));
+        this->setFormat(begin, key_end - begin,
+                        recognized ? this->directive_format : this->unrecognized_format);
+        this->setFormat(separator, 1, this->separator_format);
+
+        qsizetype value_begin = separator + 1;
+        while (value_begin < length && line.at(value_begin).isSpace()) ++value_begin;
+        // Treat # or ; as an inline comment only at a whitespace boundary.
+        // A character inside a value is not silently reinterpreted as a comment.
+        qsizetype comment = -1;
+        for (qsizetype index = value_begin; index < length; ++index)
+        {
+            if ((line.at(index) == QLatin1Char('#') || line.at(index) == QLatin1Char(';'))
+                && (index == value_begin || line.at(index - 1).isSpace()))
+            {
+                comment = index;
+                break;
+            }
+        }
+        qsizetype value_end = comment < 0 ? length : comment;
+        while (value_end > value_begin && line.at(value_end - 1).isSpace()) --value_end;
+        if (value_begin == value_end)
+            this->setFormat(separator, 1, this->invalid_format);
+        else
+            this->setFormat(value_begin, value_end - value_begin, this->value_format);
+        if (comment >= 0)
+            this->setFormat(comment, length - comment, this->comment_format);
+    }
+
+private:
+    QTextCharFormat section_format;
+    QTextCharFormat directive_format;
+    QTextCharFormat unrecognized_format;
+    QTextCharFormat value_format;
+    QTextCharFormat separator_format;
+    QTextCharFormat comment_format;
+    QTextCharFormat invalid_format;
+};
 
 QLabel *wrappedLabel(QWidget *parent)
 {
@@ -122,6 +274,10 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     monospace.setStyleHint(QFont::Monospace);
     monospace.setFamily(QStringLiteral("monospace"));
     this->configuration_edit->setFont(monospace);
+    this->configuration_highlighter = new WireGuardSyntaxHighlighter(this->configuration_edit->document());
+    static_cast<WireGuardSyntaxHighlighter *>(this->configuration_highlighter)
+        ->updatePalette(this->configuration_edit->palette());
+    this->configuration_edit->installEventFilter(this);
     config_layout->addWidget(this->configuration_edit, 1);
     this->validation_label = wrappedLabel(configuration_tab);
     this->validation_label->setObjectName(QStringLiteral("wireguardVpnValidation"));
@@ -650,6 +806,16 @@ void WireGuardVpnSettingsWidget::retranslate()
     this->refreshUsage();
     this->refreshStatus();
     this->refreshControls();
+}
+
+bool WireGuardVpnSettingsWidget::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == this->configuration_edit && this->configuration_highlighter != nullptr
+        && (event->type() == QEvent::PaletteChange
+            || event->type() == QEvent::ApplicationPaletteChange))
+        static_cast<WireGuardSyntaxHighlighter *>(this->configuration_highlighter)
+            ->updatePalette(this->configuration_edit->palette());
+    return QWidget::eventFilter(watched, event);
 }
 
 void WireGuardVpnSettingsWidget::changeEvent(QEvent *event)

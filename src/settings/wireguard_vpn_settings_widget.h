@@ -9,6 +9,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
+class QSyntaxHighlighter;
 class QPushButton;
 class QTabWidget;
 class QTreeWidget;
@@ -66,6 +67,7 @@ signals:
 
 protected:
     void changeEvent(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     struct Profile
@@ -98,6 +100,7 @@ private:
     QLineEdit *name_edit = nullptr;
     QPlainTextEdit *description_edit = nullptr;
     QPlainTextEdit *configuration_edit = nullptr;
+    QSyntaxHighlighter *configuration_highlighter = nullptr;
     QLabel *validation_label = nullptr;
     QLabel *usage_info = nullptr;
     QTreeWidget *usage_table = nullptr;

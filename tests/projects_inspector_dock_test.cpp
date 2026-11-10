@@ -451,6 +451,31 @@ int main(int argc, char **argv)
                      && revisions != nullptr && name != nullptr && graph != nullptr,
                  "workspace did not create its dock and inspector controls"))
         return 1;
+    // Verify automatic framing while this is still the first, unmodified
+    // Full tree display. Later checks intentionally fold/unfold the graph and
+    // inspect different objects; those interactions must NOT auto-fit the
+    // user's camera, so comparing to Fit graph after them is invalid.
+    QPushButton *fit_button = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsGraphFitButton"));
+    if (!require(fit_button != nullptr, "Fit graph control is missing"))
+        return 1;
+    waitFor(110); // Allow first-visible dock/splitter geometry to settle.
+    const double startup_zoom = graph->zoomFactor();
+    const QPointF startup_head = graph->revisionViewportPosition(QStringLiteral("c8d102ab"));
+    fit_button->click();
+    const double fitted_zoom = graph->zoomFactor();
+    const QPointF fitted_head = graph->revisionViewportPosition(QStringLiteral("c8d102ab"));
+    if (!near(startup_zoom, fitted_zoom)
+        || !near(startup_head.x(), fitted_head.x())
+        || !near(startup_head.y(), fitted_head.y()))
+    {
+        std::fprintf(stderr,
+            "projects_inspector_dock: startup fit differs: zoom %.6f -> %.6f, "
+            "HEAD (%.3f, %.3f) -> (%.3f, %.3f), viewport %d x %d\n",
+            startup_zoom, fitted_zoom, startup_head.x(), startup_head.y(),
+            fitted_head.x(), fitted_head.y(), graph->width(), graph->height());
+        return 1;
+    }
     QPushButton *delete_in_inspector = activeInspectorAction(projects,
         QStringLiteral("projectInspectorDeleteButton"));
     QToolButton *add_server = projects.findChild<QToolButton *>(
@@ -911,6 +936,7 @@ int main(int argc, char **argv)
     if (!require(graph_full_view->isChecked() && !graph_heads_view->isChecked()
                      && graph->showsFullTree() && graph->omissionCount() == 0,
                  "graph Full tree did not restore hidden history")) return 1;
+    const double zoom_before_tree_modes = graph->zoomFactor();
     graph_heads_view->click();
     app.processEvents();
     if (!require(graph_heads_view->isChecked() && !graph_full_view->isChecked()
@@ -923,6 +949,10 @@ int main(int argc, char **argv)
                  "pressing the active Editable heads control must re-fold expanded history"))
         return 1;
     graph_full_view->click();
+    app.processEvents();
+    if (!require(near(zoom_before_tree_modes, graph->zoomFactor()),
+                 "folding and unfolding history unexpectedly refitted graph zoom"))
+        return 1;
     graph->revisionActivated(baseline_id);
     app.processEvents();
     QPlainTextEdit *selected_commit_message = activeRevisionCommitMessage(projects);
@@ -1021,23 +1051,6 @@ int main(int argc, char **argv)
     if (!require(graph->revisionViewportPosition(root_id).y()
                      < graph->revisionViewportPosition(head_id).y(),
                  "default Top down graph must place root above HEAD"))
-        return 1;
-    // Automatic startup fit must match an explicit press of Fit graph, not
-    // merely use the temporary size from widget construction.
-    QPushButton *fit_button = projects.findChild<QPushButton *>(
-        QStringLiteral("projectsGraphFitButton"));
-    if (!require(fit_button != nullptr, "Fit graph control is missing"))
-        return 1;
-    // Graph layout changes can schedule a deferred initial fit. Compare only
-    // after that fit has completed, not during the settling interval.
-    waitFor(110);
-    const double startup_zoom = graph->zoomFactor();
-    const QPointF startup_head = graph->revisionViewportPosition(head_id);
-    fit_button->click();
-    if (!require(near(startup_zoom, graph->zoomFactor())
-                     && near(startup_head.x(), graph->revisionViewportPosition(head_id).x())
-                     && near(startup_head.y(), graph->revisionViewportPosition(head_id).y()),
-                 "first graph display was not already fitted as if Fit graph was clicked"))
         return 1;
     // Explorer belongs above the HEAD shortcuts. An empty HEAD list must not
     // consume one third of the sidebar until there are actual editable HEADs.

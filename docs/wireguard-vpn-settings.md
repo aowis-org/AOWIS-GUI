@@ -10,6 +10,11 @@ managing reusable WireGuard configuration drafts.
   and **Status** tabs. Both profile names and the complete INI-like WireGuard
   configuration are editable. An imported file is copied into the editor; its
   path is not used as an identifier or retained by this page.
+- The plain-text `.conf` editor highlights section headers, recognized interface
+  and peer directives, values, comments, and malformed lines. Unrecognized
+  directives are differentiated without rewriting or rejecting their contents.
+  Highlighting adapts to light/dark Qt palettes and works on desktop and Qt
+  WebAssembly (although the VPN settings page itself is disabled on WASM).
 - Configurations are syntax-checked for sections and required interface/peer
   keys. This is **not** a cryptographic validation or a network test. The GUI
   can represent multiple peers; current AOWIS-NETWORK probe support may have
@@ -48,4 +53,4 @@ page does not copy them to the clipboard, log them, or save them to QSettings.
 
 `aowis-wireguard-vpn-settings-tests` checks the editor, session-local CRUD,
 renaming via stable IDs, snapshot views, deletion blocking for known consumers,
-and the absence of invented runtime status.
+the absence of invented runtime status, syntax formatting, and palette changes.
