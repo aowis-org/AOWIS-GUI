@@ -384,6 +384,7 @@ qt_add_executable(aowis-server-gui
     src/tabs/personal_working_copy_dialog.h
     src/tabs/project_revision_graph.cpp
     src/tabs/project_revision_graph.h
+    src/tabs/project_server_availability.h
     src/tabs/project_graph_bgfx_scene.cpp
     src/tabs/project_graph_bgfx_scene.h
     src/tabs/project_graph_bgfx_viewport.cpp

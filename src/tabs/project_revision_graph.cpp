@@ -612,6 +612,36 @@ void ProjectRevisionGraph::refreshNodeTitles(const QHash<QString, QString> &titl
     requestGraphRedraw();
 }
 
+void ProjectRevisionGraph::updateServerAvailability(
+    const QString &server_id, const ProjectServerAvailability &availability)
+{
+    // Health transitions change only presentation: never re-place the DAG or
+    // reset its zoom, selection, folds or camera. Keep both graph lists in sync.
+    const QString node_id = QStringLiteral("group:server:") + server_id;
+    bool changed = false;
+    const std::function<void(ProjectGraphNode &)> apply =
+        [&availability, &node_id, &changed](ProjectGraphNode &node)
+    {
+        if (node.id != node_id || node.kind != ProjectGraphNode::Kind::Server)
+            return;
+        if (node.availability_color == availability.color
+            && node.availability_status == availability.status
+            && node.availability_details == availability.details)
+            return;
+        node.availability_color = availability.color;
+        node.availability_status = availability.status;
+        node.availability_details = availability.details;
+        changed = true;
+    };
+    for (ProjectGraphNode &node : this->source_nodes) apply(node);
+    for (ProjectGraphNode &node : this->nodes) apply(node);
+    if (!changed) return;
+#if defined(AOWIS_PROJECTS_BGFX_BRIDGE)
+    if (this->gpu_view != nullptr) this->gpu_view->invalidateScene();
+#endif
+    requestGraphRedraw();
+}
+
 void ProjectRevisionGraph::setTopDown(bool top_down)
 {
     if (this->top_down == top_down)
@@ -1165,7 +1195,7 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
                 // Keep the database icon on the left; the crown precedes
                 // the personal server name consistently throughout the GUI.
                 const QString title_prefix = personal_server ? QStringLiteral("♛ ") : QString();
-                const QRectF title_box = box.adjusted(53, 10, -12, -29);
+                const QRectF title_box = box.adjusted(53, 10, -33, -29);
                 const QString title = painter.fontMetrics().elidedText(
                     title_prefix + node.title, Qt::ElideRight, int(title_box.width()));
                 painter.drawText(title_box, Qt::AlignVCenter | Qt::AlignLeft, title);
@@ -1173,6 +1203,13 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
                 painter.setPen(muted);
                 painter.drawText(box.adjusted(53, 40, -12, -9),
                     Qt::AlignVCenter | Qt::AlignLeft, node.branch);
+                if (node.availability_color.isValid())
+                {
+                    const QRectF badge = ProjectServerBadge::indicatorRect(box);
+                    painter.setPen(QPen(tint(QColor(13, 20, 28), 210), 1.1));
+                    painter.setBrush(node.availability_color);
+                    painter.drawEllipse(badge);
+                }
             }
             else
             {
@@ -1444,6 +1481,15 @@ void ProjectRevisionGraph::mouseMoveEvent(QMouseEvent *event)
         event->accept();
         return;
     }
+    // The badge shares the sidebar/inspector status and error text, including
+    // degraded health and catalogue errors, without starting a new probe.
+    QString tooltip;
+    if (const ProjectGraphNode *node = hitNode(mapToGraph(event->position())))
+        if (node->kind == ProjectGraphNode::Kind::Server
+            && !node->availability_status.isEmpty())
+            tooltip = node->title + QStringLiteral("\n") + node->availability_status
+                + QStringLiteral(": ") + node->availability_details;
+    if (toolTip() != tooltip) setToolTip(tooltip);
     QWidget::mouseMoveEvent(event);
 }
 

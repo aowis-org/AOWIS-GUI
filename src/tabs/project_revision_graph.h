@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tabs/project_server_availability.h"
+
 #include <QElapsedTimer>
 #include <QHash>
 #include <QPoint>
@@ -46,6 +48,9 @@ struct ProjectGraphNode
     Kind kind = Kind::Revision;
     bool pending_server = false; // Unverified database endpoint: muted graph card.
     bool personal_server = false; // Render the designated personal database in gold.
+    QColor availability_color; // Shared server-health presentation; invalid for other cards.
+    QString availability_status;
+    QString availability_details;
     // Structural hierarchy, separate from immutable revision ancestry.
     QString container_id;
     QString project_group_id;
@@ -81,6 +86,8 @@ public:
     void setNodes(const QVector<ProjectGraphNode> &nodes);
     void retranslateCaptions();
     void refreshNodeTitles(const QHash<QString, QString> &titles);
+    void updateServerAvailability(const QString &server_id,
+                                  const ProjectServerAvailability &availability);
     void setSelection(const QString &revision_id);
     void fitGraph();
     void setTopDown(bool top_down);

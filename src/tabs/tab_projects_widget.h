@@ -173,8 +173,8 @@ private:
 
     void applySourceSnapshot(const QString &source_id, const SourceSnapshot &snapshot);
     void updateConnectionStatus();
-    void databaseAvailability(const ProjectServerProfile &profile, QColor &color,
-                              QString &status, QString &details) const;
+    void refreshServerAvailability();
+    ProjectServerAvailability databaseAvailability(const ProjectServerProfile &profile) const;
     bool isPreviewSource() const;
     void broadcastContext();
     void select(SelectionKind kind, const QString &id);
@@ -294,6 +294,9 @@ private:
     BranchInspector *branch_inspector = nullptr;
     RevisionInspector *revision_inspector = nullptr;
     QHash<QString, SourceSession *> source_sessions;
+    // Cached once per source-state notification; all three views read this
+    // snapshot rather than querying or interpreting connection state again.
+    QHash<QString, ProjectServerAvailability> server_availability;
     QHash<QString, QPair<QString, QString>> graph_revision_lookup;
     ProjectSourceWriter *source_writer = nullptr;
     QString select_after_write_project;

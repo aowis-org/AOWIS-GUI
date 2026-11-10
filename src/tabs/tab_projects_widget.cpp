@@ -189,6 +189,18 @@ QString sourceBranchForRevision(const ProjectPreviewData &project,
         if (reachable(branch.head)) return branch.name;
     return {};
 }
+
+QPixmap serverAvailabilityPixmap(const QColor &color)
+{
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color);
+    painter.drawEllipse(QRectF(3, 3, 10, 10));
+    return pixmap;
+}
 }
 
 struct ProjectsWidget::SourceSession
@@ -541,16 +553,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (this->database_connection != nullptr)
         {
             updateConnectionStatus();
-            const QSignalBlocker tree_blocker(this->server_tree);
-            for (int row = 0; row < this->server_tree->topLevelItemCount() && row < this->servers.size(); ++row)
-            {
-                const ProjectServerProfile &server = this->servers.at(row);
-                QString status;
-                QString details;
-                QColor color;
-                databaseAvailability(server, color, status, details);
-                this->server_tree->topLevelItem(row)->setToolTip(0, serverToolTip(server, status, details));
-            }
+            // updateConnectionStatus() also refreshes the shared translated
+            // availability presentation for tree, inspector and graph.
             if (this->selection_kind == SelectionKind::Server || this->selection_kind == SelectionKind::NewSource)
             {
                 const int overview = this->inspector_tabs->indexOf(this->inspector_overview_page);
@@ -1180,6 +1184,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         }
         updateButtons();
     });
+    // Initialize the shared status snapshot before any view renders a server.
+    refreshServerAvailability();
     populateServerTree();
     updateEmptyState();
     populateProjectTree();
@@ -1457,10 +1463,13 @@ ProjectServerProfile *ProjectsWidget::currentServer()
     return nullptr;
 }
 
-void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
-                                          QColor &color, QString &status,
-                                          QString &details) const
+ProjectServerAvailability ProjectsWidget::databaseAvailability(
+    const ProjectServerProfile &profile) const
 {
+    ProjectServerAvailability presentation;
+    QColor &color = presentation.color;
+    QString &status = presentation.status;
+    QString &details = presentation.details;
     const SourceSession *session = this->source_sessions.value(profile.id, nullptr);
     color = QColor(QStringLiteral("#c9a227"));
     status = tr("Checking");
@@ -1473,7 +1482,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         details = session != nullptr && !session->error.isEmpty()
             ? tr("Repository identity not yet verified: %1").arg(session->error)
             : tr("Repository UUIDv7 not yet verified");
-        return;
+        return presentation;
     }
     if (profile.id == QStringLiteral("preview-local")
         || profile.id == QStringLiteral("preview-remote"))
@@ -1481,9 +1490,9 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         color = QColor(QStringLiteral("#777777"));
         status = tr("Preview");
         details = tr("In-memory demonstration; no database connection");
-        return;
+        return presentation;
     }
-    if (session == nullptr) return;
+    if (session == nullptr) return presentation;
 
     if (session->health != nullptr
         && session->health->currentState() == HttpHealthMonitor::State::Degraded)
@@ -1492,7 +1501,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         status = tr("Unstable");
         details = session->error.isEmpty()
             ? tr("A recent health check failed; retrying") : session->error;
-        return;
+        return presentation;
     }
     // The health probe establishes service reachability independently of
     // parsing the project catalogue. A malformed or temporarily unreadable
@@ -1507,7 +1516,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
             ? tr("DVMDB is responding, but its project catalogue could not be loaded")
             : tr("DVMDB is responding, but its project catalogue could not be loaded: %1")
                 .arg(session->error);
-        return;
+        return presentation;
     }
     if (session->health != nullptr
         && session->health->currentState() == HttpHealthMonitor::State::Checking)
@@ -1515,7 +1524,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         details = session->error.isEmpty()
             ? tr("Checking DVMDB server identity")
             : tr("Checking DVMDB server identity; catalogue error: %1").arg(session->error);
-        return;
+        return presentation;
     }
     if (session->state == SourceState::Error
         || (session->health != nullptr
@@ -1526,7 +1535,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
             ? tr("Unavailable") : tr("Incompatible MODEL");
         details = !session->codec_error.isEmpty() ? session->codec_error
             : session->error.isEmpty() ? tr("Database connection unavailable") : session->error;
-        return;
+        return presentation;
     }
     if (session->state == SourceState::Connected
         && (session->health == nullptr
@@ -1537,7 +1546,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
         details = profile.connection_type == QStringLiteral("local")
             ? tr("Embedded database is open and its catalogue is loaded")
             : tr("Database is responding and its catalogue is loaded");
-        return;
+        return presentation;
     }
     if (session->state == SourceState::Loading)
     {
@@ -1546,6 +1555,7 @@ void ProjectsWidget::databaseAvailability(const ProjectServerProfile &profile,
     }
     else if (!session->error.isEmpty())
         details = session->error;
+    return presentation;
 }
 
 QString ProjectsWidget::serverToolTip(const ProjectServerProfile &server, const QString &status, const QString &status_details) const
@@ -1569,25 +1579,15 @@ void ProjectsWidget::populateServerTree()
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(0, server.visible ? Qt::Checked : Qt::Unchecked);
         const SourceSession *session = this->source_sessions.value(server.id, nullptr);
-        QColor color;
-        QString status;
-        QString status_details;
-        databaseAvailability(server, color, status, status_details);
+        const ProjectServerAvailability availability = this->server_availability.value(server.id);
         if (local)
             item->setIcon(0, QIcon::fromTheme(QStringLiteral("drive-harddisk"),
                 style()->standardIcon(QStyle::SP_DriveHDIcon)));
         else
         {
-            QPixmap indicator(16, 16);
-            indicator.fill(Qt::transparent);
-            QPainter painter(&indicator);
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.setPen(Qt::NoPen);
-            painter.setBrush(color);
-            painter.drawEllipse(QRectF(3, 3, 10, 10));
-            item->setIcon(0, QIcon(indicator));
+            item->setIcon(0, QIcon(serverAvailabilityPixmap(availability.color)));
         }
-        item->setToolTip(0, serverToolTip(server, status, status_details));
+        item->setToolTip(0, serverToolTip(server, availability.status, availability.details));
         if (session != nullptr && session->state == SourceState::Error)
             item->setForeground(0, palette().color(QPalette::Disabled, QPalette::Text));
     }
@@ -1629,8 +1629,43 @@ bool ProjectsWidget::isSourceReady(const QString &id) const
         && !session->loading;
 }
 
+void ProjectsWidget::refreshServerAvailability()
+{
+    // Only the existing SourceSession/HttpHealthMonitor probes remote DVMDBs.
+    // Materialize their presentation once and fan it out to every view.
+    // Updating a tree icon/tooltip emits itemChanged without this blocker,
+    // which would otherwise persist profiles and rebuild the DAG per health poll.
+    const QSignalBlocker blocked(this->server_tree);
+    QHash<QString, ProjectServerAvailability> current;
+    for (int row = 0; row < this->servers.size(); ++row)
+    {
+        const ProjectServerProfile &server = this->servers.at(row);
+        const ProjectServerAvailability availability = databaseAvailability(server);
+        const ProjectServerAvailability previous = this->server_availability.value(server.id);
+        current.insert(server.id, availability);
+        if (this->graph != nullptr
+            && (previous.color != availability.color
+                || previous.status != availability.status
+                || previous.details != availability.details))
+            this->graph->updateServerAvailability(server.id, availability);
+        if (this->server_tree != nullptr && row < this->server_tree->topLevelItemCount())
+        {
+            QTreeWidgetItem *item = this->server_tree->topLevelItem(row);
+            if (item->data(0, role_key).toString()
+                != keyFor(QStringLiteral("s"), server.id)) continue;
+            if (server.connection_type != QStringLiteral("local")
+                && previous.color != availability.color)
+                item->setIcon(0, QIcon(serverAvailabilityPixmap(availability.color)));
+            item->setToolTip(0,
+                serverToolTip(server, availability.status, availability.details));
+        }
+    }
+    this->server_availability = std::move(current);
+}
+
 void ProjectsWidget::updateConnectionStatus()
 {
+    refreshServerAvailability();
     if (this->database_connection->source_status == nullptr) return;
     const ProjectServerProfile *server = nullptr;
     for (const ProjectServerProfile &candidate : this->servers)
@@ -1641,23 +1676,12 @@ void ProjectsWidget::updateConnectionStatus()
     this->inspector_health_row->setVisible(has_server);
     if (has_server)
     {
-        QColor color;
-        QString status;
-        QString details;
-        databaseAvailability(*server, color, status, details);
-        QPixmap indicator(16, 16);
-        indicator.fill(Qt::transparent);
-        QPainter painter(&indicator);
-        painter.setRenderHint(QPainter::Antialiasing);
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(color);
-        painter.drawEllipse(QRectF(3, 3, 10, 10));
-        painter.end();
-        this->inspector_health_icon->setPixmap(indicator);
-        this->inspector_health_text->setText(status);
-        this->inspector_health_row->setToolTip(details);
-        this->inspector_health_icon->setToolTip(details);
-        this->inspector_health_text->setToolTip(details);
+        const ProjectServerAvailability availability = this->server_availability.value(server->id);
+        this->inspector_health_icon->setPixmap(serverAvailabilityPixmap(availability.color));
+        this->inspector_health_text->setText(availability.status);
+        this->inspector_health_row->setToolTip(availability.details);
+        this->inspector_health_icon->setToolTip(availability.details);
+        this->inspector_health_text->setToolTip(availability.details);
     }
     const SourceSession *session = has_server ? this->source_sessions.value(server->id, nullptr) : nullptr;
     const QString status = isPreviewSource() ? tr("In-memory demonstration")
@@ -2372,6 +2396,10 @@ void ProjectsWidget::rebuildGraph()
         server_node.kind = ProjectGraphNode::Kind::Server;
         server_node.personal_server = source.personal;
         server_node.pending_server = source.pending;
+        const ProjectServerAvailability availability = this->server_availability.value(source.id);
+        server_node.availability_color = availability.color;
+        server_node.availability_status = availability.status;
+        server_node.availability_details = availability.details;
         server_node.id = server_node_id;
         server_node.title = source.name;
         server_node.caption_kind = source.connection_type == QStringLiteral("local")

@@ -611,7 +611,8 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         const QString label = server && node.personal_server
             ? QStringLiteral("♛ ") + node.title : node.title;
         text(canvas, atlas, label, title_font,
-             screenRect(original.adjusted(left, 6, -12, -32), view), view.zoom, ink.rgba(), &stats);
+             screenRect(original.adjusted(left, 6, server ? -33 : -12, -32), view),
+             view.zoom, ink.rgba(), &stats);
         text(canvas, atlas, node.branch, small_font,
              screenRect(original.adjusted(left, 35, -12, -6), view),
              view.zoom, secondary.rgba(), &stats);
@@ -620,6 +621,15 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
             const QRectF badge = screenRect(QRectF(original.left() + 16,
                 original.top() + 20, 27, 26), view);
             databaseIcon(canvas, badge, border.rgba(), view.zoom);
+            if (node.availability_color.isValid())
+            {
+                const QRectF indicator = screenRect(
+                    ProjectServerBadge::indicatorRect(original), view);
+                canvas->fillCircle(indicator.center().x(), indicator.center().y(),
+                                   6.5 * view.zoom, tinted(QColor(13, 20, 28), 210));
+                canvas->fillCircle(indicator.center().x(), indicator.center().y(),
+                                   5.5 * view.zoom, node.availability_color.rgba());
+            }
         }
     }
 

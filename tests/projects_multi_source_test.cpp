@@ -267,6 +267,23 @@ int main(int argc, char **argv)
     if (!require(waitUntil(app, [&] {
             return health_label->text() == QStringLiteral("Available");
         }), "healthy service never reached Available state")) return 1;
+    QLabel *health_icon = projects.findChild<QLabel *>(
+        QStringLiteral("projectsDatabaseHealthIndicator"));
+    if (!require(health_icon != nullptr,
+                 "server inspector health indicator is missing")) return 1;
+    int unexpected_tree_edits = 0;
+    QObject::connect(sources, &QTreeWidget::itemChanged, &projects,
+        [&unexpected_tree_edits](QTreeWidgetItem *, int) { ++unexpected_tree_edits; });
+    // Sidebar and inspector must consume the same availability snapshot.
+    // Neither choosing a card nor drawing the graph should trigger another
+    // service probe; the sole remote probe belongs to HttpHealthMonitor.
+    const QColor sidebar_green = sources->topLevelItem(0)->icon(0)
+        .pixmap(16, 16).toImage().pixelColor(8, 8);
+    const QColor inspector_green = health_icon->grab().toImage().pixelColor(8, 8);
+    if (!require(sidebar_green.green() > sidebar_green.red()
+                     && inspector_green.green() > inspector_green.red()
+                     && sidebar_green == inspector_green,
+                 "sidebar and inspector do not share the green server status")) return 1;
     if (argc == 2)
     {
         // A second tunnel would have to reread the profile. Removing the
@@ -290,6 +307,14 @@ int main(int argc, char **argv)
             return health_label->text() == QStringLiteral("Available · catalogue error")
                 && source_status->text().contains(QStringLiteral("Invalid DVMDB revision graph page"));
         }), "catalogue failure incorrectly marked the responding server unavailable")) return 1;
+    const QColor sidebar_amber = sources->topLevelItem(0)->icon(0)
+        .pixmap(16, 16).toImage().pixelColor(8, 8);
+    const QColor inspector_amber = health_icon->grab().toImage().pixelColor(8, 8);
+    if (!require(sidebar_amber == inspector_amber
+                     && sidebar_amber != sidebar_green
+                     && sidebar_amber.red() > sidebar_amber.green()
+                     && unexpected_tree_edits == 0,
+                 "catalogue health changes must share amber status without editing server profiles")) return 1;
     if (!require(tree->topLevelItemCount() == 2,
                  "catalogue failure discarded a previously loaded project snapshot")) return 1;
     first.graph_valid = true;

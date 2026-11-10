@@ -90,12 +90,19 @@ int main(int argc, char **argv)
     branch.parent_routes.insert(revision.id,
         {QPointF(0, 350), QPointF(-25, 390), QPointF(40, 400), QPointF(40, 415)});
 
+    const QVector<ProjectGraphNode> no_badge_nodes{server, project, revision, branch};
+    ProjectGraphBgfxScene::build(&canvas, &atlas, no_badge_nodes, {}, view);
+    const qsizetype plain_card_vertices = canvas.vertices().size();
+    server.availability_color = QColor(QStringLiteral("#339950"));
+    server.availability_status = QStringLiteral("Available");
     const QVector<ProjectGraphNode> nodes{server, project, revision, branch};
     const ProjectGraphBgfxScene::Stats result = ProjectGraphBgfxScene::build(
         &canvas, &atlas, nodes, {}, view);
     if (!require(result.cards == 4 && result.structural_edges == 2
                  && result.head_edges == 1 && result.ancestry_edges == 0,
                  "server/project/revision/HEAD geometry or links are missing")) return 1;
+    if (!require(canvas.vertices().size() > plain_card_vertices,
+                 "bgfx graph server availability dot has no rendered geometry")) return 1;
     // Only six fields in this fixture have text: server title, project title,
     // revision title and branch, HEAD title and branch. The server/project
     // branch fields are intentionally empty and must not create atlas runs.

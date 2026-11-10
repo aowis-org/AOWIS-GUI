@@ -616,6 +616,38 @@ int main(int argc, char **argv)
     const QColor teal_pixel = graph.grab().toImage().pixelColor(teal_sample.toPoint());
     if (!require(teal_pixel.green() > teal_pixel.red(),
                  "ordinary server card lost its teal surface")) return 1;
+    // Liveness changes are presentation-only and must repaint the existing
+    // server card without re-layout, zoom changes or inspector selection.
+    const double badge_zoom = graph.zoomFactor();
+    const QRectF badge_graph_rect(-126.0, 310.0 - 38.0, 252.0, 76.0);
+    const QPointF badge_graph_point = ProjectServerBadge::indicatorRect(
+        badge_graph_rect).center();
+    const QPointF badge_point = graph.graphToViewport(badge_graph_point);
+    ProjectServerAvailability online;
+    online.color = QColor(QStringLiteral("#339950"));
+    online.status = QStringLiteral("Available");
+    online.details = QStringLiteral("Catalogue loaded");
+    graph.updateServerAvailability(QStringLiteral("test-source"), online);
+    app.processEvents();
+    const QColor online_pixel = graph.grab().toImage().pixelColor(badge_point.toPoint());
+    if (!require(online_pixel.green() > online_pixel.red(),
+                 "online server graph badge is not green")) return 1;
+    ProjectServerAvailability offline;
+    offline.color = QColor(QStringLiteral("#c24848"));
+    offline.status = QStringLiteral("Unavailable");
+    offline.details = QStringLiteral("Cannot connect");
+    graph.updateServerAvailability(QStringLiteral("test-source"), offline);
+    app.processEvents();
+    const QColor offline_pixel = graph.grab().toImage().pixelColor(badge_point.toPoint());
+    if (!require(offline_pixel.red() > offline_pixel.green()
+                     && graph.zoomFactor() == badge_zoom
+                     && graph.nodeViewportPosition(server_card.id) == teal_center,
+                 "server health update did not repaint red without moving the graph")) return 1;
+    // Unrelated server updates must not affect the displayed card.
+    graph.updateServerAvailability(QStringLiteral("unknown-source"), online);
+    if (!require(graph.nodeViewportPosition(server_card.id) == teal_center,
+                 "unknown server health update changed the graph")) return 1;
+
     server_card.personal_server = true;
     graph.setNodes({server_card});
     app.processEvents();
