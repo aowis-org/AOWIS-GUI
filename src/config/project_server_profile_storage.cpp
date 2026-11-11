@@ -1,4 +1,5 @@
 #include "config/project_server_profile_storage.h"
+#include "config/connection_wireguard_references.h"
 
 #include "config/gui_config_store.h"
 #include "projects/dvmdb_identity.h"

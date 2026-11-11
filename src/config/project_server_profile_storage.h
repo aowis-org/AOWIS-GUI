@@ -1,12 +1,8 @@
 #pragma once
 
-#include <aowis/config/object_store.h>
-
 #include <QList>
 #include <QString>
 #include <QStringList>
-
-#include <cstddef>
 
 // A locally configured data source. Old endpoint-only records are REST sources.
 // Authentication modes are descriptive only; credentials and connection state
@@ -45,15 +41,8 @@ QList<ProjectServerProfile> loadProjectServerProfiles();
 // profiles, so later saves keep updating the same records.
 bool saveProjectServerProfiles(QList<ProjectServerProfile> &profiles);
 bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles);
-// Number of connection records whose transport references the WireGuard
-// profile, counted inside the caller's owner session (the deletion guard of
-// WireGuardProfiles::erase). Counts records of every version/service type and
-// fails if any connection record cannot be read, so it never under-counts.
-// Precondition: the connections collection has been opened before the session
-// was taken (any loadProjectServerProfiles() call does that); opening it under
-// a held session would wait for that very session and fail with lock_timeout.
-aowis::config::Result<std::size_t> countConnectionsUsingWireGuardProfile(
-    const aowis::config::OwnerSession &session, const QString &profile_id);
+// Session-scoped WireGuard reference counting: config/connection_wireguard_references.h
+// (kept separate so this widely included header needs only Qt).
 
 QString defaultLocalDvmdbPath();
 // The embedded source exists only in builds with the native DVMDB backend.
