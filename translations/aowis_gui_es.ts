@@ -2312,8 +2312,8 @@ Clic derecho: volver a 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
-      <source>WireGuard is used for the catalogue and for project, branch and revision metadata writes. Network and working-copy operations still use the direct connection.</source>
-      <translation>WireGuard se usa para el catálogo y para escribir metadatos de proyectos, ramas y revisiones. Las operaciones sobre redes y copias de trabajo siguen usando la conexión directa.</translation>
+      <source>All traffic to this server uses WireGuard: catalogue, metadata writes, private checkouts and, for a personal server, drafts and saves. It never falls back to a direct connection.</source>
+      <translation>Todo el tráfico hacia este servidor usa WireGuard: catálogo, escrituras de metadatos, checkouts privados y, en un servidor personal, borradores y guardados. Nunca recurre a una conexión directa.</translation>
     </message>
     <message>
       <source>Verify repository</source>

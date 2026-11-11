@@ -1,5 +1,6 @@
 #include "projects/model_codec_compatibility.h"
 #include "projects/personal_working_copy_client.h"
+#include "projects/repository_probe.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_commit_intent_store.h"
@@ -313,6 +314,47 @@ PersonalWorkingCopyClient::PersonalWorkingCopyClient(QObject *parent)
 {
 }
 
+bool PersonalWorkingCopyClient::targetOpen(const PersonalRepositoryTarget &target) const
+{
+    if (target.wireguard_profile_id.isEmpty()) return true;
+    return this->target_connection != nullptr
+        && this->target_connection->matches(QUrl(target.endpoint), target.wireguard_profile_id)
+        && this->target_connection->isOpen();
+}
+
+void PersonalWorkingCopyClient::openTarget(const PersonalRepositoryTarget &target,
+                                           std::function<void(const QString &)> ready)
+{
+    if (this->target_connection == nullptr
+        || !this->target_connection->matches(QUrl(target.endpoint), target.wireguard_profile_id))
+    {
+        // A different personal target: its own connection (the tunnel itself
+        // is shared per profile). The old one finishes or is cancelled.
+        if (this->target_connection != nullptr) this->target_connection->deleteLater();
+        this->target_connection = new DvmdbConnection(QUrl(target.endpoint), target.wireguard_profile_id, this);
+    }
+    this->target_connection->open(std::move(ready));
+}
+
+QNetworkReply *PersonalWorkingCopyClient::targetGet(const PersonalRepositoryTarget &target,
+                                                    const QNetworkRequest &request)
+{
+    if (target.wireguard_profile_id.isEmpty()) return this->manager.get(request);
+    return this->targetOpen(target) ? this->target_connection->get(request) : nullptr;
+}
+
+QNetworkReply *PersonalWorkingCopyClient::targetPost(const PersonalRepositoryTarget &target,
+                                                     const QNetworkRequest &request, const QByteArray &body)
+{
+    if (target.wireguard_profile_id.isEmpty()) return this->manager.post(request, body);
+    return this->targetOpen(target) ? this->target_connection->write(request, "POST", body) : nullptr;
+}
+
+QNetworkReply *PersonalWorkingCopyClient::sourceGet(const QNetworkRequest &request)
+{
+    return this->source_get ? this->source_get(request) : this->manager.get(request);
+}
+
 QString PersonalWorkingCopyClient::newSessionUuidV7()
 {
     return DvmdbIdentity::newUuidV7();
@@ -439,10 +481,37 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
         completion({}, invalid);
         return;
     }
+    if (!this->targetOpen(target))
+    {
+        // WireGuard personal repository: open its tunnel first, then repeat
+        // this exact request. A failed open never falls back to direct.
+        this->openTarget(target,
+            [this, target, method, path, body, completion, transport_retries,
+             uncertain_transport](const QString &error)
+        {
+            if (!error.isEmpty())
+            {
+                completion({}, QStringLiteral("Personal DVMDB WireGuard connection failed: ") + error);
+                return;
+            }
+            if (!this->targetOpen(target))
+            {
+                completion({}, QStringLiteral("Personal DVMDB WireGuard connection is not available."));
+                return;
+            }
+            request(target, method, path, body, completion, transport_retries, uncertain_transport);
+        });
+        return;
+    }
     const QString root = endpointRoot(target.endpoint);
     QNetworkRequest verify(QUrl(root + QStringLiteral("/repository/tracking")));
     verify.setTransferTimeout(8000);
-    QNetworkReply *identity = this->manager.get(verify);
+    QNetworkReply *identity = this->targetGet(target, verify);
+    if (identity == nullptr)
+    {
+        completion({}, QStringLiteral("Personal DVMDB WireGuard connection is not available."));
+        return;
+    }
     connect(identity, &QNetworkReply::finished, this,
             [this, identity, root, target, method, path, body,
              completion = std::move(completion), transport_retries,
@@ -493,8 +562,13 @@ void PersonalWorkingCopyClient::request(const PersonalRepositoryTarget &target,
         call.setTransferTimeout(10000);
         call.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
         QNetworkReply *reply = method == "GET"
-            ? this->manager.get(call)
-            : this->manager.post(call, QJsonDocument(body).toJson(QJsonDocument::Compact));
+            ? this->targetGet(target, call)
+            : this->targetPost(target, call, QJsonDocument(body).toJson(QJsonDocument::Compact));
+        if (reply == nullptr)
+        {
+            completion({}, QStringLiteral("Personal DVMDB WireGuard connection is not available."));
+            return;
+        }
         connect(reply, &QNetworkReply::finished, this,
                 [this, reply, target, method, path, body,
                  completion = std::move(completion), transport_retries,
@@ -1980,7 +2054,12 @@ void PersonalWorkingCopyClient::checkoutBranchPrivately(
     const QString sourceRoot = endpointRoot(source_endpoint);
     QNetworkRequest identify(QUrl(sourceRoot + QStringLiteral("/repository")));
     identify.setTransferTimeout(10000);
-    QNetworkReply *sourceIdentity = this->manager.get(identify);
+    QNetworkReply *sourceIdentity = this->sourceGet(identify);
+    if (sourceIdentity == nullptr)
+    {
+        completion(QStringLiteral("The source repository's WireGuard connection is not open."));
+        return;
+    }
     connect(sourceIdentity, &QNetworkReply::finished, this,
         [this, sourceIdentity, sourceRoot, source_repository_id, target,
          project_id, project_name, branch_id, expected_head,
@@ -2009,7 +2088,12 @@ void PersonalWorkingCopyClient::checkoutBranchPrivately(
         QNetworkRequest branchRequest(QUrl(sourceRoot + QStringLiteral("/projects/") + project_id +
                                            QStringLiteral("/branch-ids/") + branch_id));
         branchRequest.setTransferTimeout(10000);
-        QNetworkReply *branchReply = this->manager.get(branchRequest);
+        QNetworkReply *branchReply = this->sourceGet(branchRequest);
+        if (branchReply == nullptr)
+        {
+            completion(QStringLiteral("The source repository's WireGuard connection is not open."));
+            return;
+        }
         connect(branchReply, &QNetworkReply::finished, this,
             [this, branchReply, sourceRoot, target, project_id, project_name, branch_id,
              expected_head, completion = std::move(completion)]() mutable
@@ -2091,7 +2175,12 @@ void PersonalWorkingCopyClient::checkoutBranchPrivately(
                 }
                 QNetworkRequest exportRequest(QUrl(sourceRoot + branchPath + QStringLiteral("/bundle")));
                 exportRequest.setTransferTimeout(60000);
-                QNetworkReply *download = this->manager.get(exportRequest);
+                QNetworkReply *download = this->sourceGet(exportRequest);
+                if (download == nullptr)
+                {
+                    completion(QStringLiteral("The source repository's WireGuard connection is not open."));
+                    return;
+                }
                 constexpr qint64 maxCheckoutBytes = 64 * 1024 * 1024;
                 connect(download, &QNetworkReply::downloadProgress, download,
                     [download](qint64 received, qint64 total)
@@ -2138,7 +2227,12 @@ void PersonalWorkingCopyClient::checkoutBranchPrivately(
                     upload.setTransferTimeout(60000);
                     upload.setHeader(QNetworkRequest::ContentTypeHeader,
                                      QStringLiteral("application/vnd.aowis.revision-bundle-v2"));
-                    QNetworkReply *imported = this->manager.post(upload, bundle);
+                    QNetworkReply *imported = this->targetPost(target, upload, bundle);
+                    if (imported == nullptr)
+                    {
+                        completion(QStringLiteral("Personal DVMDB WireGuard connection is not available."));
+                        return;
+                    }
                     connect(imported, &QNetworkReply::finished, this,
                         [this, imported, target, project_id, branch_id, expected_head,
                          completion = std::move(completion)]() mutable

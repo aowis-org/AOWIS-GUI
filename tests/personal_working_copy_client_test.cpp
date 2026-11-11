@@ -23,6 +23,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QUrl>
@@ -2245,6 +2248,55 @@ int main(int argc, char **argv)
                stub.bundle_import_count == 1,
                "checkout imported a bundle of a different branch")) return 1;
     source.bundle_branch = branch_id;
+
+    // The source is read only through the transport Projects passes (the
+    // source's WireGuard connection). A closed connection fails the
+    // checkout and is never replaced by a direct request.
+    int transported = 0;
+    QNetworkAccessManager source_manager;
+    client.setSourceTransport([&](const QNetworkRequest &request) -> QNetworkReply *
+    {
+        ++transported;
+        return source_manager.get(request);
+    });
+    done = false;
+    // An unexpected source UUID: rejected after exactly the identity GET.
+    client.checkoutBranchPrivately(stub.target(), source.target().endpoint,
+        DvmdbIdentity::newUuidV7(), project_id, QStringLiteral("Network test"), branch_id, head_id,
+        [&](const QString &failure) { error = failure; done = true; });
+    if (!check(until(application, [&] { return done; }) && !error.isEmpty() && transported == 1
+                   && stub.provision_count == 1,
+               "checkout did not read the source through the given transport")) return 1;
+    const int exports_before_closed = source.bundle_export_count;
+    client.setSourceTransport([&](const QNetworkRequest &) -> QNetworkReply *
+    {
+        ++transported;
+        return nullptr; // e.g. the source's WireGuard tunnel is down
+    });
+    done = false;
+    client.checkoutBranchPrivately(stub.target(), source.target().endpoint,
+        different_repository, project_id, QStringLiteral("Network test"), branch_id, head_id,
+        [&](const QString &failure) { error = failure; done = true; });
+    if (!check(done && error.contains(QStringLiteral("WireGuard")) && transported == 2
+                   && source.bundle_export_count == exports_before_closed && stub.provision_count == 1,
+               "closed source connection did not fail the checkout")) return 1;
+    client.setSourceTransport({});
+
+    // A personal repository configured for WireGuard is never reached
+    // directly: in this build (no embedded engine) every request fails.
+    PersonalRepositoryTarget tunnelled = stub.target();
+    tunnelled.wireguard_profile_id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6399");
+    const int creating_before_tunnel = stub.creating_count;
+    done = false;
+    client.create(tunnelled, project_id, branch_id, head_id,
+        [&](const PersonalWorkingCopyInfo &, const QString &failure)
+    {
+        error = failure;
+        done = true;
+    });
+    if (!check(until(application, [&] { return done; }) && error.contains(QStringLiteral("WireGuard"))
+                   && stub.creating_count == creating_before_tunnel,
+               "WireGuard personal repository was reached directly")) return 1;
 
     // Unborn checkout has no bundle, no synthetic revision, and preserves the
     // source branch UUIDv7. A second request is a safe retry.

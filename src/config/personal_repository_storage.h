@@ -20,6 +20,9 @@ struct PersonalRepositoryTarget
     QString storage_path;    // Selected embedded source profile path.
     QString endpoint;        // Selected HTTP source profile endpoint.
     QString repository_id;   // Pinned automatically discovered HTTP UUIDv7.
+    // HTTP targets: the server's WireGuard profile; empty: direct. A target
+    // with a profile is reached only through that tunnel, never directly.
+    QString wireguard_profile_id;
 };
 
 PersonalRepositoryTarget resolvePersonalRepositoryTarget();

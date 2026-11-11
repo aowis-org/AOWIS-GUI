@@ -7,6 +7,10 @@
 #include <QByteArray>
 #include <QList>
 #include <QNetworkAccessManager>
+#include <QNetworkRequest>
+
+class DvmdbConnection;
+class QNetworkReply;
 #include <QObject>
 #include <QString>
 #include <QJsonObject>
@@ -288,6 +292,13 @@ public:
 
     static QString newSessionUuidV7();
 
+    // How checkoutBranchPrivately() reads the source repository: a GET over
+    // the source's own connection (Projects passes its DvmdbConnection, so a
+    // WireGuard source is read through its tunnel). A null reply fails the
+    // checkout. Unset: this client's direct network manager.
+    using SourceGet = std::function<QNetworkReply *(const QNetworkRequest &)>;
+    void setSourceTransport(SourceGet get) { this->source_get = std::move(get); }
+
 private:
     using Response = std::function<void(const QJsonObject &, const QString &)>;
     void request(const PersonalRepositoryTarget &target, const QByteArray &method,
@@ -298,5 +309,17 @@ private:
     void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
                   const QString &after, int page_count,
                   QList<PersonalWorkingCopyInfo> collected, ListCompletion completion);
+    // Personal-repository transport: direct, or a DvmdbConnection over the
+    // target's WireGuard profile (shared tunnel), opened before the first
+    // request. Never falls back to direct for a WireGuard target.
+    bool targetOpen(const PersonalRepositoryTarget &target) const;
+    void openTarget(const PersonalRepositoryTarget &target, std::function<void(const QString &)> ready);
+    QNetworkReply *targetGet(const PersonalRepositoryTarget &target, const QNetworkRequest &request);
+    QNetworkReply *targetPost(const PersonalRepositoryTarget &target, const QNetworkRequest &request,
+                              const QByteArray &body);
+    QNetworkReply *sourceGet(const QNetworkRequest &request);
+
     QNetworkAccessManager manager;
+    DvmdbConnection *target_connection = nullptr;
+    SourceGet source_get;
 };

@@ -4080,6 +4080,7 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
     this->revision_network_overview->setStatus(
         {QT_TRANSLATE_NOOP("ProjectsWidget", "Importing hydraulic network into saved private HEAD…"), {}});
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
+    client->setSourceTransport(checkoutSourceGet(source));
     const std::shared_ptr<NetworkHydraulic> imported =
         std::make_shared<NetworkHydraulic>(std::move(network));
     const std::function<void(const QString &)> failed =
@@ -4382,6 +4383,7 @@ void ProjectsWidget::prepareNetworkOpen(const QString &project_id,
         {
             emit networkOpenProgress(status, failed);
         });
+    operation->setSourceTransport(checkoutSourceGet(source));
     connect(operation, &QDialog::finished, this, [this, operation](int result)
     {
         if (result == QDialog::Accepted && operation->selectedEditRequested()
@@ -4957,6 +4959,19 @@ void ProjectsWidget::createProjectFromExample(const BuiltinExampleRevision &exam
     this->projects.append(project);
     populateProjectTree();
     select(SelectionKind::Project, id);
+}
+
+std::function<QNetworkReply *(const QNetworkRequest &)> ProjectsWidget::checkoutSourceGet(
+    const ProjectServerProfile *source) const
+{
+    if (source == nullptr || source->connection_type != QStringLiteral("remote")
+        || source->wireguard_profile_id.isEmpty()) return {};
+    // Holding the connection keeps its tunnel for the whole transfer.
+    const std::shared_ptr<DvmdbConnection> connection = this->connectionFor(*source);
+    return [connection](const QNetworkRequest &request) -> QNetworkReply *
+    {
+        return connection && connection->isOpen() ? connection->get(request) : nullptr;
+    };
 }
 
 std::shared_ptr<DvmdbConnection> ProjectsWidget::connectionFor(const ProjectServerProfile &profile) const

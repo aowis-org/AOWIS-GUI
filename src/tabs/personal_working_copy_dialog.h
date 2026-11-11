@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <functional>
+#include <utility>
 
 class QLabel;
 class QDialogButtonBox;
@@ -29,6 +30,9 @@ public:
 
     // Must start after the caller connects finished(), including for failures.
     void start();
+    // How checkouts read the source repository (see
+    // PersonalWorkingCopyClient::setSourceTransport); call before start().
+    void setSourceTransport(PersonalWorkingCopyClient::SourceGet get) { this->client.setSourceTransport(std::move(get)); }
 
     // Available only after a generation-checked canonical network load.
     // The caller opens the verified editor session, or previews the chosen

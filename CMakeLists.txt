@@ -1071,6 +1071,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-personal-working-copy-client-tests
         tests/personal_working_copy_client_test.cpp
         src/projects/personal_working_copy_client.cpp
+        src/projects/repository_probe.cpp
+        src/projects/repository_probe.h
+        src/network/wireguard_tunnel_pool.cpp
+        src/network/wireguard_tunnel_pool.h
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/projects/personal_commit_intent_store.cpp
         src/projects/personal_commit_intent_store.h
         src/projects/personal_working_copy_client.h

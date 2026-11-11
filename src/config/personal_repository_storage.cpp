@@ -62,6 +62,7 @@ PersonalRepositoryTarget resolvePersonalRepositoryTarget()
         target.kind = PersonalRepositoryTarget::Kind::Http;
         target.endpoint = profile.endpoint;
         target.repository_id = profile.repository_id;
+        target.wireguard_profile_id = server.wireguard_profile_id;
         return target;
     }
     return target;

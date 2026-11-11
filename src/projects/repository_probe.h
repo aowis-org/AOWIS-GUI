@@ -36,6 +36,8 @@ public:
     QNetworkReply *get(const QNetworkRequest &request);
     QNetworkReply *write(const QNetworkRequest &request, const QByteArray &method, const QByteArray &body);
     bool matches(const QUrl &url, const QString &wireguard_profile_id) const;
+    // get()/write() can be used: direct, or the WireGuard transport is up.
+    bool isOpen() const;
     void verify(const QNetworkRequest &request, std::function<void(RepositoryProbeResult)> finished);
 
 private:

@@ -71,6 +71,13 @@ connection, and **Import WireGuard profile…** stores a `.conf` there
 directly. A connection whose profile is missing or unusable stays closed and
 never falls back to direct HTTP; the selector shows it as **Missing profile**.
 
+For a WireGuard connection, everything that talks to that server goes
+through its tunnel: the catalogue and health checks, metadata writes,
+private checkouts (identity, branch and bundle reads from the source), and,
+when it is the personal server, every draft, lease, save and bundle import of
+`PersonalWorkingCopyClient`. A checkout from a WireGuard source whose
+connection is not open fails; nothing falls back to direct HTTP.
+
 **Settings → Map → Map server → WireGuard** does the same for the map
 server (record `service_type` "map-server", same `transport` format). Its
 tunnel starts at launch and stays up for the session (a change needs a

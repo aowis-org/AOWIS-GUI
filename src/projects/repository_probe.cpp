@@ -126,6 +126,16 @@ QNetworkReply *DvmdbConnection::get(const QNetworkRequest &request)
     return nullptr;
 }
 
+bool DvmdbConnection::isOpen() const
+{
+    if (this->direct) return true;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    return this->http != nullptr;
+#else
+    return false;
+#endif
+}
+
 bool DvmdbConnection::matches(const QUrl &url, const QString &wireguard_profile_id) const
 {
     return this->endpoint == url && this->profile == wireguard_profile_id;

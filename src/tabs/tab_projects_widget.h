@@ -16,6 +16,9 @@
 
 #include <functional>
 
+class QNetworkReply;
+class QNetworkRequest;
+
 #include <aowis/model/hydraulic/network_hydraulic.h>
 
 class GroupBoxCollapsible;
@@ -162,6 +165,12 @@ private:
     void updateButtons();
     struct SourceSession;
     std::shared_ptr<DvmdbConnection> connectionFor(const ProjectServerProfile &profile) const;
+    // How a private checkout reads its source repository: through the
+    // source's own (WireGuard) connection; empty for direct sources. A
+    // WireGuard source without an open connection yields null replies, so
+    // the checkout fails instead of going direct.
+    std::function<QNetworkReply *(const QNetworkRequest &)> checkoutSourceGet(
+        const ProjectServerProfile *source) const;
     void startSource(const ProjectServerProfile &profile);
     void openRemoteSource(const ProjectServerProfile &profile);
     void startRemoteHealth(const ProjectServerProfile &profile);

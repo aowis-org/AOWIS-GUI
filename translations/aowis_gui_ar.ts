@@ -2332,8 +2332,8 @@ Right-click: animate back to 1.0×</source>
   <context>
     <name>LiveUiText</name>
     <message>
-      <source>WireGuard is used for the catalogue and for project, branch and revision metadata writes. Network and working-copy operations still use the direct connection.</source>
-      <translation>يُستخدم WireGuard للفهرس ولكتابة بيانات المشاريع والفروع والمراجعات الوصفية. لا تزال عمليات الشبكات ونسخ العمل تستخدم الاتصال المباشر.</translation>
+      <source>All traffic to this server uses WireGuard: catalogue, metadata writes, private checkouts and, for a personal server, drafts and saves. It never falls back to a direct connection.</source>
+      <translation>تمر كل حركة البيانات إلى هذا الخادم عبر WireGuard: الفهرس وعمليات كتابة البيانات الوصفية وعمليات السحب الخاصة، وفي الخادم الشخصي المسودات وعمليات الحفظ. لا يتم الرجوع أبدًا إلى اتصال مباشر.</translation>
     </message>
     <message>
       <source>Verify repository</source>
