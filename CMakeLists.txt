@@ -549,8 +549,6 @@ if(AOWIS_STANDALONE_BUILD)
         PRIVATE
             src/services/interface_server_map_standalone.h
             src/services/interface_server_map_standalone.cpp
-            src/config/standalone_map_cascade_configuration.h
-            src/config/standalone_map_cascade_configuration.cpp
             src/services/standalone_map_provider_catalog_bridge.h
             src/services/standalone_map_provider_catalog_bridge.cpp
     )
@@ -559,6 +557,8 @@ if(AOWIS_STANDALONE_BUILD)
         PRIVATE
             AOWIS_STANDALONE
     )
+    # The embedded MAP library owns all MAP configuration records.
+    target_link_libraries(aowis-server-gui PRIVATE AOWIS::Map)
 endif()
 
 target_compile_definitions(aowis-server-gui
@@ -1018,27 +1018,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-gui-preferences PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-        # Standalone MAP upstream list: strict validation, owner-store roundtrip,
-        # ordered failover and fail-closed handling of damaged saved settings.
-        add_executable(aowis-standalone-map-cascade-configuration-tests
-            tests/standalone_map_cascade_configuration_test.cpp
-            src/config/standalone_map_cascade_configuration.cpp
-            src/config/gui_preferences.cpp
-            src/config/gui_config_store.cpp)
-        target_include_directories(aowis-standalone-map-cascade-configuration-tests PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src)
-        target_link_libraries(aowis-standalone-map-cascade-configuration-tests PRIVATE
-            Qt6::Core aowis::config)
-        add_test(NAME aowis-standalone-map-cascade-configuration
-            COMMAND aowis-standalone-map-cascade-configuration-tests)
-        set_tests_properties(aowis-standalone-map-cascade-configuration PROPERTIES LABELS "aowis")
-
         if(AOWIS_STANDALONE_BUILD AND TARGET AOWIS::Map)
             add_executable(aowis-standalone-map-provider-bridge-tests
                 tests/standalone_map_provider_bridge_test.cpp
-                src/services/standalone_map_provider_catalog_bridge.cpp
-                src/config/gui_preferences.cpp
-                src/config/gui_config_store.cpp)
+                src/services/standalone_map_provider_catalog_bridge.cpp)
             target_include_directories(aowis-standalone-map-provider-bridge-tests PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src)
             target_link_libraries(aowis-standalone-map-provider-bridge-tests PRIVATE

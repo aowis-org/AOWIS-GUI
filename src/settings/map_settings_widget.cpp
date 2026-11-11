@@ -3,7 +3,7 @@
 
 #include "config/gui_configuration.h"
 #ifdef AOWIS_STANDALONE
-#include "config/standalone_map_cascade_configuration.h"
+#include <aowis/map/settings_repository.h>
 #endif
 #include "map/core/gui_map_provider_catalog.h"
 #include "config/map_server_client_configuration.h"
@@ -41,6 +41,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <utility>
+#include <memory>
+#include <QUrl>
 
 namespace
 {
@@ -492,20 +494,21 @@ void MapSettingsWidget::moveCascadeUpstream(int direction)
     if (selected < 0 || destination < 0 || destination >= this->cascade_upstreams_table->rowCount())
         return;
 
-    QVector<StandaloneMapUpstream> entries;
+    QVector<Aowis::Map::MapCascadeUpstream> entries;
     for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
     {
         const QLineEdit *key = qobject_cast<QLineEdit *>(this->cascade_upstreams_table->cellWidget(row, 2));
-        StandaloneMapUpstream entry;
+        Aowis::Map::MapCascadeUpstream entry;
         entry.name = this->cascade_upstreams_table->item(row, 0)->text();
-        entry.url = this->cascade_upstreams_table->item(row, 1)->text();
-        entry.api_key = key != nullptr ? key->text() : QString();
+        entry.url = QUrl(this->cascade_upstreams_table->item(row, 1)->text(), QUrl::StrictMode);
+        entry.api_key = key != nullptr ? key->text().toUtf8() : QByteArray();
         entries.append(entry);
     }
     std::swap(entries[selected], entries[destination]);
     this->cascade_upstreams_table->setRowCount(0);
-    for (const StandaloneMapUpstream &entry : entries)
-        appendCascadeUpstream(entry.name, entry.url, entry.api_key);
+    for (const Aowis::Map::MapCascadeUpstream &entry : entries)
+        appendCascadeUpstream(entry.name, entry.url.toString(QUrl::FullyEncoded),
+                              QString::fromUtf8(entry.api_key));
     this->cascade_upstreams_table->setCurrentCell(destination, 0);
     scheduleEmbeddedCascadeSave();
 }
@@ -610,13 +613,17 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
         QT_TRANSLATE_NOOP("LiveUiText", "JPEG quality"), group), this->cascade_jpeg_quality);
     layout->addLayout(quality_form);
 
-    StandaloneMapCascadeConfiguration stored;
+    Aowis::Map::MapCascadeConfig stored;
     QString error;
-    const bool valid = readStandaloneMapCascadeConfiguration(&stored, &error);
+    std::unique_ptr<Aowis::Map::SettingsRepository> repository =
+        Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&error);
+    const bool valid = repository != nullptr &&
+        repository->readCascade(&stored, &this->cascade_revision, &error);
     if (!valid)
         stored.allow_direct_fetch = false;
-    for (const StandaloneMapUpstream &upstream : stored.upstreams)
-        appendCascadeUpstream(upstream.name, upstream.url, upstream.api_key);
+    for (const Aowis::Map::MapCascadeUpstream &upstream : stored.upstreams)
+        appendCascadeUpstream(upstream.name, upstream.url.toString(QUrl::FullyEncoded),
+                              QString::fromUtf8(upstream.api_key));
     this->cascade_allow_direct_fetch->setChecked(stored.allow_direct_fetch);
     this->cascade_poor_internet->setChecked(stored.poor_internet_mode);
     this->cascade_adaptive_compression->setChecked(stored.adaptive_compression);
@@ -663,7 +670,7 @@ void MapSettingsWidget::scheduleEmbeddedCascadeSave()
 
 void MapSettingsWidget::saveEmbeddedCascadeSettings()
 {
-    StandaloneMapCascadeConfiguration configuration;
+    Aowis::Map::MapCascadeConfig configuration;
     configuration.allow_direct_fetch = this->cascade_allow_direct_fetch->isChecked();
     configuration.poor_internet_mode = this->cascade_poor_internet->isChecked();
     configuration.adaptive_compression = this->cascade_adaptive_compression->isChecked();
@@ -671,14 +678,23 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
     for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
     {
         const QLineEdit *key = qobject_cast<QLineEdit *>(this->cascade_upstreams_table->cellWidget(row, 2));
-        StandaloneMapUpstream upstream;
+        Aowis::Map::MapCascadeUpstream upstream;
         upstream.name = this->cascade_upstreams_table->item(row, 0)->text().trimmed();
-        upstream.url = this->cascade_upstreams_table->item(row, 1)->text().trimmed();
-        upstream.api_key = key != nullptr ? key->text() : QString();
+        upstream.url = QUrl(this->cascade_upstreams_table->item(row, 1)->text().trimmed(),
+                            QUrl::StrictMode);
+        upstream.api_key = key != nullptr ? key->text().toUtf8() : QByteArray();
         configuration.upstreams.append(upstream);
     }
     QString error;
-    if (!saveStandaloneMapCascadeConfiguration(configuration, &error))
+    // Saving a corrected record must remain possible even when legacy
+    // migration failed: the MAP API validates this complete replacement.
+    std::unique_ptr<Aowis::Map::SettingsRepository> repository =
+        Aowis::Map::SettingsRepository::openForCurrentUser(
+            QStringLiteral("standalone-map"), &error);
+    QString updated_revision;
+    if (repository == nullptr ||
+        !repository->saveCascade(configuration, this->cascade_revision,
+                                 &updated_revision, &error))
     {
         // Incomplete upstream rows are expected while someone is typing.
         // Validation protects the previous valid configuration until the row
@@ -687,6 +703,7 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
         this->cascade_status->setText(tr("Not saved yet: %1. Correct the settings to save automatically.").arg(error));
         return;
     }
+    this->cascade_revision = updated_revision;
     const char *message = QT_TRANSLATE_NOOP(
         "MapSettingsWidget", "Embedded MAP settings saved automatically. Restart AOWIS to apply them.");
     this->cascade_status->setProperty("aowisLocalizedSource", QByteArray(message));

@@ -87,6 +87,7 @@ private:
     QCheckBox *cascade_adaptive_compression = nullptr;
     QSpinBox *cascade_jpeg_quality = nullptr;
     QLabel *cascade_status = nullptr;
+    QString cascade_revision;
 #endif
     void scheduleNavigationSave();
     void saveNavigationSettingsNow();

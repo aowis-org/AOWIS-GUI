@@ -4,6 +4,8 @@
 #include "services/map_server_rest_configuration.h"
 
 #include <aowis/map/map_provider.h>
+#include <aowis/map/settings_repository.h>
+#include <memory>
 
 #include <QObject>
 #include <QTcpServer>
@@ -19,6 +21,7 @@ public:
     static StandaloneMapProviderCatalogBridge &instance();
     MapServerRestConfiguration catalogServer() const;
     const QVector<Aowis::Map::MapProvider> &providers() const { return this->map_providers; }
+    bool isCatalogValid() const { return this->catalog_valid; }
 
 signals:
     void providersChanged();
@@ -33,6 +36,10 @@ private:
     QTcpServer listener;
     QByteArray access_token;
     QVector<Aowis::Map::MapProvider> map_providers;
+    std::unique_ptr<Aowis::Map::SettingsRepository> repository;
+    QString provider_revision;
+    bool catalog_valid = false;
+    QString catalog_error;
 };
 
 #endif

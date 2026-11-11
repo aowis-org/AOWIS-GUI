@@ -1,6 +1,6 @@
 #include "services/interface_server_map_standalone.h"
 
-#include "config/standalone_map_cascade_configuration.h"
+#include <aowis/map/settings_repository.h>
 #include "services/standalone_map_provider_catalog_bridge.h"
 
 #include <aowis/map/terrain_dataset.h>
@@ -21,6 +21,7 @@
 
 #include <limits>
 #include <optional>
+#include <memory>
 
 namespace
 {
@@ -98,33 +99,19 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
       map_tiles(new MapTiles(this))
 #endif
 {
-    StandaloneMapCascadeConfiguration saved_cascade;
-    QString cascade_error;
-    const bool cascade_valid =
-        readStandaloneMapCascadeConfiguration(&saved_cascade, &cascade_error);
-    // Fail closed on malformed settings instead of silently contacting origin
-    // providers. Existing cached imagery and normalized terrain remain usable.
+    // Configuration is owned by MAP. Legacy GUI preference records are
+    // imported only by the MAP library, never decoded by the GUI.
     Aowis::Map::MapCascadeConfig cascade;
     cascade.allow_direct_fetch = false;
-    if (cascade_valid)
+    QString cascade_error;
+    std::unique_ptr<Aowis::Map::SettingsRepository> repository =
+        Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&cascade_error);
+    if (repository == nullptr || !repository->readCascade(&cascade, nullptr, &cascade_error))
     {
-        cascade.allow_direct_fetch = saved_cascade.allow_direct_fetch;
-        cascade.poor_internet_mode = saved_cascade.poor_internet_mode;
-        cascade.jpeg_quality = saved_cascade.jpeg_quality;
-        cascade.adaptive_compression = saved_cascade.adaptive_compression;
-        for (const StandaloneMapUpstream &stored : saved_cascade.upstreams)
-        {
-            Aowis::Map::MapCascadeUpstream upstream;
-            upstream.name = stored.name.trimmed();
-            upstream.url = QUrl(stored.url.trimmed());
-            upstream.api_key = stored.api_key.toUtf8();
-            cascade.upstreams.append(upstream);
-        }
-    }
-    else
-    {
-        qCritical().noquote() << QStringLiteral("Invalid embedded MAP cascade configuration: %1; "
-                                          "all remote map acquisition disabled")
+        cascade = Aowis::Map::MapCascadeConfig();
+        cascade.allow_direct_fetch = false;
+        qCritical().noquote() << QStringLiteral("Invalid embedded MAP configuration: %1; "
+                                                 "all direct acquisition disabled")
                                      .arg(cascade_error);
     }
     // Configure before the Windows map downloader is moved to its own thread.

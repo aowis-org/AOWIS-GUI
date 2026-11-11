@@ -1,5 +1,5 @@
 #include "services/standalone_map_provider_catalog_bridge.h"
-#include "config/gui_preferences.h"
+#include <aowis/map/settings_repository.h>
 
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -13,6 +13,7 @@
 #include <QTimer>
 
 #include <cstdio>
+#include <memory>
 
 namespace
 {
@@ -86,11 +87,13 @@ int main(int argc, char **argv)
     if (!expect(QJsonDocument::fromJson(updated.body).object().value(QStringLiteral("providers"))
                     .toArray().at(0).toObject().value(QStringLiteral("name")).toString() ==
                     QStringLiteral("Edited embedded provider"), "updated catalog readable")) return 1;
-    GuiPreferences::reload();
-    if (!expect(GuiPreferences::group(QStringLiteral("embedded_map_providers"))
-                    .value(QStringLiteral("providers")).toArray().at(0).toObject()
-                    .value(QStringLiteral("name")).toString() ==
-                    QStringLiteral("Edited embedded provider"), "catalog persisted in AOWIS-CONFIG")) return 1;
+    QString error;
+    std::unique_ptr<Aowis::Map::SettingsRepository> repository =
+        Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&error);
+    QVector<Aowis::Map::MapProvider> stored;
+    if (!expect(repository != nullptr && repository->readProviders(&stored, nullptr, &error) &&
+                stored.at(0).name == QStringLiteral("Edited embedded provider"),
+                "catalog persisted exclusively by MAP")) return 1;
     first.insert(QStringLiteral("url"), QStringLiteral("file:///etc/passwd"));
     providers.replace(0, first);
     catalog.insert(QStringLiteral("providers"), providers);

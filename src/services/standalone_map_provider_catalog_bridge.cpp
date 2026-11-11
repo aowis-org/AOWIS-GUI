@@ -1,98 +1,18 @@
 #include "services/standalone_map_provider_catalog_bridge.h"
 
-#include "config/gui_preferences.h"
 
 #include <QCoreApplication>
 #include <QHostAddress>
-#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QJsonParseError>
 #include <QTimer>
 #include <QDebug>
-#include <QSet>
 #include <QTcpSocket>
-#include <QUrl>
 #include <QUuid>
 
 namespace
 {
-const QString ProviderStore = QStringLiteral("embedded_map_providers");
-constexpr int ProviderVersion = 1;
 constexpr int MaximumRequestBytes = 256 * 1024;
-constexpr int MaximumProviders = 64;
-
-QJsonObject providerJson(const Aowis::Map::MapProvider &provider)
-{
-    return {
-        {QStringLiteral("id"), provider.id},
-        {QStringLiteral("name"), provider.name},
-        {QStringLiteral("url"), provider.url_template},
-        {QStringLiteral("coverage"), provider.coverage},
-        {QStringLiteral("minimum_zoom"), provider.minimum_zoom},
-        {QStringLiteral("maximum_zoom"), provider.maximum_zoom},
-        {QStringLiteral("enabled"), provider.enabled},
-        {QStringLiteral("remote_fetch_enabled"), provider.remote_fetch_enabled},
-        {QStringLiteral("allow_lossy_transfer"), provider.allow_lossy_transfer}
-    };
-}
-
-bool parseProviders(const QJsonArray &array, const QVector<Aowis::Map::MapProvider> &existing,
-                    QVector<Aowis::Map::MapProvider> *parsed, QString *error)
-{
-    if (array.size() > MaximumProviders)
-    {
-        *error = QStringLiteral("Too many map providers");
-        return false;
-    }
-    QVector<Aowis::Map::MapProvider> result;
-    QSet<QString> ids;
-    for (const QJsonValue &value : array)
-    {
-        if (!value.isObject())
-        {
-            *error = QStringLiteral("Invalid provider entry");
-            return false;
-        }
-        const QJsonObject object = value.toObject();
-        Aowis::Map::MapProvider provider;
-        provider.id = object.value(QStringLiteral("id")).toString().trimmed().toLower();
-        provider.name = object.value(QStringLiteral("name")).toString().trimmed();
-        provider.url_template = object.value(QStringLiteral("url")).toString().trimmed();
-        provider.coverage = object.value(QStringLiteral("coverage")).toString().trimmed();
-        provider.minimum_zoom = object.value(QStringLiteral("minimum_zoom")).toInt(-1);
-        provider.maximum_zoom = object.value(QStringLiteral("maximum_zoom")).toInt(-1);
-        provider.enabled = object.value(QStringLiteral("enabled")).toBool(true);
-        provider.remote_fetch_enabled = object.value(QStringLiteral("remote_fetch_enabled")).toBool(true);
-        provider.allow_lossy_transfer = object.value(QStringLiteral("allow_lossy_transfer")).toBool(true);
-        // The renderer's current PUT omits allow_lossy_transfer. Preserve it.
-        if (!object.contains(QStringLiteral("allow_lossy_transfer")))
-            for (const Aowis::Map::MapProvider &old : existing)
-                if (old.id == provider.id) provider.allow_lossy_transfer = old.allow_lossy_transfer;
-        const QUrl url(provider.url_template);
-        if (QUuid(provider.id).isNull() || ids.contains(provider.id) ||
-            provider.name.isEmpty() || provider.name.contains(QLatin1Char('\n')) ||
-            provider.name.contains(QLatin1Char('\r')) ||
-            provider.url_template.contains(QLatin1Char('\n')) ||
-            provider.url_template.contains(QLatin1Char('\r')) ||
-            (!provider.coverage.isEmpty()) ||
-            (url.scheme() != QStringLiteral("http") && url.scheme() != QStringLiteral("https")) ||
-            url.host().isEmpty() || !url.userInfo().isEmpty() ||
-            !provider.url_template.contains(QStringLiteral("{z}")) ||
-            !provider.url_template.contains(QStringLiteral("{x}")) ||
-            !provider.url_template.contains(QStringLiteral("{y}")) ||
-            provider.minimum_zoom < 0 || provider.maximum_zoom > 30 ||
-            provider.minimum_zoom > provider.maximum_zoom)
-        {
-            *error = QStringLiteral("Invalid provider ID, URL, coverage or zoom range: %1").arg(provider.name);
-            return false;
-        }
-        ids.insert(provider.id);
-        result.append(provider);
-    }
-    *parsed = result;
-    return true;
-}
 
 void sendResponse(QTcpSocket *socket, int status, const QByteArray &body)
 {
@@ -118,19 +38,18 @@ StandaloneMapProviderCatalogBridge &StandaloneMapProviderCatalogBridge::instance
 StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *parent)
     : QObject(parent), listener(this)
 {
-    this->map_providers = Aowis::Map::defaultMapProviders();
-    const QJsonObject stored = GuiPreferences::group(ProviderStore);
-    if (!stored.isEmpty())
+    this->repository = Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(
+        &this->catalog_error);
+    this->catalog_valid = this->repository != nullptr &&
+        this->repository->readProviders(&this->map_providers,
+                                        &this->provider_revision, &this->catalog_error);
+    if (!this->catalog_valid)
     {
-        const QJsonArray array = stored.value(QStringLiteral("providers")).toArray();
-        QVector<Aowis::Map::MapProvider> parsed;
-        QString error;
-        if (stored.value(QStringLiteral("version")).toInt(-1) == ProviderVersion &&
-            stored.value(QStringLiteral("providers")).isArray() &&
-            parseProviders(array, this->map_providers, &parsed, &error))
-            this->map_providers = parsed;
-        else
-            qWarning().noquote() << "Invalid embedded MAP provider catalog; using defaults:" << error;
+        // Do not silently restore fetching defaults on an unreadable catalog.
+        qCritical().noquote() << "Invalid embedded MAP provider catalog:" << this->catalog_error;
+        this->map_providers = Aowis::Map::defaultMapProviders();
+        for (Aowis::Map::MapProvider &provider : this->map_providers)
+            provider.remote_fetch_enabled = false;
     }
     this->access_token = QUuid::createUuid().toString(QUuid::WithoutBraces).toUtf8();
     connect(&this->listener, &QTcpServer::newConnection,
@@ -152,36 +71,25 @@ MapServerRestConfiguration StandaloneMapProviderCatalogBridge::catalogServer() c
 
 QByteArray StandaloneMapProviderCatalogBridge::catalogJson() const
 {
-    QJsonArray array;
-    for (const Aowis::Map::MapProvider &provider : this->map_providers)
-        array.append(providerJson(provider));
-    return QJsonDocument(QJsonObject{{QStringLiteral("providers"), array}})
-        .toJson(QJsonDocument::Compact);
+    return Aowis::Map::encodeProviderCatalog(this->map_providers);
 }
 
 bool StandaloneMapProviderCatalogBridge::storeCatalog(const QByteArray &body, QString *error)
 {
-    QJsonParseError parse_error;
-    const QJsonDocument document = QJsonDocument::fromJson(body, &parse_error);
-    if (parse_error.error != QJsonParseError::NoError || !document.isObject() ||
-        !document.object().value(QStringLiteral("providers")).isArray())
+    if (!this->catalog_valid || this->repository == nullptr)
     {
-        *error = QStringLiteral("Expected a providers array");
+        if (error != nullptr)
+            *error = this->catalog_error.isEmpty()
+                ? QStringLiteral("MAP provider repository unavailable") : this->catalog_error;
         return false;
     }
     QVector<Aowis::Map::MapProvider> parsed;
-    if (!parseProviders(document.object().value(QStringLiteral("providers")).toArray(),
-                        this->map_providers, &parsed, error))
+    if (!Aowis::Map::decodeProviderCatalog(body, this->map_providers, &parsed, error))
         return false;
-    QJsonArray array;
-    for (const Aowis::Map::MapProvider &provider : parsed) array.append(providerJson(provider));
-    if (!GuiPreferences::update(ProviderStore, QJsonObject{
-            {QStringLiteral("version"), ProviderVersion},
-            {QStringLiteral("providers"), array}}))
-    {
-        *error = QStringLiteral("Could not persist MAP providers");
+    QString revision;
+    if (!this->repository->saveProviders(parsed, this->provider_revision, &revision, error))
         return false;
-    }
+    this->provider_revision = revision;
     this->map_providers = parsed;
     emit providersChanged();
     return true;
