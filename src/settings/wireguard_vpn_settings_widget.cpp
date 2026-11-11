@@ -375,8 +375,8 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     status_layout->addLayout(status_fields);
     this->tunnel_error = wrappedLabel(status_tab);
     status_layout->addWidget(this->tunnel_error);
-    // One row per running tunnel: several connections may share a profile,
-    // and each owns an independent tunnel with its own handshake state.
+    // One row per running tunnel, shown only when several connections share
+    // the profile (each owns an independent tunnel with its own handshake).
     this->tunnel_table = new QTreeWidget(status_tab);
     this->tunnel_table->setObjectName(QStringLiteral("wireguardVpnTunnels"));
     this->tunnel_table->setRootIsDecorated(false);
@@ -1168,7 +1168,11 @@ void WireGuardVpnSettingsWidget::refreshTelemetry(bool running)
         if (live_ids.contains(it.key())) ++it;
         else it = this->rate_samples.erase(it);
     }
-    this->tunnel_table->setVisible(!tunnels.isEmpty());
+    // With one tunnel the rows above already say everything. The table only
+    // earns its place when several connections share this profile: the rows
+    // above then aggregate (newest handshake, summed traffic), which could
+    // hide a single dead tunnel among healthy ones.
+    this->tunnel_table->setVisible(tunnels.size() > 1);
 
     if (sampled == 0)
     {

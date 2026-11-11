@@ -279,11 +279,11 @@ int main(int argc, char **argv)
     if (!check(handshake->text().endsWith(QStringLiteral("ago"))
                    && peer->text() == QStringLiteral("192.0.2.10:51820")
                    && relays->text().contains(QStringLiteral("3 total"))
-                   && tunnels->topLevelItemCount() == 1
+                   && tunnels->topLevelItemCount() == 1 && tunnels->isHidden()
                    && tunnels->topLevelItem(0)->text(0) == QStringLiteral("http://dvmdb.example:8080")
                    && info->text().contains(QStringLiteral("completed a handshake"))
                    && hints->text().contains(QStringLiteral("failed: 1")),
-               "sampled telemetry was not presented")) return 1;
+               "sampled telemetry was not presented, or one tunnel duplicated the summary")) return 1;
     QObject silent_source;
     monitor.starting(id, &silent_source);
     monitor.running(&silent_source, [sample_now](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
@@ -292,7 +292,7 @@ int main(int argc, char **argv)
         out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
         return true;
     });
-    if (!check(tunnels->topLevelItemCount() == 2
+    if (!check(tunnels->topLevelItemCount() == 2 && !tunnels->isHidden()
                    && hints->text().contains(QStringLiteral("No WireGuard handshake has completed")),
                "missing first handshake was not reported")) return 1;
     monitor.stopped(&silent_source);
