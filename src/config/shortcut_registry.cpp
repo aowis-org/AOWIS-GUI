@@ -9,7 +9,9 @@
 #include <QAction>
 #include <QMenu>
 #include <QPushButton>
-#include <QSettings>
+#include "config/gui_preferences.h"
+
+#include <QJsonObject>
 #include <QWidget>
 
 namespace
@@ -373,23 +375,14 @@ bool GuiShortcutRegistry::persistShortcut(const GuiShortcutDefinition &definitio
                                           const QString &value,
                                           QString *error_message)
 {
-#ifdef __EMSCRIPTEN__
-    Q_UNUSED(definition)
-    Q_UNUSED(value)
-    Q_UNUSED(error_message)
-    return true;
-#else
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    settings.setValue(QStringLiteral("shortcuts/") + definition.config_key, value);
-    settings.sync();
-    if (settings.status() != QSettings::NoError)
+    // AOWIS-CONFIG preferences, in browsers too (config/gui_preferences.h).
+    if (!GuiPreferences::update(guiShortcutPreferenceGroup(), QJsonObject{{definition.config_key, value}}))
     {
         if (error_message != nullptr)
             *error_message = tr("Failed to save the keyboard shortcut configuration.");
         return false;
     }
     return true;
-#endif
 }
 
 GuiShortcutRegistry &guiShortcutRegistry()

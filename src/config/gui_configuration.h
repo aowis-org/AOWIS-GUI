@@ -80,8 +80,15 @@ struct GuiConfiguration
     GuiMapPerformanceConfiguration map_performance;
 };
 
+// The former native INI (and webroot INI in WebAssembly). Preferences no
+// longer live there (config/gui_preferences.h); remaining users: unit
+// profile selection, map provider fallbacks, commit author identity.
 QString guiConfigurationFilePath();
+// Preferences, read once from AOWIS-CONFIG and cached; the save functions
+// below update both.
 const GuiConfiguration &guiConfiguration();
+// The GuiPreferences group of keyboard shortcuts (keys: config_key).
+QString guiShortcutPreferenceGroup();
 QKeySequence guiShortcutKeySequence(const QString &shortcut);
 bool guiShortcutMatches(const QKeyEvent *event, const QString &shortcut,
                         Qt::KeyboardModifiers allowed_extra_modifiers = Qt::NoModifier);

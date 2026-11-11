@@ -60,7 +60,7 @@ int main(int argc, char **argv)
         QSettings legacy(ini_path, QSettings::IniFormat);
         legacy.setValue(QStringLiteral("map_server/base_url"), QStringLiteral("http://legacy.invalid"));
         legacy.setValue(QStringLiteral("map_server/api_key"), QStringLiteral("legacy-secret"));
-        legacy.setValue(QStringLiteral("gui/examples_builtin_enable"), true);
+        legacy.setValue(QStringLiteral("units/selected_profile_id"), QStringLiteral("unrelated"));
     }
     static_cast<void>(guiConfiguration());
     {
@@ -69,7 +69,7 @@ int main(int argc, char **argv)
         const QByteArray contents = ini.readAll();
         if (!require(!contents.contains("map_server") && !contents.contains("legacy-secret"),
                      "former [map_server] section still in the INI")) return 1;
-        if (!require(contents.contains("examples_builtin_enable"), "unrelated INI settings lost")) return 1;
+        if (!require(contents.contains("selected_profile_id"), "unrelated INI settings lost")) return 1;
     }
 
     QString error;

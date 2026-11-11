@@ -247,8 +247,26 @@ The former `servers/profiles` INI key and the browser's
 tab per origin can change connections at a time (the others show a save
 error until that tab is closed).
 
-The remaining settings still use the INI file below until they move to
-AOWIS-CONFIG. Native builds create it automatically on first startup. The default location is platform-specific:
+Preferences are records of the `preferences` collection of the same store,
+one per group, natively and in the browser:
+
+| Group | Keys |
+| --- | --- |
+| `interface` | `language` |
+| `shortcuts` | one per shortcut (`sidebar_toggle`, `fullscreen`, …); `""` unassigns; missing → default |
+| `symbology` | `node_palette`, `link_palette`, `heatmap_palette` (names such as `viridis`), `*_palette_flipped` |
+| `map_navigation` | `scroll_zoom_sensitivity`, `mouse_3d_pan_sensitivity`, `orbit_3d_sensitivity` (0.1–1.5) |
+| `map_performance` | `terrain_detail_reduction` (0–3) |
+| `gui` | `examples_builtin_enable` (native; WebAssembly takes it from the deployment) |
+
+Change them in Settings; nothing is written until a value is changed, and
+invalid values fall back to the defaults. The former INI groups `[gui]`,
+`[shortcuts]`, `[symbology]`, `[map_navigation]`, `[map_performance]` and
+`[interface]` and the browser's `aowis.symbology.*`, `aowis.map_*` and
+`aowis.gui.language` items are deleted on startup, not migrated.
+
+Until they move as well, the unit-profile selection, map provider fallbacks
+and the commit author identity still use the former INI file:
 
 ```text
 Windows: %APPDATA%\aowis-server-gui\aowis-server-gui.ini
@@ -256,45 +274,8 @@ Linux:   ~/.local/share/aowis-server-gui/aowis-server-gui.ini
 macOS:   ~/Library/Application Support/aowis-server-gui/aowis-server-gui.ini
 ```
 
-On Windows, `%APPDATA%` normally resolves to `C:\Users\<user>\AppData\Roaming`. Existing configurations from the previous `AppData\Local` location are migrated automatically when the roaming file does not exist. On Linux, `XDG_DATA_HOME` is respected when it is set. The default file contents are:
-
-```ini
-[gui]
-examples_builtin_enable=true
-
-[shortcuts]
-sidebar_toggle=Win+Tab
-fullscreen=F11
-simulation_run=Ctrl+R
-simulation_run_alternate=Shift+Enter
-map_zoom_in=E
-map_zoom_out=Q
-map_pan_up=W
-map_pan_down=S
-map_pan_left=A
-map_pan_right=D
-map_provider_arcgis_sat=F1
-map_provider_openstreetmap=F2
-map_provider_opentopomap=F3
-map_provider_cycloosm=F4
-map_editor_select=Esc
-map_editor_delete=Del
-map_editor_add_pipe=1
-map_editor_add_junction=2
-map_editor_add_valve=3
-map_editor_add_demand_point=4
-map_editor_add_pump=5
-map_editor_add_tank=6
-map_editor_add_power_source=7
-map_editor_add_reservoir=8
-map_editor_add_note=9
-```
-
-Restart the application after editing the file. Missing native `[shortcuts]` entries are added automatically using the advertised UI shortcuts.
-
-Set `examples_builtin_enable=false` to hide bundled example entries. If
-the option is missing, built-in examples are enabled. Example Library
-actions do not create persisted DVMDB revisions.
+Built-in examples are enabled unless `examples_builtin_enable` is `false`.
+Example Library actions do not create persisted DVMDB revisions.
 
 ### DVMDB database profiles
 

@@ -33,6 +33,16 @@ aowis::config::Result<aowis::config::ConfigRoot> guiConfigRoot()
 
 }
 
+QString guiConfigStoreLocation()
+{
+#ifdef __EMSCRIPTEN__
+    return QStringLiteral("this browser's site storage");
+#else
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
+    return QDir::toNativeSeparators(QDir(base).filePath(QStringLiteral("aowis/gui")));
+#endif
+}
+
 const aowis::config::OwnerStore *guiConfigStore(QString *error)
 {
     // Kept for the process lifetime once opened. A failure is not cached:

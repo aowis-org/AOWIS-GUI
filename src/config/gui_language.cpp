@@ -1,24 +1,25 @@
 #include "config/gui_language.h"
-#include "config/gui_configuration.h"
+#include "config/gui_preferences.h"
 
 #include <algorithm>
 #include <QApplication>
 #include <QDebug>
 #include <QLocale>
-#include <QSettings>
+#include <QJsonObject>
+
+namespace
+{
+const QString preference_group = QStringLiteral("interface");
+const QString preference_key = QStringLiteral("language");
+}
 
 #ifdef __EMSCRIPTEN__
-#include <cstdlib>
 #include <emscripten.h>
 
-EM_JS(char *, loadGuiLanguage, (), {
-    try { return stringToNewUTF8(localStorage.getItem("aowis.gui.language") || "en"); }
-    catch (error) { return stringToNewUTF8("en"); }
-});
-
-EM_JS(int, saveGuiLanguage, (const char *code), {
-    try { localStorage.setItem("aowis.gui.language", UTF8ToString(code)); return 1; }
-    catch (error) { return 0; }
+// The former localStorage item: deleted, not migrated.
+EM_JS(void, removeLegacyGuiLanguage, (), {
+    try { localStorage.removeItem("aowis.gui.language"); }
+    catch (error) {}
 });
 #endif
 
@@ -36,13 +37,9 @@ QString GuiLanguage::code() const
 void GuiLanguage::restore()
 {
 #ifdef __EMSCRIPTEN__
-    char *stored = loadGuiLanguage();
-    const QString code = QString::fromUtf8(stored);
-    std::free(stored);
-#else
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    const QString code = settings.value(QStringLiteral("interface/language"), QStringLiteral("en")).toString();
+    removeLegacyGuiLanguage();
 #endif
+    const QString code = GuiPreferences::value(preference_group, preference_key).toString(QStringLiteral("en"));
     if (!activate(code))
         activate(QStringLiteral("en"));
 }
@@ -51,16 +48,8 @@ bool GuiLanguage::select(const QString &code)
 {
     if (!activate(code))
         return false;
-#ifdef __EMSCRIPTEN__
-    if (!saveGuiLanguage(code.toUtf8().constData()))
+    if (!GuiPreferences::update(preference_group, QJsonObject{{preference_key, code}}))
         qWarning() << "Could not save interface language";
-#else
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    settings.setValue(QStringLiteral("interface/language"), code);
-    settings.sync();
-    if (settings.status() != QSettings::NoError)
-        qWarning() << "Could not save interface language";
-#endif
     return true;
 }
 

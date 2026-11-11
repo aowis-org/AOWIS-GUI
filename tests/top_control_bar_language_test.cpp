@@ -28,6 +28,8 @@ int main(int argc, char **argv)
     qputenv("XDG_DATA_HOME", settings_directory.path().toUtf8());
     qputenv("HOME", settings_directory.path().toUtf8());
     qputenv("APPDATA", settings_directory.path().toUtf8());
+    // Preferences live in the AOWIS-CONFIG store under the config location.
+    qputenv("XDG_CONFIG_HOME", settings_directory.path().toUtf8());
     QApplication app(argc, argv);
     GuiLanguage &language = GuiLanguage::instance();
 

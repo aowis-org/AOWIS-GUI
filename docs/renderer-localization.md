@@ -15,9 +15,9 @@ It is not a per-patch implementation history.
 
 `src/config/gui_language.{h,cpp}` (`GuiLanguage`) is the GUI language authority.
 Its five language codes are `en`, `fr`, `ar`, `de` and `es`. English is the
-source language and fallback. The chosen language is stored in the native GUI
-INI (`interface/language`) or browser `localStorage`
-(`aowis.gui.language`). The selection is independent of engineering-unit
+source language and fallback. The chosen language is the `language` key of
+the `interface` group of the GUI preferences in AOWIS-CONFIG
+(`config/gui_preferences.h`), natively and in browsers. The selection is independent of engineering-unit
 profiles, numeric formatting and persisted hydraulic MODEL values.
 
 On selection the GUI loads **both** translation domains:

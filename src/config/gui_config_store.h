@@ -17,3 +17,6 @@
 // backend, insecure permissions); error, if given, receives a message that
 // never contains stored data.
 const aowis::config::OwnerStore *guiConfigStore(QString *error = nullptr);
+// Where that store lives, for display: the native directory, or a short
+// description of the browser storage.
+QString guiConfigStoreLocation();

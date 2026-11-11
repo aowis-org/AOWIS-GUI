@@ -311,6 +311,8 @@ qt_add_executable(aowis-server-gui
 
     # Configuration
     src/config/gui_configuration.cpp
+    src/config/gui_preferences.cpp
+    src/config/gui_preferences.h
     src/config/unit_profile_storage.cpp
     src/config/gui_configuration.h
     src/config/map_server_client_configuration.cpp
@@ -801,11 +803,13 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/tabs/project_revision_graph.h
         src/tabs/project_graph_placement.h
         src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp
+        src/config/gui_config_store.cpp
         src/config/shortcut_registry.cpp
         src/config/shortcut_registry.h)
     target_include_directories(aowis-project-revision-graph-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-project-revision-graph-tests PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-project-revision-graph-tests PRIVATE Qt6::Widgets aowis::config)
     add_test(NAME aowis-project-revision-graph
         COMMAND aowis-project-revision-graph-tests)
     set_tests_properties(aowis-project-revision-graph PROPERTIES
@@ -904,10 +908,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/app/top_control_bar_content.h
         src/config/gui_language.cpp
         src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp
+        src/config/gui_config_store.cpp
         translations/translations.qrc)
     target_include_directories(aowis-top-control-bar-language-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-top-control-bar-language-tests PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-top-control-bar-language-tests PRIVATE Qt6::Widgets aowis::config)
     if(TARGET aowis-gui-compiled-translations)
         add_dependencies(aowis-top-control-bar-language-tests aowis-gui-compiled-translations)
     endif()
@@ -923,10 +929,12 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/shortcut_registry.cpp
         src/widgets/wasm_popup_menu.cpp
         src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp
+        src/config/gui_config_store.cpp
         src/config/gui_language.cpp
         translations/translations.qrc)
     target_include_directories(aowis-gui-language-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-gui-language-tests PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-gui-language-tests PRIVATE Qt6::Widgets aowis::config)
     if(TARGET aowis-gui-compiled-translations)
         add_dependencies(aowis-gui-language-tests aowis-gui-compiled-translations)
     endif()
@@ -971,6 +979,23 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-project-server-profile-storage-tests)
     set_tests_properties(aowis-project-server-profile-storage PROPERTIES LABELS "aowis")
 
+    # GUI preferences in AOWIS-CONFIG; former INI groups removed.
+    add_executable(aowis-gui-preferences-tests
+        tests/gui_preferences_test.cpp
+        src/config/gui_preferences.cpp
+        src/config/gui_preferences.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
+        src/config/gui_configuration.cpp)
+    target_include_directories(aowis-gui-preferences-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-gui-preferences-tests PRIVATE
+        Qt6::Widgets aowis::config)
+    add_test(NAME aowis-gui-preferences
+        COMMAND aowis-gui-preferences-tests)
+    set_tests_properties(aowis-gui-preferences PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # Map-server connection in AOWIS-CONFIG; former INI section removed.
     add_executable(aowis-map-server-client-configuration-tests
         tests/map_server_client_configuration_test.cpp
@@ -980,7 +1005,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/project_server_profile_storage.h
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
-        src/config/gui_configuration.cpp)
+        src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp)
     target_include_directories(aowis-map-server-client-configuration-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-map-server-client-configuration-tests PRIVATE
@@ -1000,7 +1026,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/project_server_profile_storage.h
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
-        src/config/gui_configuration.cpp)
+        src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp)
     target_include_directories(aowis-personal-repository-settings-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-personal-repository-settings-tests PRIVATE
@@ -1046,7 +1073,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/project_server_profile_storage.h
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
-        src/config/gui_configuration.cpp)
+        src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp)
     target_include_directories(aowis-personal-working-copy-client-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-personal-working-copy-client-tests PRIVATE
@@ -1090,6 +1118,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/widgets/group_box_collapsible.cpp
         src/widgets/group_box_collapsible.h
         src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp
         src/config/shortcut_registry.cpp
         src/config/shortcut_registry.h)
     target_include_directories(aowis-projects-inspector-dock-tests PRIVATE
@@ -1135,6 +1164,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/widgets/group_box_collapsible.cpp
         src/widgets/group_box_collapsible.h
         src/config/gui_configuration.cpp
+        src/config/gui_preferences.cpp
         src/config/shortcut_registry.cpp
         src/config/shortcut_registry.h)
     target_include_directories(aowis-projects-multi-source-tests PRIVATE

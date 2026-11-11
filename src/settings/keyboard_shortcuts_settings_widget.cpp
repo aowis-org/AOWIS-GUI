@@ -2,6 +2,7 @@
 #include "settings/keyboard_shortcuts_settings_widget.h"
 
 #include "config/gui_configuration.h"
+#include "config/gui_config_store.h"
 
 #include <QAbstractItemView>
 #include <QColor>
@@ -77,14 +78,11 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
     title->setFont(title_font);
     layout->addWidget(title);
 
-#ifdef __EMSCRIPTEN__
-    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Change application shortcuts here. Changes apply immediately for this browser session."), this);
-#else
+    // Saved as AOWIS-CONFIG preferences, in browsers too.
     QLabel *description = new QLabel(this);
     LiveUiText::bind(description, [description] {
-        description->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Change application shortcuts here. Changes apply immediately and are saved to %1.")).arg(guiConfigurationFilePath()));
+        description->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Change application shortcuts here. Changes apply immediately and are saved to %1.")).arg(guiConfigStoreLocation()));
     });
-#endif
     description->setWordWrap(true);
     description->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(description);

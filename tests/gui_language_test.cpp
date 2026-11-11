@@ -4,6 +4,7 @@
 #include "entity_inspector/entity_inspector_text.h"
 #include "entity_inspector/tank_inspector_presentation.h"
 #include "config/gui_language.h"
+#include "config/gui_preferences.h"
 #include "tabs/projects_inspector_panels.h"
 
 #include <QApplication>
@@ -14,7 +15,7 @@
 #include <QEvent>
 #include <QLabel>
 #include <QLocale>
-#include <QSettings>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTextCursor>
 #include <QTabWidget>
@@ -53,6 +54,8 @@ int main(int argc, char **argv)
     qputenv("XDG_DATA_HOME", directory.path().toUtf8());
     qputenv("HOME", directory.path().toUtf8());
     qputenv("APPDATA", directory.path().toUtf8());
+    // Preferences live in the AOWIS-CONFIG store under the config location.
+    qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
     QApplication app(argc, argv);
     GuiLanguage &language = GuiLanguage::instance();
     QWidget window;
@@ -628,19 +631,22 @@ int main(int argc, char **argv)
             || !matches(code, "active geometry caption", geometry_label.text(),
                         LiveUiText::translate("Equivalent<br>Diameter")))
             return 11;
-        QSettings persisted(guiConfigurationFilePath(), QSettings::IniFormat);
-        if (!matches(code, "persisted language", persisted.value(QStringLiteral("interface/language")).toString(), code))
+        // Persisted in AOWIS-CONFIG, not only in the cache.
+        GuiPreferences::reload();
+        if (!matches(code, "persisted language",
+                     GuiPreferences::value(QStringLiteral("interface"), QStringLiteral("language")).toString(), code))
             return 4;
     }
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    settings.setValue(QStringLiteral("interface/language"), QStringLiteral("de"));
-    settings.sync();
+    if (!GuiPreferences::update(QStringLiteral("interface"),
+                                QJsonObject{{QStringLiteral("language"), QStringLiteral("de")}}))
+        return 5;
     language.restore();
     if (!matches(QStringLiteral("restore"), "stored language", language.code(), QStringLiteral("de"))
         || !matches(QStringLiteral("xx"), "accepted unknown language", language.select(QStringLiteral("xx")), false))
         return 5;
-    settings.setValue(QStringLiteral("interface/language"), QStringLiteral("invalid"));
-    settings.sync();
+    if (!GuiPreferences::update(QStringLiteral("interface"),
+                                QJsonObject{{QStringLiteral("language"), QStringLiteral("invalid")}}))
+        return 6;
     language.restore();
     return matches(QStringLiteral("restore"), "invalid settings fallback", language.code(), QStringLiteral("en")) ? 0 : 6;
 }

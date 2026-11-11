@@ -92,6 +92,8 @@ int main(int argc, char **argv)
     if (!require(temporary_configuration.isValid(), "could not create isolated GUI configuration"))
         return 1;
     qputenv("XDG_DATA_HOME", temporary_configuration.path().toUtf8());
+    // Preferences live in the AOWIS-CONFIG store under the config location.
+    qputenv("XDG_CONFIG_HOME", temporary_configuration.path().toUtf8());
     QApplication app(argc, argv);
 
     // Multi-HEAD cards must keep the two-line revision header fixed while
