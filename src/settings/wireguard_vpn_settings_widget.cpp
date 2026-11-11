@@ -31,6 +31,10 @@
 #include <QSet>
 #include <QShowEvent>
 #include <QSyntaxHighlighter>
+#include <QStringView>
+#include <QTextCursor>
+#include <QTextBlock>
+#include <QScrollBar>
 #include <QTextCharFormat>
 #include <QTextDocument>
 #include <QPushButton>
@@ -51,6 +55,67 @@ namespace
 {
 constexpr qint64 MaximumImportBytes = 128 * 1024;
 constexpr int TelemetryIntervalMs = 1000;
+
+// Shown in place of a hidden PrivateKey value: key-length, not base64, so it
+// can never be mistaken for (or accepted as) a real key.
+const QString &privateKeyMask()
+{
+    static const QString mask(44, QChar(0x2022));
+    return mask;
+}
+
+// Locates the PrivateKey value on one line the way AOWIS-NETWORK's
+// parseWireGuardConf() reads it: '#' starts a comment anywhere, keys are
+// case-insensitive, value whitespace (including a CRLF '\r') is trimmed.
+bool privateKeyValueSpan(const QString &line, qsizetype &begin, qsizetype &end)
+{
+    qsizetype content_end = line.indexOf(QLatin1Char('#'));
+    if (content_end < 0) content_end = line.size();
+    const qsizetype separator = line.indexOf(QLatin1Char('='));
+    if (separator < 0 || separator >= content_end) return false;
+    if (line.left(separator).trimmed().compare(QStringLiteral("PrivateKey"), Qt::CaseInsensitive) != 0)
+        return false;
+    begin = separator + 1;
+    while (begin < content_end && line.at(begin).isSpace()) ++begin;
+    end = content_end;
+    while (end > begin && line.at(end - 1).isSpace()) --end;
+    return true;
+}
+
+// Replaces every non-empty PrivateKey value by the mask; *keys receives the
+// values in line order. Everything else is kept byte for byte.
+QString maskPrivateKeys(const QString &configuration, QStringList *keys)
+{
+    keys->clear();
+    QStringList lines = configuration.split(QLatin1Char('\n'));
+    for (QString &line : lines)
+    {
+        qsizetype begin = 0;
+        qsizetype end = 0;
+        if (!privateKeyValueSpan(line, begin, end) || end == begin) continue;
+        keys->append(line.mid(begin, end - begin));
+        line.replace(begin, end - begin, privateKeyMask());
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
+// Inverse of maskPrivateKeys(): the n-th masked value gets the n-th hidden
+// key. A value the user replaced is kept as typed; a deleted line drops its
+// key. A surplus mask (duplicated line) stays literal and fails validation.
+QString unmaskPrivateKeys(const QString &shown, const QStringList &keys)
+{
+    QStringList lines = shown.split(QLatin1Char('\n'));
+    qsizetype next = 0;
+    for (QString &line : lines)
+    {
+        qsizetype begin = 0;
+        qsizetype end = 0;
+        if (next >= keys.size() || !privateKeyValueSpan(line, begin, end)) continue;
+        if (QStringView(line).mid(begin, end - begin) != privateKeyMask()) continue;
+        line.replace(begin, end - begin, keys.at(next++));
+    }
+    return lines.join(QLatin1Char('\n'));
+}
 // WireGuard protocol timers (whitepaper §6.1): sessions are renewed after
 // REKEY_AFTER_TIME (120 s) while packets flow and rejected after
 // REJECT_AFTER_TIME (180 s). With persistent keepalive there is always
@@ -281,66 +346,7 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->detail_tabs->setObjectName(QStringLiteral("wireguardVpnDetails"));
     detail_layout->addWidget(this->detail_tabs, 1);
 
-    QWidget *configuration_tab = new QWidget(this->detail_tabs);
-    QVBoxLayout *config_layout = new QVBoxLayout(configuration_tab);
-    QFormLayout *form = new QFormLayout();
-    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    QLabel *name_caption = new QLabel(configuration_tab);
-    name_caption->setObjectName(QStringLiteral("wireguardVpnNameCaption"));
-    this->name_edit = new QLineEdit(configuration_tab);
-    this->name_edit->setObjectName(QStringLiteral("wireguardVpnName"));
-    form->addRow(name_caption, this->name_edit);
-    QLabel *description_caption = new QLabel(configuration_tab);
-    description_caption->setObjectName(QStringLiteral("wireguardVpnDescriptionCaption"));
-    this->description_edit = new QPlainTextEdit(configuration_tab);
-    this->description_edit->setObjectName(QStringLiteral("wireguardVpnDescription"));
-    this->description_edit->setMaximumHeight(70);
-    form->addRow(description_caption, this->description_edit);
-    config_layout->addLayout(form);
-    QLabel *editor_caption = new QLabel(configuration_tab);
-    editor_caption->setObjectName(QStringLiteral("wireguardVpnEditorCaption"));
-    config_layout->addWidget(editor_caption);
-    this->configuration_edit = new QPlainTextEdit(configuration_tab);
-    this->configuration_edit->setObjectName(QStringLiteral("wireguardVpnEditor"));
-    this->configuration_edit->setLineWrapMode(QPlainTextEdit::NoWrap);
-    QFont monospace = this->configuration_edit->font();
-    monospace.setStyleHint(QFont::Monospace);
-    monospace.setFamily(QStringLiteral("monospace"));
-    this->configuration_edit->setFont(monospace);
-    this->configuration_highlighter = new WireGuardSyntaxHighlighter(this->configuration_edit->document());
-    static_cast<WireGuardSyntaxHighlighter *>(this->configuration_highlighter)
-        ->updatePalette(this->configuration_edit->palette());
-    this->configuration_edit->installEventFilter(this);
-    config_layout->addWidget(this->configuration_edit, 1);
-    this->validation_label = wrappedLabel(configuration_tab);
-    this->validation_label->setObjectName(QStringLiteral("wireguardVpnValidation"));
-    config_layout->addWidget(this->validation_label);
-    QHBoxLayout *save_actions = new QHBoxLayout();
-    this->save_button = new QPushButton(configuration_tab);
-    this->save_button->setObjectName(QStringLiteral("wireguardVpnSave"));
-    this->revert_button = new QPushButton(configuration_tab);
-    this->revert_button->setObjectName(QStringLiteral("wireguardVpnRevert"));
-    save_actions->addStretch();
-    save_actions->addWidget(this->revert_button);
-    save_actions->addWidget(this->save_button);
-    config_layout->addLayout(save_actions);
-    this->detail_tabs->addTab(configuration_tab, QString());
-
-    QWidget *usage_tab = new QWidget(this->detail_tabs);
-    QVBoxLayout *usage_layout = new QVBoxLayout(usage_tab);
-    this->usage_info = wrappedLabel(usage_tab);
-    usage_layout->addWidget(this->usage_info);
-    this->usage_table = new QTreeWidget(usage_tab);
-    this->usage_table->setObjectName(QStringLiteral("wireguardVpnUsedBy"));
-    this->usage_table->setRootIsDecorated(false);
-    this->usage_table->setAlternatingRowColors(true);
-    this->usage_table->setColumnCount(3);
-    this->usage_table->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    this->usage_table->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    this->usage_table->header()->setSectionResizeMode(2, QHeaderView::Stretch);
-    usage_layout->addWidget(this->usage_table, 1);
-    this->detail_tabs->addTab(usage_tab, QString());
-
+    // Tab order: Status (index 0), Configuration (1), Used by (2).
     QWidget *status_tab = new QWidget(this->detail_tabs);
     QVBoxLayout *status_layout = new QVBoxLayout(status_tab);
     this->status_info = wrappedLabel(status_tab);
@@ -382,6 +388,73 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->telemetry_clock.start();
     this->detail_tabs->addTab(status_tab, QString());
 
+    QWidget *configuration_tab = new QWidget(this->detail_tabs);
+    QVBoxLayout *config_layout = new QVBoxLayout(configuration_tab);
+    QFormLayout *form = new QFormLayout();
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    QLabel *name_caption = new QLabel(configuration_tab);
+    name_caption->setObjectName(QStringLiteral("wireguardVpnNameCaption"));
+    this->name_edit = new QLineEdit(configuration_tab);
+    this->name_edit->setObjectName(QStringLiteral("wireguardVpnName"));
+    form->addRow(name_caption, this->name_edit);
+    QLabel *description_caption = new QLabel(configuration_tab);
+    description_caption->setObjectName(QStringLiteral("wireguardVpnDescriptionCaption"));
+    this->description_edit = new QPlainTextEdit(configuration_tab);
+    this->description_edit->setObjectName(QStringLiteral("wireguardVpnDescription"));
+    this->description_edit->setMaximumHeight(70);
+    form->addRow(description_caption, this->description_edit);
+    config_layout->addLayout(form);
+    QHBoxLayout *editor_header = new QHBoxLayout();
+    this->editor_caption = wrappedLabel(configuration_tab);
+    this->editor_caption->setObjectName(QStringLiteral("wireguardVpnEditorCaption"));
+    this->private_key_button = new QPushButton(configuration_tab);
+    this->private_key_button->setObjectName(QStringLiteral("wireguardVpnShowPrivateKey"));
+    this->private_key_button->setCheckable(true);
+    editor_header->addWidget(this->editor_caption, 1);
+    editor_header->addWidget(this->private_key_button);
+    config_layout->addLayout(editor_header);
+    this->configuration_edit = new QPlainTextEdit(configuration_tab);
+    this->configuration_edit->setObjectName(QStringLiteral("wireguardVpnEditor"));
+    this->configuration_edit->setLineWrapMode(QPlainTextEdit::NoWrap);
+    QFont monospace = this->configuration_edit->font();
+    monospace.setStyleHint(QFont::Monospace);
+    monospace.setFamily(QStringLiteral("monospace"));
+    this->configuration_edit->setFont(monospace);
+    this->configuration_highlighter = new WireGuardSyntaxHighlighter(this->configuration_edit->document());
+    static_cast<WireGuardSyntaxHighlighter *>(this->configuration_highlighter)
+        ->updatePalette(this->configuration_edit->palette());
+    this->configuration_edit->installEventFilter(this);
+    config_layout->addWidget(this->configuration_edit, 1);
+    this->validation_label = wrappedLabel(configuration_tab);
+    this->validation_label->setObjectName(QStringLiteral("wireguardVpnValidation"));
+    config_layout->addWidget(this->validation_label);
+    QHBoxLayout *save_actions = new QHBoxLayout();
+    this->save_button = new QPushButton(configuration_tab);
+    this->save_button->setObjectName(QStringLiteral("wireguardVpnSave"));
+    this->revert_button = new QPushButton(configuration_tab);
+    this->revert_button->setObjectName(QStringLiteral("wireguardVpnRevert"));
+    save_actions->addStretch();
+    save_actions->addWidget(this->revert_button);
+    save_actions->addWidget(this->save_button);
+    config_layout->addLayout(save_actions);
+    this->detail_tabs->addTab(configuration_tab, QString());
+
+    QWidget *usage_tab = new QWidget(this->detail_tabs);
+    QVBoxLayout *usage_layout = new QVBoxLayout(usage_tab);
+    this->usage_info = wrappedLabel(usage_tab);
+    usage_layout->addWidget(this->usage_info);
+    this->usage_table = new QTreeWidget(usage_tab);
+    this->usage_table->setObjectName(QStringLiteral("wireguardVpnUsedBy"));
+    this->usage_table->setRootIsDecorated(false);
+    this->usage_table->setAlternatingRowColors(true);
+    this->usage_table->setColumnCount(3);
+    this->usage_table->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    this->usage_table->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    this->usage_table->header()->setSectionResizeMode(2, QHeaderView::Stretch);
+    usage_layout->addWidget(this->usage_table, 1);
+    this->detail_tabs->addTab(usage_tab, QString());
+
+
     splitter->addWidget(list_panel);
     splitter->addWidget(detail_panel);
     splitter->setStretchFactor(0, 1);
@@ -401,6 +474,7 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     connect(this->name_edit, &QLineEdit::textChanged, this, [this] { refreshControls(); });
     connect(this->description_edit, &QPlainTextEdit::textChanged, this, [this] { refreshControls(); });
     connect(this->configuration_edit, &QPlainTextEdit::textChanged, this, [this] { refreshControls(); });
+    connect(this->private_key_button, &QPushButton::toggled, this, &WireGuardVpnSettingsWidget::setPrivateKeyVisible);
     connect(this->usage_table, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *item, int) {
         if (item != nullptr) emit serviceActivated(item->data(0, Qt::UserRole).toString());
     });
@@ -600,7 +674,58 @@ bool WireGuardVpnSettingsWidget::hasChanges() const
     if (profile == nullptr) return false;
     return profile->draft || profile->name != this->name_edit->text()
         || profile->description != this->description_edit->toPlainText()
-        || profile->configuration != this->configuration_edit->toPlainText();
+        || profile->configuration != currentConfiguration();
+}
+
+QString WireGuardVpnSettingsWidget::currentConfiguration() const
+{
+    const QString shown = this->configuration_edit->toPlainText();
+    return this->private_key_visible ? shown : unmaskPrivateKeys(shown, this->hidden_private_keys);
+}
+
+void WireGuardVpnSettingsWidget::showConfiguration(const QString &configuration)
+{
+    if (this->private_key_visible)
+    {
+        this->hidden_private_keys.clear();
+        this->configuration_edit->setPlainText(configuration);
+    }
+    else this->configuration_edit->setPlainText(maskPrivateKeys(configuration, &this->hidden_private_keys));
+}
+
+void WireGuardVpnSettingsWidget::setPrivateKeyVisible(bool visible)
+{
+    if (visible == this->private_key_visible) return;
+    // Swap the presentation of the same configuration: unsaved edits, the
+    // dirty state and the cursor line survive; only the key text changes.
+    const QString configuration = currentConfiguration();
+    const QTextCursor cursor = this->configuration_edit->textCursor();
+    const int line = cursor.blockNumber();
+    const int column = cursor.positionInBlock();
+    const int scroll = this->configuration_edit->verticalScrollBar()->value();
+    this->private_key_visible = visible;
+    this->showConfiguration(configuration);
+    const QTextBlock block = this->configuration_edit->document()->findBlockByNumber(line);
+    if (block.isValid())
+    {
+        QTextCursor restored(block);
+        restored.setPosition(block.position() + std::min(column, std::max(0, block.length() - 1)));
+        this->configuration_edit->setTextCursor(restored);
+    }
+    this->configuration_edit->verticalScrollBar()->setValue(scroll);
+    this->refreshPrivateKeyControls();
+}
+
+void WireGuardVpnSettingsWidget::refreshPrivateKeyControls()
+{
+    {
+        const QSignalBlocker blocker(this->private_key_button);
+        this->private_key_button->setChecked(this->private_key_visible);
+    }
+    this->private_key_button->setText(this->private_key_visible ? tr("Hide private key") : tr("Show/edit private key"));
+    this->editor_caption->setText(this->private_key_visible
+        ? tr("WireGuard .conf (the private key is visible)")
+        : tr("WireGuard .conf (the private key is hidden and kept unchanged when you save)"));
 }
 
 bool WireGuardVpnSettingsWidget::leaveCurrentProfile()
@@ -695,8 +820,11 @@ void WireGuardVpnSettingsWidget::loadSelection()
     this->loading_editor = true;
     this->name_edit->setText(profile == nullptr ? QString() : profile->name);
     this->description_edit->setPlainText(profile == nullptr ? QString() : profile->description);
-    this->configuration_edit->setPlainText(profile == nullptr ? QString() : profile->configuration);
+    // Every newly shown profile starts with its private key hidden.
+    this->private_key_visible = false;
+    this->showConfiguration(profile == nullptr ? QString() : profile->configuration);
     this->loading_editor = false;
+    this->refreshPrivateKeyControls();
     this->detail_tabs->setVisible(profile != nullptr);
     this->empty_notice->setVisible(profile == nullptr);
     this->refreshUsage();
@@ -750,7 +878,7 @@ void WireGuardVpnSettingsWidget::refreshControls()
         return;
     }
     QString notes;
-    const QString error = configurationValidation(this->configuration_edit->toPlainText(), &notes);
+    const QString error = configurationValidation(currentConfiguration(), &notes);
     bool unique_name = !this->name_edit->text().trimmed().isEmpty();
     for (const Profile &candidate : this->profiles)
     {
@@ -786,7 +914,7 @@ void WireGuardVpnSettingsWidget::saveProfile()
             return;
         }
     }
-    const QString config = this->configuration_edit->toPlainText();
+    const QString config = currentConfiguration();
     const QString error = configurationValidation(config);
     if (!error.isEmpty())
     {
@@ -900,7 +1028,7 @@ void WireGuardVpnSettingsWidget::deleteProfile()
     {
         QMessageBox::warning(this, tr("Profile in use"),
             tr("This profile is used by configured connections. Change those connections before deleting it."));
-        this->detail_tabs->setCurrentIndex(1);
+        this->detail_tabs->setCurrentIndex(2); // Used by
         return;
     }
     if (QMessageBox::question(this, tr("Delete WireGuard profile?"),
@@ -1158,12 +1286,12 @@ void WireGuardVpnSettingsWidget::retranslate()
     this->delete_button->setText(tr("Delete"));
     this->save_button->setText(tr("Save changes"));
     this->revert_button->setText(tr("Revert"));
-    this->detail_tabs->setTabText(0, tr("Configuration"));
-    this->detail_tabs->setTabText(1, tr("Used by"));
-    this->detail_tabs->setTabText(2, tr("Status"));
+    this->detail_tabs->setTabText(0, tr("Status"));
+    this->detail_tabs->setTabText(1, tr("Configuration"));
+    this->detail_tabs->setTabText(2, tr("Used by"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnNameCaption"))->setText(tr("Profile name"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnDescriptionCaption"))->setText(tr("Description"));
-    this->findChild<QLabel *>(QStringLiteral("wireguardVpnEditorCaption"))->setText(tr("WireGuard .conf (private keys are visible while editing)"));
+    this->refreshPrivateKeyControls();
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnStateCaption"))->setText(tr("Tunnel"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnConsumersCaption"))->setText(tr("Used by now"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnTrafficCaption"))->setText(tr("Traffic"));

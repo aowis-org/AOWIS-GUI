@@ -8289,10 +8289,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <translation>Descripción</translation>
     </message>
     <message>
-      <source>WireGuard .conf (private keys are visible while editing)</source>
-      <translation>WireGuard .conf (las claves privadas son visibles al editar)</translation>
-    </message>
-    <message>
       <source>Tunnel</source>
       <translation>Túnel</translation>
     </message>
@@ -8563,6 +8559,22 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>The embedded WireGuard engine did not report telemetry.</source>
       <translation>El motor WireGuard integrado no informó telemetría.</translation>
+    </message>
+    <message>
+      <source>Show/edit private key</source>
+      <translation>Mostrar/editar clave privada</translation>
+    </message>
+    <message>
+      <source>Hide private key</source>
+      <translation>Ocultar clave privada</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is visible)</source>
+      <translation>Archivo .conf de WireGuard (la clave privada es visible)</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
+      <translation>Archivo .conf de WireGuard (la clave privada está oculta y se conserva sin cambios al guardar)</translation>
     </message>
   </context>
 </TS>

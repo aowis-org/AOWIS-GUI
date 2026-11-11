@@ -4,6 +4,7 @@
 #include <QHash>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 
 class QLabel;
@@ -80,6 +81,11 @@ private:
     int unreadable_profiles = 0;
     bool selecting = false;
     bool loading_editor = false;
+    // While hidden, the editor shows a mask instead of each PrivateKey value;
+    // the real values (in line order) live here and are substituted back by
+    // currentConfiguration(). Never shown, logged or copied to the clipboard.
+    bool private_key_visible = false;
+    QStringList hidden_private_keys;
 
     QLabel *title = nullptr;
     QLabel *introduction = nullptr;
@@ -98,6 +104,8 @@ private:
     QPlainTextEdit *description_edit = nullptr;
     QPlainTextEdit *configuration_edit = nullptr;
     QSyntaxHighlighter *configuration_highlighter = nullptr;
+    QLabel *editor_caption = nullptr;
+    QPushButton *private_key_button = nullptr; // Checkable "Show/edit private key"
     QLabel *validation_label = nullptr;
     QLabel *usage_info = nullptr;
     QTreeWidget *usage_table = nullptr;
@@ -154,6 +162,12 @@ private:
     void refreshControls();
     void retranslate();
     bool hasChanges() const;
+    // The real configuration: editor text with hidden private keys restored.
+    // Use this, never configuration_edit->toPlainText(), for any logic.
+    QString currentConfiguration() const;
+    void showConfiguration(const QString &configuration);
+    void setPrivateKeyVisible(bool visible);
+    void refreshPrivateKeyControls();
     // Blocking problem, or empty; warnings (ignored directives) go to *notes.
     QString configurationValidation(const QString &configuration, QString *notes = nullptr) const;
 };

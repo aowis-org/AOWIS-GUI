@@ -8289,10 +8289,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <translation>Description</translation>
     </message>
     <message>
-      <source>WireGuard .conf (private keys are visible while editing)</source>
-      <translation>WireGuard .conf (les clés privées sont visibles pendant la modification)</translation>
-    </message>
-    <message>
       <source>Tunnel</source>
       <translation>Tunnel</translation>
     </message>
@@ -8563,6 +8559,22 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>The embedded WireGuard engine did not report telemetry.</source>
       <translation>Le moteur WireGuard intégré n’a pas fourni de télémétrie.</translation>
+    </message>
+    <message>
+      <source>Show/edit private key</source>
+      <translation>Afficher/modifier la clé privée</translation>
+    </message>
+    <message>
+      <source>Hide private key</source>
+      <translation>Masquer la clé privée</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is visible)</source>
+      <translation>Fichier .conf WireGuard (la clé privée est visible)</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
+      <translation>Fichier .conf WireGuard (la clé privée est masquée et reste inchangée à l’enregistrement)</translation>
     </message>
   </context>
 </TS>

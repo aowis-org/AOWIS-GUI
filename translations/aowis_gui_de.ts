@@ -8289,10 +8289,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <translation>Beschreibung</translation>
     </message>
     <message>
-      <source>WireGuard .conf (private keys are visible while editing)</source>
-      <translation>WireGuard .conf (private Schlüssel sind beim Bearbeiten sichtbar)</translation>
-    </message>
-    <message>
       <source>Tunnel</source>
       <translation>Tunnel</translation>
     </message>
@@ -8563,6 +8559,22 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>The embedded WireGuard engine did not report telemetry.</source>
       <translation>Die integrierte WireGuard-Laufzeit hat keine Telemetrie geliefert.</translation>
+    </message>
+    <message>
+      <source>Show/edit private key</source>
+      <translation>Privaten Schlüssel anzeigen/bearbeiten</translation>
+    </message>
+    <message>
+      <source>Hide private key</source>
+      <translation>Privaten Schlüssel ausblenden</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is visible)</source>
+      <translation>WireGuard-.conf (der private Schlüssel ist sichtbar)</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
+      <translation>WireGuard-.conf (der private Schlüssel ist ausgeblendet und bleibt beim Speichern unverändert)</translation>
     </message>
   </context>
 </TS>

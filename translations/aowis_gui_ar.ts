@@ -8341,10 +8341,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <translation>الوصف</translation>
     </message>
     <message>
-      <source>WireGuard .conf (private keys are visible while editing)</source>
-      <translation>ملف WireGuard .conf (تظهر المفاتيح الخاصة أثناء التحرير)</translation>
-    </message>
-    <message>
       <source>Tunnel</source>
       <translation>النفق</translation>
     </message>
@@ -8615,6 +8611,22 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>The embedded WireGuard engine did not report telemetry.</source>
       <translation>لم يُبلغ محرك WireGuard المدمج عن بيانات القياس.</translation>
+    </message>
+    <message>
+      <source>Show/edit private key</source>
+      <translation>إظهار/تحرير المفتاح الخاص</translation>
+    </message>
+    <message>
+      <source>Hide private key</source>
+      <translation>إخفاء المفتاح الخاص</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is visible)</source>
+      <translation>ملف ‎.conf‎ لـ WireGuard (المفتاح الخاص ظاهر)</translation>
+    </message>
+    <message>
+      <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
+      <translation>ملف ‎.conf‎ لـ WireGuard (المفتاح الخاص مخفي ويبقى دون تغيير عند الحفظ)</translation>
     </message>
   </context>
 </TS>

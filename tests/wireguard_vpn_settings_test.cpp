@@ -197,7 +197,58 @@ int main(int argc, char **argv)
                "ignored directive must be saveable with a warning")) return 1;
 #endif
     page.findChild<QPushButton *>(QStringLiteral("wireguardVpnRevert"))->click();
-    if (!check(editor->toPlainText() == page.profileConfig(id), "revert lost stored contents")) return 1;
+
+    // The private key is hidden by default; the stored text is unchanged.
+    const QString private_key = QStringLiteral("k5yQ1m2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0=");
+    QPushButton *show_key = page.findChild<QPushButton *>(QStringLiteral("wireguardVpnShowPrivateKey"));
+    if (!check(show_key != nullptr && !show_key->isChecked()
+                   && !editor->toPlainText().contains(private_key)
+                   && editor->toPlainText().contains(QStringLiteral("PrivateKey = "))
+                   && page.profileConfig(id) == valid_profile && !save->isEnabled(),
+               "private key is not hidden by default, or hiding marked the profile dirty")) return 1;
+    show_key->click();
+    if (!check(editor->toPlainText() == page.profileConfig(id) && !save->isEnabled(),
+               "revert lost stored contents, or showing the key marked the profile dirty")) return 1;
+    show_key->click();
+
+    // Editing other lines while the key is hidden keeps the real key.
+    QString hidden_edit = editor->toPlainText();
+    hidden_edit.replace(QStringLiteral("Address = 10.8.0.2/32"), QStringLiteral("Address = 10.8.0.3/32"));
+    editor->setPlainText(hidden_edit);
+    QString expected = valid_profile;
+    expected.replace(QStringLiteral("Address = 10.8.0.2/32"), QStringLiteral("Address = 10.8.0.3/32"));
+    if (!check(save->isEnabled(), "hidden-key edit is not saveable")) return 1;
+    // Toggling keeps unsaved edits in both directions.
+    show_key->click();
+    if (!check(editor->toPlainText() == expected && save->isEnabled(),
+               "showing the key lost unsaved edits")) return 1;
+    show_key->click();
+    if (!check(!editor->toPlainText().contains(private_key) && save->isEnabled(),
+               "hiding the key lost unsaved edits or left it visible")) return 1;
+    save->click();
+    if (!check(page.profileConfig(id) == expected
+                   && readWireGuardProfileText(id, stored_text, &storage_error)
+                   && QString::fromStdString(stored_text) == expected
+                   && !editor->toPlainText().contains(private_key),
+               "saving with a hidden key did not store the real key")) return 1;
+
+    // Changing the key itself while shown is stored verbatim.
+    const QString new_key = QStringLiteral("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+    show_key->click();
+    QString key_edit = editor->toPlainText();
+    key_edit.replace(private_key, new_key);
+    editor->setPlainText(key_edit);
+    save->click();
+    if (!check(readWireGuardProfileText(id, stored_text, &storage_error)
+                   && QString::fromStdString(stored_text).contains(new_key)
+                   && !QString::fromStdString(stored_text).contains(private_key)
+                   && !show_key->isChecked() && !editor->toPlainText().contains(new_key),
+               "edited private key was not stored, or stayed visible after saving")) return 1;
+    // Restore the original profile text for the checks below.
+    show_key->click();
+    editor->setPlainText(valid_profile);
+    save->click();
+    if (!check(page.profileConfig(id) == valid_profile, "could not restore the profile")) return 1;
 
     // "Used by" is computed from configured connections.
     ProjectServerProfile connection;
