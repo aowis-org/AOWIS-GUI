@@ -2,6 +2,9 @@
 
 #include "config/gui_preferences.h"
 #include "services/map_server_transport_factory.h"
+#ifdef AOWIS_STANDALONE
+#include "services/standalone_map_provider_catalog_bridge.h"
+#endif
 
 #include <QHash>
 #include <QJsonObject>
@@ -11,21 +14,25 @@ namespace
 {
 void configureCatalog(MapProviderCatalog *catalog)
 {
-    // Until the map server is reachable (a WireGuard tunnel may still be
-    // starting) the catalog has no server and lists the built-in providers.
+#ifdef AOWIS_STANDALONE
+    // Standalone's provider editor uses a private, loopback-only catalog
+    // endpoint. Never use the unrelated remote MAP connection for local edits.
+    catalog->setServer(StandaloneMapProviderCatalogBridge::instance().catalogServer());
+    catalog->refresh();
+#else
+    // A WireGuard map-server connection may only become reachable later.
     whenGuiMapServerReachable(catalog, [catalog](const MapServerRestConfiguration &server)
     {
         catalog->setServer(server);
-#ifndef AOWIS_STANDALONE
         catalog->refresh();
-#endif
     });
+#endif
     // Personal fallbacks: GUI preferences group "map_provider_fallback",
     // provider UUID -> fallback provider UUID (natively and in browsers).
     const QString group = QStringLiteral("map_provider_fallback");
     QHash<QString, QString> fallbacks;
     const QJsonObject stored = GuiPreferences::group(group);
-    for (auto entry = stored.constBegin(); entry != stored.constEnd(); ++entry)
+    for (QJsonObject::const_iterator entry = stored.constBegin(); entry != stored.constEnd(); ++entry)
         if (entry.value().isString() && !entry.value().toString().isEmpty())
             fallbacks.insert(entry.key(), entry.value().toString());
     catalog->setFallbackStore(fallbacks, [group](const QString &provider_id, const QString &fallback_id)

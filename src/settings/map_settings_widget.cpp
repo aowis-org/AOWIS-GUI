@@ -2,6 +2,9 @@
 #include "settings/map_settings_widget.h"
 
 #include "config/gui_configuration.h"
+#ifdef AOWIS_STANDALONE
+#include "config/standalone_map_cascade_configuration.h"
+#endif
 #include "map/core/gui_map_provider_catalog.h"
 #include "config/map_server_client_configuration.h"
 #include "config/wireguard_profile_storage.h"
@@ -9,6 +12,8 @@
 #include "widgets/slider_number_control.h"
 
 #include <QApplication>
+#include <QCheckBox>
+#include <QAbstractItemView>
 #include <QByteArray>
 #include <QEvent>
 #include <QVariant>
@@ -19,6 +24,7 @@
 #include <QHash>
 #include <QSpinBox>
 #include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QUuid>
 #include <QSignalBlocker>
 #include <QFont>
@@ -33,6 +39,7 @@
 #include <QShowEvent>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <utility>
 
 namespace
 {
@@ -82,6 +89,11 @@ MapSettingsWidget::MapSettingsWidget(QWidget *parent)
     buildNavigationSection(content);
     buildPerformanceSection(content);
     buildServerSection(content);
+#ifdef AOWIS_STANDALONE
+    // Keep embedded MAP acquisition settings adjacent to the provider editor,
+    // not stranded above the much larger server/provider section.
+    buildEmbeddedCascadeSection(content);
+#endif
     content_layout->addStretch(1);
 
     scroll_area->setWidget(content);
@@ -232,6 +244,9 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
 
 void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 {
+#ifndef AOWIS_STANDALONE
+    // The external MAP server connection is irrelevant in Standalone. Do not
+    // present dead/disabled inputs next to the embedded provider editor.
     QGroupBox *group = new QGroupBox(parent_widget);
     LiveUiText::bind(group, [group] { group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Map Server Settings"))); });
     QVBoxLayout *group_layout = new QVBoxLayout(group);
@@ -242,8 +257,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         group));
 #else
     group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Connection changes are saved when you finish editing a field. "
-                       "Restart AOWIS for them to take effect."),
-        group));
+                       "Restart AOWIS for them to take effect."), group));
 #endif
 
     QFormLayout *form = new QFormLayout();
@@ -296,10 +310,15 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 #endif
 
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(group);
+#endif
 
     QGroupBox *providers_group = new QGroupBox(parent_widget);
     LiveUiText::bind(providers_group, [providers_group] { providers_group->setTitle(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "2D Map Providers"))); });
     QVBoxLayout *providers_layout = new QVBoxLayout(providers_group);
+#ifdef AOWIS_STANDALONE
+    providers_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
+        "Standalone providers are editable and saved locally. The cascading upstreams and low-bandwidth settings are just below this table."), providers_group));
+#endif
     providers_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Provider changes are saved automatically. Each provider can fall back to another "
         "when you zoom beyond its maximum level. Fallbacks can form a chain: "
         "A → B → C, as long as each source offers more detail. "
@@ -422,16 +441,200 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->provider_table->setEnabled(mapProviderCatalog().serverLoaded());
     add->setEnabled(mapProviderCatalog().serverLoaded());
     remove->setEnabled(mapProviderCatalog().serverLoaded());
-#ifdef AOWIS_STANDALONE
-    providers_group->setEnabled(false);
-    this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Server provider editing requires a REST map server."));
-#endif
+
 #ifdef __EMSCRIPTEN__
     this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
         "Provider edits affect the server; per-user fallback persistence is supported in native GUI builds."));
 #endif
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(providers_group);
 }
+
+#ifdef AOWIS_STANDALONE
+void MapSettingsWidget::appendCascadeUpstream(
+    const QString &name, const QString &url, const QString &api_key)
+{
+    const int row = this->cascade_upstreams_table->rowCount();
+    this->cascade_upstreams_table->insertRow(row);
+    this->cascade_upstreams_table->setItem(row, 0, new QTableWidgetItem(name));
+    this->cascade_upstreams_table->setItem(row, 1, new QTableWidgetItem(url));
+    QLineEdit *key_edit = new QLineEdit(api_key, this->cascade_upstreams_table);
+    key_edit->setEchoMode(QLineEdit::Password);
+    this->cascade_upstreams_table->setCellWidget(row, 2, key_edit);
+}
+
+void MapSettingsWidget::moveCascadeUpstream(int direction)
+{
+    const int selected = this->cascade_upstreams_table->currentRow();
+    const int destination = selected + direction;
+    if (selected < 0 || destination < 0 || destination >= this->cascade_upstreams_table->rowCount())
+        return;
+
+    QVector<StandaloneMapUpstream> entries;
+    for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
+    {
+        const QLineEdit *key = qobject_cast<QLineEdit *>(this->cascade_upstreams_table->cellWidget(row, 2));
+        StandaloneMapUpstream entry;
+        entry.name = this->cascade_upstreams_table->item(row, 0)->text();
+        entry.url = this->cascade_upstreams_table->item(row, 1)->text();
+        entry.api_key = key != nullptr ? key->text() : QString();
+        entries.append(entry);
+    }
+    std::swap(entries[selected], entries[destination]);
+    this->cascade_upstreams_table->setRowCount(0);
+    for (const StandaloneMapUpstream &entry : entries)
+        appendCascadeUpstream(entry.name, entry.url, entry.api_key);
+    this->cascade_upstreams_table->setCurrentCell(destination, 0);
+}
+
+void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
+{
+    QGroupBox *group = new QGroupBox(parent_widget);
+    LiveUiText::bind(group, [group] {
+        group->setTitle(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Embedded MAP cascading")));
+    });
+    QVBoxLayout *layout = new QVBoxLayout(group);
+    layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
+        "Standalone only: each missing map or terrain tile is requested from these MAP servers "
+        "in order. Local cache is checked first. Prefer HTTPS for API keys. "
+        "Changes take effect after restarting AOWIS."), group));
+
+    this->cascade_upstreams_table = new QTableWidget(0, 3, group);
+    this->cascade_upstreams_table->setObjectName(QStringLiteral("embeddedMapCascadeUpstreams"));
+    LiveUiText::bind(this->cascade_upstreams_table, [this] {
+        this->cascade_upstreams_table->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Name")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Upstream MAP URL")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Read API key"))});
+    });
+    this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    this->cascade_upstreams_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    this->cascade_upstreams_table->setSelectionMode(QAbstractItemView::SingleSelection);
+    this->cascade_upstreams_table->setMinimumHeight(170);
+    layout->addWidget(this->cascade_upstreams_table);
+
+    QHBoxLayout *buttons = new QHBoxLayout();
+    QPushButton *add = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Add upstream"), group);
+    QPushButton *remove = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Remove selected"), group);
+    QPushButton *move_up = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Move up"), group);
+    QPushButton *move_down = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Move down"), group);
+    buttons->addWidget(add);
+    buttons->addWidget(remove);
+    buttons->addWidget(move_up);
+    buttons->addWidget(move_down);
+    buttons->addStretch();
+    layout->addLayout(buttons);
+    connect(add, &QPushButton::clicked, this, [this] {
+        if (this->cascade_upstreams_table->rowCount() >= 32)
+        {
+            this->cascade_status->setText(tr("At most 32 MAP upstream servers are supported."));
+            return;
+        }
+        int index = 1;
+        QString name;
+        do
+        {
+            name = QStringLiteral("upstream%1").arg(index++);
+            bool found = false;
+            for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
+            {
+                if (this->cascade_upstreams_table->item(row, 0)->text() == name)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                break;
+        } while (true);
+        appendCascadeUpstream(name, QString(), QString());
+        const int row = this->cascade_upstreams_table->rowCount() - 1;
+        this->cascade_upstreams_table->setCurrentCell(row, 1);
+        this->cascade_upstreams_table->editItem(this->cascade_upstreams_table->item(row, 1));
+    });
+    connect(remove, &QPushButton::clicked, this, [this] {
+        const int row = this->cascade_upstreams_table->currentRow();
+        if (row >= 0)
+            this->cascade_upstreams_table->removeRow(row);
+    });
+    connect(move_up, &QPushButton::clicked, this, [this] { moveCascadeUpstream(-1); });
+    connect(move_down, &QPushButton::clicked, this, [this] { moveCascadeUpstream(1); });
+
+    this->cascade_allow_direct_fetch = LiveUiText::caption<QCheckBox>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Allow direct OSM/imagery/Copernicus downloads as last resort"), group);
+    layout->addWidget(this->cascade_allow_direct_fetch);
+    this->cascade_poor_internet = LiveUiText::caption<QCheckBox>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Poor Internet mode (optimized MAP-to-MAP transfers)"), group);
+    layout->addWidget(this->cascade_poor_internet);
+    this->cascade_adaptive_compression = LiveUiText::caption<QCheckBox>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Adaptive PNG/JPEG selection"), group);
+    layout->addWidget(this->cascade_adaptive_compression);
+    QFormLayout *quality_form = new QFormLayout();
+    this->cascade_jpeg_quality = new QSpinBox(group);
+    this->cascade_jpeg_quality->setRange(1, 100);
+    quality_form->addRow(LiveUiText::caption<QLabel>(
+        QT_TRANSLATE_NOOP("LiveUiText", "JPEG quality"), group), this->cascade_jpeg_quality);
+    layout->addLayout(quality_form);
+
+    StandaloneMapCascadeConfiguration stored;
+    QString error;
+    const bool valid = readStandaloneMapCascadeConfiguration(&stored, &error);
+    if (!valid)
+        stored.allow_direct_fetch = false;
+    for (const StandaloneMapUpstream &upstream : stored.upstreams)
+        appendCascadeUpstream(upstream.name, upstream.url, upstream.api_key);
+    this->cascade_allow_direct_fetch->setChecked(stored.allow_direct_fetch);
+    this->cascade_poor_internet->setChecked(stored.poor_internet_mode);
+    this->cascade_adaptive_compression->setChecked(stored.adaptive_compression);
+    this->cascade_jpeg_quality->setValue(stored.jpeg_quality);
+
+    this->cascade_status = new QLabel(group);
+    this->cascade_status->setObjectName(QStringLiteral("embeddedMapCascadeStatus"));
+    this->cascade_status->setWordWrap(true);
+    layout->addWidget(this->cascade_status);
+    if (!valid)
+        this->cascade_status->setText(tr("Invalid stored cascade settings: %1. Remote fetching is disabled until repaired and AOWIS is restarted.").arg(error));
+    QPushButton *save = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Save embedded MAP settings"), group);
+    layout->addWidget(save, 0, Qt::AlignLeft);
+    connect(save, &QPushButton::clicked, this, &MapSettingsWidget::saveEmbeddedCascadeSettings);
+    static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(group);
+}
+
+void MapSettingsWidget::saveEmbeddedCascadeSettings()
+{
+    StandaloneMapCascadeConfiguration configuration;
+    configuration.allow_direct_fetch = this->cascade_allow_direct_fetch->isChecked();
+    configuration.poor_internet_mode = this->cascade_poor_internet->isChecked();
+    configuration.adaptive_compression = this->cascade_adaptive_compression->isChecked();
+    configuration.jpeg_quality = this->cascade_jpeg_quality->value();
+    for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
+    {
+        const QLineEdit *key = qobject_cast<QLineEdit *>(this->cascade_upstreams_table->cellWidget(row, 2));
+        StandaloneMapUpstream upstream;
+        upstream.name = this->cascade_upstreams_table->item(row, 0)->text().trimmed();
+        upstream.url = this->cascade_upstreams_table->item(row, 1)->text().trimmed();
+        upstream.api_key = key != nullptr ? key->text() : QString();
+        configuration.upstreams.append(upstream);
+    }
+    QString error;
+    if (!saveStandaloneMapCascadeConfiguration(configuration, &error))
+    {
+        this->cascade_status->setText(tr("Failed to save embedded MAP settings: %1").arg(error));
+        return;
+    }
+    const char *message = QT_TRANSLATE_NOOP(
+        "MapSettingsWidget", "Embedded MAP settings saved. Restart AOWIS to apply them.");
+    this->cascade_status->setProperty("aowisLocalizedSource", QByteArray(message));
+    this->cascade_status->setText(tr(message));
+}
+#endif
 
 void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
                                       const QString &url, int minimum_zoom,
@@ -740,6 +943,14 @@ void MapSettingsWidget::changeEvent(QEvent *event)
             fallback->setItemText(0, tr("None (enlarge available tiles)"));
         }
     }
+#ifdef AOWIS_STANDALONE
+    if (this->cascade_status != nullptr)
+    {
+        const QByteArray source = this->cascade_status->property("aowisLocalizedSource").toByteArray();
+        if (!source.isEmpty())
+            this->cascade_status->setText(tr(source.constData()));
+    }
+#endif
     for (QLabel *status : {this->navigation_status, this->performance_status,
                            this->server_status, this->provider_status})
     {

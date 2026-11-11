@@ -549,6 +549,10 @@ if(AOWIS_STANDALONE_BUILD)
         PRIVATE
             src/services/interface_server_map_standalone.h
             src/services/interface_server_map_standalone.cpp
+            src/config/standalone_map_cascade_configuration.h
+            src/config/standalone_map_cascade_configuration.cpp
+            src/services/standalone_map_provider_catalog_bridge.h
+            src/services/standalone_map_provider_catalog_bridge.cpp
     )
     
     target_compile_definitions(aowis-server-gui
@@ -1013,6 +1017,36 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-gui-preferences-tests)
     set_tests_properties(aowis-gui-preferences PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+        # Standalone MAP upstream list: strict validation, owner-store roundtrip,
+        # ordered failover and fail-closed handling of damaged saved settings.
+        add_executable(aowis-standalone-map-cascade-configuration-tests
+            tests/standalone_map_cascade_configuration_test.cpp
+            src/config/standalone_map_cascade_configuration.cpp
+            src/config/gui_preferences.cpp
+            src/config/gui_config_store.cpp)
+        target_include_directories(aowis-standalone-map-cascade-configuration-tests PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(aowis-standalone-map-cascade-configuration-tests PRIVATE
+            Qt6::Core aowis::config)
+        add_test(NAME aowis-standalone-map-cascade-configuration
+            COMMAND aowis-standalone-map-cascade-configuration-tests)
+        set_tests_properties(aowis-standalone-map-cascade-configuration PROPERTIES LABELS "aowis")
+
+        if(AOWIS_STANDALONE_BUILD AND TARGET AOWIS::Map)
+            add_executable(aowis-standalone-map-provider-bridge-tests
+                tests/standalone_map_provider_bridge_test.cpp
+                src/services/standalone_map_provider_catalog_bridge.cpp
+                src/config/gui_preferences.cpp
+                src/config/gui_config_store.cpp)
+            target_include_directories(aowis-standalone-map-provider-bridge-tests PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/src)
+            target_link_libraries(aowis-standalone-map-provider-bridge-tests PRIVATE
+                Qt6::Core Qt6::Network aowis::config AOWIS::Map)
+            add_test(NAME aowis-standalone-map-provider-bridge
+                COMMAND aowis-standalone-map-provider-bridge-tests)
+            set_tests_properties(aowis-standalone-map-provider-bridge PROPERTIES LABELS "aowis")
+        endif()
 
     # Map-server connection in AOWIS-CONFIG; former INI section removed.
     add_executable(aowis-map-server-client-configuration-tests

@@ -1,5 +1,8 @@
 #include "services/interface_server_map_standalone.h"
 
+#include "config/standalone_map_cascade_configuration.h"
+#include "services/standalone_map_provider_catalog_bridge.h"
+
 #include <aowis/map/terrain_dataset.h>
 
 #include <QDebug>
@@ -95,6 +98,58 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
       map_tiles(new MapTiles(this))
 #endif
 {
+    StandaloneMapCascadeConfiguration saved_cascade;
+    QString cascade_error;
+    const bool cascade_valid =
+        readStandaloneMapCascadeConfiguration(&saved_cascade, &cascade_error);
+    // Fail closed on malformed settings instead of silently contacting origin
+    // providers. Existing cached imagery and normalized terrain remain usable.
+    Aowis::Map::MapCascadeConfig cascade;
+    cascade.allow_direct_fetch = false;
+    if (cascade_valid)
+    {
+        cascade.allow_direct_fetch = saved_cascade.allow_direct_fetch;
+        cascade.poor_internet_mode = saved_cascade.poor_internet_mode;
+        cascade.jpeg_quality = saved_cascade.jpeg_quality;
+        cascade.adaptive_compression = saved_cascade.adaptive_compression;
+        for (const StandaloneMapUpstream &stored : saved_cascade.upstreams)
+        {
+            Aowis::Map::MapCascadeUpstream upstream;
+            upstream.name = stored.name.trimmed();
+            upstream.url = QUrl(stored.url.trimmed());
+            upstream.api_key = stored.api_key.toUtf8();
+            cascade.upstreams.append(upstream);
+        }
+    }
+    else
+    {
+        qCritical().noquote() << QStringLiteral("Invalid embedded MAP cascade configuration: %1; "
+                                          "all remote map acquisition disabled")
+                                     .arg(cascade_error);
+    }
+    // Configure before the Windows map downloader is moved to its own thread.
+    this->map_tiles->setCascadeConfig(cascade);
+    StandaloneMapProviderCatalogBridge &provider_bridge =
+        StandaloneMapProviderCatalogBridge::instance();
+    this->map_tiles->configureProviders(provider_bridge.providers(), {}, {});
+    connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
+            this, [this, &provider_bridge]
+    {
+        const QVector<Aowis::Map::MapProvider> updated = provider_bridge.providers();
+#ifdef Q_OS_WIN
+        // MapTiles lives on its dedicated thread in Windows Standalone.
+        MapTiles *tiles = this->map_tiles;
+        QMetaObject::invokeMethod(tiles, [tiles, updated]
+        {
+            tiles->cancelUpstreamDownloads();
+            tiles->configureProviders(updated, {}, {});
+        }, Qt::QueuedConnection);
+#else
+        this->map_tiles->cancelUpstreamDownloads();
+        this->map_tiles->configureProviders(updated, {}, {});
+#endif
+    });
+    const QByteArray cascade_instance_id = this->map_tiles->cascadeInstanceId();
 #ifdef Q_OS_WIN
     this->map_tiles->moveToThread(&this->map_tile_thread);
     connect(&this->map_tile_thread, &QThread::finished,
@@ -140,6 +195,7 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
     Aowis::Map::TerrainData::Config terrain_config;
     terrain_config.enabled = true;
     terrain_config.remote_fetch_enabled = true;
+    terrain_config.cascade = cascade;
 #ifdef Q_OS_WIN
     // Terrain is disposable cache data. Do not put large Copernicus source and
     // normalized tile caches into Windows Roaming AppData. Qt's CacheLocation
@@ -148,6 +204,7 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
         QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
 #endif
     this->terrain_data = new Aowis::Map::TerrainData(terrain_config, this);
+    this->terrain_data->setCascadeInstanceId(cascade_instance_id);
     this->terrain_data_initialized =
         this->terrain_data->initialize(&this->terrain_initialization_error);
     if (!this->terrain_data_initialized)
