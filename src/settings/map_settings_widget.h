@@ -13,6 +13,8 @@ class QTimer;
 class QTableWidget;
 class QComboBox;
 class QShowEvent;
+class QCheckBox;
+class QSpinBox;
 class QNetworkAccessManager;
 class SliderNumberControl;
 
@@ -69,6 +71,18 @@ private:
     void buildNavigationSection(QWidget *parent_widget);
     void buildPerformanceSection(QWidget *parent_widget);
     void buildServerSection(QWidget *parent_widget);
+#ifdef AOWIS_STANDALONE
+    void buildEmbeddedCascadeSection(QWidget *parent_widget);
+    void appendCascadeUpstream(const QString &name, const QString &url, const QString &api_key);
+    void moveCascadeUpstream(int direction);
+    void saveEmbeddedCascadeSettings();
+    QTableWidget *cascade_upstreams_table = nullptr;
+    QCheckBox *cascade_allow_direct_fetch = nullptr;
+    QCheckBox *cascade_poor_internet = nullptr;
+    QCheckBox *cascade_adaptive_compression = nullptr;
+    QSpinBox *cascade_jpeg_quality = nullptr;
+    QLabel *cascade_status = nullptr;
+#endif
     void scheduleNavigationSave();
     void saveNavigationSettingsNow();
     void schedulePerformanceSave();
