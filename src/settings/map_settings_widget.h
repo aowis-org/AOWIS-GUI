@@ -13,6 +13,7 @@ class QTimer;
 class QTableWidget;
 class QComboBox;
 class QShowEvent;
+class QHideEvent;
 class QCheckBox;
 class QSpinBox;
 class QNetworkAccessManager;
@@ -26,10 +27,12 @@ class MapSettingsWidget : public QWidget
 
 public:
     explicit MapSettingsWidget(QWidget *parent = nullptr);
+    ~MapSettingsWidget() override;
 
 protected:
     void changeEvent(QEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     void setProviderStatus(const char *source);
@@ -75,7 +78,9 @@ private:
     void buildEmbeddedCascadeSection(QWidget *parent_widget);
     void appendCascadeUpstream(const QString &name, const QString &url, const QString &api_key);
     void moveCascadeUpstream(int direction);
+    void scheduleEmbeddedCascadeSave();
     void saveEmbeddedCascadeSettings();
+    QTimer *cascade_save_debounce = nullptr;
     QTableWidget *cascade_upstreams_table = nullptr;
     QCheckBox *cascade_allow_direct_fetch = nullptr;
     QCheckBox *cascade_poor_internet = nullptr;

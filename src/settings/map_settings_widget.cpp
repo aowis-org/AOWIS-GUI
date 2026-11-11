@@ -21,6 +21,7 @@
 #include <QComboBox>
 #include <QHeaderView>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QHash>
 #include <QSpinBox>
 #include <QTableWidget>
@@ -101,6 +102,23 @@ MapSettingsWidget::MapSettingsWidget(QWidget *parent)
     QVBoxLayout *outer_layout = new QVBoxLayout(this);
     outer_layout->setContentsMargins(0, 0, 0, 0);
     outer_layout->addWidget(scroll_area);
+}
+
+MapSettingsWidget::~MapSettingsWidget()
+{
+#ifdef AOWIS_STANDALONE
+    // Do not discard a pending edit if the settings widget is destroyed before
+    // the debounce timeout (for example, during application shutdown).
+    QWidget *focused_widget = QApplication::focusWidget();
+    if (this->cascade_upstreams_table != nullptr && focused_widget != nullptr &&
+        this->cascade_upstreams_table->isAncestorOf(focused_widget))
+        focused_widget->clearFocus();
+    if (this->cascade_save_debounce != nullptr && this->cascade_save_debounce->isActive())
+    {
+        this->cascade_save_debounce->stop();
+        saveEmbeddedCascadeSettings();
+    }
+#endif
 }
 
 void MapSettingsWidget::buildNavigationSection(QWidget *parent_widget)
@@ -453,6 +471,9 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 void MapSettingsWidget::appendCascadeUpstream(
     const QString &name, const QString &url, const QString &api_key)
 {
+    // Rows are also rebuilt while reordering. Never persist an intermediate
+    // table containing only some of the rows.
+    const QSignalBlocker table_blocker(this->cascade_upstreams_table);
     const int row = this->cascade_upstreams_table->rowCount();
     this->cascade_upstreams_table->insertRow(row);
     this->cascade_upstreams_table->setItem(row, 0, new QTableWidgetItem(name));
@@ -460,6 +481,8 @@ void MapSettingsWidget::appendCascadeUpstream(
     QLineEdit *key_edit = new QLineEdit(api_key, this->cascade_upstreams_table);
     key_edit->setEchoMode(QLineEdit::Password);
     this->cascade_upstreams_table->setCellWidget(row, 2, key_edit);
+    connect(key_edit, &QLineEdit::textChanged, this,
+            [this](const QString &) { scheduleEmbeddedCascadeSave(); });
 }
 
 void MapSettingsWidget::moveCascadeUpstream(int direction)
@@ -484,6 +507,7 @@ void MapSettingsWidget::moveCascadeUpstream(int direction)
     for (const StandaloneMapUpstream &entry : entries)
         appendCascadeUpstream(entry.name, entry.url, entry.api_key);
     this->cascade_upstreams_table->setCurrentCell(destination, 0);
+    scheduleEmbeddedCascadeSave();
 }
 
 void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
@@ -554,6 +578,7 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
                 break;
         } while (true);
         appendCascadeUpstream(name, QString(), QString());
+        scheduleEmbeddedCascadeSave();
         const int row = this->cascade_upstreams_table->rowCount() - 1;
         this->cascade_upstreams_table->setCurrentCell(row, 1);
         this->cascade_upstreams_table->editItem(this->cascade_upstreams_table->item(row, 1));
@@ -561,7 +586,10 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     connect(remove, &QPushButton::clicked, this, [this] {
         const int row = this->cascade_upstreams_table->currentRow();
         if (row >= 0)
+        {
             this->cascade_upstreams_table->removeRow(row);
+            scheduleEmbeddedCascadeSave();
+        }
     });
     connect(move_up, &QPushButton::clicked, this, [this] { moveCascadeUpstream(-1); });
     connect(move_down, &QPushButton::clicked, this, [this] { moveCascadeUpstream(1); });
@@ -600,11 +628,37 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     layout->addWidget(this->cascade_status);
     if (!valid)
         this->cascade_status->setText(tr("Invalid stored cascade settings: %1. Remote fetching is disabled until repaired and AOWIS is restarted.").arg(error));
-    QPushButton *save = LiveUiText::caption<QPushButton>(
-        QT_TRANSLATE_NOOP("LiveUiText", "Save embedded MAP settings"), group);
-    layout->addWidget(save, 0, Qt::AlignLeft);
-    connect(save, &QPushButton::clicked, this, &MapSettingsWidget::saveEmbeddedCascadeSettings);
+
+    // Match the rest of Map Settings: save automatically after an edit settles.
+    // Connect only after loading persisted values to avoid rewriting them at startup.
+    this->cascade_save_debounce = new QTimer(this);
+    this->cascade_save_debounce->setSingleShot(true);
+    this->cascade_save_debounce->setInterval(500);
+    connect(this->cascade_save_debounce, &QTimer::timeout,
+            this, &MapSettingsWidget::saveEmbeddedCascadeSettings);
+    connect(this->cascade_upstreams_table, &QTableWidget::itemChanged,
+            this, [this](QTableWidgetItem *) { scheduleEmbeddedCascadeSave(); });
+    connect(this->cascade_allow_direct_fetch, &QCheckBox::toggled,
+            this, [this](bool) { scheduleEmbeddedCascadeSave(); });
+    connect(this->cascade_poor_internet, &QCheckBox::toggled,
+            this, [this](bool) { scheduleEmbeddedCascadeSave(); });
+    connect(this->cascade_adaptive_compression, &QCheckBox::toggled,
+            this, [this](bool) { scheduleEmbeddedCascadeSave(); });
+    connect(this->cascade_jpeg_quality, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this](int) { scheduleEmbeddedCascadeSave(); });
+
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(group);
+}
+
+void MapSettingsWidget::scheduleEmbeddedCascadeSave()
+{
+    if (this->cascade_save_debounce == nullptr)
+        return;
+    const char *message = QT_TRANSLATE_NOOP(
+        "MapSettingsWidget", "Saving embedded MAP settings automatically...");
+    this->cascade_status->setProperty("aowisLocalizedSource", QByteArray(message));
+    this->cascade_status->setText(tr(message));
+    this->cascade_save_debounce->start();
 }
 
 void MapSettingsWidget::saveEmbeddedCascadeSettings()
@@ -626,11 +680,15 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
     QString error;
     if (!saveStandaloneMapCascadeConfiguration(configuration, &error))
     {
-        this->cascade_status->setText(tr("Failed to save embedded MAP settings: %1").arg(error));
+        // Incomplete upstream rows are expected while someone is typing.
+        // Validation protects the previous valid configuration until the row
+        // becomes complete; never silently persist a partial cascade.
+        this->cascade_status->setProperty("aowisLocalizedSource", QByteArray());
+        this->cascade_status->setText(tr("Not saved yet: %1. Correct the settings to save automatically.").arg(error));
         return;
     }
     const char *message = QT_TRANSLATE_NOOP(
-        "MapSettingsWidget", "Embedded MAP settings saved. Restart AOWIS to apply them.");
+        "MapSettingsWidget", "Embedded MAP settings saved automatically. Restart AOWIS to apply them.");
     this->cascade_status->setProperty("aowisLocalizedSource", QByteArray(message));
     this->cascade_status->setText(tr(message));
 }
@@ -908,6 +966,23 @@ void MapSettingsWidget::showEvent(QShowEvent *event)
     // Profiles are created and deleted in Settings -> WireGuard VPN.
     if (!event->spontaneous() && this->server_wireguard_combo != nullptr)
         this->reloadServerWireGuardProfiles(this->server_wireguard_combo->currentData().toString());
+}
+
+void MapSettingsWidget::hideEvent(QHideEvent *event)
+{
+#ifdef AOWIS_STANDALONE
+    // Focus loss commits a currently edited table cell before the final save.
+    QWidget *focused_widget = QApplication::focusWidget();
+    if (this->cascade_upstreams_table != nullptr && focused_widget != nullptr &&
+        this->cascade_upstreams_table->isAncestorOf(focused_widget))
+        focused_widget->clearFocus();
+    if (this->cascade_save_debounce != nullptr && this->cascade_save_debounce->isActive())
+    {
+        this->cascade_save_debounce->stop();
+        saveEmbeddedCascadeSettings();
+    }
+#endif
+    QWidget::hideEvent(event);
 }
 
 void MapSettingsWidget::setProviderStatus(const char *source)
