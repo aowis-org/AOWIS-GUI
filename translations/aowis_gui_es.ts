@@ -8464,13 +8464,46 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>El último intento de iniciar el túnel WireGuard ha fallado.</translation>
     </message>
-      <message>
-      <source>Not exposed by the embedded WireGuard runtime</source>
-      <translation>No disponible en el motor WireGuard integrado</translation>
+
+    <message>
+      <source>Received %1 · Sent %2</source>
+      <translation>Recibidos %1 · Enviados %2</translation>
     </message>
-      <message>
-      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
-      <translation>El motor WireGuard integrado no proporciona los intercambios de claves con pares ni los contadores de transferencia.</translation>
+    <message>
+      <source>↓ %1/s · ↑ %2/s</source>
+      <translation>↓ %1/s · ↑ %2/s</translation>
+    </message>
+    <message>
+      <source>Last handshake: %1</source>
+      <translation>Último intercambio de claves: %1</translation>
+    </message>
+    <message>
+      <source>No handshake yet</source>
+      <translation>Aún no hay intercambio de claves</translation>
+    </message>
+    <message>
+      <source>Peer endpoint unavailable</source>
+      <translation>Punto de conexión del par no disponible</translation>
+    </message>
+    <message>
+      <source>Peer endpoint: %1</source>
+      <translation>Punto de conexión del par: %1</translation>
+    </message>
+    <message>
+      <source>Waiting for WireGuard peer statistics…</source>
+      <translation>Esperando estadísticas del par WireGuard…</translation>
+    </message>
+    <message>
+      <source>No active tunnel</source>
+      <translation>No hay túneles activos</translation>
+    </message>
+    <message>
+      <source>Peer statistics unavailable: %1</source>
+      <translation>Estadísticas del par no disponibles: %1</translation>
+    </message>
+    <message>
+      <source>Handshake and traffic readings appear when a tunnel is running.</source>
+      <translation>Los datos de intercambio de claves y tráfico aparecen cuando hay un túnel en funcionamiento.</translation>
     </message>
   </context>
 </TS>

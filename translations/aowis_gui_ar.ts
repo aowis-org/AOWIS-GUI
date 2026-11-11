@@ -8516,13 +8516,46 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>فشلت آخر محاولة لبدء نفق WireGuard.</translation>
     </message>
-      <message>
-      <source>Not exposed by the embedded WireGuard runtime</source>
-      <translation>غير متاح من مشغّل WireGuard المدمج</translation>
+
+    <message>
+      <source>Received %1 · Sent %2</source>
+      <translation>المستلم %1 · المرسل %2</translation>
     </message>
-      <message>
-      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
-      <translation>لا يوفر مشغّل WireGuard المدمج معلومات المصافحة مع النظراء أو عدادات نقل البيانات.</translation>
+    <message>
+      <source>↓ %1/s · ↑ %2/s</source>
+      <translation>↓ %1/ث · ↑ %2/ث</translation>
+    </message>
+    <message>
+      <source>Last handshake: %1</source>
+      <translation>آخر مصافحة: %1</translation>
+    </message>
+    <message>
+      <source>No handshake yet</source>
+      <translation>لم تحدث مصافحة بعد</translation>
+    </message>
+    <message>
+      <source>Peer endpoint unavailable</source>
+      <translation>نقطة اتصال النظير غير متاحة</translation>
+    </message>
+    <message>
+      <source>Peer endpoint: %1</source>
+      <translation>نقطة اتصال النظير: %1</translation>
+    </message>
+    <message>
+      <source>Waiting for WireGuard peer statistics…</source>
+      <translation>بانتظار إحصاءات نظير WireGuard…</translation>
+    </message>
+    <message>
+      <source>No active tunnel</source>
+      <translation>لا يوجد نفق نشط</translation>
+    </message>
+    <message>
+      <source>Peer statistics unavailable: %1</source>
+      <translation>إحصاءات النظير غير متاحة: %1</translation>
+    </message>
+    <message>
+      <source>Handshake and traffic readings appear when a tunnel is running.</source>
+      <translation>تظهر بيانات المصافحة وحركة البيانات عند تشغيل النفق.</translation>
     </message>
   </context>
 </TS>

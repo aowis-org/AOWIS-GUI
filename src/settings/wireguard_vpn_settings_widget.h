@@ -12,6 +12,7 @@ class QPlainTextEdit;
 class QSyntaxHighlighter;
 class QPushButton;
 class QTabWidget;
+class QTimer;
 class QTreeWidget;
 class QEvent;
 class QShowEvent;
@@ -99,6 +100,7 @@ private:
     QLabel *traffic = nullptr;
     QLabel *tunnel_error = nullptr;
     QLabel *peer_telemetry_notice = nullptr;
+    QTimer *telemetry_timer = nullptr;
 
     Profile *findProfile(const QString &id);
     const Profile *findProfile(const QString &id) const;

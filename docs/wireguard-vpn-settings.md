@@ -50,10 +50,10 @@ text, including its private key. Files are private to the user account but
   that is evidence of past reachability, not a continuous connectivity check.
   **Not started**, **Starting**, **Stopped**, and **Error** are separate states,
   and the most recent tunnel startup error is shown without keys.
-- **Traffic counters and peer handshake timestamps** remain explicitly
-  unavailable: the current AOWIS-NETWORK `WireGuardClient` API does not expose
-  them. The UI must not fabricate zeros. `Active tunnels` means *live embedded
-  tunnel instances*, not number of configured service references.
+- **Traffic counters and peer handshake timestamps** come from the live
+  AOWIS-NETWORK engine when a tunnel is running. Unavailable readings are
+  displayed as unavailable, never as invented zeros. `Active tunnels` means
+  *live embedded tunnel instances*, not configured service references.
 - On **WebAssembly** the navigation entry stays visible but disabled, with a
   tooltip: browsers cannot run the embedded UDP/TUN WireGuard client.
 
@@ -72,3 +72,20 @@ validation and warnings, revert, "Used by" from connection records, refused
 deletion while referenced, storage deletion, draft revert, damaged-record
 removal, and live status transitions (starting/running/HTTP confirmed/stopped/
 error/retry), including multiple consumers of one profile.
+
+## Live peer telemetry
+
+The Status tab polls the current profile's running embedded WireGuard tunnels
+through `WireGuardClient::peerStats()` every two seconds **while the Status tab
+is visible**. The monitor retains only counters, handshake timestamps, and
+peer endpoints; it never receives keys or the device's raw IPC output.
+
+Received/sent byte totals are cumulative over the lifetime of the active
+tunnel instance(s), so they reset after a restart. Displayed rates are
+calculated from successive samples (the first sample has no rate yet). The
+latest handshake is a historical event, not a continuous online signal; a
+successful DVMDB HTTP response is tracked separately. Multiple live tunnels
+using the same saved profile have their counters summed.
+
+The GUI requires the updated AOWIS-NETWORK submodule with the peer-stats ABI.
+Pin the NETWORK commit in GUI after landing its standalone patch.
