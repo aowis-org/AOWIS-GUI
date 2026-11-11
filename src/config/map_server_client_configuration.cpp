@@ -73,7 +73,8 @@ MapServerClientConfiguration loadConfiguration()
 #else
 // Record payload (connection_version 1), sorted keys like every
 // QJsonObject: api_key, base_url, connection_version, delete_api_key, name,
-// position, service_type "map-server", transport {"type":"direct"}.
+// position, service_type "map-server", transport {"type":"direct"} or
+// {"type":"wireguard","profile_id":...}.
 const char *const connections_collection = "connections";
 constexpr int connection_version = 1;
 QString defaultBaseUrl()
@@ -128,7 +129,10 @@ std::string serializeConfiguration(const MapServerClientConfiguration &configura
         {QStringLiteral("base_url"), configuration.base_url.trimmed()},
         {QStringLiteral("api_key"), QString::fromUtf8(configuration.api_key).trimmed()},
         {QStringLiteral("delete_api_key"), QString::fromUtf8(configuration.delete_api_key).trimmed()},
-        {QStringLiteral("transport"), QJsonObject{{QStringLiteral("type"), QStringLiteral("direct")}}}};
+        {QStringLiteral("transport"), configuration.wireguard_profile_id.trimmed().isEmpty()
+            ? QJsonObject{{QStringLiteral("type"), QStringLiteral("direct")}}
+            : QJsonObject{{QStringLiteral("type"), QStringLiteral("wireguard")},
+                          {QStringLiteral("profile_id"), configuration.wireguard_profile_id.trimmed()}}}};
     return QJsonDocument(record).toJson(QJsonDocument::Compact).toStdString();
 }
 
@@ -173,14 +177,18 @@ MapServerClientConfiguration loadConfiguration()
     configuration.base_url = record.value(QStringLiteral("base_url")).toString().trimmed();
     configuration.api_key = record.value(QStringLiteral("api_key")).toString().trimmed().toUtf8();
     configuration.delete_api_key = record.value(QStringLiteral("delete_api_key")).toString().trimmed().toUtf8();
-    const QString transport = record.value(QStringLiteral("transport")).toObject()
-        .value(QStringLiteral("type")).toString(QStringLiteral("direct"));
-    if (transport != QStringLiteral("direct"))
+    const QJsonObject transport_object = record.value(QStringLiteral("transport")).toObject();
+    const QString transport = transport_object.value(QStringLiteral("type")).toString(QStringLiteral("direct"));
+    if (transport == QStringLiteral("wireguard"))
+        configuration.wireguard_profile_id = transport_object.value(QStringLiteral("profile_id")).toString().trimmed();
+    if ((transport != QStringLiteral("direct") && transport != QStringLiteral("wireguard"))
+        || (transport == QStringLiteral("wireguard") && configuration.wireguard_profile_id.isEmpty()))
     {
-        // No tunnel support for the map client yet: never fall back to a
-        // direct connection for a record that asks for something else.
+        // Never fall back to a direct connection for a record that asks for
+        // something else (e.g. a transport of a newer build).
         qCritical() << "Map server connection uses an unsupported transport; the map server is disabled";
         configuration.base_url.clear();
+        configuration.wireguard_profile_id.clear();
         return configuration;
     }
     if (configuration.base_url.isEmpty())

@@ -10,6 +10,9 @@
 #include "config/shortcut_registry.h"
 #include "config/map_server_client_configuration.h"
 #include "services/http_health_monitor.h"
+
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
 #include "map/render/map_render_diagnostics.h"
 #include "projects/dvmdb_identity.h"
 
@@ -1025,25 +1028,36 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::checkServerMapInit()
 {
+    // Yellow until the first check; with WireGuard also while the tunnel
+    // starts (the check begins once the map server is reachable).
     this->footer->statusUpdateServerMap(StatusColorCode::Yellow);
-    const MapServerClientConfiguration &configuration = mapServerClientConfiguration();
-    QString base = configuration.base_url.trimmed();
-    while (base.endsWith(QLatin1Char('/'))) base.chop(1);
-    this->map_health_monitor = new HttpHealthMonitor(this);
-    this->map_health_monitor->start(QUrl(base + QStringLiteral("/status")),
-        [](const QByteArray &body)
+    whenGuiMapServerReachable(this, [this](const MapServerRestConfiguration &server)
+    {
+        QString base = server.base_url.trimmed();
+        while (base.endsWith(QLatin1Char('/'))) base.chop(1);
+        // Its own manager so the map server's proxy (WireGuard) is never
+        // applied to unrelated requests.
+        QNetworkAccessManager *manager = new QNetworkAccessManager(this);
+        manager->setProxy(server.proxy);
+        this->map_health_monitor = new HttpHealthMonitor(this, [manager](const QNetworkRequest &request)
         {
-            return body.contains("AOWIS map server");
-        },
-        [this](HttpHealthMonitor::State state, const QString &error)
-        {
-            this->footer->statusUpdateServerMap(state == HttpHealthMonitor::State::Healthy
-                ? StatusColorCode::Green
-                : state == HttpHealthMonitor::State::Offline
-                    ? StatusColorCode::Red : StatusColorCode::Yellow);
-            if (state == HttpHealthMonitor::State::Offline)
-                qWarning() << "Map server health check failed:" << error;
-        }, configuration.api_key, 4500);
+            return manager->get(request);
+        });
+        this->map_health_monitor->start(QUrl(base + QStringLiteral("/status")),
+            [](const QByteArray &body)
+            {
+                return body.contains("AOWIS map server");
+            },
+            [this](HttpHealthMonitor::State state, const QString &error)
+            {
+                this->footer->statusUpdateServerMap(state == HttpHealthMonitor::State::Healthy
+                    ? StatusColorCode::Green
+                    : state == HttpHealthMonitor::State::Offline
+                        ? StatusColorCode::Red : StatusColorCode::Yellow);
+                if (state == HttpHealthMonitor::State::Offline)
+                    qWarning() << "Map server health check failed:" << error;
+            }, server.api_key, 4500);
+    });
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

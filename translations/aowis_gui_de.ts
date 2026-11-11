@@ -4347,6 +4347,10 @@ Dies kann nicht rückgängig gemacht werden.</translation>
       <source>A profile with this name already exists.</source>
       <translation>Ein Profil mit diesem Namen ist bereits vorhanden.</translation>
     </message>
+    <message>
+      <source>WireGuard</source>
+      <translation>WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -7259,6 +7263,18 @@ Rechtsklick zum Zurücksetzen.</translation>
       <source>Updating map providers...</source>
       <translation>Kartenanbieter werden aktualisiert…</translation>
     </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Direkte Verbindung</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>Fehlendes Profil (nicht verwendbar)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>WireGuard-Profile werden unter Einstellungen → WireGuard VPN verwaltet</translation>
+    </message>
   </context>
   <context>
     <name>ProjectRevisionGraph</name>
@@ -8232,6 +8248,10 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>Es wird ein WireGuard-Profil mit genau einer Schnittstelle und einem Peer erwartet.</translation>
     </message>
+    <message>
+      <source>Map server (%1)</source>
+      <translation>Kartenserver (%1)</translation>
+    </message>
   </context>
 
   <context>
@@ -8579,6 +8599,10 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
       <translation>WireGuard-.conf (der private Schlüssel ist ausgeblendet und bleibt beim Speichern unverändert)</translation>
+    </message>
+    <message>
+      <source>Map server</source>
+      <translation>Kartenserver</translation>
     </message>
   </context>
 </TS>

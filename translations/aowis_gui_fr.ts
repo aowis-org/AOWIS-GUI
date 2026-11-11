@@ -4347,6 +4347,10 @@ Cette action est irréversible.</translation>
       <source>A profile with this name already exists.</source>
       <translation>Un profil portant ce nom existe déjà.</translation>
     </message>
+    <message>
+      <source>WireGuard</source>
+      <translation>WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -7259,6 +7263,18 @@ Clic droit pour réinitialiser.</translation>
       <source>Updating map providers...</source>
       <translation>Mise à jour des fournisseurs de cartes…</translation>
     </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Connexion directe</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>Profil manquant (inutilisable)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>Les profils WireGuard sont gérés dans Paramètres → VPN WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>ProjectRevisionGraph</name>
@@ -8232,6 +8248,10 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>Le profil WireGuard doit contenir une seule interface et un seul pair.</translation>
     </message>
+    <message>
+      <source>Map server (%1)</source>
+      <translation>Serveur cartographique (%1)</translation>
+    </message>
   </context>
 
   <context>
@@ -8579,6 +8599,10 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
       <translation>Fichier .conf WireGuard (la clé privée est masquée et reste inchangée à l’enregistrement)</translation>
+    </message>
+    <message>
+      <source>Map server</source>
+      <translation>Serveur cartographique</translation>
     </message>
   </context>
 </TS>

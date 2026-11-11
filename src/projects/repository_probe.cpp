@@ -10,16 +10,11 @@
 #include <utility>
 
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-#include "config/wireguard_profile_storage.h"
+#include "network/wireguard_tunnel_pool.h"
 
 #include <aowis/network/qt_http_client.h>
 #include <aowis/network/wireguard_client.h>
-#include <aowis/network/wireguard_conf.h>
 #include <QPointer>
-#include <QFutureWatcher>
-#include <string>
-
-#include <QtConcurrent/qtconcurrentrun.h>
 #endif
 
 namespace
@@ -30,121 +25,6 @@ RepositoryProbeResult readReply(QNetworkReply *reply)
             reply->errorString(), reply->error() == QNetworkReply::NoError};
 }
 
-#ifdef AOWIS_GUI_WIREGUARD_PROBE
-struct TunnelStart
-{
-    std::shared_ptr<aowis::network::WireGuardClient> tunnel;
-    QString error;
-};
-
-// Runs on a worker thread. The profile text comes from the GUI's
-// AOWIS-CONFIG store and is parsed by AOWIS-NETWORK's single .conf parser,
-// which accepts exactly what the embedded engine can run. Any failure keeps
-// the connection closed: there is never a fallback to direct HTTP.
-TunnelStart startTunnel(const QString &profile_id)
-{
-    std::string text;
-    QString error;
-    if (!readWireGuardProfileText(profile_id, text, &error))
-        return {{}, error};
-    const aowis::network::WireGuardConfParse parsed = aowis::network::parseWireGuardConf(text);
-    if (!parsed.ok())
-    {
-        // Diagnostics never contain profile text or keys.
-        for (const aowis::network::WireGuardConfDiagnostic &diagnostic : parsed.diagnostics)
-            if (diagnostic.severity == aowis::network::WireGuardConfSeverity::error)
-                return {{}, diagnostic.line > 0
-                    ? QObject::tr("The WireGuard profile cannot be used (line %1): %2")
-                          .arg(static_cast<qulonglong>(diagnostic.line)).arg(QString::fromStdString(diagnostic.message))
-                    : QObject::tr("The WireGuard profile cannot be used: %1")
-                          .arg(QString::fromStdString(diagnostic.message))};
-        return {{}, QObject::tr("The WireGuard profile cannot be used.")};
-    }
-    std::shared_ptr<aowis::network::WireGuardClient> tunnel = std::make_shared<aowis::network::WireGuardClient>();
-    std::string start_error;
-    if (!tunnel->start(parsed.config, &start_error))
-        return {{}, QString::fromStdString(start_error)};
-    return {tunnel, {}};
-}
-
-// Holds the tunnel weakly: the monitor must never extend a tunnel's lifetime
-// beyond its DvmdbConnection, which stops it on destruction.
-WireGuardRuntimeStatus::TelemetrySampler tunnelSampler(const std::shared_ptr<aowis::network::WireGuardClient> &tunnel)
-{
-    const std::weak_ptr<aowis::network::WireGuardClient> weak = tunnel;
-    return [weak](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
-    {
-        const std::shared_ptr<aowis::network::WireGuardClient> locked = weak.lock();
-        if (!locked) return false;
-        aowis::network::WireGuardTelemetry sample;
-        if (!locked->telemetry(&sample)) return false;
-        out.started_unix_ms = static_cast<qint64>(sample.startedUnixMs);
-        out.last_handshake_unix_ms = static_cast<qint64>(sample.lastHandshakeUnixMs);
-        out.received_bytes = static_cast<quint64>(sample.receivedBytes);
-        out.sent_bytes = static_cast<quint64>(sample.sentBytes);
-        out.persistent_keepalive_seconds = static_cast<quint64>(sample.persistentKeepaliveSeconds);
-        out.open_relays = static_cast<quint64>(sample.activeProxyConnections);
-        out.accepted_relays = static_cast<quint64>(sample.acceptedProxyConnections);
-        out.failed_dials = static_cast<quint64>(sample.failedProxyDials);
-        out.peer_endpoint = QString::fromStdString(sample.peerEndpoint);
-        return true;
-    };
-}
-
-// One tunnel per WireGuard profile, shared by every DvmdbConnection using it.
-// Required for correctness, not just economy: two tunnels with the same
-// private key make the peer roam its endpoint to whichever handshook last,
-// so replies land in the other tunnel's netstack. Each consumer keeps its own
-// QtSocks5HttpClient over the shared proxy and holds a shared_ptr; the last
-// release stops the tunnel. Profile edits take effect when the tunnel is next
-// started, i.e. after every connection using it has closed. GUI thread only.
-struct SharedTunnel
-{
-    std::weak_ptr<aowis::network::WireGuardClient> tunnel;
-    bool starting = false;
-    QList<std::function<void(const TunnelStart &)>> waiters;
-};
-
-QHash<QString, SharedTunnel> &sharedTunnels()
-{
-    static QHash<QString, SharedTunnel> tunnels;
-    return tunnels;
-}
-
-void acquireSharedTunnel(const QString &profile_id, std::function<void(const TunnelStart &)> done)
-{
-    SharedTunnel &entry = sharedTunnels()[profile_id];
-    const std::shared_ptr<aowis::network::WireGuardClient> live = entry.tunnel.lock();
-    if (live && live->isRunning())
-    {
-        // Delivered from the event loop like a fresh start, so callers are
-        // never re-entered from inside open().
-        QTimer::singleShot(0, QCoreApplication::instance(), [live, done]() {
-            done({live, {}});
-        });
-        return;
-    }
-    entry.waiters.append(std::move(done));
-    if (entry.starting) return; // Join the start already in flight.
-    entry.starting = true;
-    QFutureWatcher<TunnelStart> *watcher = new QFutureWatcher<TunnelStart>();
-    QObject::connect(watcher, &QFutureWatcher<TunnelStart>::finished, watcher, [watcher, profile_id]() {
-        const TunnelStart result = watcher->result();
-        watcher->deleteLater();
-        QList<std::function<void(const TunnelStart &)>> waiters;
-        QHash<QString, SharedTunnel>::iterator it = sharedTunnels().find(profile_id);
-        if (it != sharedTunnels().end())
-        {
-            it->starting = false;
-            it->tunnel = result.tunnel; // Weak: alive only while a consumer holds it.
-            waiters.swap(it->waiters);
-        }
-        for (const std::function<void(const TunnelStart &)> &waiter : waiters) waiter(result);
-        // If no waiter kept the tunnel, `result` releases it here and it stops.
-    });
-    watcher->setFuture(QtConcurrent::run(startTunnel, profile_id));
-}
-#endif
 
 // Presentation label for the settings page: the DVMDB origin, no path,
 // query or credentials.
@@ -190,7 +70,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     if (this->opening.size() > 1) return;
     WireGuardRuntimeStatus::instance().starting(this->profile, this, serviceLabel(this->endpoint));
     const QPointer<DvmdbConnection> self(this);
-    acquireSharedTunnel(this->profile, [self](const TunnelStart &result) {
+    acquireWireGuardTunnel(this->profile, [self](const WireGuardTunnelLease &result) {
         if (!self) return; // Closed while the shared tunnel was starting.
         QString error = result.error;
         if (result.tunnel)
@@ -204,7 +84,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
             {
                 self->tunnel = result.tunnel;
                 self->http = std::move(http);
-                WireGuardRuntimeStatus::instance().running(self, tunnelSampler(self->tunnel));
+                WireGuardRuntimeStatus::instance().running(self, wireGuardTelemetrySampler(self->tunnel));
             }
         }
         if (!result.tunnel && error.isEmpty())

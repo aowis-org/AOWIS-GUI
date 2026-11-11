@@ -2174,18 +2174,18 @@ void EntityInspectorWidget::addGroupElevation()
 
     if (!this->terrain_elevation_client)
     {
-#ifdef AOWIS_STANDALONE
-        this->terrain_elevation_client = new InterfaceServerMapStandalone(this);
-#else
-        this->terrain_elevation_client = new InterfaceServerMapREST(
-            guiMapServerRestConfiguration(), this);
-#endif
-        connect(this->terrain_elevation_client,
-                &InterfaceServerMap::signalTerrainElevationDataReceived, this,
-                &EntityInspectorWidget::handleTerrainElevationResponse);
-        connect(this->terrain_elevation_client,
-                &InterfaceServerMap::signalTerrainElevationFailed, this,
-                &EntityInspectorWidget::handleTerrainElevationError);
+        // The configured transport (Standalone, direct REST or WireGuard);
+        // null when the map server is disabled.
+        this->terrain_elevation_client = guiMapServerTransport().create(this);
+        if (this->terrain_elevation_client)
+        {
+            connect(this->terrain_elevation_client,
+                    &InterfaceServerMap::signalTerrainElevationDataReceived, this,
+                    &EntityInspectorWidget::handleTerrainElevationResponse);
+            connect(this->terrain_elevation_client,
+                    &InterfaceServerMap::signalTerrainElevationFailed, this,
+                    &EntityInspectorWidget::handleTerrainElevationError);
+        }
     }
     
     // All three node types use canonical metre values. Editors only present a

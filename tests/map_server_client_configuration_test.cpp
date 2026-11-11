@@ -132,17 +132,44 @@ int main(int argc, char **argv)
     if (!require(mapServerRecords(connections.value()).size() == 1, "DVMDB save deleted the map-server record"))
         return 1;
 
-    // A transport this build cannot honor fails closed instead of going direct.
-    QJsonObject tunnelled = QJsonDocument::fromJson(QByteArray::fromStdString(records.at(0).json)).object();
-    tunnelled.insert(QStringLiteral("transport"),
-                     QJsonObject{{QStringLiteral("type"), QStringLiteral("wireguard")},
-                                 {QStringLiteral("profile_id"), QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6399")}});
-    const aowis::config::Result<aowis::config::StoredObject> updated = connections.value().update(
-        records.at(0).info.id, QJsonDocument(tunnelled).toJson(QJsonDocument::Compact).toStdString(),
-        records.at(0).info.revision);
-    if (!require(updated.hasValue(), "planting a tunnelled record failed")) return 1;
-    if (!require(readMapServerClientConfiguration().base_url.isEmpty(), "unsupported transport did not fail closed"))
-        return 1;
+    // A WireGuard transport round-trips: saved, loaded and counted as a
+    // reference to the profile (the deletion guard reads the same record).
+    const QString tunnel_profile = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6399");
+    configured.wireguard_profile_id = tunnel_profile;
+    if (!require(saveMapServerClientConfiguration(configured), "WireGuard save failed")) return 1;
+    records = mapServerRecords(connections.value());
+    const QJsonObject saved_transport = QJsonDocument::fromJson(QByteArray::fromStdString(records.at(0).json))
+        .object().value(QStringLiteral("transport")).toObject();
+    const MapServerClientConfiguration tunnelled_loaded = readMapServerClientConfiguration();
+    if (!require(records.size() == 1
+                     && saved_transport.value(QStringLiteral("type")).toString() == QStringLiteral("wireguard")
+                     && saved_transport.value(QStringLiteral("profile_id")).toString() == tunnel_profile
+                     && tunnelled_loaded.wireguard_profile_id == tunnel_profile
+                     && tunnelled_loaded.base_url == configured.base_url,
+                 "WireGuard transport did not round-trip")) return 1;
+    configured.wireguard_profile_id.clear();
+    if (!require(saveMapServerClientConfiguration(configured)
+                     && readMapServerClientConfiguration().wireguard_profile_id.isEmpty(),
+                 "switching back to direct failed")) return 1;
+    records = mapServerRecords(connections.value());
+
+    // Transports this build cannot honor fail closed instead of going direct:
+    // an unknown type, and a WireGuard transport without a profile.
+    const QList<QJsonObject> unusable = {
+        QJsonObject{{QStringLiteral("type"), QStringLiteral("carrier-pigeon")}},
+        QJsonObject{{QStringLiteral("type"), QStringLiteral("wireguard")}}};
+    aowis::config::Result<aowis::config::StoredObject> updated = connections.value().read(records.at(0).info.id);
+    for (const QJsonObject &transport : unusable)
+    {
+        QJsonObject planted = QJsonDocument::fromJson(QByteArray::fromStdString(updated.value().json)).object();
+        planted.insert(QStringLiteral("transport"), transport);
+        updated = connections.value().update(updated.value().info.id,
+            QJsonDocument(planted).toJson(QJsonDocument::Compact).toStdString(), updated.value().info.revision);
+        if (!require(updated.hasValue(), "planting an unusable transport failed")) return 1;
+        const MapServerClientConfiguration closed = readMapServerClientConfiguration();
+        if (!require(closed.base_url.isEmpty() && closed.wireguard_profile_id.isEmpty(),
+                     "unusable transport did not fail closed")) return 1;
+    }
 
     // A newer connection_version is ignored by reads and left alone by saves.
     if (!require(connections.value().erase(updated.value().info.id, updated.value().info.revision).hasValue(),

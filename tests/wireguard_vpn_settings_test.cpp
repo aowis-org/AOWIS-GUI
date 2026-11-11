@@ -1,5 +1,6 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 #include "network/wireguard_runtime_status.h"
+#include "config/map_server_client_configuration.h"
 
 #include "config/project_server_profile_storage.h"
 #include "config/wireguard_profile_storage.h"
@@ -264,6 +265,33 @@ int main(int argc, char **argv)
                    && used_by->topLevelItemCount() == 1
                    && used_by->topLevelItem(0)->text(0) == QStringLiteral("Personal DVMDB"),
                "configured connection usage did not update")) return 1;
+
+    // The map server is a configured connection too: listed and counted.
+    MapServerClientConfiguration map_server;
+    map_server.base_url = QStringLiteral("http://10.8.0.20:8080");
+    map_server.wireguard_profile_id = id;
+    if (!check(saveMapServerClientConfiguration(map_server), "could not store the map server")) return 1;
+    page.refreshFromStorage();
+    bool map_server_listed = false;
+    for (int row = 0; row < used_by->topLevelItemCount(); ++row)
+        map_server_listed = map_server_listed
+            || (used_by->topLevelItem(row)->text(0) == QStringLiteral("Map server")
+                && used_by->topLevelItem(row)->text(2) == map_server.base_url);
+    if (!check(list->item(0)->text().contains(QStringLiteral("Used by 2 connections")) && map_server_listed,
+               "map server using the profile was not listed")) return 1;
+    // The deletion guard counts the map-server record as well.
+    connections.clear();
+    if (!check(saveProjectServerProfiles(connections), "could not clear connections")) return 1;
+    page.refreshFromStorage();
+    answerNextMessage(QMessageBox::Ok);
+    remove->click();
+    if (!check(page.profileIds().size() == 1 && listWireGuardProfiles().size() == 1,
+               "profile used by the map server was deleted")) return 1;
+    map_server.wireguard_profile_id.clear();
+    if (!check(saveMapServerClientConfiguration(map_server), "could not reset the map server")) return 1;
+    connections = {connection};
+    if (!check(saveProjectServerProfiles(connections), "could not restore the connection")) return 1;
+    page.refreshFromStorage();
 
     // This is the same process-wide monitor used by DvmdbConnection.
     // The widget must update automatically, without an injected GUI snapshot.

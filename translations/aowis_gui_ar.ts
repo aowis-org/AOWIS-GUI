@@ -4367,6 +4367,10 @@ This cannot be undone.</source>
       <source>A profile with this name already exists.</source>
       <translation>يوجد بالفعل ملف تعريف بهذا الاسم.</translation>
     </message>
+    <message>
+      <source>WireGuard</source>
+      <translation>WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -7291,6 +7295,18 @@ Right-click to reset.</source>
       <source>Updating map providers...</source>
       <translation>جارٍ تحديث مزودي الخرائط…</translation>
     </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>اتصال مباشر</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>ملف تعريف مفقود (غير قابل للاستخدام)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← WireGuard VPN</translation>
+    </message>
   </context>
   <context>
     <name>ProjectRevisionGraph</name>
@@ -8284,6 +8300,10 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>يجب أن يحتوي ملف تعريف WireGuard على واجهة واحدة ونظير واحد.</translation>
     </message>
+    <message>
+      <source>Map server (%1)</source>
+      <translation>خادم الخرائط (%1)</translation>
+    </message>
   </context>
 
   <context>
@@ -8631,6 +8651,10 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
       <translation>ملف ‎.conf‎ لـ WireGuard (المفتاح الخاص مخفي ويبقى دون تغيير عند الحفظ)</translation>
+    </message>
+    <message>
+      <source>Map server</source>
+      <translation>خادم الخرائط</translation>
     </message>
   </context>
 </TS>

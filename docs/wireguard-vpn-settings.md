@@ -71,6 +71,17 @@ connection, and **Import WireGuard profile…** stores a `.conf` there
 directly. A connection whose profile is missing or unusable stays closed and
 never falls back to direct HTTP; the selector shows it as **Missing profile**.
 
+**Settings → Map → Map server → WireGuard** does the same for the map
+server (record `service_type` "map-server", same `transport` format). Its
+tunnel starts at launch and stays up for the session (a change needs a
+restart, like the other map-server fields). Tiles, terrain, elevation, the
+provider catalog and the footer health check wait for it and then use its
+SOCKS5 proxy on their own network managers; requests made while it starts
+are queued, and a failed start fails them and is retried after 5, 10, 20, 40,
+then every 60 seconds. It appears under **Used by** and **Used by now**, and
+blocks deleting its profile. A profile ID that no longer exists, or a build
+without the embedded engine, leaves the map server disabled — never direct.
+
 ## Testing
 
 `aowis-wireguard-vpn-settings-tests` (isolated `XDG_CONFIG_HOME`) checks

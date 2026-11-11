@@ -4347,6 +4347,10 @@ Esta acción no se puede deshacer.</translation>
       <source>A profile with this name already exists.</source>
       <translation>Ya existe un perfil con este nombre.</translation>
     </message>
+    <message>
+      <source>WireGuard</source>
+      <translation>WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -7259,6 +7263,18 @@ Clic derecho para restablecer.</translation>
       <source>Updating map providers...</source>
       <translation>Actualizando proveedores de mapas…</translation>
     </message>
+    <message>
+      <source>Direct connection</source>
+      <translation>Conexión directa</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>Perfil ausente (no utilizable)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>Los perfiles de WireGuard se gestionan en Configuración → VPN WireGuard</translation>
+    </message>
   </context>
   <context>
     <name>ProjectRevisionGraph</name>
@@ -8232,6 +8248,10 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <source>Expected a single-interface, single-peer WireGuard profile.</source>
       <translation>El perfil de WireGuard debe contener una sola interfaz y un solo par.</translation>
     </message>
+    <message>
+      <source>Map server (%1)</source>
+      <translation>Servidor de mapas (%1)</translation>
+    </message>
   </context>
 
   <context>
@@ -8579,6 +8599,10 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>WireGuard .conf (the private key is hidden and kept unchanged when you save)</source>
       <translation>Archivo .conf de WireGuard (la clave privada está oculta y se conserva sin cambios al guardar)</translation>
+    </message>
+    <message>
+      <source>Map server</source>
+      <translation>Servidor de mapas</translation>
     </message>
   </context>
 </TS>

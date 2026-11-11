@@ -11,7 +11,15 @@ namespace
 {
 void configureCatalog(MapProviderCatalog *catalog)
 {
-    catalog->setServer(guiMapServerRestConfiguration());
+    // Until the map server is reachable (a WireGuard tunnel may still be
+    // starting) the catalog has no server and lists the built-in providers.
+    whenGuiMapServerReachable(catalog, [catalog](const MapServerRestConfiguration &server)
+    {
+        catalog->setServer(server);
+#ifndef AOWIS_STANDALONE
+        catalog->refresh();
+#endif
+    });
     // Personal fallbacks: GUI preferences group "map_provider_fallback",
     // provider UUID -> fallback provider UUID (natively and in browsers).
     const QString group = QStringLiteral("map_provider_fallback");
@@ -26,9 +34,6 @@ void configureCatalog(MapProviderCatalog *catalog)
             return GuiPreferences::update(group, QJsonObject(), {provider_id});
         return GuiPreferences::update(group, QJsonObject{{provider_id, fallback_id}});
     });
-#ifndef AOWIS_STANDALONE
-    QTimer::singleShot(0, catalog, [catalog]() { catalog->refresh(); });
-#endif
 }
 }
 

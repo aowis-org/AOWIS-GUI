@@ -12,6 +12,7 @@ class QPushButton;
 class QTimer;
 class QTableWidget;
 class QComboBox;
+class QShowEvent;
 class QNetworkAccessManager;
 class SliderNumberControl;
 
@@ -26,6 +27,7 @@ public:
 
 protected:
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     void setProviderStatus(const char *source);
@@ -45,6 +47,8 @@ private:
     QLineEdit *server_base_url_edit = nullptr;
     QLineEdit *server_api_key_edit = nullptr;
     QLineEdit *server_delete_api_key_edit = nullptr;
+    // Direct connection or a stored WireGuard profile (by id).
+    QComboBox *server_wireguard_combo = nullptr;
     QLabel *server_status = nullptr;
     QTableWidget *provider_table = nullptr;
     QLabel *provider_status = nullptr;
@@ -70,6 +74,10 @@ private:
     void schedulePerformanceSave();
     void savePerformanceSettingsNow();
     void saveServerSettings();
+    // Refills the WireGuard selector and selects profile_id. A selected id
+    // that names no stored profile stays selected as "missing", so the map
+    // server keeps failing closed instead of silently becoming direct.
+    void reloadServerWireGuardProfiles(const QString &profile_id);
     void showNavigationStatus(const char *message, bool error);
     void showPerformanceStatus(const char *message, bool error);
     void showServerStatus(const char *message, bool error);

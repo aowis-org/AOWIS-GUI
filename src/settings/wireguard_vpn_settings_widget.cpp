@@ -1,6 +1,7 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 
 #include "config/connection_wireguard_references.h"
+#include "config/map_server_client_configuration.h"
 #include "config/project_server_profile_storage.h"
 #include "config/wireguard_profile_storage.h"
 #include "network/wireguard_runtime_status.h"
@@ -542,6 +543,12 @@ void WireGuardVpnSettingsWidget::refreshFromStorage()
             QStringLiteral("DVMDB"),
             connection.connection_type == QStringLiteral("local") ? connection.local_path : connection.endpoint});
     }
+    // The map server (Settings -> Map) is a configured connection as well;
+    // the deletion guard counts its record the same way.
+    const MapServerClientConfiguration map_server = readMapServerClientConfiguration();
+    if (this->references.contains(map_server.wireguard_profile_id))
+        this->references[map_server.wireguard_profile_id].append({QStringLiteral("map-server"), tr("Map server"),
+            tr("Map server"), map_server.base_url});
 
     if (findProfile(this->selected_id) == nullptr)
         this->selected_id = this->profiles.isEmpty() ? QString() : this->profiles.first().id;

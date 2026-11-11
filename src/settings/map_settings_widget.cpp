@@ -4,6 +4,7 @@
 #include "config/gui_configuration.h"
 #include "map/core/gui_map_provider_catalog.h"
 #include "config/map_server_client_configuration.h"
+#include "config/wireguard_profile_storage.h"
 #include "map/render/map_globe_terrain_levels.h"
 #include "widgets/slider_number_control.h"
 
@@ -29,6 +30,7 @@
 #include <QPalette>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShowEvent>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -267,6 +269,12 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     });
     form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Delete API key"), group), this->server_delete_api_key_edit);
 
+    this->server_wireguard_combo = new QComboBox(group);
+    this->server_wireguard_combo->setObjectName(QStringLiteral("mapServerWireGuardProfile"));
+    this->reloadServerWireGuardProfiles(current.wireguard_profile_id);
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard"), group),
+                 this->server_wireguard_combo);
+
     group_layout->addLayout(form);
 
     this->server_status = new QLabel(group);
@@ -277,11 +285,14 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
                              this->server_delete_api_key_edit})
         connect(field, &QLineEdit::editingFinished,
                 this, &MapSettingsWidget::saveServerSettings);
+    connect(this->server_wireguard_combo, &QComboBox::currentIndexChanged,
+            this, [this](int) { this->saveServerSettings(); });
 
 #ifdef __EMSCRIPTEN__
     this->server_base_url_edit->setEnabled(false);
     this->server_api_key_edit->setEnabled(false);
     this->server_delete_api_key_edit->setEnabled(false);
+    this->server_wireguard_combo->setEnabled(false);
 #endif
 
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(group);
@@ -651,6 +662,7 @@ void MapSettingsWidget::saveServerSettings()
     configuration.base_url = this->server_base_url_edit->text();
     configuration.api_key = this->server_api_key_edit->text().toUtf8();
     configuration.delete_api_key = this->server_delete_api_key_edit->text().toUtf8();
+    configuration.wireguard_profile_id = this->server_wireguard_combo->currentData().toString();
 
     if (saveMapServerClientConfiguration(configuration))
     {
@@ -664,6 +676,37 @@ void MapSettingsWidget::saveServerSettings()
     }
 }
 
+void MapSettingsWidget::reloadServerWireGuardProfiles(const QString &profile_id)
+{
+    const QSignalBlocker blocker(this->server_wireguard_combo);
+    this->server_wireguard_combo->clear();
+    this->server_wireguard_combo->setToolTip(tr("WireGuard profiles are managed in Settings → WireGuard VPN"));
+    this->server_wireguard_combo->addItem(tr("Direct connection"), QString());
+    int selected = profile_id.isEmpty() ? 0 : -1;
+#ifndef __EMSCRIPTEN__
+    // Browsers cannot run the embedded WireGuard client.
+    for (const WireGuardProfileEntry &entry : listWireGuardProfiles())
+    {
+        this->server_wireguard_combo->addItem(entry.name, entry.id);
+        if (entry.id == profile_id) selected = this->server_wireguard_combo->count() - 1;
+    }
+#endif
+    if (selected < 0)
+    {
+        this->server_wireguard_combo->addItem(tr("Missing profile (not usable)"), profile_id);
+        selected = this->server_wireguard_combo->count() - 1;
+    }
+    this->server_wireguard_combo->setCurrentIndex(selected);
+}
+
+void MapSettingsWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // Profiles are created and deleted in Settings -> WireGuard VPN.
+    if (!event->spontaneous() && this->server_wireguard_combo != nullptr)
+        this->reloadServerWireGuardProfiles(this->server_wireguard_combo->currentData().toString());
+}
+
 void MapSettingsWidget::setProviderStatus(const char *source)
 {
     this->provider_status->setProperty("aowisLocalizedSource", QByteArray(source));
@@ -675,6 +718,8 @@ void MapSettingsWidget::changeEvent(QEvent *event)
     QWidget::changeEvent(event);
     if (event->type() != QEvent::LanguageChange || this->provider_table == nullptr)
         return;
+    if (this->server_wireguard_combo != nullptr)
+        this->reloadServerWireGuardProfiles(this->server_wireguard_combo->currentData().toString());
 
     // Do not rebuild the table, change its model values, commit cell editors,
     // or restart a pending provider save. Only refresh presentation fields.
