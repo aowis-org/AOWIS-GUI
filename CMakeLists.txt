@@ -1489,6 +1489,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/unit_profile_storage.cpp
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
+        src/config/gui_preferences.cpp
+        src/config/gui_preferences.h
     )
     target_include_directories(aowis-unit-profile-storage-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src

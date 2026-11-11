@@ -80,12 +80,11 @@ struct GuiConfiguration
     GuiMapPerformanceConfiguration map_performance;
 };
 
-// The former native INI (and webroot INI in WebAssembly). Preferences no
-// longer live there (config/gui_preferences.h); remaining users: unit
-// profile selection, map provider fallbacks, commit author identity.
+// The former native GUI INI, deleted at startup (tests use it to plant old
+// files); in WebAssembly the deployment's read-only webroot INI.
 QString guiConfigurationFilePath();
 // Preferences, read once from AOWIS-CONFIG and cached; the save functions
-// below update both.
+// below update both. The first call retires the former INI storage.
 const GuiConfiguration &guiConfiguration();
 // The GuiPreferences group of keyboard shortcuts (keys: config_key).
 QString guiShortcutPreferenceGroup();

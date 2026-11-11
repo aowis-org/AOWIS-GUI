@@ -1,5 +1,6 @@
 #include "config/unit_profile_storage.h"
 #include "config/gui_config_store.h"
+#include "config/gui_preferences.h"
 #include "config/unit_presentation_context.h"
 #include "config/unit_profile_notifications.h"
 #include "import/epanet_js_unit_profile.h"
@@ -32,25 +33,12 @@ int main(int argc, char **argv)
     // Isolates the GUI's AOWIS-CONFIG store; must precede QCoreApplication.
     qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
     QCoreApplication application(argc, argv);
-    const QString path = directory.filePath(QStringLiteral("unit-profiles.ini"));
-
-    // The former INI list is deleted on load, not migrated; the selection
-    // keys stay in the INI.
-    {
-        QSettings settings(path, QSettings::IniFormat);
-        QJsonArray array;
-        array.append(QJsonObject{{QStringLiteral("name"), QStringLiteral("Legacy")},
-                                 {QStringLiteral("units"), QJsonObject{{QStringLiteral("pressure"), QStringLiteral("bar")}}}});
-        settings.setValue(QStringLiteral("units/custom_profiles"), QJsonDocument(array).toJson(QJsonDocument::Compact));
-        settings.setValue(QStringLiteral("units/selected_profile"), QStringLiteral("Legacy"));
-        settings.sync();
-    }
-    ConfigUnitProfileStorage storage(path);
-    const UnitProfileSnapshot legacy = storage.load();
-    CHECK(legacy.custom_profiles.empty());
-    CHECK(legacy.legacy_active_name == QStringLiteral("Legacy"));
-    CHECK(legacy.active_id.isEmpty());
-    CHECK(!QSettings(path, QSettings::IniFormat).contains(QStringLiteral("units/custom_profiles")));
+    // Nothing stored: no custom profiles, the canonical profile selected.
+    ConfigUnitProfileStorage storage;
+    const UnitProfileSnapshot empty = storage.load();
+    CHECK(empty.custom_profiles.empty());
+    CHECK(empty.active_id.isEmpty());
+    CHECK(empty.legacy_active_name == QStringLiteral("AOWIS Canonical"));
 
     const aowis::config::OwnerStore *store = guiConfigStore();
     CHECK(store != nullptr);
@@ -64,6 +52,10 @@ int main(int argc, char **argv)
     first.custom_profiles.push_back({"profile-one", "My units", {{"pressure", "psi"}, {"link_diameter", "in"}}, false});
     CHECK(storage.save(first));
     CHECK(storedRecords(records.value()) == 1);
+    // The selection is a preference of the same store, not an INI key.
+    GuiPreferences::reload();
+    CHECK(GuiPreferences::value(QStringLiteral("units"), QStringLiteral("selected_profile_id")).toString()
+          == QStringLiteral("profile-one"));
     const UnitProfileSnapshot restored = storage.load();
     CHECK(restored.active_id == first.active_id);
     CHECK(restored.legacy_active_name == first.legacy_active_name);

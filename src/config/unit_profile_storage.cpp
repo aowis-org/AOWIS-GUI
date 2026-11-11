@@ -2,6 +2,7 @@
 #include "config/unit_profile_storage.h"
 
 #include "config/gui_config_store.h"
+#include "config/gui_preferences.h"
 
 #include <aowis/config/object_store.h>
 
@@ -10,7 +11,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
-#include <QSettings>
 #include <QUuid>
 
 #include <algorithm>
@@ -21,6 +21,11 @@
 namespace
 {
 const char *const unit_profiles_collection = "unit-profiles";
+
+QString selection_group()
+{
+    return QStringLiteral("units");
+}
 constexpr int unit_profile_version = 1;
 
 QString errorText(const aowis::config::Error &error)
@@ -88,19 +93,10 @@ struct LoadedProfile
 UnitProfileSnapshot ConfigUnitProfileStorage::load() const
 {
     UnitProfileSnapshot result;
-    {
-        QSettings settings(this->selection_ini_path_, QSettings::IniFormat);
-        result.active_id = settings.value(QStringLiteral("units/selected_profile_id")).toString();
-        result.legacy_active_name = settings.value(QStringLiteral("units/selected_profile"),
-                                                   QStringLiteral("AOWIS Canonical")).toString();
-        if (settings.contains(QStringLiteral("units/custom_profiles")))
-        {
-            // Pre-production format: deleted, not migrated.
-            settings.remove(QStringLiteral("units/custom_profiles"));
-            qWarning() << "Removed former custom unit profiles from" << this->selection_ini_path_
-                       << "- custom unit profiles are now stored in the GUI configuration store";
-        }
-    }
+    const QJsonObject selection = GuiPreferences::group(selection_group());
+    result.active_id = selection.value(QStringLiteral("selected_profile_id")).toString();
+    result.legacy_active_name = selection.value(QStringLiteral("selected_profile"))
+                                    .toString(QStringLiteral("AOWIS Canonical"));
 
     QString error;
     const std::optional<aowis::config::ObjectCollection> collection = openUnitProfiles(&error);
@@ -285,9 +281,8 @@ bool ConfigUnitProfileStorage::save(const UnitProfileSnapshot &snapshot) const
             }
         }
     }
-    QSettings settings(this->selection_ini_path_, QSettings::IniFormat);
-    settings.setValue(QStringLiteral("units/selected_profile_id"), snapshot.active_id);
-    settings.setValue(QStringLiteral("units/selected_profile"), snapshot.legacy_active_name);
-    settings.sync();
-    return saved && settings.status() == QSettings::NoError;
+    const bool selected = GuiPreferences::update(selection_group(), QJsonObject{
+        {QStringLiteral("selected_profile_id"), snapshot.active_id},
+        {QStringLiteral("selected_profile"), snapshot.legacy_active_name}});
+    return saved && selected;
 }

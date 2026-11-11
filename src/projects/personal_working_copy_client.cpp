@@ -4,6 +4,7 @@
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_commit_intent_store.h"
 #include "config/gui_configuration.h"
+#include "config/gui_preferences.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
 #include <aowis/model/edit/hydraulic_root_edit.h>
@@ -21,7 +22,8 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRandomGenerator>
-#include <QSettings>
+#include <QDebug>
+#include <QJsonObject>
 #include <QTimer>
 #include <QUuid>
 #include <QUrl>
@@ -91,27 +93,19 @@ bool validHistoryCoordinate(const QJsonValue &value)
 
 // Commit authorship must name the same person on every Commit. Until the
 // security concept defines user identities, this installation keeps one
-// UUIDv7, created on first use, and the operating-system account name.
-QSettings *openAuthorSettings()
-{
-#ifdef __EMSCRIPTEN__
-    // Browser-persistent storage; the WASM ini path is a read-only resource.
-    return new QSettings(QStringLiteral("AOWIS"), QStringLiteral("AOWIS-SERVER-GUI"));
-#else
-    return new QSettings(guiConfigurationFilePath(), QSettings::IniFormat);
-#endif
-}
-
+// UUIDv7, created on first use: GUI preferences group "dvmdb", key
+// commit_author_id (imported once from the former INI by guiConfiguration()).
 QString commitAuthorId()
 {
-    const std::unique_ptr<QSettings> settings(openAuthorSettings());
-    const QString key = QStringLiteral("dvmdb/commit_author_id");
-    QString id = settings->value(key).toString();
+    (void)guiConfiguration(); // retires the former storage, importing the id
+    const QString group = QStringLiteral("dvmdb");
+    const QString key = QStringLiteral("commit_author_id");
+    QString id = GuiPreferences::value(group, key).toString();
     if (!DvmdbIdentity::isUuidV7(id))
     {
         id = DvmdbIdentity::newUuidV7();
-        settings->setValue(key, id);
-        settings->sync();
+        if (!GuiPreferences::update(group, QJsonObject{{key, id}}))
+            qWarning() << "Could not store the commit author identity";
     }
     return id;
 }

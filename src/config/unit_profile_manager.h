@@ -11,7 +11,7 @@
 #include <QUuid>
 
 // Qt adapter: a single Model-owned collection shared by Settings and the toolbar.
-// Custom profiles persist in AOWIS-CONFIG, the selection in the GUI INI
+// Custom profiles and the selection persist in AOWIS-CONFIG
 // (config/unit_profile_storage.h).
 class UnitProfileManager {
 public:
@@ -94,7 +94,7 @@ public:
         return true;
     }
 private:
-    UnitProfileManager() : storage_(guiConfigurationFilePath()) {
+    UnitProfileManager() {
         const UnitProfileSnapshot stored = this->storage_.load();
         for (const aowis::units::UnitProfile &profile : stored.custom_profiles)
             (void)this->collection_.add(profile);

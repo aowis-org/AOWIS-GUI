@@ -1,10 +1,10 @@
 #include "map/core/gui_map_provider_catalog.h"
 
-#include "config/gui_configuration.h"
+#include "config/gui_preferences.h"
 #include "services/map_server_transport_factory.h"
 
 #include <QHash>
-#include <QSettings>
+#include <QJsonObject>
 #include <QTimer>
 
 namespace
@@ -12,24 +12,20 @@ namespace
 void configureCatalog(MapProviderCatalog *catalog)
 {
     catalog->setServer(guiMapServerRestConfiguration());
-#ifndef __EMSCRIPTEN__
+    // Personal fallbacks: GUI preferences group "map_provider_fallback",
+    // provider UUID -> fallback provider UUID (natively and in browsers).
+    const QString group = QStringLiteral("map_provider_fallback");
     QHash<QString, QString> fallbacks;
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    settings.beginGroup(QStringLiteral("map_provider_fallback"));
-    for (const QString &key : settings.childKeys())
-        fallbacks.insert(key, settings.value(key).toString());
-    settings.endGroup();
-    catalog->setFallbackStore(fallbacks, [](const QString &provider_id, const QString &fallback_id)
+    const QJsonObject stored = GuiPreferences::group(group);
+    for (auto entry = stored.constBegin(); entry != stored.constEnd(); ++entry)
+        if (entry.value().isString() && !entry.value().toString().isEmpty())
+            fallbacks.insert(entry.key(), entry.value().toString());
+    catalog->setFallbackStore(fallbacks, [group](const QString &provider_id, const QString &fallback_id)
     {
-        QSettings store(guiConfigurationFilePath(), QSettings::IniFormat);
         if (fallback_id.isEmpty())
-            store.remove(QStringLiteral("map_provider_fallback/") + provider_id);
-        else
-            store.setValue(QStringLiteral("map_provider_fallback/") + provider_id, fallback_id);
-        store.sync();
-        return store.status() == QSettings::NoError;
+            return GuiPreferences::update(group, QJsonObject(), {provider_id});
+        return GuiPreferences::update(group, QJsonObject{{provider_id, fallback_id}});
     });
-#endif
 #ifndef AOWIS_STANDALONE
     QTimer::singleShot(0, catalog, [catalog]() { catalog->refresh(); });
 #endif

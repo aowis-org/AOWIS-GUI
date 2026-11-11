@@ -1,8 +1,8 @@
 // GUI preferences in the GUI's AOWIS-CONFIG store (collection "preferences",
 // one record per group): defaults, stored values and validation at startup,
 // save-through to storage and cache, unchanged writes, merging with keys
-// another instance stored, newer records left alone, and removal of the
-// former INI groups.
+// another instance stored, newer records left alone, and retirement of the
+// former INI (deleted; only the commit author identity is imported).
 #include "config/gui_config_store.h"
 #include "config/gui_configuration.h"
 #include "config/gui_preferences.h"
@@ -59,7 +59,9 @@ int main(int argc, char **argv)
         legacy.setValue(QStringLiteral("symbology/node_palette"), QStringLiteral("turbo"));
         legacy.setValue(QStringLiteral("interface/language"), QStringLiteral("de"));
         legacy.setValue(QStringLiteral("gui/examples_builtin_enable"), false);
-        legacy.setValue(QStringLiteral("units/selected_profile_id"), QStringLiteral("kept"));
+        legacy.setValue(QStringLiteral("units/selected_profile_id"), QStringLiteral("dropped"));
+        legacy.setValue(QStringLiteral("dvmdb/commit_author_id"),
+                        QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6301"));
     }
 
     const aowis::config::OwnerStore *store = guiConfigStore();
@@ -86,16 +88,15 @@ int main(int argc, char **argv)
                  "storing performance failed")) return 1;
     GuiPreferences::reload();
 
+    // The first guiConfiguration() retires the former INI: the commit author
+    // identity is imported, everything else is deleted with the file.
     const GuiConfiguration &configuration = guiConfiguration();
-    {
-        QFile ini(ini_path);
-        if (!require(ini.open(QIODevice::ReadOnly), "INI unreadable")) return 1;
-        const QByteArray contents = ini.readAll();
-        if (!require(!contents.contains("shortcuts") && !contents.contains("symbology")
-                         && !contents.contains("interface") && !contents.contains("examples_builtin_enable"),
-                     "former INI preference groups still present")) return 1;
-        if (!require(contents.contains("selected_profile_id"), "unrelated INI settings lost")) return 1;
-    }
+    if (!require(!QFile::exists(ini_path), "former INI file not deleted")) return 1;
+    if (!require(GuiPreferences::value(QStringLiteral("dvmdb"), QStringLiteral("commit_author_id")).toString()
+                     == QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6301"),
+                 "commit author identity not imported")) return 1;
+    if (!require(GuiPreferences::group(QStringLiteral("units")).isEmpty(), "other INI values were migrated"))
+        return 1;
     const GuiShortcutConfiguration defaults;
     if (!require(configuration.examples_builtin_enable, "former INI value was migrated")) return 1;
     if (!require(configuration.shortcuts.fullscreen == defaults.fullscreen, "former INI shortcut was migrated"))

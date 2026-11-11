@@ -63,14 +63,7 @@ int main(int argc, char **argv)
         legacy.setValue(QStringLiteral("units/selected_profile_id"), QStringLiteral("unrelated"));
     }
     static_cast<void>(guiConfiguration());
-    {
-        QFile ini(ini_path);
-        if (!require(ini.open(QIODevice::ReadOnly), "INI unreadable")) return 1;
-        const QByteArray contents = ini.readAll();
-        if (!require(!contents.contains("map_server") && !contents.contains("legacy-secret"),
-                     "former [map_server] section still in the INI")) return 1;
-        if (!require(contents.contains("selected_profile_id"), "unrelated INI settings lost")) return 1;
-    }
+    if (!require(!QFile::exists(ini_path), "former INI with API keys not deleted")) return 1;
 
     QString error;
     const aowis::config::OwnerStore *store = guiConfigStore(&error);

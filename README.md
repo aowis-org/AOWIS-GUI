@@ -258,21 +258,20 @@ one per group, natively and in the browser:
 | `map_navigation` | `scroll_zoom_sensitivity`, `mouse_3d_pan_sensitivity`, `orbit_3d_sensitivity` (0.1–1.5) |
 | `map_performance` | `terrain_detail_reduction` (0–3) |
 | `gui` | `examples_builtin_enable` (native; WebAssembly takes it from the deployment) |
+| `units` | `selected_profile_id`, `selected_profile` (active unit profile) |
+| `map_provider_fallback` | provider UUID → personal fallback provider UUID |
+| `dvmdb` | `commit_author_id` (this installation's commit author UUIDv7) |
 
 Change them in Settings; nothing is written until a value is changed, and
-invalid values fall back to the defaults. The former INI groups `[gui]`,
-`[shortcuts]`, `[symbology]`, `[map_navigation]`, `[map_performance]` and
-`[interface]` and the browser's `aowis.symbology.*`, `aowis.map_*` and
-`aowis.gui.language` items are deleted on startup, not migrated.
+invalid values fall back to the defaults.
 
-Until they move as well, the unit-profile selection, map provider fallbacks
-and the commit author identity still use the former INI file:
-
-```text
-Windows: %APPDATA%\aowis-server-gui\aowis-server-gui.ini
-Linux:   ~/.local/share/aowis-server-gui/aowis-server-gui.ini
-macOS:   ~/Library/Application Support/aowis-server-gui/aowis-server-gui.ini
-```
+The GUI no longer has an INI file. The former
+`aowis-server-gui/aowis-server-gui.ini` (Linux `~/.local/share/`, Windows
+`%APPDATA%` and the older `%LOCALAPPDATA%` copy, macOS
+`~/Library/Application Support/`) and the browser's `aowis.symbology.*`,
+`aowis.map_*` and `aowis.gui.language` items are deleted on startup, not
+migrated. Only the commit author identity is imported first, so commits
+keep naming the same author.
 
 Built-in examples are enabled unless `examples_builtin_enable` is `false`.
 Example Library actions do not create persisted DVMDB revisions.
@@ -300,7 +299,7 @@ root. GUI-only and WebAssembly builds do not provide embedded native DVMDB.
 For practical connection instructions and limits, see
 [the DVMDB quickstart](docs/dvmdb-quickstart.md).
 
-bgfx is the only map renderer (2D and 3D globe, desktop and WebAssembly), so there is no renderer setting any more. The application removes an old `map_desktop_renderer` line from the native configuration file; an old `map_wasm_renderer` line in a WebAssembly deployment is ignored. If bgfx cannot start, Map Monitor shows a status message.
+bgfx is the only map renderer (2D and 3D globe, desktop and WebAssembly), so there is no renderer setting any more. An old `map_wasm_renderer` line in a WebAssembly deployment is ignored. If bgfx cannot start, Map Monitor shows a status message.
 
 WebAssembly builds render through WebGL 2. If the GPU renderer cannot start, Map Monitor shows a status message, as on the desktop. Map Editor renders with bgfx as well, as on the desktop.
 
@@ -325,11 +324,10 @@ submissions retain the edits in the table and show an error, so they can be
 corrected and retried. There is no provider Save button.
 
 **My fallback** is independent of the server catalog. Each user's fallback
-selection takes effect immediately and is saved locally in the native GUI's
-`aowis-server-gui.ini`, under `[map_provider_fallback]` by provider UUID.
+selection takes effect immediately and is saved as a GUI preference
+(`map_provider_fallback`, by provider UUID), natively and in browsers.
 Selecting a fallback never changes the server's provider definitions. A new
 provider's fallback is saved once its UUID has been accepted by the server.
-WASM builds do not currently persist these personal fallback preferences.
 
 Fallbacks **cascade**: if A supports zoom 0–17, B 0–18 and C 0–20, choosing
 A → B and B → C uses A through 17, B at 18 and C at 19–20. Every hop must

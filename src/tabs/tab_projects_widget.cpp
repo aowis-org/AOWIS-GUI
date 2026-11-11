@@ -14,6 +14,7 @@
 
 #include "app/builtin_examples.h"
 #include "config/gui_configuration.h"
+#include "config/gui_config_store.h"
 #include "common/_sizes.h"
 #include "widgets/group_box_collapsible.h"
 #include "services/http_health_monitor.h"
@@ -3627,7 +3628,7 @@ void ProjectsWidget::reportServerSaveFailure()
 {
     openSourceMessage(this, QMessageBox::Warning, tr("Cannot save database profiles"),
         tr("The database profile change could not be written to the GUI configuration:\n%1")
-            .arg(guiConfigurationFilePath()));
+            .arg(guiConfigStoreLocation()));
 }
 
 void ProjectsWidget::finishSourceWrite(const QString &created_id, const QString &error,

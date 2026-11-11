@@ -28,14 +28,11 @@ public:
 // unit_profile_version, unreadable records and unknown fields are never
 // interpreted, modified or deleted by a save.
 //
-// The selection (active_id, legacy_active_name) is a preference and stays
-// in the INI at selection_ini_path until preferences move to AOWIS-CONFIG.
-// The former INI key units/custom_profiles is deleted on load, not migrated.
+// The selection (active_id, legacy_active_name) is a preference: group
+// "units", keys selected_profile_id and selected_profile
+// (config/gui_preferences.h).
 class ConfigUnitProfileStorage final : public UnitProfileStorage {
 public:
-    explicit ConfigUnitProfileStorage(QString selection_ini_path) : selection_ini_path_(std::move(selection_ini_path)) {}
     [[nodiscard]] UnitProfileSnapshot load() const override;
     bool save(const UnitProfileSnapshot &snapshot) const override;
-private:
-    QString selection_ini_path_;
 };

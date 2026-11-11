@@ -1658,6 +1658,12 @@ bool testDurableCommitRecovery(QCoreApplication &application)
 
 int main(int argc, char **argv)
 {
+    // The commit author identity is a GUI preference in the AOWIS-CONFIG
+    // store; never read or write the developer's real configuration.
+    QTemporaryDir configuration_root;
+    if (!check(configuration_root.isValid(), "temporary configuration root unavailable")) return 1;
+    qputenv("XDG_CONFIG_HOME", configuration_root.path().toUtf8());
+    qputenv("XDG_DATA_HOME", configuration_root.path().toUtf8());
     QCoreApplication application(argc, argv);
     if (!testVerifiedHistoryDelta()) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;

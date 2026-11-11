@@ -1,6 +1,8 @@
 #include "config/gui_configuration.h"
 
+#include "config/gui_config_store.h"
 #include "config/gui_preferences.h"
+#include "projects/dvmdb_identity.h"
 
 #include <QByteArray>
 #include <QDebug>
@@ -12,12 +14,14 @@
 
 #include <cmath>
 
+#include <QSettings>
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #else
 #include <QDir>
 #include <QFile>
-#include <QSettings>
+#include <QFileInfo>
 #include <QStandardPaths>
 #include <QtGlobal>
 #endif
@@ -30,9 +34,13 @@
 //   map_navigation  scroll_zoom_sensitivity, mouse_3d_pan_sensitivity,
 //                   orbit_3d_sensitivity
 //   map_performance terrain_detail_reduction
+//   (others: interface -> config/gui_language.cpp, units ->
+//   config/unit_profile_storage.cpp, map_provider_fallback ->
+//   map/core/gui_map_provider_catalog.cpp, dvmdb -> commit author identity)
 // Missing keys use the advertised defaults; nothing is written at startup.
-// The former INI groups and browser localStorage items are deleted, not
-// migrated (pre-production data).
+// The former INI files and browser localStorage items are deleted, not
+// migrated (pre-production data); only the commit author identity is
+// imported.
 
 namespace
 {
@@ -211,59 +219,90 @@ EM_JS(int, aowisRemoveLegacyPreferenceItems, (),
         return 0;
     }
 });
-#else
-#ifdef Q_OS_WIN
-QString nativeConfigurationPath()
+#endif
+
+// The commit author identity is the one value carried over from the former
+// storage: a new one would make this installation's past commits look like
+// another person's (config/gui_preferences.h, group "dvmdb").
+void importLegacyCommitAuthorId(const QString &legacy_id)
 {
-    QString data_directory = qEnvironmentVariable("APPDATA");
-    if (data_directory.isEmpty())
-        data_directory = QDir::home().filePath(QStringLiteral("AppData/Roaming"));
-    return QDir(data_directory).filePath(QStringLiteral("aowis-server-gui/aowis-server-gui.ini"));
+    if (!DvmdbIdentity::isUuidV7(legacy_id))
+        return;
+    if (!GuiPreferences::value(QStringLiteral("dvmdb"), QStringLiteral("commit_author_id")).isUndefined())
+        return;
+    if (GuiPreferences::update(QStringLiteral("dvmdb"),
+                               QJsonObject{{QStringLiteral("commit_author_id"), legacy_id}}))
+        qInfo() << "Imported the commit author identity into the GUI configuration store";
+}
+
+#ifdef __EMSCRIPTEN__
+void retireLegacyStorage()
+{
+    if (aowisRemoveLegacyPreferenceItems() > 0)
+        qWarning() << "Removed former GUI preferences from browser localStorage";
+    // Former browser QSettings of the commit author identity.
+    QSettings settings(QStringLiteral("AOWIS"), QStringLiteral("AOWIS-SERVER-GUI"));
+    const QString legacy_id = settings.value(QStringLiteral("dvmdb/commit_author_id")).toString();
+    if (legacy_id.isEmpty())
+        return;
+    importLegacyCommitAuthorId(legacy_id);
+    settings.remove(QStringLiteral("dvmdb/commit_author_id"));
 }
 #else
-QString nativeConfigurationPath()
+QString legacyIniPath(const QString &base_directory)
 {
+    return QDir(base_directory).filePath(QStringLiteral("aowis-server-gui/aowis-server-gui.ini"));
+}
+
+// The former GUI INI files (Windows also the older AppData\Local copy).
+QStringList legacyIniPaths()
+{
+    QStringList paths;
+#ifdef Q_OS_WIN
+    QString roaming = qEnvironmentVariable("APPDATA");
+    if (roaming.isEmpty())
+        roaming = QDir::home().filePath(QStringLiteral("AppData/Roaming"));
+    paths.append(legacyIniPath(roaming));
+#endif
     QString data_directory = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     if (data_directory.isEmpty())
         data_directory = QDir::home().filePath(QStringLiteral(".local/share"));
-    return QDir(data_directory).filePath(QStringLiteral("aowis-server-gui/aowis-server-gui.ini"));
+    const QString data_path = legacyIniPath(data_directory);
+    if (!paths.contains(data_path))
+        paths.append(data_path);
+    return paths;
 }
-#endif
 
-// Groups of the former INI that now live in AOWIS-CONFIG (or are gone).
-void removeLegacyIniGroups()
+// Everything the GUI kept in its INI now lives in AOWIS-CONFIG. The files are
+// deleted (pre-production data, not migrated), except for the commit author
+// identity, which is imported first.
+void retireLegacyStorage()
 {
-    const QString path = nativeConfigurationPath();
-    if (!QFile::exists(path))
-        return;
-    QSettings settings(path, QSettings::IniFormat);
-    const QStringList legacy_groups{
-        QStringLiteral("gui"), QStringLiteral("symbology"), QStringLiteral("shortcuts"),
-        QStringLiteral("map_navigation"), QStringLiteral("map_performance"),
-        QStringLiteral("interface"), QStringLiteral("map_server")};
-    const QStringList present = settings.childGroups();
-    bool removed = false;
-    for (const QString &group : legacy_groups)
+    for (const QString &path : legacyIniPaths())
     {
-        if (!present.contains(group))
+        if (!QFile::exists(path))
             continue;
-        settings.remove(group);
-        removed = true;
+        {
+            QSettings settings(path, QSettings::IniFormat);
+            importLegacyCommitAuthorId(settings.value(QStringLiteral("dvmdb/commit_author_id")).toString());
+        }
+        if (QFile::remove(path))
+        {
+            QDir().rmdir(QFileInfo(path).absolutePath()); // only if now empty
+            qWarning() << "Removed the former GUI configuration file" << path
+                       << "- settings are now stored in" << guiConfigStoreLocation();
+        }
+        else
+        {
+            qWarning() << "Could not remove the former GUI configuration file" << path;
+        }
     }
-    if (removed)
-        qWarning() << "Removed former GUI preferences from" << path
-                   << "- preferences are now stored in the GUI configuration store";
 }
 #endif
 
 GuiConfiguration loadConfiguration()
 {
-#ifdef __EMSCRIPTEN__
-    if (aowisRemoveLegacyPreferenceItems() > 0)
-        qWarning() << "Removed former GUI preferences from browser localStorage";
-#else
-    removeLegacyIniGroups();
-#endif
+    retireLegacyStorage();
 
     GuiConfiguration configuration;
 #ifdef __EMSCRIPTEN__
@@ -364,7 +403,7 @@ QString guiConfigurationFilePath()
 #ifdef __EMSCRIPTEN__
     return QStringLiteral("webroot/aowis-server-gui.ini");
 #else
-    return nativeConfigurationPath();
+    return legacyIniPaths().constFirst();
 #endif
 }
 
