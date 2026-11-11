@@ -33,12 +33,19 @@ managing reusable WireGuard configuration drafts.
 
 ## Boundaries of this GUI-only implementation
 
-**Profile data is session-local and is not yet persisted.** This avoids storing
-private keys in plain text in an unspecified configuration file, or prematurely
-introducing a storage format while the central AOWIS configuration system is
-still being designed. The page displays a persistent notice to that effect.
-Closing AOWIS discards these drafts; existing DVMDB connection settings and
-their legacy `.conf` path references are not migrated or changed by this patch.
+**This page is still session-local and is not yet persisted**; it is moved
+onto AOWIS-CONFIG next. The page displays a persistent notice to that effect.
+
+**DVMDB connections already use stored profiles.** Projects → Connection →
+WireGuard selects a profile from the GUI's AOWIS-CONFIG store
+(`aowis/gui/wireguard/<uuidv7>.json`, mode 0600) or the direct connection;
+**Import WireGuard profile…** copies a `.conf` file's text into that store
+(the path is not kept). A connection references its profile by ID
+(`transport.profile_id` of its `connections` record). AOWIS-NETWORK's
+`parseWireGuardConf()` checks the file on import, refusing what the embedded
+engine cannot run (it supports exactly one interface address and one peer),
+and again whenever a tunnel starts. A connection whose profile is missing or
+unusable stays closed; it never falls back to direct HTTP.
 
 The widget provides `setServiceReferences(profile_id, services)` and
 `setTunnelStatus(profile_id, snapshot)` to support central service discovery and

@@ -62,7 +62,7 @@ int main(int argc, char **argv)
     // Save assigns connection ids and keeps list order.
     ProjectServerProfile alpha = remoteProfile(QStringLiteral("Alpha"));
     alpha.tags = {QStringLiteral("north"), QStringLiteral("pumps")};
-    alpha.wireguard_profile_path = QStringLiteral("/home/user/office.conf");
+    alpha.wireguard_profile_id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6399");
     ProjectServerProfile beta = remoteProfile(QStringLiteral("Beta"));
     beta.connection_type = QStringLiteral("local");
     beta.local_path = QStringLiteral("/srv/dvmdb");
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
                      && loaded.at(1).name == QStringLiteral("Beta"), "order or contents lost")) return 1;
     if (!require(loaded.at(0).connection_id == servers.at(0).connection_id
                      && loaded.at(0).id == alpha.id && loaded.at(0).tags == alpha.tags
-                     && loaded.at(0).wireguard_profile_path == alpha.wireguard_profile_path
+                     && loaded.at(0).wireguard_profile_id == alpha.wireguard_profile_id
                      && loaded.at(1).personal && loaded.at(1).local_path == beta.local_path
                      && loaded.at(1).connection_type == QStringLiteral("local"),
                  "fields not round-tripped")) return 1;
@@ -141,6 +141,19 @@ int main(int argc, char **argv)
                      && connections.value().read(other.value().info.id).hasValue(),
                  "save deleted records it does not own")) return 1;
     if (!require(storedCount(connections.value()) == 4, "unexpected record count after removal")) return 1;
+
+    // A transport this build does not know never degrades to direct HTTP.
+    const aowis::config::Result<aowis::config::StoredObject> legacy = connections.value().create(
+        R"({"connection_version":1,"service_type":"dvmdb","position":9,"name":"Legacy tunnel",)"
+        R"("repository_id":"019a47b1-2040-7af9-8d1c-2670badb6390","connection_type":"remote",)"
+        R"("endpoint":"http://10.0.0.1:8755","transport":{"type":"wireguard-file","path":"/tmp/x.conf"}})");
+    if (!require(legacy.hasValue(), "cannot plant unknown transport")) return 1;
+    bool fails_closed = false;
+    for (const ProjectServerProfile &profile : loadProjectServerProfiles())
+        if (profile.name == QStringLiteral("Legacy tunnel"))
+            fails_closed = !profile.wireguard_profile_id.isEmpty()
+                && !DvmdbIdentity::isUuidV7(profile.wireguard_profile_id);
+    if (!require(fails_closed, "unknown transport became a direct connection")) return 1;
 
     std::printf("project server profile storage tests passed\n");
     return 0;

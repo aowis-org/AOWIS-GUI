@@ -22,16 +22,19 @@ struct RepositoryProbeResult
 };
 
 // One transport per remote database. All Qt HTTP work uses the owning thread.
+// wireguard_profile_id empty: direct HTTP. Otherwise the ID of a stored
+// WireGuard profile (see config/wireguard_profile_storage.h); the tunnel
+// fails closed if that profile is missing or unusable.
 class DvmdbConnection final : public QObject
 {
 public:
-    DvmdbConnection(const QUrl &endpoint, const QString &profile, QObject *parent);
+    DvmdbConnection(const QUrl &endpoint, const QString &wireguard_profile_id, QObject *parent);
     ~DvmdbConnection() override;
     void open(std::function<void(const QString &)> finished);
     // Call only after open() succeeds.
     QNetworkReply *get(const QNetworkRequest &request);
     QNetworkReply *write(const QNetworkRequest &request, const QByteArray &method, const QByteArray &body);
-    bool matches(const QUrl &url, const QString &path) const;
+    bool matches(const QUrl &url, const QString &wireguard_profile_id) const;
     void verify(const QNetworkRequest &request, std::function<void(RepositoryProbeResult)> finished);
 
 private:
@@ -45,5 +48,5 @@ private:
 #endif
 };
 
-void probeRepository(const QNetworkRequest &request, const QString &profile, QObject *context,
+void probeRepository(const QNetworkRequest &request, const QString &wireguard_profile_id, QObject *context,
                      std::function<void(RepositoryProbeResult)> finished);

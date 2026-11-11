@@ -4,6 +4,9 @@
 #include "projects/dvmdb_identity.h"
 #include "services/http_health_monitor.h"
 #include "widgets/group_box_collapsible.h"
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "config/wireguard_profile_storage.h"
+#endif
 
 #include <QApplication>
 #include <QCheckBox>
@@ -249,9 +252,10 @@ int main(int argc, char **argv)
     b.name = QStringLiteral("Source B");
     b.endpoint = second.endpoint();
     QProcess peer;
-    QTemporaryFile profile_file(config.filePath(QStringLiteral("peer-XXXXXX.conf")));
+    QString tunnel_profile_id;
     if (argc == 2)
     {
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
         peer.start(QString::fromLocal8Bit(argv[1]), {QString::number(first.server.serverPort())});
         if (!require(peer.waitForStarted() && waitUntil(app, [&] { return peer.canReadLine(); }),
                      "WireGuard peer did not start")) return 1;
@@ -261,11 +265,15 @@ int main(int argc, char **argv)
         const QByteArray endpoint = ready.value(QStringLiteral("endpoint")).toString().toLatin1();
         const QByteArray config_text = "[Interface]\nAddress=10.173.91.2/32\nPrivateKey=" + key
             + "\n[Peer]\nPublicKey=" + public_key + "\nEndpoint=" + endpoint + "\nAllowedIPs=10.173.91.1/32\n";
-        if (!require(profile_file.open() && profile_file.write(config_text) == config_text.size()
-                     && profile_file.flush(), "could not write temporary WireGuard profile")) return 1;
-        profile_file.close();
+        // Connections reference profiles stored in AOWIS-CONFIG by id.
+        QString import_error;
+        if (!require(importWireGuardProfile(QStringLiteral("Catalogue peer"), config_text, &tunnel_profile_id,
+                                            &import_error), "could not store the WireGuard profile")) return 1;
         a.endpoint = QStringLiteral("http://10.173.91.1:18080");
-        a.wireguard_profile_path = profile_file.fileName();
+        a.wireguard_profile_id = tunnel_profile_id;
+#else
+        if (!require(false, "the WireGuard catalogue test needs AOWIS_GUI_WIREGUARD_PROBE")) return 1;
+#endif
     }
     if (!require(saveProjectServerProfiles({a, b}), "could not store multiple sources")) return 1;
 
@@ -335,9 +343,26 @@ int main(int argc, char **argv)
                  "sidebar and inspector do not share the green server status")) return 1;
     if (argc == 2)
     {
-        // A second tunnel would have to reread the profile. Removing the
-        // temporary file proves that Verify and Refresh reuse the active one.
-        if (!require(profile_file.remove(), "could not remove temporary profile")) return 1;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        // A second tunnel would have to reread the profile. Deleting the
+        // stored profile proves that Verify and Refresh reuse the active one.
+        bool removed = false;
+        if (const aowis::config::WireGuardProfiles *stored = guiWireGuardProfiles())
+        {
+            const aowis::config::Result<aowis::config::ObjectId> stored_id =
+                aowis::config::ObjectId::parse(tunnel_profile_id.toStdString());
+            if (stored_id)
+            {
+                const aowis::config::Result<aowis::config::WireGuardProfile> current = stored->read(stored_id.value());
+                removed = current.hasValue()
+                    && stored->erase(stored_id.value(), current.value().summary.info.revision,
+                           [](const aowis::config::OwnerSession &, const aowis::config::ObjectId &) {
+                               return aowis::config::Result<std::size_t>::success(0);
+                           }).hasValue();
+            }
+        }
+        if (!require(removed, "could not remove the stored WireGuard profile")) return 1;
+#endif
         GroupBoxCollapsible *group = projects.findChild<GroupBoxCollapsible *>(QStringLiteral("projectWireGuardGroup"));
         if (!require(group != nullptr, "missing WireGuard inspector group")) return 1;
         group->setCollapsed(false);
@@ -629,7 +654,7 @@ int main(int argc, char **argv)
         personal_profile.id = personal_backend.repository_id;
         personal_profile.name = QStringLiteral("Personal Fixture");
         personal_profile.endpoint = personal_backend.endpoint();
-        personal_profile.wireguard_profile_path.clear();
+        personal_profile.wireguard_profile_id.clear();
         personal_profile.personal = true;
         ProjectServerProfile read_only_profile = b;
         read_only_profile.personal = false;

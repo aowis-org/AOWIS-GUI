@@ -18,6 +18,12 @@
 #include "widgets/group_box_collapsible.h"
 #include "services/http_health_monitor.h"
 #include <aowis/model/serialization/model_codec.h>
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "config/wireguard_profile_storage.h"
+#include <aowis/network/wireguard_conf.h>
+#include <QFile>
+#include <QFileInfo>
+#endif
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -949,8 +955,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             this, &ProjectsWidget::setPersonalServer);
     connect(this->database_connection->server_endpoint_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    const std::function<void(const QString &)> set_profile = [this](const QString &path) {
-        this->database_connection->setWireGuardProfile(path);
+    const std::function<void(const QString &)> set_profile = [this](const QString &profile_id) {
+        this->database_connection->setWireGuardProfile(profile_id);
         if (this->selection_kind == SelectionKind::NewSource)
         {
             ++this->source_creation_request;
@@ -959,13 +965,50 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         else this->applyInspectorEdits();
         this->updateSourceFields();
     };
-    connect(this->database_connection->choose_wireguard, &QPushButton::clicked, this, [this, set_profile] {
-        const QString path = QFileDialog::getOpenFileName(this, tr("Choose WireGuard profile"),
-            this->database_connection->wireguard_path->text(), QStringLiteral("WireGuard (*.conf);;*"));
-        if (!path.isEmpty()) set_profile(path);
+    connect(this->database_connection->wireguard_profile, QOverload<int>::of(&QComboBox::activated), this,
+            [this, set_profile](int) {
+        set_profile(this->database_connection->wireguardProfileId());
     });
-    connect(this->database_connection->clear_wireguard, &QPushButton::clicked, this, [set_profile] {
-        set_profile(QString());
+    // Importing copies the file's text into the GUI's AOWIS-CONFIG store; the
+    // path is not kept. AOWIS-NETWORK's parser decides whether the embedded
+    // engine can run it, and a profile it rejects is never stored.
+    connect(this->database_connection->import_wireguard, &QPushButton::clicked, this, [this, set_profile] {
+        const QString path = QFileDialog::getOpenFileName(this, tr("Import WireGuard profile"),
+            QString(), QStringLiteral("WireGuard (*.conf);;*"));
+        if (path.isEmpty()) return;
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+        {
+            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"),
+                tr("The file could not be read: %1").arg(file.errorString()));
+            return;
+        }
+        const QByteArray text = file.read(static_cast<qint64>(aowis::network::maxWireGuardConfBytes) + 1);
+        const aowis::network::WireGuardConfParse parsed =
+            aowis::network::parseWireGuardConf(std::string_view(text.constData(), static_cast<std::size_t>(text.size())));
+        if (!parsed.ok())
+        {
+            QStringList problems;
+            for (const aowis::network::WireGuardConfDiagnostic &diagnostic : parsed.diagnostics)
+            {
+                if (diagnostic.severity != aowis::network::WireGuardConfSeverity::error) continue;
+                const QString message = QString::fromStdString(diagnostic.message);
+                problems.append(diagnostic.line > 0
+                    ? tr("Line %1: %2").arg(static_cast<qulonglong>(diagnostic.line)).arg(message) : message);
+                if (problems.size() == 10) break;
+            }
+            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"),
+                tr("The embedded WireGuard client cannot use this profile:\n%1").arg(problems.join(QLatin1Char('\n'))));
+            return;
+        }
+        QString profile_id;
+        QString error;
+        if (!importWireGuardProfile(QFileInfo(path).completeBaseName(), text, &profile_id, &error))
+        {
+            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"), error);
+            return;
+        }
+        set_profile(profile_id);
     });
     connect(this->database_connection->verify_wireguard, &QPushButton::clicked, this, [this] {
         const ProjectServerProfile *server = this->currentServer();
@@ -977,7 +1020,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
                 const ProjectServerProfile *current = this->currentServer();
                 if (this->selection_kind != SelectionKind::Server || current == nullptr
                     || current->id != profile.id || current->endpoint != profile.endpoint
-                    || current->wireguard_profile_path != profile.wireguard_profile_path) return;
+                    || current->wireguard_profile_id != profile.wireguard_profile_id) return;
                 const QJsonObject repository = QJsonDocument::fromJson(result.body).object();
                 const QString id = repository.value(QStringLiteral("repositoryId")).toString();
                 QString error;
@@ -1005,7 +1048,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
         if (session != nullptr && session->connection != nullptr)
             session->connection->verify(request, verified);
         else
-            probeRepository(request, profile.wireguard_profile_path, this, verified);
+            probeRepository(request, profile.wireguard_profile_id, this, verified);
     });
 #endif
     connect(this->database_connection->local_path_edit, &QLineEdit::editingFinished, this, &ProjectsWidget::applyInspectorEdits);
@@ -1679,7 +1722,7 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
     if (profile.connection_type == QStringLiteral("remote"))
     {
         session->connection = std::shared_ptr<DvmdbConnection>(
-            new DvmdbConnection(QUrl(profile.endpoint), profile.wireguard_profile_path, nullptr),
+            new DvmdbConnection(QUrl(profile.endpoint), profile.wireguard_profile_id, nullptr),
             [](DvmdbConnection *connection) { connection->deleteLater(); });
         session->reader = new ProjectSourceReader(this, [session](const QNetworkRequest &request) {
             return session->connection->get(request);
@@ -2769,10 +2812,10 @@ void ProjectsWidget::updateInspector()
         this->database_connection->server_endpoint_edit->setText(server->endpoint);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
         if (this->database_connection->wireguard_server_id != server->id
-            || this->database_connection->wireguard_path->text() != server->wireguard_profile_path)
+            || this->database_connection->wireguardProfileId() != server->wireguard_profile_id)
         {
             this->database_connection->wireguard_server_id = server->id;
-            this->database_connection->setWireGuardProfile(server->wireguard_profile_path);
+            this->database_connection->setWireGuardProfile(server->wireguard_profile_id);
         }
 #endif
         this->database_connection->local_path_edit->setText(server->local_path);
@@ -3289,7 +3332,7 @@ void ProjectsWidget::saveNewSource()
     else
     {
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-        server.wireguard_profile_path = this->database_connection->wireguard_path->text();
+        server.wireguard_profile_id = this->database_connection->wireguardProfileId();
 #endif
         server.endpoint = this->database_connection->server_endpoint_edit->text().trimmed();
         const QUrl url(server.endpoint);
@@ -3339,7 +3382,7 @@ void ProjectsWidget::saveNewSource()
     // checked. A network failure offers an explicit pending choice instead.
     const int request_id = ++this->source_creation_request;
     this->database_inspector->save_source->setEnabled(false);
-    probeRepository(repositoryRequest(server.endpoint), server.wireguard_profile_path, this, [this, server, request_id](RepositoryProbeResult result) mutable
+    probeRepository(repositoryRequest(server.endpoint), server.wireguard_profile_id, this, [this, server, request_id](RepositoryProbeResult result) mutable
     {
         const int status = result.status;
         const QString &error = result.error;
@@ -3409,13 +3452,13 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
     {
         if (existing.id == server.id && !server.pending)
         {
-            if ((existing.endpoint != server.endpoint || existing.wireguard_profile_path != server.wireguard_profile_path)
+            if ((existing.endpoint != server.endpoint || existing.wireguard_profile_id != server.wireguard_profile_id)
                 && server.connection_type == QStringLiteral("remote"))
             {
                 const QString existing_id = existing.id;
                 const QString existing_name = existing.name;
                 const QString requested_endpoint = server.endpoint;
-                const QString requested_profile = server.wireguard_profile_path;
+                const QString requested_profile = server.wireguard_profile_id;
                 const int request_id = this->source_creation_request;
                 openSourceMessage(this, QMessageBox::Question, tr("Database already configured"),
                     tr("This repository UUIDv7 is already configured as '%1'. "
@@ -3431,7 +3474,7 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
                             {
                                 const ProjectServerProfile previous = current;
                                 current.endpoint = requested_endpoint;
-                                current.wireguard_profile_path = requested_profile;
+                                current.wireguard_profile_id = requested_profile;
                                 if (!saveProjectServerProfiles(this->servers))
                                 {
                                     current = previous;
@@ -4896,7 +4939,7 @@ std::shared_ptr<DvmdbConnection> ProjectsWidget::connectionFor(const ProjectServ
 {
     const SourceSession *session = this->source_sessions.value(profile.id, nullptr);
     if (session == nullptr || !session->connection
-        || !session->connection->matches(QUrl(profile.endpoint), profile.wireguard_profile_path)) return {};
+        || !session->connection->matches(QUrl(profile.endpoint), profile.wireguard_profile_id)) return {};
     return session->connection;
 }
 
@@ -5508,7 +5551,7 @@ void ProjectsWidget::applyInspectorEdits()
             }
             else server->endpoint = endpoint;
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-            server->wireguard_profile_path = this->database_connection->wireguard_path->text();
+            server->wireguard_profile_id = this->database_connection->wireguardProfileId();
 #endif
             server->auth_mode = this->database_connection->server_auth_combo->currentData().toString();
         }
@@ -5526,7 +5569,7 @@ void ProjectsWidget::applyInspectorEdits()
         server->tags = tags;
         if (server->name != previous.name || server->endpoint != previous.endpoint
             || server->local_path != previous.local_path
-            || server->wireguard_profile_path != previous.wireguard_profile_path
+            || server->wireguard_profile_id != previous.wireguard_profile_id
             || server->auth_mode != previous.auth_mode
             || server->description != previous.description || server->tags != previous.tags)
         {
@@ -5538,7 +5581,7 @@ void ProjectsWidget::applyInspectorEdits()
                 return;
             }
             if (server->endpoint != previous.endpoint || server->local_path != previous.local_path
-                || server->wireguard_profile_path != previous.wireguard_profile_path
+                || server->wireguard_profile_id != previous.wireguard_profile_id
                 || server->auth_mode != previous.auth_mode)
             {
                 resetSource(server->id);

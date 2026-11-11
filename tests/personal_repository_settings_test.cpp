@@ -50,15 +50,15 @@ int main(int argc, char **argv)
 
     // The selected server's UUID is learned from /repository/tracking by the
     // inspector and pinned internally; there is no editable UUID field.
-    b.wireguard_profile_path = root.filePath(QStringLiteral("private.conf"));
+    b.wireguard_profile_id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6373");
     b.personal = true;
     if (!check(saveProjectServerProfiles({a, b}), "unable to designate personal server")) return 1;
     QList<ProjectServerProfile> loaded = loadProjectServerProfiles();
     if (!check(loaded.size() == 2 && !loaded.at(0).personal && loaded.at(1).personal
                && loaded.at(1).id == known_id,
                "personal designation or pinned identity did not survive restart")) return 1;
-    if (!check(loaded.at(0).wireguard_profile_path.isEmpty()
-               && loaded.at(1).wireguard_profile_path == b.wireguard_profile_path,
+    if (!check(loaded.at(0).wireguard_profile_id.isEmpty()
+               && loaded.at(1).wireguard_profile_id == b.wireguard_profile_id,
                "WireGuard profile did not persist independently per server")) return 1;
     PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
     if (!check(target.kind == PersonalRepositoryTarget::Kind::Http

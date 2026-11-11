@@ -186,7 +186,7 @@ int main(int argc, char **argv)
     profile.auth_mode = QStringLiteral("None");
     ProjectSourceWriter writer;
     ProjectServerProfile configured = profile;
-    configured.wireguard_profile_path = QStringLiteral("/test/private.conf");
+    configured.wireguard_profile_id = QStringLiteral("019a47b1-2040-7af9-8d1c-2670badb6374");
     QString missing_transport_error;
     writer.createProject(configured, QStringLiteral("Must stay inside the tunnel"),
         [&](const QString &, const QString &error) { missing_transport_error = error; });

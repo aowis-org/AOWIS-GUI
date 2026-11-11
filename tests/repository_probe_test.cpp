@@ -1,6 +1,7 @@
 #include "projects/repository_probe.h"
 
 #include "projects/dvmdb_identity.h"
+#include "config/wireguard_profile_storage.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -9,8 +10,9 @@
 #include <QHostAddress>
 #include <QNetworkRequest>
 #include <QTcpServer>
+#include <QFile>
 #include <QTcpSocket>
-#include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <cstdio>
 
@@ -44,11 +46,26 @@ QString repositoryId(const QUrl &url, const QString &profile)
 
 int main(int argc, char **argv)
 {
+    // WireGuard profiles are read from the GUI's AOWIS-CONFIG store; keep it
+    // isolated from the developer's real configuration.
+    QTemporaryDir configuration;
+    if (!configuration.isValid()) return 1;
+    qputenv("XDG_CONFIG_HOME", configuration.path().toUtf8());
     QCoreApplication application(argc, argv);
     if (argc == 4)
     {
+        // Manual check: argv[3] is a .conf file, stored first like an import.
+        QFile conf(QString::fromLocal8Bit(argv[3]));
+        QString profile_id;
+        QString error;
+        if (!conf.open(QIODevice::ReadOnly)
+            || !importWireGuardProfile(QStringLiteral("Manual probe"), conf.readAll(), &profile_id, &error))
+        {
+            std::fprintf(stderr, "Could not store the WireGuard profile: %s\n", qPrintable(error));
+            return 1;
+        }
         const QString direct = repositoryId(QUrl(QString::fromLocal8Bit(argv[1])), {});
-        const QString tunneled = repositoryId(QUrl(QString::fromLocal8Bit(argv[2])), QString::fromLocal8Bit(argv[3]));
+        const QString tunneled = repositoryId(QUrl(QString::fromLocal8Bit(argv[2])), profile_id);
         if (!DvmdbIdentity::isUuidV7(direct) || direct != tunneled)
         {
             std::fprintf(stderr, "Direct and tunneled probes did not return the same valid repository ID.\n");
@@ -74,17 +91,20 @@ int main(int argc, char **argv)
         });
     });
     const QUrl url(QStringLiteral("http://127.0.0.1:%1/dvmdb/v1/repository").arg(server.serverPort()));
-    QTemporaryFile invalid_profile;
-    if (!invalid_profile.open()) return 1;
-    invalid_profile.write("[Peer]\n");
-    invalid_profile.close();
-    for (int attempt = 0; attempt < 3; ++attempt)
+    // Stored but unusable (no [Interface]), and an id naming no profile: both
+    // must fail before any connection is made, never falling back to direct.
+    QString invalid_profile;
+    QString import_error;
+    if (!importWireGuardProfile(QStringLiteral("Invalid"), QByteArrayLiteral("[Peer]\n"), &invalid_profile, &import_error))
+        return 1;
+    const QString missing_profile = DvmdbIdentity::newUuidV7();
+    for (int attempt = 0; attempt < 4; ++attempt)
     {
-        const QString path = attempt == 1 ? invalid_profile.fileName() : QString();
-        const RepositoryProbeResult result = receive(url, path);
-        if (connections != (attempt == 2 ? 2 : 1)
-            || (path.isEmpty() && (!result.transport_ok || result.status != 200 || result.body != identity))
-            || (attempt == 1 && (result.transport_ok || result.status != 0 || result.error.isEmpty())))
+        const QString profile = attempt == 1 ? invalid_profile : attempt == 2 ? missing_profile : QString();
+        const RepositoryProbeResult result = receive(url, profile);
+        if (connections != (attempt == 3 ? 2 : 1)
+            || (profile.isEmpty() && (!result.transport_ok || result.status != 200 || result.body != identity))
+            || (!profile.isEmpty() && (result.transport_ok || result.status != 0 || result.error.isEmpty())))
         {
             std::fprintf(stderr, "Repository probe routing failed on attempt %d\n", attempt);
             return 1;

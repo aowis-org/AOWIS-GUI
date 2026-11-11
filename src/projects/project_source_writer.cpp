@@ -86,7 +86,7 @@ void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
     if (this->active_connection)
         this->reply = this->active_connection->get(verify);
     else if (profile.connection_type == QStringLiteral("local")
-             || (!this->connection_for && profile.wireguard_profile_path.isEmpty()))
+             || (!this->connection_for && profile.wireguard_profile_id.isEmpty()))
         this->reply = this->manager.get(verify);
     if (!this->reply)
     {

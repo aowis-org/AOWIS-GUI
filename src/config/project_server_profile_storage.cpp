@@ -33,8 +33,8 @@
 //   endpoint, local_path, repository_id (ProjectServerProfile::id: verified
 //   repository UUIDv7, or a temporary UUIDv7 while pending), pending,
 //   visible, personal, transport.
-// transport is {"type":"direct"} or, transitionally until WireGuard profiles
-// move into AOWIS-CONFIG, {"type":"wireguard-file","path":...}.
+// transport is {"type":"direct"} or {"type":"wireguard","profile_id":...},
+// referencing a record of the same owner's "wireguard" collection.
 
 namespace
 {
@@ -81,10 +81,10 @@ std::string serializeProfile(const ProjectServerProfile &profile, int position)
     for (const QString &tag : profile.tags)
         tags.append(tag);
     QJsonObject transport{{QStringLiteral("type"), QStringLiteral("direct")}};
-    if (profile.connection_type == QStringLiteral("remote") && !profile.wireguard_profile_path.isEmpty())
+    if (profile.connection_type == QStringLiteral("remote") && !profile.wireguard_profile_id.isEmpty())
         transport = QJsonObject{
-            {QStringLiteral("type"), QStringLiteral("wireguard-file")},
-            {QStringLiteral("path"), profile.wireguard_profile_path}};
+            {QStringLiteral("type"), QStringLiteral("wireguard")},
+            {QStringLiteral("profile_id"), profile.wireguard_profile_id}};
     const QJsonObject record{
         {QStringLiteral("connection_version"), connection_version},
         {QStringLiteral("service_type"), QStringLiteral("dvmdb")},
@@ -168,9 +168,17 @@ QList<ProjectServerProfile> loadProjectServerProfiles()
             profile.connection_type = QStringLiteral("remote");
         profile.local_path = record.value(QStringLiteral("local_path")).toString().trimmed();
         const QJsonObject transport = record.value(QStringLiteral("transport")).toObject();
-        if (profile.connection_type == QStringLiteral("remote")
-            && transport.value(QStringLiteral("type")).toString() == QStringLiteral("wireguard-file"))
-            profile.wireguard_profile_path = transport.value(QStringLiteral("path")).toString();
+        const QString transport_type = transport.value(QStringLiteral("type")).toString(QStringLiteral("direct"));
+        if (profile.connection_type == QStringLiteral("remote") && transport_type != QStringLiteral("direct"))
+        {
+            // Any non-direct transport stays non-direct: an unknown type (or
+            // a missing profile id) becomes an id that names no profile, so
+            // the connection fails closed instead of silently going direct.
+            profile.wireguard_profile_id = transport_type == QStringLiteral("wireguard")
+                ? transport.value(QStringLiteral("profile_id")).toString().trimmed() : QString();
+            if (profile.wireguard_profile_id.isEmpty())
+                profile.wireguard_profile_id = QStringLiteral("unsupported-transport");
+        }
         profile.visible = record.value(QStringLiteral("visible")).toBool(true);
         profile.personal = record.value(QStringLiteral("personal")).toBool(false);
         profile.description = record.value(QStringLiteral("description")).toString();

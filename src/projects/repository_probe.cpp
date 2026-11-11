@@ -7,11 +7,13 @@
 #include <utility>
 
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "config/wireguard_profile_storage.h"
+
 #include <aowis/network/qt_http_client.h>
+#include <aowis/network/wireguard_conf.h>
 #include <QPointer>
-#include <QFile>
 #include <QFutureWatcher>
-#include <QSet>
+#include <string>
 
 #include <QtConcurrent/qtconcurrentrun.h>
 #endif
@@ -25,80 +27,48 @@ RepositoryProbeResult readReply(QNetworkReply *reply)
 }
 
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-// Accept one userspace interface and one peer. Reject unsupported directives
-// so a profile cannot silently acquire a different meaning inside the GUI.
-bool readProfile(QFile &file, aowis::network::WireGuardConfig &config)
-{
-    QByteArray section;
-    QSet<QByteArray> sections;
-    QSet<QByteArray> fields;
-    while (!file.atEnd())
-    {
-        QByteArray line = file.readLine().split('#').first().trimmed();
-        if (line.isEmpty()) continue;
-        if (line == "[Interface]" || line == "[Peer]")
-        {
-            if (sections.contains(line)) return false;
-            sections.insert(line);
-            section = line;
-            continue;
-        }
-        const qsizetype equals = line.indexOf('=');
-        if (equals <= 0) return false;
-        const QByteArray field = line.left(equals).trimmed();
-        const QByteArray value = line.mid(equals + 1).trimmed();
-        if (value.isEmpty() || fields.contains(field)) return false;
-        fields.insert(field);
-        if (section == "[Interface]" && field == "Address") config.address = value.toStdString();
-        else if (section == "[Interface]" && field == "PrivateKey") config.privateKey = value.toStdString();
-        else if (section == "[Peer]" && field == "PublicKey") config.peerPublicKey = value.toStdString();
-        else if (section == "[Peer]" && field == "PresharedKey") config.preSharedKey = value.toStdString();
-        else if (section == "[Peer]" && field == "Endpoint") config.endpoint = value.toStdString();
-        else if ((section == "[Interface]" && field == "DNS") || (section == "[Peer]" && field == "AllowedIPs"))
-        {
-            std::vector<std::string> &values = field == "DNS" ? config.dnsServers : config.allowedIPs;
-            for (const QByteArray &item : value.split(',')) values.push_back(item.trimmed().toStdString());
-        }
-        else if ((section == "[Interface]" && field == "MTU") || (section == "[Peer]" && field == "PersistentKeepalive"))
-        {
-            bool valid = false;
-            const int number = value.toInt(&valid);
-            if (!valid) return false;
-            if (field == "MTU") config.mtu = number;
-            else config.persistentKeepaliveSeconds = number;
-        }
-        else return false;
-    }
-    return file.error() == QFileDevice::NoError && sections.size() == 2;
-}
-
 struct TunnelStart
 {
     std::shared_ptr<aowis::network::WireGuardClient> tunnel;
     QString error;
 };
 
-TunnelStart startTunnel(const QString &profile)
+// Runs on a worker thread. The profile text comes from the GUI's
+// AOWIS-CONFIG store and is parsed by AOWIS-NETWORK's single .conf parser,
+// which accepts exactly what the embedded engine can run. Any failure keeps
+// the connection closed: there is never a fallback to direct HTTP.
+TunnelStart startTunnel(const QString &profile_id)
 {
-    QFile file(profile);
-    if (!file.open(QIODevice::ReadOnly))
-        return {{}, QObject::tr("Could not open the WireGuard profile.")};
-    aowis::network::WireGuardConfig config;
-    if (!readProfile(file, config))
-        return {{}, QObject::tr("Expected a single-interface, single-peer WireGuard profile.")};
+    std::string text;
+    QString error;
+    if (!readWireGuardProfileText(profile_id, text, &error))
+        return {{}, error};
+    const aowis::network::WireGuardConfParse parsed = aowis::network::parseWireGuardConf(text);
+    if (!parsed.ok())
+    {
+        // Diagnostics never contain profile text or keys.
+        for (const aowis::network::WireGuardConfDiagnostic &diagnostic : parsed.diagnostics)
+            if (diagnostic.severity == aowis::network::WireGuardConfSeverity::error)
+                return {{}, diagnostic.line > 0
+                    ? QObject::tr("The WireGuard profile cannot be used (line %1): %2")
+                          .arg(static_cast<qulonglong>(diagnostic.line)).arg(QString::fromStdString(diagnostic.message))
+                    : QObject::tr("The WireGuard profile cannot be used: %1")
+                          .arg(QString::fromStdString(diagnostic.message))};
+        return {{}, QObject::tr("The WireGuard profile cannot be used.")};
+    }
     std::shared_ptr<aowis::network::WireGuardClient> tunnel = std::make_shared<aowis::network::WireGuardClient>();
-    std::string error;
-    if (!tunnel->start(config, &error))
-        return {{}, QString::fromStdString(error)};
+    std::string start_error;
+    if (!tunnel->start(parsed.config, &start_error))
+        return {{}, QString::fromStdString(start_error)};
     return {tunnel, {}};
 }
 #endif
 }
 
-DvmdbConnection::DvmdbConnection(const QUrl &endpoint, const QString &profile, QObject *parent)
-    : QObject(parent), endpoint(endpoint), profile(profile)
+DvmdbConnection::DvmdbConnection(const QUrl &endpoint, const QString &wireguard_profile_id, QObject *parent)
+    : QObject(parent), endpoint(endpoint), profile(wireguard_profile_id)
 {
-    if (profile.isEmpty()) this->direct = std::make_unique<QNetworkAccessManager>();
+    if (wireguard_profile_id.isEmpty()) this->direct = std::make_unique<QNetworkAccessManager>();
 }
 
 DvmdbConnection::~DvmdbConnection() = default;
@@ -158,9 +128,9 @@ QNetworkReply *DvmdbConnection::get(const QNetworkRequest &request)
     return nullptr;
 }
 
-bool DvmdbConnection::matches(const QUrl &url, const QString &path) const
+bool DvmdbConnection::matches(const QUrl &url, const QString &wireguard_profile_id) const
 {
-    return this->endpoint == url && this->profile == path;
+    return this->endpoint == url && this->profile == wireguard_profile_id;
 }
 
 QNetworkReply *DvmdbConnection::write(const QNetworkRequest &request, const QByteArray &method,
@@ -202,10 +172,10 @@ void DvmdbConnection::verify(const QNetworkRequest &request, std::function<void(
     });
 }
 
-void probeRepository(const QNetworkRequest &request, const QString &profile, QObject *context,
+void probeRepository(const QNetworkRequest &request, const QString &wireguard_profile_id, QObject *context,
                      std::function<void(RepositoryProbeResult)> finished)
 {
-    DvmdbConnection *connection = new DvmdbConnection(request.url(), profile, context);
+    DvmdbConnection *connection = new DvmdbConnection(request.url(), wireguard_profile_id, context);
     connection->verify(request, [connection, finished](RepositoryProbeResult result) {
         connection->deleteLater();
         finished(result);

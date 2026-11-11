@@ -319,6 +319,8 @@ qt_add_executable(aowis-server-gui
     src/config/project_server_profile_storage.h
     src/config/gui_config_store.cpp
     src/config/gui_config_store.h
+    src/config/wireguard_profile_storage.cpp
+    src/config/wireguard_profile_storage.h
     src/config/personal_repository_storage.cpp
     src/config/personal_repository_storage.h
     src/config/shortcut_registry.cpp
@@ -1819,8 +1821,11 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
 
     if(TARGET AOWIS::NetworkQt)
         add_executable(aowis-repository-probe-tests
-            tests/repository_probe_test.cpp src/projects/repository_probe.cpp)
+            tests/repository_probe_test.cpp src/projects/repository_probe.cpp
+            src/config/gui_config_store.cpp src/config/gui_config_store.h
+            src/config/wireguard_profile_storage.cpp src/config/wireguard_profile_storage.h)
         target_include_directories(aowis-repository-probe-tests PRIVATE src)
+        target_link_libraries(aowis-repository-probe-tests PRIVATE aowis::config)
         add_test(NAME aowis-repository-probe COMMAND aowis-repository-probe-tests)
         set_tests_properties(aowis-repository-probe PROPERTIES LABELS "aowis" TIMEOUT 20)
     endif()
@@ -1863,6 +1868,14 @@ if(TARGET AOWIS::NetworkQt AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_
         if(TARGET ${probe_target})
             target_compile_definitions(${probe_target} PRIVATE AOWIS_GUI_WIREGUARD_PROBE)
             target_link_libraries(${probe_target} PRIVATE AOWIS::NetworkQt Qt6::Concurrent)
+        endif()
+    endforeach()
+    # WireGuard profiles are read from AOWIS-CONFIG wherever tunnels start or
+    # profiles are chosen; the GUI executable lists the source itself.
+    foreach(probe_target IN ITEMS aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests)
+        if(TARGET ${probe_target})
+            target_sources(${probe_target} PRIVATE
+                src/config/wireguard_profile_storage.cpp src/config/wireguard_profile_storage.h)
         endif()
     endforeach()
 endif()

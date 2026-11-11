@@ -5,6 +5,9 @@
 
 #include "tabs/tab_projects_widget.h"
 #include "projects/dvmdb_identity.h"
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "config/wireguard_profile_storage.h"
+#endif
 
 #include <QCoreApplication>
 #include <QCheckBox>
@@ -95,18 +98,20 @@ public:
         this->wireguard = new GroupBoxCollapsible(QStringLiteral("WireGuard"), this->remote_options);
         this->wireguard->setObjectName(QStringLiteral("projectWireGuardGroup"));
         QVBoxLayout *profile_layout = new QVBoxLayout(this->wireguard);
-        this->wireguard_path = new QLineEdit(this->wireguard);
-        this->wireguard_path->setObjectName(QStringLiteral("projectWireGuardProfile"));
-        this->wireguard_path->setReadOnly(true);
-        LiveUiText::bind(this->wireguard_path, [this] {
-            this->wireguard_path->setPlaceholderText(tr("Direct connection"));
+        // Item data: the stored profile's id; "" is the direct connection.
+        this->wireguard_profile = new QComboBox(this->wireguard);
+        this->wireguard_profile->setObjectName(QStringLiteral("projectWireGuardProfile"));
+        this->wireguard_profile->setMinimumWidth(0);
+        this->wireguard_profile->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+        LiveUiText::bind(this->wireguard_profile, [this] {
+            this->wireguard_profile->setToolTip(tr("WireGuard profiles are managed in Settings → WireGuard VPN"));
+            this->reloadWireGuardProfiles(this->wireguardProfileId());
         });
-        profile_layout->addWidget(this->wireguard_path);
-        this->choose_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Choose WireGuard profile…"), this->wireguard);
-        this->clear_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Use direct connection"), this->wireguard);
+        profile_layout->addWidget(this->wireguard_profile);
+        this->import_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Import WireGuard profile…"), this->wireguard);
+        this->import_wireguard->setObjectName(QStringLiteral("projectImportWireGuardProfile"));
         this->verify_wireguard = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Verify repository"), this->wireguard);
-        profile_layout->addWidget(this->choose_wireguard);
-        profile_layout->addWidget(this->clear_wireguard);
+        profile_layout->addWidget(this->import_wireguard);
         this->verify_wireguard->setObjectName(QStringLiteral("projectsVerifyRepository"));
         profile_layout->addWidget(this->verify_wireguard);
         QLabel *scope = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard is used for the catalogue and for project, branch and revision metadata writes. Network and working-copy operations still use the direct connection."), this->wireguard);
@@ -164,8 +169,8 @@ public:
         const bool local = this->source_kind_combo->currentData().toString() == QStringLiteral("local");
         this->remote_options->setVisible(!local);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-        this->choose_wireguard->setEnabled(!busy);
-        this->clear_wireguard->setEnabled(!busy && !this->wireguard_path->text().isEmpty());
+        this->wireguard_profile->setEnabled(!busy);
+        this->import_wireguard->setEnabled(!busy);
         this->verify_wireguard->setEnabled(!busy && !creating);
 #endif
         this->local_options->setVisible(local);
@@ -188,16 +193,43 @@ public:
     QComboBox *source_kind_combo = nullptr;
     QWidget *remote_options = nullptr;
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    void setWireGuardProfile(const QString &path)
+    // Shows profile_id selected; the group is folded for direct connections.
+    void setWireGuardProfile(const QString &profile_id)
     {
-        this->wireguard_path->setText(path);
-        this->wireguard->setCollapsed(path.isEmpty());
+        reloadWireGuardProfiles(profile_id);
+        this->wireguard->setCollapsed(profile_id.isEmpty());
+    }
+
+    QString wireguardProfileId() const
+    {
+        return this->wireguard_profile->currentData().toString();
+    }
+
+    // Refills the selector from storage and selects profile_id. A selected id
+    // that names no stored profile stays selected as "missing", so the
+    // connection keeps failing closed instead of silently becoming direct.
+    void reloadWireGuardProfiles(const QString &profile_id)
+    {
+        const QSignalBlocker blocker(this->wireguard_profile);
+        this->wireguard_profile->clear();
+        this->wireguard_profile->addItem(tr("Direct connection"), QString());
+        int selected = profile_id.isEmpty() ? 0 : -1;
+        for (const WireGuardProfileEntry &entry : listWireGuardProfiles())
+        {
+            this->wireguard_profile->addItem(entry.name, entry.id);
+            if (entry.id == profile_id) selected = this->wireguard_profile->count() - 1;
+        }
+        if (selected < 0)
+        {
+            this->wireguard_profile->addItem(tr("Missing profile (not usable)"), profile_id);
+            selected = this->wireguard_profile->count() - 1;
+        }
+        this->wireguard_profile->setCurrentIndex(selected);
     }
 
     QString wireguard_server_id;
-    QLineEdit *wireguard_path = nullptr;
-    QPushButton *choose_wireguard = nullptr;
-    QPushButton *clear_wireguard = nullptr;
+    QComboBox *wireguard_profile = nullptr;
+    QPushButton *import_wireguard = nullptr;
     QPushButton *verify_wireguard = nullptr;
 #endif
     QLineEdit *server_endpoint_edit = nullptr;

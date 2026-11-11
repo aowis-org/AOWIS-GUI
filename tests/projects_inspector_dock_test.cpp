@@ -48,6 +48,10 @@
 #include <QTreeWidgetItemIterator>
 #include <QVBoxLayout>
 
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "config/wireguard_profile_storage.h"
+#endif
+
 #include <cstdio>
 #include <cmath>
 
@@ -429,7 +433,13 @@ int main(int argc, char **argv)
     preview_remote.description = QStringLiteral("Remote test profile");
     preview_remote.auth_mode = QStringLiteral("API token");
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    preview_remote.wireguard_profile_path = QStringLiteral("/test/remote.conf");
+    // Connections reference stored profiles by id; storage keeps text only.
+    QString remote_profile_id;
+    QString import_error;
+    if (!require(importWireGuardProfile(QStringLiteral("Remote preview tunnel"), QByteArrayLiteral("[Interface]\n"),
+                                        &remote_profile_id, &import_error),
+                 "could not store the preview WireGuard profile")) return 1;
+    preview_remote.wireguard_profile_id = remote_profile_id;
 #endif
     const QList<ProjectServerProfile> sample_profiles{preview_local, preview_remote};
     if (!require(saveProjectServerProfiles(sample_profiles), "could not seed profile fixtures"))
@@ -558,8 +568,8 @@ int main(int argc, char **argv)
         : database_connection->findChild<GroupBoxCollapsible *>(QStringLiteral("projectWireGuardGroup"));
     if (!require(wireguard_group != nullptr && wireguard_group->isCollapsed(),
                  "WireGuard group missing from Connection or initially expanded")) return 1;
-    QLineEdit *profile = wireguard_group->findChild<QLineEdit *>(QStringLiteral("projectWireGuardProfile"));
-    if (!require(profile != nullptr && profile->isReadOnly() && profile->text().isEmpty(),
+    QComboBox *profile = wireguard_group->findChild<QComboBox *>(QStringLiteral("projectWireGuardProfile"));
+    if (!require(profile != nullptr && profile->currentData().toString().isEmpty(),
                  "new WireGuard selector must default to direct access")) return 1;
     wireguard_group->setCollapsed(false);
     if (!require(!profile->isHidden(), "expanded WireGuard group must expose the profile")) return 1;
@@ -704,10 +714,11 @@ int main(int argc, char **argv)
                  "server inspector is missing the Connection tab")) return 1;
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
     if (!require(!wireguard_group->isCollapsed() && !profile->isHidden()
-                     && profile->text() == preview_remote.wireguard_profile_path,
+                     && profile->currentData().toString() == preview_remote.wireguard_profile_id
+                     && profile->currentText() == QStringLiteral("Remote preview tunnel"),
                  "configured database must show its WireGuard profile on selection")) return 1;
     servers->setCurrentItem(servers->topLevelItem(0));
-    if (!require(wireguard_group->isCollapsed() && profile->text().isEmpty(),
+    if (!require(wireguard_group->isCollapsed() && profile->currentData().toString().isEmpty(),
                  "direct database must start with the WireGuard group folded")) return 1;
     servers->setCurrentItem(servers->topLevelItem(1));
     if (!require(!wireguard_group->isCollapsed(), "reselected configured database must expand again")) return 1;

@@ -257,7 +257,7 @@ void ProjectSourceReader::nextRestRequest(quint64 requested)
     request.setTransferTimeout(12000);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
         QNetworkRequest::ManualRedirectPolicy);
-    if (!this->get && !this->profile.wireguard_profile_path.isEmpty())
+    if (!this->get && !this->profile.wireguard_profile_id.isEmpty())
     {
         complete(requested, QObject::tr("WireGuard is unavailable in this build."));
         return;

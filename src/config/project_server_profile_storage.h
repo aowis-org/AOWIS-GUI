@@ -24,7 +24,10 @@ struct ProjectServerProfile
     QString local_path;
     bool visible = true; // include this source in the navigator and graph
     bool personal = false; // one personal working database, selected in Projects Inspector
-    QString wireguard_profile_path; // Empty selects direct HTTP for catalogue reads and metadata writes.
+    // ID of a stored WireGuard profile (config/wireguard_profile_storage.h).
+    // Empty selects direct HTTP for catalogue reads and metadata writes. A
+    // non-empty ID that does not name a usable profile fails closed.
+    QString wireguard_profile_id;
 };
 
 // Configured connections are records of the GUI's AOWIS-CONFIG
