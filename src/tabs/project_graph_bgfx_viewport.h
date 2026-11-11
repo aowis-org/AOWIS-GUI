@@ -56,8 +56,11 @@ private:
     QPointer<QWidget> container;
     QTimer retry_timer;
     QTimer redraw_timer;
-    // Shapes (cards, routes) with the HUD program; atlas holds their white
-    // texel. Text on top: glyph quads from the distance atlas (fs_label_sdf).
+    // Shapes (cards, routes) with the HUD program; atlas holds only their
+    // white texel, so the smallest atlas suffices (64 x 64 RGBA = 16 KiB
+    // instead of 16 MiB at 2048). Text on top: glyph quads from the distance
+    // atlas (fs_label_sdf).
+    static constexpr int ShapeAtlasExtent = 64;
     MapBgfxHudCanvas canvas;
     MapBgfxHudTextCache atlas;
     MapBgfxHudGpu gpu;

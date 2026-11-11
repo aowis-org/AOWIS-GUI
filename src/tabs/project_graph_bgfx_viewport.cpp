@@ -34,7 +34,7 @@ constexpr std::uint32_t kGraphResetFlags =
 }
 
 ProjectGraphBgfxViewport::ProjectGraphBgfxViewport(ProjectRevisionGraph *graph)
-    : QObject(graph), graph(graph), atlas(2048)
+    : QObject(graph), graph(graph), atlas(ShapeAtlasExtent)
 {
     this->retry_timer.setInterval(350);
     connect(&this->retry_timer, &QTimer::timeout, this,
@@ -355,7 +355,7 @@ void ProjectGraphBgfxViewport::detach()
         // The old device has been destroyed; deleting its GPU handles on a
         // replacement device is invalid. Discard their CPU-side wrappers.
         this->gpu = MapBgfxHudGpu();
-        this->atlas = MapBgfxHudTextCache(2048);
+        this->atlas = MapBgfxHudTextCache(ShapeAtlasExtent);
         // The glyph atlas is CPU data: kept, uploaded whole to the new texture.
         this->text_gpu = MapBgfxLabelGpu();
     }
