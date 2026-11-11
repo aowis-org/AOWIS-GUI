@@ -115,7 +115,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
             {
                 this->tunnel = result.tunnel;
                 this->http = std::move(http);
-                WireGuardRuntimeStatus::instance().running(this, this->tunnel);
+                WireGuardRuntimeStatus::instance().running(this);
             }
         }
         if (!result.tunnel && error.isEmpty())

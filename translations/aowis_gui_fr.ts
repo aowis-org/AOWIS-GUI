@@ -8464,46 +8464,13 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>La dernière tentative de démarrage du tunnel WireGuard a échoué.</translation>
     </message>
-
-    <message>
-      <source>Received %1 · Sent %2</source>
-      <translation>Reçus %1 · Envoyés %2</translation>
+      <message>
+      <source>Not exposed by the embedded WireGuard runtime</source>
+      <translation>Non fourni par le moteur WireGuard intégré</translation>
     </message>
-    <message>
-      <source>↓ %1/s · ↑ %2/s</source>
-      <translation>↓ %1/s · ↑ %2/s</translation>
-    </message>
-    <message>
-      <source>Last handshake: %1</source>
-      <translation>Dernière poignée de main : %1</translation>
-    </message>
-    <message>
-      <source>No handshake yet</source>
-      <translation>Aucune poignée de main pour le moment</translation>
-    </message>
-    <message>
-      <source>Peer endpoint unavailable</source>
-      <translation>Point de terminaison du pair indisponible</translation>
-    </message>
-    <message>
-      <source>Peer endpoint: %1</source>
-      <translation>Point de terminaison du pair : %1</translation>
-    </message>
-    <message>
-      <source>Waiting for WireGuard peer statistics…</source>
-      <translation>En attente des statistiques WireGuard du pair…</translation>
-    </message>
-    <message>
-      <source>No active tunnel</source>
-      <translation>Aucun tunnel actif</translation>
-    </message>
-    <message>
-      <source>Peer statistics unavailable: %1</source>
-      <translation>Statistiques du pair indisponibles : %1</translation>
-    </message>
-    <message>
-      <source>Handshake and traffic readings appear when a tunnel is running.</source>
-      <translation>Les échanges de clés et le trafic s’affichent lorsqu’un tunnel fonctionne.</translation>
+      <message>
+      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
+      <translation>Le moteur WireGuard intégré ne fournit ni les échanges de clés des pairs ni les compteurs de transfert.</translation>
     </message>
   </context>
 </TS>

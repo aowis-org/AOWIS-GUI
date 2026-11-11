@@ -217,21 +217,32 @@ Usually as a Desktop-Client, you might want to prefer [AOWIS-SERVER-Standalone](
 
 ## GUI configuration
 
-Configured DVMDB connections (Projects → servers) and WireGuard profiles
+Configured DVMDB connections (Projects → servers), the map server
+connection (Settings → Map: base URL and API keys) and WireGuard profiles
 (Settings → WireGuard VPN, see [docs/wireguard-vpn-settings.md](docs/wireguard-vpn-settings.md))
 are stored with [AOWIS-CONFIG](https://github.com/aowis-org/AOWIS-CONFIG) in
 the GUI's owner root, one record per object in the `connections` and
-`wireguard` collections (WireGuard records contain private keys; they are
-private to your user but not encrypted):
+`wireguard` collections. WireGuard and map-server records contain secrets
+(private keys, API keys); they are private to your user but not encrypted:
 
 ```text
 Linux:   ${XDG_CONFIG_HOME:-~/.config}/aowis/gui/connections/<uuidv7>.json
-Windows: %LOCALAPPDATA%\aowis\gui\connections\   (needs the AOWIS-CONFIG Windows backend; not yet implemented)
+Windows: %LOCALAPPDATA%\aowis\gui\connections\<uuidv7>.json
 Browser: localStorage keys aowis-config:/aowis/gui/connections/<uuidv7>.json
 ```
 
+Connection records carry a `service_type`: `dvmdb` (one per configured
+database) or `map-server` (at most one; without it the GUI uses
+`http://aowis-server-map.localhost:80` and no keys). The map server only
+supports `{"type":"direct"}` transport; any other transport disables it
+rather than connecting directly. In WebAssembly builds the map server comes
+from the deployment's `aowis-server-gui.ini` (see below) and nothing is
+stored in the browser.
+
 The former `servers/profiles` INI key and the browser's
-`aowis.servers.profiles` item are no longer read. In the browser only one
+`aowis.servers.profiles` item are no longer read; the former native
+`[map_server]` INI section is deleted on startup without migration
+(re-enter the map server connection once in Settings → Map). In the browser only one
 tab per origin can change connections at a time (the others show a save
 error until that tab is closed).
 
@@ -276,11 +287,6 @@ map_editor_add_tank=6
 map_editor_add_power_source=7
 map_editor_add_reservoir=8
 map_editor_add_note=9
-
-[map_server]
-base_url=http://aowis-server-map.localhost:80
-api_key=
-delete_api_key=
 ```
 
 Restart the application after editing the file. Missing native `[shortcuts]` entries are added automatically using the advertised UI shortcuts.
@@ -291,13 +297,12 @@ actions do not create persisted DVMDB revisions.
 
 ### DVMDB database profiles
 
-The Projects **Databases** section stores named profiles in the native
-INI under `[servers]` as `profiles` (serialized JSON). In the WebAssembly
-build, profiles are stored in browser `localStorage` under
-`aowis.servers.profiles`, not in the deployed read-only INI file.
+The Projects **Databases** section stores named profiles as `dvmdb`
+records of the `connections` collection (see above), in the browser too;
+never in the deployed read-only INI file.
 
 Use the GUI inspector to create or edit profiles rather than hand-editing
-their JSON. The stored fields include repository UUIDv7 (or a temporary
+their records. The stored fields include repository UUIDv7 (or a temporary
 UUIDv7 for an unverified connection), name,
 `connection_type` (`remote` or `local`), remote endpoint or local data
 directory, a descriptive authentication mode and the visibility flag.

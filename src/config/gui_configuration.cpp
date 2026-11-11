@@ -438,12 +438,7 @@ bool createDefaultConfiguration(const QString &path)
         "orbit_3d_sensitivity=0.8\n"
         "\n"
         "[map_performance]\n"
-        "terrain_detail_reduction=1\n"
-        "\n"
-        "[map_server]\n"
-        "base_url=http://aowis-server-map.localhost:80\n"
-        "api_key=\n"
-        "delete_api_key=\n");
+        "terrain_detail_reduction=1\n");
 
     if (file.write(contents) != contents.size())
     {
@@ -494,6 +489,16 @@ GuiConfiguration loadConfiguration()
     // bgfx is the only map renderer: the renderer choice of older versions
     // is dropped from the file.
     settings.remove(QStringLiteral("gui/map_desktop_renderer"));
+    // The map server connection (base URL and API keys) is stored in
+    // AOWIS-CONFIG (config/map_server_client_configuration.h). The former
+    // [map_server] group is deleted, not migrated, so no API key stays in
+    // this file (on Windows it lives in the roaming profile).
+    if (settings.childGroups().contains(QStringLiteral("map_server")))
+    {
+        settings.remove(QStringLiteral("map_server"));
+        qWarning() << "Removed the former [map_server] section from" << path
+                   << "- re-enter the map server connection in Settings -> Map";
+    }
     ensureSettingDefault(settings, QStringLiteral("shortcuts/sidebar_toggle"), advertised_shortcuts.sidebar_toggle);
     ensureSettingDefault(settings, QStringLiteral("shortcuts/fullscreen"), advertised_shortcuts.fullscreen);
     ensureSettingDefault(settings, QStringLiteral("shortcuts/map_monitor_fullscreen"), advertised_shortcuts.map_monitor_fullscreen);

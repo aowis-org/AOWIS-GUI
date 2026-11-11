@@ -20,6 +20,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QShowEvent>
 #include <QSet>
 #include <QSizePolicy>
 #include <QStandardItemModel>
@@ -238,6 +239,19 @@ public:
     QLineEdit *local_path_edit = nullptr;
     QPushButton *browse_path = nullptr;
     QPushButton *delete_connection = nullptr;
+
+protected:
+    void showEvent(QShowEvent *event) override
+    {
+        QWidget::showEvent(event);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        // Profiles renamed, added or deleted in Settings -> WireGuard VPN
+        // show up when the inspector becomes visible again (signals blocked:
+        // the selection itself is unchanged and nothing is saved).
+        if (this->wireguard_profile != nullptr)
+            this->reloadWireGuardProfiles(this->wireguardProfileId());
+#endif
+    }
 
 private:
 #ifdef AOWIS_GUI_WIREGUARD_PROBE

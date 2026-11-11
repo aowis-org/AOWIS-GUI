@@ -11,13 +11,24 @@ struct MapServerClientConfiguration
     QByteArray delete_api_key;
 };
 
+// Native builds: the map-server connection record of the GUI's AOWIS-CONFIG
+// "connections" collection (service_type "map-server", connection_version 1),
+// private to the user like the WireGuard profiles; API keys never go to the
+// GUI INI. Without a record the defaults are http://aowis-server-map.localhost:80
+// and no keys. A record whose transport is not "direct" fails closed (empty
+// base URL). WebAssembly: globalThis.aowisMapServerConfiguration of the
+// hosting page; nothing is stored in the browser.
+//
+// Read once and cached for the process lifetime.
 const MapServerClientConfiguration &mapServerClientConfiguration();
-// Persists to the same config file mapServerClientConfiguration() reads at
-// startup, but does NOT update the live (cached) configuration returned by
+// Reads the stored configuration afresh (not cached).
+MapServerClientConfiguration readMapServerClientConfiguration();
+// Persists the configuration (updates the map-server record, or creates it),
+// but does NOT update the cached configuration returned by
 // mapServerClientConfiguration() -- the map server client and REST/tile
 // fetch code read that once at construction, so a restart is required for
 // a saved change to actually take effect. Returns false if the write
-// failed.
+// failed or the build cannot store it (WebAssembly).
 bool saveMapServerClientConfiguration(const MapServerClientConfiguration &configuration);
 
 #endif // MAP_SERVER_CLIENT_CONFIGURATION_H

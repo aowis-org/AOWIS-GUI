@@ -12,9 +12,6 @@
 
 #include <QAbstractItemView>
 #include <QColor>
-#include <QDateTime>
-#include <QLocale>
-#include <QTimer>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
@@ -194,15 +191,6 @@ private:
     QTextCharFormat comment_format;
     QTextCharFormat invalid_format;
 };
-
-QString readableBytes(double bytes)
-{
-    const char *units[] = {"B", "KiB", "MiB", "GiB", "TiB"};
-    int unit = 0;
-    while (bytes >= 1024.0 && unit < 4) { bytes /= 1024.0; ++unit; }
-    return QStringLiteral("%1 %2").arg(QLocale().toString(bytes, 'f', unit == 0 ? 0 : 1),
-                                       QString::fromLatin1(units[unit]));
-}
 
 QLabel *wrappedLabel(QWidget *parent)
 {
@@ -388,17 +376,6 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     connect(this->usage_table, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *item, int) {
         if (item != nullptr) emit serviceActivated(item->data(0, Qt::UserRole).toString());
     });
-    this->telemetry_timer = new QTimer(this);
-    this->telemetry_timer->setInterval(2000);
-    connect(this->telemetry_timer, &QTimer::timeout, this, [this] {
-        if (this->isVisible() && this->detail_tabs->currentIndex() == 2 && !this->selected_id.isEmpty())
-            WireGuardRuntimeStatus::instance().pollTelemetry(this->selected_id);
-    });
-    connect(this->detail_tabs, &QTabWidget::currentChanged, this, [this](int index) {
-        if (index == 2 && this->isVisible() && !this->selected_id.isEmpty())
-            WireGuardRuntimeStatus::instance().pollTelemetry(this->selected_id);
-    });
-    this->telemetry_timer->start();
     connect(&WireGuardRuntimeStatus::instance(), &WireGuardRuntimeStatus::statusChanged,
             this, [this](const QString &profile_id) {
         if (findProfile(profile_id) == nullptr) return;
@@ -990,33 +967,11 @@ void WireGuardVpnSettingsWidget::refreshStatus()
         WireGuardRuntimeStatus::instance().snapshot(this->selected_id);
     this->tunnel_error->setText(status.last_error);
     this->active_consumers->setText(QString::number(status.running_tunnels));
-    if (status.has_peer_stats)
-    {
-        const QString total = tr("Received %1 · Sent %2")
-            .arg(readableBytes(static_cast<double>(status.received_bytes)),
-                 readableBytes(static_cast<double>(status.transmitted_bytes)));
-        const QString rate = tr("↓ %1/s · ↑ %2/s")
-            .arg(readableBytes(status.received_bytes_per_second),
-                 readableBytes(status.transmitted_bytes_per_second));
-        this->traffic->setText(total + QStringLiteral("\n") + rate);
-        const QString handshake = status.last_handshake_unix_seconds > 0
-            ? tr("Last handshake: %1").arg(QLocale().toString(
-                QDateTime::fromSecsSinceEpoch(status.last_handshake_unix_seconds).toLocalTime(),
-                QLocale::ShortFormat))
-            : tr("No handshake yet");
-        const QString endpoint = status.peer_endpoints.isEmpty()
-            ? tr("Peer endpoint unavailable")
-            : tr("Peer endpoint: %1").arg(status.peer_endpoints.join(QStringLiteral(", ")));
-        this->peer_telemetry_notice->setText(handshake + QStringLiteral("\n") + endpoint);
-    }
-    else
-    {
-        this->traffic->setText(status.running_tunnels > 0
-            ? tr("Waiting for WireGuard peer statistics…") : tr("No active tunnel"));
-        this->peer_telemetry_notice->setText(!status.peer_stats_error.isEmpty()
-            ? tr("Peer statistics unavailable: %1").arg(status.peer_stats_error)
-            : tr("Handshake and traffic readings appear when a tunnel is running."));
-    }
+    // The embedded runtime does not currently expose interface counters or
+    // peer handshake timestamps. Never display invented zero-byte statistics.
+    this->traffic->setText(tr("Not exposed by the embedded WireGuard runtime"));
+    this->peer_telemetry_notice->setText(
+        tr("Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime."));
     switch (status.state)
     {
         case WireGuardRuntimeStatus::State::NotStarted:

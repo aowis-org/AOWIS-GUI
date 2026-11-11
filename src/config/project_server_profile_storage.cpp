@@ -28,6 +28,9 @@
 // "aowis.servers.profiles" localStorage key; those are no longer read
 // (pre-production data, no migration).
 //
+// Other service types share the collection (the map-server connection,
+// config/map_server_client_configuration.h); saves never touch them.
+//
 // Record payload (connection_version 1):
 //   connection_version, service_type "dvmdb", position (list order), name,
 //   description, tags, auth_mode, connection_type "remote"|"local",
@@ -152,8 +155,12 @@ QList<ProjectServerProfile> loadProjectServerProfiles()
         const QJsonObject record = payloadObject(stored);
         if (!ownRecord(record))
         {
-            qWarning() << "Skipping connection record of an unsupported version or service"
-                       << QString::fromStdString(stored.info.id.value());
+            // The map-server connection shares the collection
+            // (config/map_server_client_configuration.h); it is not a DVMDB
+            // source and not worth a warning.
+            if (record.value(QStringLiteral("service_type")).toString() != QStringLiteral("map-server"))
+                qWarning() << "Skipping connection record of an unsupported version or service"
+                           << QString::fromStdString(stored.info.id.value());
             continue;
         }
         LoadedProfile entry;

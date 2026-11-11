@@ -8464,46 +8464,13 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>Der letzte Versuch, den WireGuard-Tunnel zu starten, ist fehlgeschlagen.</translation>
     </message>
-
-    <message>
-      <source>Received %1 · Sent %2</source>
-      <translation>Empfangen %1 · Gesendet %2</translation>
+      <message>
+      <source>Not exposed by the embedded WireGuard runtime</source>
+      <translation>Nicht von der integrierten WireGuard-Laufzeit bereitgestellt</translation>
     </message>
-    <message>
-      <source>↓ %1/s · ↑ %2/s</source>
-      <translation>↓ %1/s · ↑ %2/s</translation>
-    </message>
-    <message>
-      <source>Last handshake: %1</source>
-      <translation>Letzter Handshake: %1</translation>
-    </message>
-    <message>
-      <source>No handshake yet</source>
-      <translation>Noch kein Handshake</translation>
-    </message>
-    <message>
-      <source>Peer endpoint unavailable</source>
-      <translation>Peer-Endpunkt nicht verfügbar</translation>
-    </message>
-    <message>
-      <source>Peer endpoint: %1</source>
-      <translation>Peer-Endpunkt: %1</translation>
-    </message>
-    <message>
-      <source>Waiting for WireGuard peer statistics…</source>
-      <translation>Warte auf WireGuard-Peer-Statistiken…</translation>
-    </message>
-    <message>
-      <source>No active tunnel</source>
-      <translation>Kein aktiver Tunnel</translation>
-    </message>
-    <message>
-      <source>Peer statistics unavailable: %1</source>
-      <translation>Peer-Statistiken nicht verfügbar: %1</translation>
-    </message>
-    <message>
-      <source>Handshake and traffic readings appear when a tunnel is running.</source>
-      <translation>Handshake- und Verkehrsdaten werden bei laufendem Tunnel angezeigt.</translation>
+      <message>
+      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
+      <translation>Die integrierte WireGuard-Laufzeit stellt keine Peer-Handshakes oder Übertragungszähler bereit.</translation>
     </message>
   </context>
 </TS>

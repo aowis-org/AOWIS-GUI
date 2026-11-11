@@ -226,28 +226,12 @@ int main(int argc, char **argv)
     QLabel *info = page.findChild<QLabel *>(QStringLiteral("wireguardVpnStatusInfo"));
     if (!check(info != nullptr && info->text().contains(QStringLiteral("not yet confirmed")),
                "proxy startup incorrectly claimed peer reachability")) return 1;
-    monitor.recordPeerSample(&source, {1024, 2048, 1700000000, QStringLiteral("127.0.0.1:51820")});
-    QLabel *traffic = page.findChild<QLabel *>(QStringLiteral("wireguardVpnTraffic"));
-    QLabel *peer_telemetry = page.findChild<QLabel *>(QStringLiteral("wireguardVpnPeerTelemetryNotice"));
-    if (!check(traffic != nullptr && traffic->text().contains(QStringLiteral("Received"))
-                   && traffic->text().contains(QStringLiteral("KiB"))
-                   && peer_telemetry != nullptr
-                   && peer_telemetry->text().contains(QStringLiteral("127.0.0.1:51820"))
-                   && monitor.snapshot(id).last_handshake_unix_seconds == 1700000000,
-               "live WireGuard peer telemetry did not reach the status page")) return 1;
     monitor.httpReachable(&source);
     if (!check(info->text().contains(QStringLiteral("An HTTP response was received")),
                "successful HTTP transport did not update reachability")) return 1;
     QObject second_source;
     monitor.starting(id, &second_source);
     monitor.running(&second_source);
-    monitor.recordPeerSample(&second_source, {2048, 4096, 1700000001,
-                                               QStringLiteral("127.0.0.1:51821")});
-    if (!check(monitor.snapshot(id).received_bytes == 3072
-                   && monitor.snapshot(id).transmitted_bytes == 6144
-                   && monitor.snapshot(id).peer_endpoints.size() == 2
-                   && monitor.snapshot(id).last_handshake_unix_seconds == 1700000001,
-               "multiple tunnel peer statistics did not aggregate")) return 1;
     if (!check(active->text() == QStringLiteral("2"),
                "multiple active transports were not counted")) return 1;
     monitor.stopped(&second_source);

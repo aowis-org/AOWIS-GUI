@@ -1,7 +1,5 @@
 #include "config/map_server_client_configuration.h"
 
-#include "config/gui_configuration.h"
-
 #include <QDebug>
 
 #ifdef __EMSCRIPTEN__
@@ -9,11 +7,15 @@
 
 #include <cstdlib>
 #else
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QSaveFile>
-#include <QSettings>
+#include "config/gui_config_store.h"
+
+#include <aowis/config/object_store.h>
+
+#include <QJsonDocument>
+#include <QJsonObject>
+
+#include <optional>
+#include <string>
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -69,113 +71,169 @@ MapServerClientConfiguration loadConfiguration()
     return configuration;
 }
 #else
-QString nativeConfigurationPath()
+// Record payload (connection_version 1), sorted keys like every
+// QJsonObject: api_key, base_url, connection_version, delete_api_key, name,
+// position, service_type "map-server", transport {"type":"direct"}.
+const char *const connections_collection = "connections";
+constexpr int connection_version = 1;
+QString defaultBaseUrl()
 {
-    return guiConfigurationFilePath();
+    return QStringLiteral("http://aowis-server-map.localhost:80");
 }
 
-bool createDefaultConfiguration(const QString &path)
+QString errorText(const aowis::config::Error &error)
 {
-    const QFileInfo file_info(path);
-    if (!QDir().mkpath(file_info.absolutePath()))
+    return QString::fromStdString(error.message);
+}
+
+bool mapServerRecord(const QJsonObject &record)
+{
+    return record.value(QStringLiteral("connection_version")).toInt(0) == connection_version
+        && record.value(QStringLiteral("service_type")).toString() == QStringLiteral("map-server");
+}
+
+QJsonObject payloadObject(const aowis::config::StoredObject &stored)
+{
+    return QJsonDocument::fromJson(QByteArray::fromStdString(stored.json)).object();
+}
+
+// The GUI uses one map server: the map-server record with the lowest
+// position (then creation order, as readAll() returns it). Further
+// map-server records, e.g. written by a newer build, are left alone.
+const aowis::config::StoredObject *selectedRecord(const aowis::config::ObjectSnapshot &snapshot)
+{
+    const aowis::config::StoredObject *selected = nullptr;
+    int selected_position = 0;
+    for (const aowis::config::StoredObject &stored : snapshot.objects)
     {
-        qWarning() << "Failed to create map server client configuration directory:"
-                   << file_info.absolutePath();
-        return false;
+        const QJsonObject record = payloadObject(stored);
+        if (!mapServerRecord(record)) continue;
+        const int position = record.value(QStringLiteral("position")).toInt(0);
+        if (selected == nullptr || position < selected_position)
+        {
+            selected = &stored;
+            selected_position = position;
+        }
     }
+    return selected;
+}
 
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+std::string serializeConfiguration(const MapServerClientConfiguration &configuration)
+{
+    const QJsonObject record{
+        {QStringLiteral("connection_version"), connection_version},
+        {QStringLiteral("service_type"), QStringLiteral("map-server")},
+        {QStringLiteral("position"), 0},
+        {QStringLiteral("name"), QStringLiteral("Map server")},
+        {QStringLiteral("base_url"), configuration.base_url.trimmed()},
+        {QStringLiteral("api_key"), QString::fromUtf8(configuration.api_key).trimmed()},
+        {QStringLiteral("delete_api_key"), QString::fromUtf8(configuration.delete_api_key).trimmed()},
+        {QStringLiteral("transport"), QJsonObject{{QStringLiteral("type"), QStringLiteral("direct")}}}};
+    return QJsonDocument(record).toJson(QJsonDocument::Compact).toStdString();
+}
+
+std::optional<aowis::config::ObjectCollection> openConnections(QString *error)
+{
+    const aowis::config::OwnerStore *store = guiConfigStore(error);
+    if (store == nullptr) return std::nullopt;
+    aowis::config::Result<aowis::config::ObjectCollection> opened = store->collection(connections_collection);
+    if (!opened)
     {
-        qWarning() << "Failed to create map server client configuration:" << path
-                   << file.errorString();
-        return false;
+        if (error != nullptr) *error = errorText(opened.error());
+        return std::nullopt;
     }
-
-    static const QByteArray contents(
-        "; AOWIS Server GUI configuration\n"
-        "; Restart the application after changing this file.\n"
-        "\n"
-        "[gui]\n"
-        "examples_builtin_enable=true\n"
-        "\n"
-        "[shortcuts]\n"
-        "sidebar_toggle=Win+Tab\n"
-        "fullscreen=F11\n"
-        "map_monitor_fullscreen=Ctrl+F11\n"
-        "simulation_run=Ctrl+R\n"
-        "simulation_run_alternate=Shift+Enter\n"
-        "map_zoom_in=E\n"
-        "map_zoom_out=Q\n"
-        "map_pan_up=W\n"
-        "map_pan_down=S\n"
-        "map_pan_left=A\n"
-        "map_pan_right=D\n"
-        "map_provider_arcgis_sat=F1\n"
-        "map_provider_openstreetmap=F2\n"
-        "map_provider_opentopomap=F3\n"
-        "map_provider_cycloosm=F4\n"
-        "map_editor_select=Esc\n"
-        "map_editor_delete=Del\n"
-        "map_editor_add_pipe=1\n"
-        "map_editor_add_junction=2\n"
-        "map_editor_add_valve=3\n"
-        "map_editor_add_demand_point=4\n"
-        "map_editor_add_pump=5\n"
-        "map_editor_add_tank=6\n"
-        "map_editor_add_power_source=7\n"
-        "map_editor_add_reservoir=8\n"
-        "map_editor_add_note=9\n"
-        "\n"
-        "[map_server]\n"
-        "base_url=http://aowis-server-map.localhost:80\n"
-        "api_key=\n"
-        "delete_api_key=\n");
-
-    if (file.write(contents) != contents.size())
-    {
-        qWarning() << "Failed to write map server client configuration:" << path
-                   << file.errorString();
-        file.cancelWriting();
-        return false;
-    }
-
-    if (!file.commit())
-    {
-        qWarning() << "Failed to commit map server client configuration:" << path
-                   << file.errorString();
-        return false;
-    }
-
-    qInfo() << "Created default map server client configuration:" << path;
-    return true;
+    return std::move(opened.value());
 }
 
 MapServerClientConfiguration loadConfiguration()
 {
-    const QString path = nativeConfigurationPath();
-    if (!QFile::exists(path))
-        createDefaultConfiguration(path);
-
-    QSettings settings(path, QSettings::IniFormat);
-
     MapServerClientConfiguration configuration;
-    configuration.base_url = settings.value(
-        QStringLiteral("map_server/base_url")).toString().trimmed();
-    configuration.api_key = settings.value(
-        QStringLiteral("map_server/api_key")).toString().trimmed().toUtf8();
-    configuration.delete_api_key = settings.value(
-        QStringLiteral("map_server/delete_api_key")).toString().trimmed().toUtf8();
+    configuration.base_url = defaultBaseUrl();
 
+    QString error;
+    const std::optional<aowis::config::ObjectCollection> collection = openConnections(&error);
+    if (!collection.has_value())
+    {
+        qWarning() << "Unable to load the map server connection, using defaults:" << error;
+        return configuration;
+    }
+    const aowis::config::Result<aowis::config::ObjectSnapshot> snapshot = collection->readAll();
+    if (!snapshot)
+    {
+        qWarning() << "Unable to load the map server connection, using defaults:" << errorText(snapshot.error());
+        return configuration;
+    }
+    const aowis::config::StoredObject *stored = selectedRecord(snapshot.value());
+    if (stored == nullptr)
+    {
+        qInfo() << "No stored map server connection; using" << configuration.base_url;
+        return configuration;
+    }
+    const QJsonObject record = payloadObject(*stored);
+    configuration.base_url = record.value(QStringLiteral("base_url")).toString().trimmed();
+    configuration.api_key = record.value(QStringLiteral("api_key")).toString().trimmed().toUtf8();
+    configuration.delete_api_key = record.value(QStringLiteral("delete_api_key")).toString().trimmed().toUtf8();
+    const QString transport = record.value(QStringLiteral("transport")).toObject()
+        .value(QStringLiteral("type")).toString(QStringLiteral("direct"));
+    if (transport != QStringLiteral("direct"))
+    {
+        // No tunnel support for the map client yet: never fall back to a
+        // direct connection for a record that asks for something else.
+        qCritical() << "Map server connection uses an unsupported transport; the map server is disabled";
+        configuration.base_url.clear();
+        return configuration;
+    }
     if (configuration.base_url.isEmpty())
-        qCritical() << "Missing map_server/base_url in map server client configuration:" << path;
-
-    if (settings.status() != QSettings::NoError)
-        qWarning() << "Failed to read map server client configuration:" << path;
+        qCritical() << "Stored map server connection has no base URL";
     else
-        qInfo() << "Loaded map server client configuration:" << path;
-
+        qInfo() << "Loaded map server connection:" << configuration.base_url;
     return configuration;
+}
+
+bool storeConfiguration(const MapServerClientConfiguration &configuration)
+{
+    QString error;
+    const std::optional<aowis::config::ObjectCollection> collection = openConnections(&error);
+    if (!collection.has_value())
+    {
+        qWarning() << "Unable to save the map server connection:" << error;
+        return false;
+    }
+    // One owner session: another GUI instance cannot create a second record
+    // between the lookup and the write.
+    aowis::config::Result<aowis::config::OwnerSession> session = collection->store().lock();
+    if (!session)
+    {
+        qWarning() << "Unable to save the map server connection:" << errorText(session.error());
+        return false;
+    }
+    const aowis::config::Result<aowis::config::ObjectSnapshot> snapshot = collection->readAll(session.value());
+    if (!snapshot)
+    {
+        qWarning() << "Unable to save the map server connection:" << errorText(snapshot.error());
+        return false;
+    }
+    const std::string payload = serializeConfiguration(configuration);
+    const aowis::config::StoredObject *stored = selectedRecord(snapshot.value());
+    if (stored != nullptr)
+    {
+        if (stored->json == payload) return true;
+        const aowis::config::Result<aowis::config::StoredObject> updated =
+            collection->update(session.value(), stored->info.id, payload, stored->info.revision);
+        if (!updated)
+        {
+            qWarning() << "Unable to save the map server connection:" << errorText(updated.error());
+            return false;
+        }
+        return true;
+    }
+    const aowis::config::Result<aowis::config::StoredObject> created = collection->create(session.value(), payload);
+    if (!created)
+    {
+        qWarning() << "Unable to save the map server connection:" << errorText(created.error());
+        return false;
+    }
+    return true;
 }
 #endif
 }
@@ -186,6 +244,11 @@ const MapServerClientConfiguration &mapServerClientConfiguration()
     return configuration;
 }
 
+MapServerClientConfiguration readMapServerClientConfiguration()
+{
+    return loadConfiguration();
+}
+
 bool saveMapServerClientConfiguration(const MapServerClientConfiguration &configuration)
 {
 #ifdef __EMSCRIPTEN__
@@ -193,24 +256,11 @@ bool saveMapServerClientConfiguration(const MapServerClientConfiguration &config
     // In WASM builds this configuration comes from
     // globalThis.aowisMapServerConfiguration, set by the hosting page
     // before the app loads -- it isn't something the in-app settings UI can
-    // meaningfully override, so there is nothing to persist here.
+    // meaningfully override, and API keys are never stored in the browser.
     qWarning() << "Map server configuration cannot be changed from within "
                   "the WASM build; it is set by the hosting page.";
     return false;
 #else
-    QSettings settings(guiConfigurationFilePath(), QSettings::IniFormat);
-    settings.setValue(QStringLiteral("map_server/base_url"), configuration.base_url.trimmed());
-    settings.setValue(QStringLiteral("map_server/api_key"),
-                      QString::fromUtf8(configuration.api_key).trimmed());
-    settings.setValue(QStringLiteral("map_server/delete_api_key"),
-                      QString::fromUtf8(configuration.delete_api_key).trimmed());
-    settings.sync();
-    if (settings.status() != QSettings::NoError)
-    {
-        qWarning() << "Failed to save map server client configuration:"
-                   << guiConfigurationFilePath();
-        return false;
-    }
-    return true;
+    return storeConfiguration(configuration);
 #endif
 }

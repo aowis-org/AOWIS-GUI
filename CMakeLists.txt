@@ -971,6 +971,25 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-project-server-profile-storage-tests)
     set_tests_properties(aowis-project-server-profile-storage PROPERTIES LABELS "aowis")
 
+    # Map-server connection in AOWIS-CONFIG; former INI section removed.
+    add_executable(aowis-map-server-client-configuration-tests
+        tests/map_server_client_configuration_test.cpp
+        src/config/map_server_client_configuration.cpp
+        src/config/map_server_client_configuration.h
+        src/config/project_server_profile_storage.cpp
+        src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
+        src/config/gui_configuration.cpp)
+    target_include_directories(aowis-map-server-client-configuration-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-server-client-configuration-tests PRIVATE
+        Qt6::Widgets aowis::config)
+    add_test(NAME aowis-map-server-client-configuration
+        COMMAND aowis-map-server-client-configuration-tests)
+    set_tests_properties(aowis-map-server-client-configuration PROPERTIES
+        LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     # VC-03: personal repository is selected in the Projects Server Inspector.
     # UUIDs are discovered and pinned automatically; no separate settings page.
     add_executable(aowis-personal-repository-settings-tests
