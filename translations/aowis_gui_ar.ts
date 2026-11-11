@@ -8348,11 +8348,7 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>Tunnel</source>
       <translation>النفق</translation>
     </message>
-    <message>
-      <source>Active services</source>
-      <translation>الخدمات النشطة</translation>
-    </message>
-    <message>
+<message>
       <source>Traffic</source>
       <translation>حركة البيانات</translation>
     </message>
@@ -8368,19 +8364,11 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>Endpoint</source>
       <translation>نقطة الاتصال</translation>
     </message>
-    <message>
-      <source>Peer endpoint</source>
-      <translation>نقطة اتصال النظير</translation>
-    </message>
-    <message>
+<message>
       <source>Last handshake</source>
       <translation>آخر مصافحة</translation>
     </message>
-    <message>
-      <source>Received</source>
-      <translation>مستقبَل</translation>
-    </message>
-    <message>
+<message>
       <source>Sent</source>
       <translation>مرسَل</translation>
     </message>
@@ -8392,11 +8380,7 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>Service usage unavailable</source>
       <translation>استخدام الخدمات غير متاح</translation>
     </message>
-    <message>
-      <source>Status unavailable</source>
-      <translation>الحالة غير متاحة</translation>
-    </message>
-    <message>
+<message>
       <source>Stopped</source>
       <translation>متوقف</translation>
     </message>
@@ -8424,15 +8408,7 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source> (draft)</source>
       <translation> (مسودة)</translation>
     </message>
-    <message>
-      <source>Latest status reported by the WireGuard runtime.</source>
-      <translation>آخر حالة أبلغ عنها محرّك WireGuard.</translation>
-    </message>
-    <message>
-      <source>Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page.</source>
-      <translation>مراقبة النفق المباشرة غير متصلة بعد. لم تبدأ هذه الصفحة أي نفق WireGuard.</translation>
-    </message>
-    <message>
+<message>
       <source>Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged.</source>
       <translation>مراجع الخدمات غير مرتبطة بعد بالمدير المركزي للملفات. الاتصالات القائمة على مسارات الملفات لم تتغير.</translation>
     </message>
@@ -8507,6 +8483,46 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Each [Peer] section requires a PublicKey.</source>
       <translation>يتطلب كل قسم [Peer] مفتاح PublicKey.</translation>
+    </message>
+      <message>
+      <source>Active tunnels</source>
+      <translation>الأنفاق النشطة</translation>
+    </message>
+      <message>
+      <source>Not started</source>
+      <translation>لم يبدأ</translation>
+    </message>
+      <message>
+      <source>No tunnel has been started for this profile.</source>
+      <translation>لم يتم بدء أي نفق لهذا الملف الشخصي.</translation>
+    </message>
+      <message>
+      <source>No tunnel is currently running for this profile.</source>
+      <translation>لا يوجد أي نفق قيد التشغيل لهذا الملف الشخصي.</translation>
+    </message>
+      <message>
+      <source>A WireGuard tunnel is starting. Peer reachability is not yet confirmed.</source>
+      <translation>جارٍ بدء نفق WireGuard. لم يتم التأكد بعد من إمكانية الوصول إلى النظير.</translation>
+    </message>
+      <message>
+      <source>An HTTP response was received through WireGuard.</source>
+      <translation>تم تلقي استجابة HTTP عبر WireGuard.</translation>
+    </message>
+      <message>
+      <source>The local WireGuard tunnel is running. Peer reachability is not yet confirmed.</source>
+      <translation>نفق WireGuard المحلي قيد التشغيل. لم يتم التأكد بعد من إمكانية الوصول إلى النظير.</translation>
+    </message>
+      <message>
+      <source>The last WireGuard tunnel attempt failed.</source>
+      <translation>فشلت آخر محاولة لبدء نفق WireGuard.</translation>
+    </message>
+      <message>
+      <source>Not exposed by the embedded WireGuard runtime</source>
+      <translation>غير متاح من مشغّل WireGuard المدمج</translation>
+    </message>
+      <message>
+      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
+      <translation>لا يوفر مشغّل WireGuard المدمج معلومات المصافحة مع النظراء أو عدادات نقل البيانات.</translation>
     </message>
   </context>
 </TS>

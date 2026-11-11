@@ -8296,11 +8296,7 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>Tunnel</source>
       <translation>Tunnel</translation>
     </message>
-    <message>
-      <source>Active services</source>
-      <translation>Services actifs</translation>
-    </message>
-    <message>
+<message>
       <source>Traffic</source>
       <translation>Trafic</translation>
     </message>
@@ -8316,19 +8312,11 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>Endpoint</source>
       <translation>Point d’accès</translation>
     </message>
-    <message>
-      <source>Peer endpoint</source>
-      <translation>Point d’accès du pair</translation>
-    </message>
-    <message>
+<message>
       <source>Last handshake</source>
       <translation>Dernière poignée de main</translation>
     </message>
-    <message>
-      <source>Received</source>
-      <translation>Reçu</translation>
-    </message>
-    <message>
+<message>
       <source>Sent</source>
       <translation>Envoyé</translation>
     </message>
@@ -8340,11 +8328,7 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>Service usage unavailable</source>
       <translation>Utilisation non disponible</translation>
     </message>
-    <message>
-      <source>Status unavailable</source>
-      <translation>État non disponible</translation>
-    </message>
-    <message>
+<message>
       <source>Stopped</source>
       <translation>Arrêté</translation>
     </message>
@@ -8372,15 +8356,7 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source> (draft)</source>
       <translation> (brouillon)</translation>
     </message>
-    <message>
-      <source>Latest status reported by the WireGuard runtime.</source>
-      <translation>Dernier état signalé par le moteur WireGuard.</translation>
-    </message>
-    <message>
-      <source>Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page.</source>
-      <translation>Le suivi du tunnel n’est pas encore connecté. Cette page n’a démarré aucun tunnel WireGuard.</translation>
-    </message>
-    <message>
+<message>
       <source>Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged.</source>
       <translation>Les références des services ne sont pas encore reliées aux profils centraux. Les connexions par chemin de fichier restent inchangées.</translation>
     </message>
@@ -8455,6 +8431,46 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Each [Peer] section requires a PublicKey.</source>
       <translation>Chaque section [Peer] doit contenir une PublicKey.</translation>
+    </message>
+      <message>
+      <source>Active tunnels</source>
+      <translation>Tunnels actifs</translation>
+    </message>
+      <message>
+      <source>Not started</source>
+      <translation>Non démarré</translation>
+    </message>
+      <message>
+      <source>No tunnel has been started for this profile.</source>
+      <translation>Aucun tunnel n’a été démarré pour ce profil.</translation>
+    </message>
+      <message>
+      <source>No tunnel is currently running for this profile.</source>
+      <translation>Aucun tunnel ne fonctionne actuellement pour ce profil.</translation>
+    </message>
+      <message>
+      <source>A WireGuard tunnel is starting. Peer reachability is not yet confirmed.</source>
+      <translation>Un tunnel WireGuard démarre. L’accessibilité du pair n’est pas encore confirmée.</translation>
+    </message>
+      <message>
+      <source>An HTTP response was received through WireGuard.</source>
+      <translation>Une réponse HTTP a été reçue via WireGuard.</translation>
+    </message>
+      <message>
+      <source>The local WireGuard tunnel is running. Peer reachability is not yet confirmed.</source>
+      <translation>Le tunnel WireGuard local fonctionne. L’accessibilité du pair n’est pas encore confirmée.</translation>
+    </message>
+      <message>
+      <source>The last WireGuard tunnel attempt failed.</source>
+      <translation>La dernière tentative de démarrage du tunnel WireGuard a échoué.</translation>
+    </message>
+      <message>
+      <source>Not exposed by the embedded WireGuard runtime</source>
+      <translation>Non fourni par le moteur WireGuard intégré</translation>
+    </message>
+      <message>
+      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
+      <translation>Le moteur WireGuard intégré ne fournit ni les échanges de clés des pairs ni les compteurs de transfert.</translation>
     </message>
   </context>
 </TS>

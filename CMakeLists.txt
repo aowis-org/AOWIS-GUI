@@ -328,6 +328,8 @@ qt_add_executable(aowis-server-gui
 
 
     # Network
+    src/network/wireguard_runtime_status.cpp
+    src/network/wireguard_runtime_status.h
     src/network/hydraulic_data.cpp
     src/network/hydraulic_data.h
     src/network/hydraulic_edit_transaction_capture.cpp
@@ -867,6 +869,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-project-source-writer-tests
         tests/project_source_writer_test.cpp
         src/projects/repository_probe.cpp
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h)
     target_include_directories(aowis-project-source-writer-tests PRIVATE
@@ -881,6 +885,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-project-source-writer-live-dvmdb-tests
         tests/project_source_writer_live_dvmdb_test.cpp
         src/projects/repository_probe.cpp
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h)
     target_include_directories(aowis-project-source-writer-live-dvmdb-tests PRIVATE
@@ -935,6 +941,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         tests/wireguard_vpn_settings_test.cpp
         src/settings/wireguard_vpn_settings_widget.cpp
         src/settings/wireguard_vpn_settings_widget.h
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/config/wireguard_profile_storage.cpp
         src/config/wireguard_profile_storage.h
         src/config/project_server_profile_storage.cpp
@@ -1034,6 +1042,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-projects-inspector-dock-tests
         tests/projects_inspector_dock_test.cpp
         src/projects/repository_probe.cpp
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/tabs/tab_projects_widget.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
@@ -1077,6 +1087,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_executable(aowis-projects-multi-source-tests
         tests/projects_multi_source_test.cpp
         src/projects/repository_probe.cpp
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
         src/tabs/tab_projects_widget.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
@@ -1829,6 +1841,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     if(TARGET AOWIS::NetworkQt)
         add_executable(aowis-repository-probe-tests
             tests/repository_probe_test.cpp src/projects/repository_probe.cpp
+            src/network/wireguard_runtime_status.cpp src/network/wireguard_runtime_status.h
             src/config/gui_config_store.cpp src/config/gui_config_store.h
             src/config/wireguard_profile_storage.cpp src/config/wireguard_profile_storage.h)
         target_include_directories(aowis-repository-probe-tests PRIVATE src)

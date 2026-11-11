@@ -37,34 +37,11 @@ public:
         QString endpoint;
     };
 
-    struct PeerStatus
-    {
-        QString endpoint;
-        QString last_handshake; // Already formatted by the runtime adapter
-        quint64 received_bytes = 0;
-        quint64 sent_bytes = 0;
-    };
-
-    struct TunnelStatus
-    {
-        enum class State { Unknown, Stopped, Starting, Running, Error };
-        State state = State::Unknown;
-        int active_consumers = -1; // -1: not reported, not zero
-        quint64 received_bytes = 0;
-        quint64 sent_bytes = 0;
-        QString error;
-        QList<PeerStatus> peers;
-    };
-
     explicit WireGuardVpnSettingsWidget(QWidget *parent = nullptr);
 
     // Reloads profiles and their connection references from storage; also
     // done whenever the page is shown. Unsaved drafts and edits are kept.
     void refreshFromStorage();
-
-    // A future tunnel runtime adapter supplies status keyed by profile ID.
-    // No connection state is fabricated by this settings page.
-    void setTunnelStatus(const QString &profile_id, const TunnelStatus &status);
 
     QStringList profileIds() const;
     QString profileIdForName(const QString &name) const;
@@ -91,7 +68,6 @@ private:
 
     QList<Profile> profiles;
     QHash<QString, QList<ServiceReference>> references;
-    QHash<QString, TunnelStatus> runtime;
     QString selected_id;
     int unreadable_profiles = 0;
     bool selecting = false;
@@ -122,7 +98,7 @@ private:
     QLabel *active_consumers = nullptr;
     QLabel *traffic = nullptr;
     QLabel *tunnel_error = nullptr;
-    QTreeWidget *peers_table = nullptr;
+    QLabel *peer_telemetry_notice = nullptr;
 
     Profile *findProfile(const QString &id);
     const Profile *findProfile(const QString &id) const;

@@ -1,7 +1,9 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 
+#include "config/connection_wireguard_references.h"
 #include "config/project_server_profile_storage.h"
 #include "config/wireguard_profile_storage.h"
+#include "network/wireguard_runtime_status.h"
 
 #include <aowis/config/object_id.h>
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
@@ -197,14 +199,6 @@ QLabel *wrappedLabel(QWidget *parent)
     return label;
 }
 
-QString prettyBytes(quint64 bytes)
-{
-    if (bytes < 1024) return QObject::tr("%1 B").arg(static_cast<qulonglong>(bytes));
-    if (bytes < 1024 * 1024) return QObject::tr("%1 KiB").arg(bytes / 1024.0, 0, 'f', 1);
-    if (bytes < 1024ULL * 1024ULL * 1024ULL)
-        return QObject::tr("%1 MiB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
-    return QObject::tr("%1 GiB").arg(bytes / (1024.0 * 1024.0 * 1024.0), 0, 'f', 1);
-}
 }
 
 WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
@@ -333,6 +327,7 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     QWidget *status_tab = new QWidget(this->detail_tabs);
     QVBoxLayout *status_layout = new QVBoxLayout(status_tab);
     this->status_info = wrappedLabel(status_tab);
+    this->status_info->setObjectName(QStringLiteral("wireguardVpnStatusInfo"));
     status_layout->addWidget(this->status_info);
     QFormLayout *status_fields = new QFormLayout();
     this->tunnel_state = wrappedLabel(status_tab);
@@ -353,12 +348,10 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     status_fields->addRow(traffic_caption, this->traffic);
     status_layout->addLayout(status_fields);
     status_layout->addWidget(this->tunnel_error);
-    this->peers_table = new QTreeWidget(status_tab);
-    this->peers_table->setObjectName(QStringLiteral("wireguardVpnPeers"));
-    this->peers_table->setRootIsDecorated(false);
-    this->peers_table->setColumnCount(4);
-    this->peers_table->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    status_layout->addWidget(this->peers_table, 1);
+    this->peer_telemetry_notice = wrappedLabel(status_tab);
+    this->peer_telemetry_notice->setObjectName(QStringLiteral("wireguardVpnPeerTelemetryNotice"));
+    status_layout->addWidget(this->peer_telemetry_notice);
+    status_layout->addStretch();
     this->detail_tabs->addTab(status_tab, QString());
 
     splitter->addWidget(list_panel);
@@ -382,6 +375,12 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     connect(this->configuration_edit, &QPlainTextEdit::textChanged, this, [this] { refreshControls(); });
     connect(this->usage_table, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem *item, int) {
         if (item != nullptr) emit serviceActivated(item->data(0, Qt::UserRole).toString());
+    });
+    connect(&WireGuardRuntimeStatus::instance(), &WireGuardRuntimeStatus::statusChanged,
+            this, [this](const QString &profile_id) {
+        if (findProfile(profile_id) == nullptr) return;
+        this->refreshProfileList();
+        if (this->selected_id == profile_id) this->refreshStatus();
     });
     this->retranslate();
     this->refreshFromStorage();
@@ -588,7 +587,6 @@ bool WireGuardVpnSettingsWidget::leaveCurrentProfile()
             }
         }
         this->references.remove(id);
-        this->runtime.remove(id);
     }
     return true;
 }
@@ -633,17 +631,15 @@ void WireGuardVpnSettingsWidget::refreshProfileList()
                 : count == 1 ? tr("Used by 1 connection")
                              : tr("Used by %1 connections").arg(static_cast<qlonglong>(count));
         }
-        QString state_text = tr("Status unavailable");
-        if (this->runtime.contains(profile.id))
+        QString state_text;
+        const WireGuardRuntimeStatus::Snapshot runtime = WireGuardRuntimeStatus::instance().snapshot(profile.id);
+        switch (runtime.state)
         {
-            switch (this->runtime.value(profile.id).state)
-            {
-                case TunnelStatus::State::Stopped: state_text = tr("Stopped"); break;
-                case TunnelStatus::State::Starting: state_text = tr("Starting"); break;
-                case TunnelStatus::State::Running: state_text = tr("Running"); break;
-                case TunnelStatus::State::Error: state_text = tr("Error"); break;
-                case TunnelStatus::State::Unknown: break;
-            }
+            case WireGuardRuntimeStatus::State::NotStarted: state_text = tr("Not started"); break;
+            case WireGuardRuntimeStatus::State::Stopped: state_text = tr("Stopped"); break;
+            case WireGuardRuntimeStatus::State::Starting: state_text = tr("Starting"); break;
+            case WireGuardRuntimeStatus::State::Running: state_text = tr("Running"); break;
+            case WireGuardRuntimeStatus::State::Error: state_text = tr("Error"); break;
         }
         QListWidgetItem *item = new QListWidgetItem(
             QStringLiteral("%1%2\n%3 · %4")
@@ -898,7 +894,6 @@ void WireGuardVpnSettingsWidget::deleteProfile()
         this->refreshFromStorage();
         return;
     }
-    this->runtime.remove(id_text);
     this->selected_id.clear();
     this->refreshFromStorage();
     this->loadSelection();
@@ -942,14 +937,6 @@ void WireGuardVpnSettingsWidget::removeDamagedProfiles()
     this->refreshFromStorage();
 }
 
-void WireGuardVpnSettingsWidget::setTunnelStatus(const QString &profile_id, const TunnelStatus &status)
-{
-    if (findProfile(profile_id) == nullptr) return;
-    this->runtime.insert(profile_id, status);
-    this->refreshProfileList();
-    if (this->selected_id == profile_id) this->refreshStatus();
-}
-
 void WireGuardVpnSettingsWidget::refreshUsage()
 {
     this->usage_table->clear();
@@ -976,33 +963,40 @@ void WireGuardVpnSettingsWidget::refreshUsage()
 
 void WireGuardVpnSettingsWidget::refreshStatus()
 {
-    this->peers_table->clear();
-    this->tunnel_error->clear();
-    if (!this->runtime.contains(this->selected_id))
-    {
-        this->status_info->setText(tr("Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page."));
-        this->tunnel_state->setText(tr("Unavailable"));
-        this->active_consumers->setText(tr("Unavailable"));
-        this->traffic->setText(tr("Unavailable"));
-        return;
-    }
-    this->status_info->setText(tr("Latest status reported by the WireGuard runtime."));
-    const TunnelStatus status = this->runtime.value(this->selected_id);
+    const WireGuardRuntimeStatus::Snapshot status =
+        WireGuardRuntimeStatus::instance().snapshot(this->selected_id);
+    this->tunnel_error->setText(status.last_error);
+    this->active_consumers->setText(QString::number(status.running_tunnels));
+    // The embedded runtime does not currently expose interface counters or
+    // peer handshake timestamps. Never display invented zero-byte statistics.
+    this->traffic->setText(tr("Not exposed by the embedded WireGuard runtime"));
+    this->peer_telemetry_notice->setText(
+        tr("Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime."));
     switch (status.state)
     {
-        case TunnelStatus::State::Unknown: this->tunnel_state->setText(tr("Unknown")); break;
-        case TunnelStatus::State::Stopped: this->tunnel_state->setText(tr("Stopped")); break;
-        case TunnelStatus::State::Starting: this->tunnel_state->setText(tr("Starting")); break;
-        case TunnelStatus::State::Running: this->tunnel_state->setText(tr("Running")); break;
-        case TunnelStatus::State::Error: this->tunnel_state->setText(tr("Error")); break;
+        case WireGuardRuntimeStatus::State::NotStarted:
+            this->tunnel_state->setText(tr("Not started"));
+            this->status_info->setText(tr("No tunnel has been started for this profile."));
+            break;
+        case WireGuardRuntimeStatus::State::Stopped:
+            this->tunnel_state->setText(tr("Stopped"));
+            this->status_info->setText(tr("No tunnel is currently running for this profile."));
+            break;
+        case WireGuardRuntimeStatus::State::Starting:
+            this->tunnel_state->setText(tr("Starting"));
+            this->status_info->setText(tr("A WireGuard tunnel is starting. Peer reachability is not yet confirmed."));
+            break;
+        case WireGuardRuntimeStatus::State::Running:
+            this->tunnel_state->setText(tr("Running"));
+            this->status_info->setText(status.http_reachable_tunnels > 0
+                ? tr("An HTTP response was received through WireGuard.")
+                : tr("The local WireGuard tunnel is running. Peer reachability is not yet confirmed."));
+            break;
+        case WireGuardRuntimeStatus::State::Error:
+            this->tunnel_state->setText(tr("Error"));
+            this->status_info->setText(tr("The last WireGuard tunnel attempt failed."));
+            break;
     }
-    this->active_consumers->setText(status.active_consumers < 0 ? tr("Unavailable")
-        : QString::number(status.active_consumers));
-    this->traffic->setText(tr("Received %1 / Sent %2").arg(prettyBytes(status.received_bytes), prettyBytes(status.sent_bytes)));
-    this->tunnel_error->setText(status.error);
-    for (const PeerStatus &peer : status.peers)
-        new QTreeWidgetItem(this->peers_table,
-            {peer.endpoint, peer.last_handshake, prettyBytes(peer.received_bytes), prettyBytes(peer.sent_bytes)});
 }
 
 void WireGuardVpnSettingsWidget::retranslate()
@@ -1024,10 +1018,9 @@ void WireGuardVpnSettingsWidget::retranslate()
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnDescriptionCaption"))->setText(tr("Description"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnEditorCaption"))->setText(tr("WireGuard .conf (private keys are visible while editing)"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnStateCaption"))->setText(tr("Tunnel"));
-    this->findChild<QLabel *>(QStringLiteral("wireguardVpnConsumersCaption"))->setText(tr("Active services"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnConsumersCaption"))->setText(tr("Active tunnels"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnTrafficCaption"))->setText(tr("Traffic"));
     this->usage_table->setHeaderLabels({tr("Service"), tr("Type"), tr("Endpoint")});
-    this->peers_table->setHeaderLabels({tr("Peer endpoint"), tr("Last handshake"), tr("Received"), tr("Sent")});
     this->refreshProfileList();
     this->refreshUsage();
     this->refreshStatus();

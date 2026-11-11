@@ -8296,11 +8296,7 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>Tunnel</source>
       <translation>Tunnel</translation>
     </message>
-    <message>
-      <source>Active services</source>
-      <translation>Aktive Dienste</translation>
-    </message>
-    <message>
+<message>
       <source>Traffic</source>
       <translation>Datenverkehr</translation>
     </message>
@@ -8316,19 +8312,11 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>Endpoint</source>
       <translation>Endpunkt</translation>
     </message>
-    <message>
-      <source>Peer endpoint</source>
-      <translation>Peer-Endpunkt</translation>
-    </message>
-    <message>
+<message>
       <source>Last handshake</source>
       <translation>Letzter Handshake</translation>
     </message>
-    <message>
-      <source>Received</source>
-      <translation>Empfangen</translation>
-    </message>
-    <message>
+<message>
       <source>Sent</source>
       <translation>Gesendet</translation>
     </message>
@@ -8340,11 +8328,7 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>Service usage unavailable</source>
       <translation>Dienstnutzung nicht verfügbar</translation>
     </message>
-    <message>
-      <source>Status unavailable</source>
-      <translation>Status nicht verfügbar</translation>
-    </message>
-    <message>
+<message>
       <source>Stopped</source>
       <translation>Gestoppt</translation>
     </message>
@@ -8372,15 +8356,7 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source> (draft)</source>
       <translation> (Entwurf)</translation>
     </message>
-    <message>
-      <source>Latest status reported by the WireGuard runtime.</source>
-      <translation>Letzter vom WireGuard-Laufzeitsystem gemeldeter Status.</translation>
-    </message>
-    <message>
-      <source>Live tunnel monitoring is not connected yet. No WireGuard tunnel has been started by this page.</source>
-      <translation>Die Tunnelüberwachung ist noch nicht angebunden. Diese Seite hat keinen WireGuard-Tunnel gestartet.</translation>
-    </message>
-    <message>
+<message>
       <source>Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged.</source>
       <translation>Dienstreferenzen sind noch nicht an die zentrale Profilverwaltung angebunden. Bestehende dateipfadbasierte Verbindungen bleiben unverändert.</translation>
     </message>
@@ -8455,6 +8431,46 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Each [Peer] section requires a PublicKey.</source>
       <translation>Jeder [Peer]-Abschnitt benötigt einen PublicKey.</translation>
+    </message>
+      <message>
+      <source>Active tunnels</source>
+      <translation>Aktive Tunnel</translation>
+    </message>
+      <message>
+      <source>Not started</source>
+      <translation>Nicht gestartet</translation>
+    </message>
+      <message>
+      <source>No tunnel has been started for this profile.</source>
+      <translation>Für dieses Profil wurde noch kein Tunnel gestartet.</translation>
+    </message>
+      <message>
+      <source>No tunnel is currently running for this profile.</source>
+      <translation>Für dieses Profil läuft derzeit kein Tunnel.</translation>
+    </message>
+      <message>
+      <source>A WireGuard tunnel is starting. Peer reachability is not yet confirmed.</source>
+      <translation>Ein WireGuard-Tunnel wird gestartet. Die Erreichbarkeit des Peers ist noch nicht bestätigt.</translation>
+    </message>
+      <message>
+      <source>An HTTP response was received through WireGuard.</source>
+      <translation>Eine HTTP-Antwort wurde über WireGuard empfangen.</translation>
+    </message>
+      <message>
+      <source>The local WireGuard tunnel is running. Peer reachability is not yet confirmed.</source>
+      <translation>Der lokale WireGuard-Tunnel läuft. Die Erreichbarkeit des Peers ist noch nicht bestätigt.</translation>
+    </message>
+      <message>
+      <source>The last WireGuard tunnel attempt failed.</source>
+      <translation>Der letzte Versuch, den WireGuard-Tunnel zu starten, ist fehlgeschlagen.</translation>
+    </message>
+      <message>
+      <source>Not exposed by the embedded WireGuard runtime</source>
+      <translation>Nicht von der integrierten WireGuard-Laufzeit bereitgestellt</translation>
+    </message>
+      <message>
+      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
+      <translation>Die integrierte WireGuard-Laufzeit stellt keine Peer-Handshakes oder Übertragungszähler bereit.</translation>
     </message>
   </context>
 </TS>

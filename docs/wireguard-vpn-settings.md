@@ -39,9 +39,21 @@ text, including its private key. Files are private to the user account but
   reported above the list; **Remove damaged…** deletes them after
   confirmation, except records written by a newer AOWIS version or still
   referenced by a connection.
-- **Status** shows only what a tunnel runtime reports via
-  `setTunnelStatus(profile_id, snapshot)`; no adapter is connected yet, so it
-  shows **Unavailable** rather than a fabricated state.
+- **Status** observes `WireGuardRuntimeStatus`, a process-local registry
+  updated by `DvmdbConnection` as the AOWIS-NETWORK embedded engine starts,
+  runs, fails or stops. It updates immediately when connections change, even
+  when Settings is already open. Multiple connections using one profile are
+  counted as separate active tunnel instances; they are not pooled yet.
+- **Running** means the embedded engine and local SOCKS5 proxy are running;
+  it does **not** prove a WireGuard peer handshake. Once an actual DVMDB HTTP
+  response arrives through the tunnel the tab reports that a response was received;
+  that is evidence of past reachability, not a continuous connectivity check.
+  **Not started**, **Starting**, **Stopped**, and **Error** are separate states,
+  and the most recent tunnel startup error is shown without keys.
+- **Traffic counters and peer handshake timestamps** remain explicitly
+  unavailable: the current AOWIS-NETWORK `WireGuardClient` API does not expose
+  them. The UI must not fabricate zeros. `Active tunnels` means *live embedded
+  tunnel instances*, not number of configured service references.
 - On **WebAssembly** the navigation entry stays visible but disabled, with a
   tooltip: browsers cannot run the embedded UDP/TUN WireGuard client.
 
@@ -57,5 +69,6 @@ never falls back to direct HTTP; the selector shows it as **Missing profile**.
 `aowis-wireguard-vpn-settings-tests` (isolated `XDG_CONFIG_HOME`) checks
 highlighting, storing and reopening profiles, rename by stable ID, parser
 validation and warnings, revert, "Used by" from connection records, refused
-deletion while referenced, storage deletion, draft revert, and damaged-record
-removal.
+deletion while referenced, storage deletion, draft revert, damaged-record
+removal, and live status transitions (starting/running/HTTP confirmed/stopped/
+error/retry), including multiple consumers of one profile.

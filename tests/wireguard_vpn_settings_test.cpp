@@ -1,4 +1,5 @@
 #include "settings/wireguard_vpn_settings_widget.h"
+#include "network/wireguard_runtime_status.h"
 
 #include "config/project_server_profile_storage.h"
 #include "config/wireguard_profile_storage.h"
@@ -160,8 +161,9 @@ int main(int argc, char **argv)
                    "stored profile not shown by a new settings page")) return 1;
     }
     if (!check(list->item(0)->text().contains(QStringLiteral("Not used"))
-                   && list->item(0)->text().contains(QStringLiteral("Status unavailable")),
-               "GUI must show real usage and must not fabricate runtime status")) return 1;
+                   && list->item(0)->text().contains(QStringLiteral("Not started"))
+                   && state->text() == QStringLiteral("Not started"),
+               "Unstarted profile must not claim a running tunnel")) return 1;
 
     name->setText(QStringLiteral("Renamed office VPN"));
     save->click();
@@ -211,14 +213,44 @@ int main(int argc, char **argv)
                    && used_by->topLevelItem(0)->text(0) == QStringLiteral("Personal DVMDB"),
                "configured connection usage did not update")) return 1;
 
-    WireGuardVpnSettingsWidget::TunnelStatus tunnel;
-    tunnel.state = WireGuardVpnSettingsWidget::TunnelStatus::State::Running;
-    tunnel.active_consumers = 1;
-    tunnel.received_bytes = 4096;
-    tunnel.sent_bytes = 2048;
-    page.setTunnelStatus(id, tunnel);
+    // This is the same process-wide monitor used by DvmdbConnection.
+    // The widget must update automatically, without an injected GUI snapshot.
+    WireGuardRuntimeStatus &monitor = WireGuardRuntimeStatus::instance();
+    QObject source;
+    monitor.starting(id, &source);
+    if (!check(state->text() == QStringLiteral("Starting") && active->text() == QStringLiteral("0"),
+               "starting a real transport did not update the settings page")) return 1;
+    monitor.running(&source);
     if (!check(state->text() == QStringLiteral("Running") && active->text() == QStringLiteral("1"),
-               "runtime snapshot did not update status")) return 1;
+               "running transport did not update status")) return 1;
+    QLabel *info = page.findChild<QLabel *>(QStringLiteral("wireguardVpnStatusInfo"));
+    if (!check(info != nullptr && info->text().contains(QStringLiteral("not yet confirmed")),
+               "proxy startup incorrectly claimed peer reachability")) return 1;
+    monitor.httpReachable(&source);
+    if (!check(info->text().contains(QStringLiteral("An HTTP response was received")),
+               "successful HTTP transport did not update reachability")) return 1;
+    QObject second_source;
+    monitor.starting(id, &second_source);
+    monitor.running(&second_source);
+    if (!check(active->text() == QStringLiteral("2"),
+               "multiple active transports were not counted")) return 1;
+    monitor.stopped(&second_source);
+    if (!check(active->text() == QStringLiteral("1") && state->text() == QStringLiteral("Running"),
+               "stopping one transport incorrectly stopped the whole profile")) return 1;
+    monitor.stopped(&source);
+    if (!check(state->text() == QStringLiteral("Stopped") && active->text() == QStringLiteral("0"),
+               "last transport close did not stop the profile")) return 1;
+    monitor.starting(id, &source);
+    monitor.failed(&source, QStringLiteral("Simulated no-handshake error"));
+    if (!check(state->text() == QStringLiteral("Error")
+               && info->text().contains(QStringLiteral("failed")),
+               "failed runtime attempt did not produce an error state")) return 1;
+    monitor.starting(id, &source);
+    monitor.running(&source);
+    if (!check(state->text() == QStringLiteral("Running")
+               && monitor.snapshot(id).last_error.isEmpty(),
+               "successful retry retained a stale error")) return 1;
+    monitor.stopped(&source);
 
     // A referenced profile is never deleted.
     answerNextMessage(QMessageBox::Ok);

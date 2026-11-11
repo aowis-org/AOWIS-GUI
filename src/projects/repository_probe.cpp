@@ -1,4 +1,5 @@
 #include "projects/repository_probe.h"
+#include "network/wireguard_runtime_status.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -71,7 +72,16 @@ DvmdbConnection::DvmdbConnection(const QUrl &endpoint, const QString &wireguard_
     if (wireguard_profile_id.isEmpty()) this->direct = std::make_unique<QNetworkAccessManager>();
 }
 
-DvmdbConnection::~DvmdbConnection() = default;
+DvmdbConnection::~DvmdbConnection()
+{
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // The HTTP adapter must be gone before the tunnel is stopped. The runtime
+    // monitor observes the actual lifetime, never merely a saved reference.
+    this->http.reset();
+    this->tunnel.reset();
+    WireGuardRuntimeStatus::instance().stopped(this);
+#endif
+}
 
 void DvmdbConnection::open(std::function<void(const QString &)> finished)
 {
@@ -88,6 +98,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     }
     this->opening.append(std::move(finished));
     if (this->opening.size() > 1) return;
+    WireGuardRuntimeStatus::instance().starting(this->profile, this);
     QFutureWatcher<TunnelStart> *watcher = new QFutureWatcher<TunnelStart>(this);
     connect(watcher, &QFutureWatcher<TunnelStart>::finished, this, [this, watcher]() {
         const TunnelStart result = watcher->result();
@@ -98,12 +109,18 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
             std::unique_ptr<aowis::network::QtSocks5HttpClient> http =
                 std::make_unique<aowis::network::QtSocks5HttpClient>(result.tunnel->proxy(), this->endpoint);
             error = http->configurationError();
+            if (!http->isConfigured() && error.isEmpty())
+                error = QObject::tr("Unable to configure the WireGuard HTTP transport.");
             if (http->isConfigured())
             {
                 this->tunnel = result.tunnel;
                 this->http = std::move(http);
+                WireGuardRuntimeStatus::instance().running(this);
             }
         }
+        if (!result.tunnel && error.isEmpty())
+            error = QObject::tr("WireGuard tunnel failed to start.");
+        if (!error.isEmpty()) WireGuardRuntimeStatus::instance().failed(this, error);
         QList<std::function<void(const QString &)>> callbacks;
         callbacks.swap(this->opening);
         const QPointer<DvmdbConnection> alive(this);
@@ -115,7 +132,10 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     });
     watcher->setFuture(QtConcurrent::run(startTunnel, this->profile));
 #else
-    finished(QObject::tr("WireGuard is unavailable in this build."));
+    const QString error = QObject::tr("WireGuard is unavailable in this build.");
+    WireGuardRuntimeStatus::instance().starting(this->profile, this);
+    WireGuardRuntimeStatus::instance().failed(this, error);
+    finished(error);
 #endif
 }
 
@@ -123,7 +143,18 @@ QNetworkReply *DvmdbConnection::get(const QNetworkRequest &request)
 {
     if (this->direct) return this->direct->get(request);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    if (this->http) return this->http->get(request);
+    if (this->http)
+    {
+        QNetworkReply *reply = this->http->get(request);
+        if (reply != nullptr)
+            connect(reply, &QNetworkReply::finished, this, [this, reply] {
+                // A real HTTP response through the SOCKS5 transport confirms
+                // peer/service reachability, not merely local proxy startup.
+                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() >= 100)
+                    WireGuardRuntimeStatus::instance().httpReachable(this);
+            });
+        return reply;
+    }
 #endif
     return nullptr;
 }
@@ -141,8 +172,16 @@ QNetworkReply *DvmdbConnection::write(const QNetworkRequest &request, const QByt
                                 : this->direct->sendCustomRequest(request, method, body);
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
     if (this->http)
-        return method == "POST" ? this->http->post(request, body)
+    {
+        QNetworkReply *reply = method == "POST" ? this->http->post(request, body)
                                 : this->http->sendCustomRequest(request, method, body);
+        if (reply != nullptr)
+            connect(reply, &QNetworkReply::finished, this, [this, reply] {
+                if (reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() >= 100)
+                    WireGuardRuntimeStatus::instance().httpReachable(this);
+            });
+        return reply;
+    }
 #endif
     return nullptr;
 }
