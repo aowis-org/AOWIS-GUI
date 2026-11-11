@@ -19,12 +19,23 @@ public:
     virtual bool save(const UnitProfileSnapshot &snapshot) const = 0;
 };
 
-// Temporary legacy adapter; future database/API adapters implement the same interface.
-class QSettingsUnitProfileStorage final : public UnitProfileStorage {
+// Custom profiles are records of the GUI's AOWIS-CONFIG "unit-profiles"
+// collection (config/gui_config_store.h), one per profile:
+//   {"unit_profile_version":1, "profile_id", "name", "position",
+//    "overrides":{<unit field>:<unit>}}
+// overrides are stored exactly as the Model holds them (explicit canonical
+// choices included), so no marker fields are needed. Records of another
+// unit_profile_version, unreadable records and unknown fields are never
+// interpreted, modified or deleted by a save.
+//
+// The selection (active_id, legacy_active_name) is a preference and stays
+// in the INI at selection_ini_path until preferences move to AOWIS-CONFIG.
+// The former INI key units/custom_profiles is deleted on load, not migrated.
+class ConfigUnitProfileStorage final : public UnitProfileStorage {
 public:
-    explicit QSettingsUnitProfileStorage(QString path) : path_(std::move(path)) {}
+    explicit ConfigUnitProfileStorage(QString selection_ini_path) : selection_ini_path_(std::move(selection_ini_path)) {}
     [[nodiscard]] UnitProfileSnapshot load() const override;
     bool save(const UnitProfileSnapshot &snapshot) const override;
 private:
-    QString path_;
+    QString selection_ini_path_;
 };

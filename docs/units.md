@@ -15,8 +15,12 @@ contract, not something inferred from a GUI dropdown.
 The GUI provides built-in and custom **Unit Profiles** in the Units settings
 widget and an active-profile selector in the main toolbar. A profile maps
 quantity types (length, pressure, flow, energy and others) to display units.
-Custom profiles and the chosen personal display preference are stored as
-GUI settings; they are not hydraulic-network data.
+Custom profiles are stored as records of the `unit-profiles` collection in
+the GUI's AOWIS-CONFIG store (`~/.config/aowis/gui/unit-profiles/`,
+`%LOCALAPPDATA%\aowis\gui\unit-profiles\`, browser `localStorage`); the
+chosen profile is still a GUI INI preference until preferences move too.
+Neither is hydraulic-network data. Profiles from the former INI key
+`units/custom_profiles` are deleted on startup, not migrated.
 
 Profile changes notify visible unit-aware views. Hidden views defer the
 refresh until they are next shown instead of traversing and rebuilding

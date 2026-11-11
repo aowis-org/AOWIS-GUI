@@ -11,7 +11,8 @@
 #include <QUuid>
 
 // Qt adapter: a single Model-owned collection shared by Settings and the toolbar.
-// QSettings/JSON are exclusively an interim storage format here.
+// Custom profiles persist in AOWIS-CONFIG, the selection in the GUI INI
+// (config/unit_profile_storage.h).
 class UnitProfileManager {
 public:
     struct Profile {
@@ -143,7 +144,7 @@ private:
         snapshot.legacy_active_name = this->views_.at(this->activeIndex()).name;
         (void)this->storage_.save(snapshot);
     }
-    QSettingsUnitProfileStorage storage_;
+    ConfigUnitProfileStorage storage_;
     aowis::units::UnitProfileCollection collection_;
     QVector<Profile> views_;
     UnitPresentationContext presentation_;

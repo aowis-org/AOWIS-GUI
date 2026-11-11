@@ -1,44 +1,91 @@
 #include "config/unit_profile_storage.h"
+#include "config/gui_config_store.h"
 #include "config/unit_presentation_context.h"
 #include "config/unit_profile_notifications.h"
 #include "import/epanet_js_unit_profile.h"
 #include <aowis/model/units/conversion.h>
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QSettings>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <aowis/config/object_store.h>
 #include "unit_test_check.h"
 #include <cmath>
 #include <optional>
 #include <memory>
 
+namespace {
+int storedRecords(const aowis::config::ObjectCollection &collection)
+{
+    const aowis::config::Result<aowis::config::ObjectListing> listing = collection.list();
+    return listing ? static_cast<int>(listing.value().objects.size()) : -1;
+}
+}
+
 int main(int argc, char **argv)
 {
-    QCoreApplication application(argc, argv);
     QTemporaryDir directory;
     CHECK(directory.isValid());
+    // Isolates the GUI's AOWIS-CONFIG store; must precede QCoreApplication.
+    qputenv("XDG_CONFIG_HOME", directory.path().toUtf8());
+    QCoreApplication application(argc, argv);
     const QString path = directory.filePath(QStringLiteral("unit-profiles.ini"));
-    QSettingsUnitProfileStorage storage(path);
+
+    // The former INI list is deleted on load, not migrated; the selection
+    // keys stay in the INI.
+    {
+        QSettings settings(path, QSettings::IniFormat);
+        QJsonArray array;
+        array.append(QJsonObject{{QStringLiteral("name"), QStringLiteral("Legacy")},
+                                 {QStringLiteral("units"), QJsonObject{{QStringLiteral("pressure"), QStringLiteral("bar")}}}});
+        settings.setValue(QStringLiteral("units/custom_profiles"), QJsonDocument(array).toJson(QJsonDocument::Compact));
+        settings.setValue(QStringLiteral("units/selected_profile"), QStringLiteral("Legacy"));
+        settings.sync();
+    }
+    ConfigUnitProfileStorage storage(path);
+    const UnitProfileSnapshot legacy = storage.load();
+    CHECK(legacy.custom_profiles.empty());
+    CHECK(legacy.legacy_active_name == QStringLiteral("Legacy"));
+    CHECK(legacy.active_id.isEmpty());
+    CHECK(!QSettings(path, QSettings::IniFormat).contains(QStringLiteral("units/custom_profiles")));
+
+    const aowis::config::OwnerStore *store = guiConfigStore();
+    CHECK(store != nullptr);
+    const aowis::config::Result<aowis::config::ObjectCollection> records = store->collection("unit-profiles");
+    CHECK(records.hasValue());
+    CHECK(QFileInfo(directory.filePath(QStringLiteral("aowis/gui/unit-profiles"))).isDir());
+
     UnitProfileSnapshot first;
     first.active_id = QStringLiteral("profile-one");
     first.legacy_active_name = QStringLiteral("My units");
     first.custom_profiles.push_back({"profile-one", "My units", {{"pressure", "psi"}, {"link_diameter", "in"}}, false});
     CHECK(storage.save(first));
+    CHECK(storedRecords(records.value()) == 1);
     const UnitProfileSnapshot restored = storage.load();
     CHECK(restored.active_id == first.active_id);
     CHECK(restored.legacy_active_name == first.legacy_active_name);
     CHECK(restored.custom_profiles.size() == 1);
     CHECK(restored.custom_profiles[0].id == "profile-one");
-    // Legacy pressure preferences remain fallbacks, not new explicit head
-    // overrides introduced by the INI writer's full-unit representation.
+    // A pressure preference stays a fallback, not an explicit head override.
     CHECK(restored.custom_profiles[0].overrides == first.custom_profiles[0].overrides);
     CHECK(restored.custom_profiles[0].overrides.find("pressure_head")
           == restored.custom_profiles[0].overrides.end());
     CHECK(aowis::units::resolvedUnit(restored.custom_profiles[0], "pressure_head") == "psi");
+
+    // An unchanged save writes nothing.
+    const aowis::config::Result<aowis::config::ObjectListing> before = records.value().list();
+    CHECK(before.hasValue() && before.value().objects.size() == 1);
+    CHECK(storage.save(first));
+    const aowis::config::Result<aowis::config::ObjectListing> after = records.value().list();
+    CHECK(after.hasValue() && after.value().objects.size() == 1
+          && after.value().objects.front().revision == before.value().objects.front().revision);
+
     // An explicit metre choice must override that fallback even after a
     // storage round trip (its value is canonical, but its intent is not).
+    // Saving a different list replaces the old record.
     UnitProfileSnapshot explicit_head_snapshot;
     explicit_head_snapshot.active_id = QStringLiteral("explicit-pressure-head");
     aowis::units::UnitProfile explicit_head{"explicit-pressure-head", "Explicit pressure head", {}, false};
@@ -47,6 +94,7 @@ int main(int argc, char **argv)
     CHECK(aowis::units::resolvedUnit(explicit_head, "pressure_head") == "m");
     explicit_head_snapshot.custom_profiles.push_back(explicit_head);
     CHECK(storage.save(explicit_head_snapshot));
+    CHECK(storedRecords(records.value()) == 1);
     const UnitProfileSnapshot explicit_head_restored = storage.load();
     CHECK(explicit_head_restored.custom_profiles.size() == 1);
     CHECK(explicit_head_restored.custom_profiles.front().overrides == explicit_head.overrides);
@@ -67,23 +115,28 @@ int main(int argc, char **argv)
     CHECK(case_restored.custom_profiles.at(0).id == "case-upper");
     CHECK(case_restored.custom_profiles.at(1).id == "case-lower");
     CHECK(case_restored.custom_profiles.at(2).id == "builtin-different-case");
-    // Legacy JSON profiles have no IDs. The adapter assigns one during import.
-    {
-        QSettings settings(path, QSettings::IniFormat);
-        QJsonArray array;
-        array.append(QJsonObject{{QStringLiteral("name"), QStringLiteral("Legacy")},
-                                 {QStringLiteral("units"), QJsonObject{{QStringLiteral("pressure"), QStringLiteral("bar")}}}});
-        settings.setValue(QStringLiteral("units/custom_profiles"), QJsonDocument(array).toJson(QJsonDocument::Compact));
-        settings.remove(QStringLiteral("units/selected_profile_id"));
-        settings.setValue(QStringLiteral("units/selected_profile"), QStringLiteral("Legacy"));
-        settings.sync();
-    }
-    const UnitProfileSnapshot legacy = storage.load();
-    CHECK(legacy.custom_profiles.size() == 1);
-    CHECK(!legacy.custom_profiles[0].id.empty());
-    CHECK(legacy.custom_profiles[0].overrides.at("pressure") == "bar");
-    CHECK(legacy.legacy_active_name == QStringLiteral("Legacy"));
-    CHECK(legacy.active_id.isEmpty());
+
+    // Records of a newer format, unknown unit choices and unreadable records:
+    // never interpreted as profiles, never deleted by a save.
+    const aowis::config::Result<aowis::config::StoredObject> newer = records.value().create(
+        "{\"unit_profile_version\":2,\"profile_id\":\"newer\",\"name\":\"Newer\"}");
+    CHECK(newer.hasValue());
+    const aowis::config::Result<aowis::config::StoredObject> partial = records.value().create(
+        "{\"unit_profile_version\":1,\"profile_id\":\"partial\",\"name\":\"Partial\",\"position\":9,"
+        "\"overrides\":{\"pressure\":\"bar\",\"pressure_bogus\":\"x\",\"link_diameter\":\"furlong\"}}");
+    CHECK(partial.hasValue());
+    const UnitProfileSnapshot mixed = storage.load();
+    CHECK(mixed.custom_profiles.size() == 4);
+    CHECK(mixed.custom_profiles.back().id == "partial");
+    CHECK(mixed.custom_profiles.back().overrides.size() == 1);
+    CHECK(mixed.custom_profiles.back().overrides.at("pressure") == "bar");
+    UnitProfileSnapshot without_partial = mixed;
+    without_partial.custom_profiles.pop_back();
+    CHECK(storage.save(without_partial));
+    CHECK(records.value().read(newer.value().info.id).hasValue());
+    CHECK(!records.value().read(partial.value().info.id).hasValue());
+    CHECK(storage.load().custom_profiles.size() == 3);
+
     // Independent semantic choices must survive persistence even when the
     // explicit choice equals canonical and the inherited flow is noncanonical.
     UnitProfileSnapshot semantic_snapshot;
@@ -109,36 +162,24 @@ int main(int argc, char **argv)
                                       "tank_initial_level") == "ft");
     CHECK(aowis::units::resolvedUnit(semantic_reloaded.custom_profiles.front(),
                                       "tank_minimum_level") == "m");
-    // Legacy minimum-volume overrides survive profile import/storage, but the
-    // effective unit follows the general volume preference.
+    // Minimum-volume overrides survive storage, but the effective unit
+    // follows the general volume preference.
     CHECK(semantic_reloaded.custom_profiles.front().overrides.at("tank_minimum_volume") == "m3");
     CHECK(aowis::units::resolvedUnit(semantic_reloaded.custom_profiles.front(),
                                      "tank_minimum_volume") == "ft3");
-    // Profiles saved before Step 12d lack the new keys and inherit dynamically.
-    const QString legacy_json_path = directory.filePath(QStringLiteral("unit-profiles-legacy.ini"));
-    {
-        QSettings settings(legacy_json_path, QSettings::IniFormat);
-        const QJsonObject saved_units{{QStringLiteral("volumetric_flow_rate"),
-                                        QStringLiteral("L/s")},
-                                       {QStringLiteral("water_level"), QStringLiteral("ft")}};
-        const QJsonArray saved_profiles{QJsonObject{{QStringLiteral("name"),
-                                                      QStringLiteral("Pre-12d")},
-                                                     {QStringLiteral("units"), saved_units}}};
-        settings.setValue(QStringLiteral("units/custom_profiles"),
-                          QJsonDocument(saved_profiles).toJson(QJsonDocument::Compact));
-        settings.sync();
-    }
-    QSettingsUnitProfileStorage legacy_storage(legacy_json_path);
-    const UnitProfileSnapshot legacy_semantic = legacy_storage.load();
-    CHECK(legacy_semantic.custom_profiles.size() == 1);
-    CHECK(aowis::units::resolvedUnit(legacy_semantic.custom_profiles.front(),
+    // Profiles without the newer inherited keys inherit dynamically.
+    UnitProfileSnapshot inheriting_snapshot;
+    aowis::units::UnitProfile inheriting{"inheriting", "Inheriting", {}, false};
+    CHECK(aowis::units::setProfileUnit(inheriting, "volumetric_flow_rate", "L/s"));
+    CHECK(aowis::units::setProfileUnit(inheriting, "water_level", "ft"));
+    inheriting_snapshot.custom_profiles.push_back(inheriting);
+    CHECK(storage.save(inheriting_snapshot));
+    const UnitProfileSnapshot inheriting_reloaded = storage.load();
+    CHECK(inheriting_reloaded.custom_profiles.size() == 1);
+    CHECK(aowis::units::resolvedUnit(inheriting_reloaded.custom_profiles.front(),
                                       "base_demand_flow_rate") == "L/s");
-    CHECK(aowis::units::resolvedUnit(legacy_semantic.custom_profiles.front(),
+    CHECK(aowis::units::resolvedUnit(inheriting_reloaded.custom_profiles.front(),
                                       "tank_initial_level") == "ft");
-    CHECK(legacy_storage.save(legacy_semantic));
-    const UnitProfileSnapshot legacy_again = legacy_storage.load();
-    CHECK(aowis::units::resolvedUnit(legacy_again.custom_profiles.front(),
-                                      "base_demand_flow_rate") == "L/s");
     // Integration: source-unit preferences -> custom profile -> disk -> active
     // presentation -> repeated profile switches. None of these operations may
     // modify a measurement imported into the canonical hydraulic model.
@@ -192,8 +233,7 @@ int main(int argc, char **argv)
     CHECK(imported_profile.overrides.at("base_demand_flow_rate") == "m3/h");
     CHECK(imported_profile.overrides.at("tank_initial_level") == "m");
     CHECK(imported_profile.overrides.at("tank_minimum_volume") == "m3");
-    const QString import_path = directory.filePath(QStringLiteral("imported-unit-profile.ini"));
-    QSettingsUnitProfileStorage import_storage(import_path);
+    ConfigUnitProfileStorage &import_storage = storage;
     UnitProfileSnapshot imported_snapshot;
     imported_snapshot.active_id = QString::fromStdString(imported_profile.id);
     imported_snapshot.legacy_active_name = QString::fromStdString(imported_profile.name);
