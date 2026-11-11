@@ -1,6 +1,8 @@
 #include "projects/repository_probe.h"
 #include "network/wireguard_runtime_status.h"
 
+#include <QCoreApplication>
+#include <QHash>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -81,12 +83,66 @@ WireGuardRuntimeStatus::TelemetrySampler tunnelSampler(const std::shared_ptr<aow
         out.received_bytes = static_cast<quint64>(sample.receivedBytes);
         out.sent_bytes = static_cast<quint64>(sample.sentBytes);
         out.persistent_keepalive_seconds = static_cast<quint64>(sample.persistentKeepaliveSeconds);
-        out.active_connections = static_cast<quint64>(sample.activeProxyConnections);
-        out.accepted_connections = static_cast<quint64>(sample.acceptedProxyConnections);
+        out.open_relays = static_cast<quint64>(sample.activeProxyConnections);
+        out.accepted_relays = static_cast<quint64>(sample.acceptedProxyConnections);
         out.failed_dials = static_cast<quint64>(sample.failedProxyDials);
         out.peer_endpoint = QString::fromStdString(sample.peerEndpoint);
         return true;
     };
+}
+
+// One tunnel per WireGuard profile, shared by every DvmdbConnection using it.
+// Required for correctness, not just economy: two tunnels with the same
+// private key make the peer roam its endpoint to whichever handshook last,
+// so replies land in the other tunnel's netstack. Each consumer keeps its own
+// QtSocks5HttpClient over the shared proxy and holds a shared_ptr; the last
+// release stops the tunnel. Profile edits take effect when the tunnel is next
+// started, i.e. after every connection using it has closed. GUI thread only.
+struct SharedTunnel
+{
+    std::weak_ptr<aowis::network::WireGuardClient> tunnel;
+    bool starting = false;
+    QList<std::function<void(const TunnelStart &)>> waiters;
+};
+
+QHash<QString, SharedTunnel> &sharedTunnels()
+{
+    static QHash<QString, SharedTunnel> tunnels;
+    return tunnels;
+}
+
+void acquireSharedTunnel(const QString &profile_id, std::function<void(const TunnelStart &)> done)
+{
+    SharedTunnel &entry = sharedTunnels()[profile_id];
+    const std::shared_ptr<aowis::network::WireGuardClient> live = entry.tunnel.lock();
+    if (live && live->isRunning())
+    {
+        // Delivered from the event loop like a fresh start, so callers are
+        // never re-entered from inside open().
+        QTimer::singleShot(0, QCoreApplication::instance(), [live, done]() {
+            done({live, {}});
+        });
+        return;
+    }
+    entry.waiters.append(std::move(done));
+    if (entry.starting) return; // Join the start already in flight.
+    entry.starting = true;
+    QFutureWatcher<TunnelStart> *watcher = new QFutureWatcher<TunnelStart>();
+    QObject::connect(watcher, &QFutureWatcher<TunnelStart>::finished, watcher, [watcher, profile_id]() {
+        const TunnelStart result = watcher->result();
+        watcher->deleteLater();
+        QList<std::function<void(const TunnelStart &)>> waiters;
+        QHash<QString, SharedTunnel>::iterator it = sharedTunnels().find(profile_id);
+        if (it != sharedTunnels().end())
+        {
+            it->starting = false;
+            it->tunnel = result.tunnel; // Weak: alive only while a consumer holds it.
+            waiters.swap(it->waiters);
+        }
+        for (const std::function<void(const TunnelStart &)> &waiter : waiters) waiter(result);
+        // If no waiter kept the tunnel, `result` releases it here and it stops.
+    });
+    watcher->setFuture(QtConcurrent::run(startTunnel, profile_id));
 }
 #endif
 
@@ -108,7 +164,8 @@ DvmdbConnection::DvmdbConnection(const QUrl &endpoint, const QString &wireguard_
 DvmdbConnection::~DvmdbConnection()
 {
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-    // The HTTP adapter must be gone before the tunnel is stopped. The runtime
+    // The HTTP adapter must be gone before this consumer releases the shared
+    // tunnel (stopped only when its last consumer releases it). The runtime
     // monitor observes the actual lifetime, never merely a saved reference.
     this->http.reset();
     this->tunnel.reset();
@@ -132,38 +189,35 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     this->opening.append(std::move(finished));
     if (this->opening.size() > 1) return;
     WireGuardRuntimeStatus::instance().starting(this->profile, this, serviceLabel(this->endpoint));
-    QFutureWatcher<TunnelStart> *watcher = new QFutureWatcher<TunnelStart>(this);
-    connect(watcher, &QFutureWatcher<TunnelStart>::finished, this, [this, watcher]() {
-        const TunnelStart result = watcher->result();
-        watcher->deleteLater();
+    const QPointer<DvmdbConnection> self(this);
+    acquireSharedTunnel(this->profile, [self](const TunnelStart &result) {
+        if (!self) return; // Closed while the shared tunnel was starting.
         QString error = result.error;
         if (result.tunnel)
         {
             std::unique_ptr<aowis::network::QtSocks5HttpClient> http =
-                std::make_unique<aowis::network::QtSocks5HttpClient>(result.tunnel->proxy(), this->endpoint);
+                std::make_unique<aowis::network::QtSocks5HttpClient>(result.tunnel->proxy(), self->endpoint);
             error = http->configurationError();
             if (!http->isConfigured() && error.isEmpty())
                 error = QObject::tr("Unable to configure the WireGuard HTTP transport.");
             if (http->isConfigured())
             {
-                this->tunnel = result.tunnel;
-                this->http = std::move(http);
-                WireGuardRuntimeStatus::instance().running(this, tunnelSampler(this->tunnel));
+                self->tunnel = result.tunnel;
+                self->http = std::move(http);
+                WireGuardRuntimeStatus::instance().running(self, tunnelSampler(self->tunnel));
             }
         }
         if (!result.tunnel && error.isEmpty())
             error = QObject::tr("WireGuard tunnel failed to start.");
-        if (!error.isEmpty()) WireGuardRuntimeStatus::instance().failed(this, error);
+        if (!error.isEmpty()) WireGuardRuntimeStatus::instance().failed(self, error);
         QList<std::function<void(const QString &)>> callbacks;
-        callbacks.swap(this->opening);
-        const QPointer<DvmdbConnection> alive(this);
+        callbacks.swap(self->opening);
         for (const std::function<void(const QString &)> &callback : callbacks)
         {
-            if (!alive) break;
+            if (!self) break;
             callback(error);
         }
     });
-    watcher->setFuture(QtConcurrent::run(startTunnel, this->profile));
 #else
     const QString error = QObject::tr("WireGuard is unavailable in this build.");
     WireGuardRuntimeStatus::instance().starting(this->profile, this, serviceLabel(this->endpoint));

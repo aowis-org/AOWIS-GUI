@@ -26,10 +26,11 @@ class QTimer;
 // refused while any does, checked inside the same owner session as the
 // delete. With the embedded engine (AOWIS_GUI_WIREGUARD_PROBE) the text is
 // validated by AOWIS-NETWORK's parseWireGuardConf(), the parser tunnels use.
-// Never log profile text or keys. The Status tab shows lifecycle state and,
-// while visible and a tunnel runs, polls redacted engine telemetry once per
-// second (handshake age, encrypted traffic and throughput, peer endpoint,
-// keepalive, SOCKS5 relays) with plain-language health hints.
+// Never log profile text or keys. The Status tab shows the profile's single
+// shared tunnel: the connections using it now and, while visible and running,
+// redacted engine telemetry polled once per second (handshake age, encrypted
+// traffic and throughput, peer endpoint, keepalive, SOCKS5 relays) with
+// plain-language health hints.
 class WireGuardVpnSettingsWidget final : public QWidget
 {
     Q_OBJECT
@@ -112,20 +113,23 @@ private:
     QLabel *keepalive = nullptr;
     QLabel *uptime = nullptr;
     QLabel *relays = nullptr;
-    QTreeWidget *tunnel_table = nullptr;
     QTimer *telemetry_timer = nullptr;
 
-    // Throughput is derived from consecutive counter samples per tunnel ID.
+    // Throughput is derived from consecutive counter samples of one tunnel
+    // instance (profile + engine start time); anything else resets it.
     struct RateSample
     {
+        QString profile_id;
+        qint64 tunnel_started_ms = 0;
         qint64 sampled_ms = 0;  // telemetry_clock time of the counters below
         quint64 received = 0;
         quint64 sent = 0;
         double received_per_second = 0.0;
         double sent_per_second = 0.0;
+        bool has_counters = false;
         bool has_rate = false;
     };
-    QHash<quint64, RateSample> rate_samples;
+    RateSample rate_sample;
     QElapsedTimer telemetry_clock;
 
     Profile *findProfile(const QString &id);

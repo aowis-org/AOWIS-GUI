@@ -8316,10 +8316,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <source>Last handshake</source>
       <translation>Letzter Handshake</translation>
     </message>
-<message>
-      <source>Sent</source>
-      <translation>Gesendet</translation>
-    </message>
     <message>
       <source>New profile</source>
       <translation>Neues Profil</translation>
@@ -8343,10 +8339,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Error</source>
       <translation>Fehler</translation>
-    </message>
-    <message>
-      <source>Unavailable</source>
-      <translation>Nicht verfügbar</translation>
     </message>
     <message>
       <source>Unknown</source>
@@ -8433,10 +8425,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <translation>Jeder [Peer]-Abschnitt benötigt einen PublicKey.</translation>
     </message>
       <message>
-      <source>Active tunnels</source>
-      <translation>Aktive Tunnel</translation>
-    </message>
-      <message>
       <source>Not started</source>
       <translation>Nicht gestartet</translation>
     </message>
@@ -8483,18 +8471,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Relayed connections</source>
       <translation>Weitergeleitete Verbindungen</translation>
-    </message>
-    <message>
-      <source>Connection</source>
-      <translation>Verbindung</translation>
-    </message>
-    <message>
-      <source>Received</source>
-      <translation>Empfangen</translation>
-    </message>
-    <message>
-      <source>Connection %1</source>
-      <translation>Verbindung %1</translation>
     </message>
     <message>
       <source>Off</source>
@@ -8553,10 +8529,6 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <translation>Fehlgeschlagene Verbindungen durch den Tunnel: %1. Der Peer hat sie nicht zum Dienst weitergeleitet, oder der Dienst hat sie abgelehnt. Prüfen Sie AllowedIPs und die Dienstadresse.</translation>
     </message>
     <message>
-      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
-      <translation>Die integrierte WireGuard-Laufzeit hat nicht für jeden Tunnel Telemetrie geliefert.</translation>
-    </message>
-    <message>
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
@@ -8575,6 +8547,22 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>%1/s</source>
       <translation>%1/s</translation>
+    </message>
+    <message>
+      <source>Unnamed connection</source>
+      <translation>Unbenannte Verbindung</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Keine</translation>
+    </message>
+    <message>
+      <source>Used by now</source>
+      <translation>Derzeit verwendet von</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry.</source>
+      <translation>Die integrierte WireGuard-Laufzeit hat keine Telemetrie geliefert.</translation>
     </message>
   </context>
 </TS>

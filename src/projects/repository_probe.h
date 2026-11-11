@@ -24,7 +24,8 @@ struct RepositoryProbeResult
 // One transport per remote database. All Qt HTTP work uses the owning thread.
 // wireguard_profile_id empty: direct HTTP. Otherwise the ID of a stored
 // WireGuard profile (see config/wireguard_profile_storage.h); the tunnel
-// fails closed if that profile is missing or unusable.
+// fails closed if that profile is missing or unusable. Connections using the
+// same profile share one tunnel (one WireGuard peer session per key).
 class DvmdbConnection final : public QObject
 {
 public:

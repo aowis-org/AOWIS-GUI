@@ -1,6 +1,7 @@
 #include "network/wireguard_runtime_status.h"
 
 #include <algorithm>
+#include <QPair>
 #include <utility>
 
 WireGuardRuntimeStatus &WireGuardRuntimeStatus::instance()
@@ -14,9 +15,7 @@ void WireGuardRuntimeStatus::starting(const QString &profile_id, const QObject *
 {
     if (profile_id.isEmpty() || owner == nullptr) return;
     if (this->transports.contains(owner)) this->stopped(owner);
-    // A fresh ID per attempt: owners may be reused, and rate computation in
-    // the settings page must never mix counters of two different tunnels.
-    this->transports.insert(owner, {profile_id, State::Starting, false, ++this->next_tunnel_id, service, {}});
+    this->transports.insert(owner, {profile_id, State::Starting, false, ++this->next_sequence, service, {}});
     this->attempted.insert(profile_id);
     this->errors.remove(profile_id); // A new attempt supersedes an old error.
     emit this->statusChanged(profile_id);
@@ -69,37 +68,41 @@ WireGuardRuntimeStatus::Snapshot WireGuardRuntimeStatus::snapshot(const QString 
         if (it->profile_id != profile_id) continue;
         if (it->state == State::Running)
         {
-            ++result.running_tunnels;
-            if (it->http_reachable) ++result.http_reachable_tunnels;
+            ++result.active_connections;
+            if (it->http_reachable) ++result.http_reachable_connections;
         }
-        else if (it->state == State::Starting) ++result.starting_tunnels;
+        else if (it->state == State::Starting) ++result.starting_connections;
     }
-    if (result.running_tunnels > 0) result.state = State::Running;
-    else if (result.starting_tunnels > 0) result.state = State::Starting;
+    if (result.active_connections > 0) result.state = State::Running;
+    else if (result.starting_connections > 0) result.state = State::Starting;
     else if (this->errors.contains(profile_id)) result.state = State::Error;
     result.last_error = this->errors.value(profile_id);
     return result;
 }
 
-QList<WireGuardRuntimeStatus::TunnelTelemetry> WireGuardRuntimeStatus::telemetry(const QString &profile_id) const
+bool WireGuardRuntimeStatus::telemetry(const QString &profile_id, TunnelTelemetry &out) const
 {
-    QList<TunnelTelemetry> result;
     for (QHash<const QObject *, Transport>::const_iterator it = this->transports.cbegin();
          it != this->transports.cend(); ++it)
     {
-        if (it->profile_id != profile_id || it->state != State::Running) continue;
+        if (it->profile_id != profile_id || it->state != State::Running || !it->sampler) continue;
         TunnelTelemetry sample;
-        if (it->sampler) sample.available = it->sampler(sample);
-        if (!sample.available) sample = TunnelTelemetry(); // Never show partial engine data.
-        sample.tunnel_id = it->tunnel_id;
-        sample.service = it->service;
-        sample.http_reachable = it->http_reachable;
-        result.append(sample);
+        if (!it->sampler(sample)) continue;
+        out = sample; // Never expose a partially filled sample.
+        return true;
     }
-    // QHash order is arbitrary; keep rows stable in the order tunnels started.
-    std::sort(result.begin(), result.end(), [](const TunnelTelemetry &left, const TunnelTelemetry &right)
-    {
-        return left.tunnel_id < right.tunnel_id;
-    });
+    return false;
+}
+
+QStringList WireGuardRuntimeStatus::connections(const QString &profile_id) const
+{
+    QList<QPair<quint64, QString>> running;
+    for (QHash<const QObject *, Transport>::const_iterator it = this->transports.cbegin();
+         it != this->transports.cend(); ++it)
+        if (it->profile_id == profile_id && it->state == State::Running)
+            running.append({it->sequence, it->service});
+    std::sort(running.begin(), running.end());
+    QStringList result;
+    for (const QPair<quint64, QString> &entry : running) result.append(entry.second);
     return result;
 }

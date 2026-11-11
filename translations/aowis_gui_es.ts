@@ -8316,10 +8316,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <source>Last handshake</source>
       <translation>Último intercambio</translation>
     </message>
-<message>
-      <source>Sent</source>
-      <translation>Enviado</translation>
-    </message>
     <message>
       <source>New profile</source>
       <translation>Nuevo perfil</translation>
@@ -8343,10 +8339,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Error</source>
       <translation>Error</translation>
-    </message>
-    <message>
-      <source>Unavailable</source>
-      <translation>No disponible</translation>
     </message>
     <message>
       <source>Unknown</source>
@@ -8433,10 +8425,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <translation>Cada sección [Peer] requiere PublicKey.</translation>
     </message>
       <message>
-      <source>Active tunnels</source>
-      <translation>Túneles activos</translation>
-    </message>
-      <message>
       <source>Not started</source>
       <translation>Sin iniciar</translation>
     </message>
@@ -8483,18 +8471,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Relayed connections</source>
       <translation>Conexiones retransmitidas</translation>
-    </message>
-    <message>
-      <source>Connection</source>
-      <translation>Conexión</translation>
-    </message>
-    <message>
-      <source>Received</source>
-      <translation>Recibido</translation>
-    </message>
-    <message>
-      <source>Connection %1</source>
-      <translation>Conexión %1</translation>
     </message>
     <message>
       <source>Off</source>
@@ -8553,10 +8529,6 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <translation>Conexiones fallidas a través del túnel: %1. El par no las encaminó al servicio o el servicio las rechazó. Compruebe AllowedIPs y la dirección del servicio.</translation>
     </message>
     <message>
-      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
-      <translation>El motor WireGuard integrado no informó telemetría de todos los túneles.</translation>
-    </message>
-    <message>
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
@@ -8575,6 +8547,22 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>%1/s</source>
       <translation>%1/s</translation>
+    </message>
+    <message>
+      <source>Unnamed connection</source>
+      <translation>Conexión sin nombre</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Ninguna</translation>
+    </message>
+    <message>
+      <source>Used by now</source>
+      <translation>En uso por</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry.</source>
+      <translation>El motor WireGuard integrado no informó telemetría.</translation>
     </message>
   </context>
 </TS>

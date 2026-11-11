@@ -219,10 +219,10 @@ int main(int argc, char **argv)
     WireGuardRuntimeStatus &monitor = WireGuardRuntimeStatus::instance();
     QObject source;
     monitor.starting(id, &source);
-    if (!check(state->text() == QStringLiteral("Starting") && active->text() == QStringLiteral("0"),
+    if (!check(state->text() == QStringLiteral("Starting") && active->text() == QStringLiteral("None"),
                "starting a real transport did not update the settings page")) return 1;
     monitor.running(&source);
-    if (!check(state->text() == QStringLiteral("Running") && active->text() == QStringLiteral("1"),
+    if (!check(state->text() == QStringLiteral("Running") && active->text() == QStringLiteral("Unnamed connection"),
                "running transport did not update status")) return 1;
     QLabel *info = page.findChild<QLabel *>(QStringLiteral("wireguardVpnStatusInfo"));
     if (!check(info != nullptr && info->text().contains(QStringLiteral("not yet confirmed")),
@@ -231,15 +231,16 @@ int main(int argc, char **argv)
     if (!check(info->text().contains(QStringLiteral("An HTTP response was received")),
                "successful HTTP transport did not update reachability")) return 1;
     QObject second_source;
-    monitor.starting(id, &second_source);
+    monitor.starting(id, &second_source, QStringLiteral("http://second.example:8080"));
     monitor.running(&second_source);
-    if (!check(active->text() == QStringLiteral("2"),
-               "multiple active transports were not counted")) return 1;
+    if (!check(monitor.snapshot(id).active_connections == 2
+                   && active->text() == QStringLiteral("Unnamed connection\nhttp://second.example:8080"),
+               "connections sharing the tunnel were not listed")) return 1;
     monitor.stopped(&second_source);
-    if (!check(active->text() == QStringLiteral("1") && state->text() == QStringLiteral("Running"),
+    if (!check(monitor.snapshot(id).active_connections == 1 && state->text() == QStringLiteral("Running"),
                "stopping one transport incorrectly stopped the whole profile")) return 1;
     monitor.stopped(&source);
-    if (!check(state->text() == QStringLiteral("Stopped") && active->text() == QStringLiteral("0"),
+    if (!check(state->text() == QStringLiteral("Stopped") && active->text() == QStringLiteral("None"),
                "last transport close did not stop the profile")) return 1;
     monitor.starting(id, &source);
     monitor.failed(&source, QStringLiteral("Simulated no-handshake error"));
@@ -264,8 +265,8 @@ int main(int argc, char **argv)
         out.received_bytes = 2048;
         out.sent_bytes = 1024;
         out.persistent_keepalive_seconds = 25;
-        out.active_connections = 1;
-        out.accepted_connections = 3;
+        out.open_relays = 1;
+        out.accepted_relays = 3;
         out.failed_dials = 1;
         out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
         return true;
@@ -274,16 +275,34 @@ int main(int argc, char **argv)
     QLabel *peer = page.findChild<QLabel *>(QStringLiteral("wireguardVpnPeerEndpoint"));
     QLabel *relays = page.findChild<QLabel *>(QStringLiteral("wireguardVpnRelays"));
     QLabel *hints = page.findChild<QLabel *>(QStringLiteral("wireguardVpnPeerTelemetryNotice"));
-    QTreeWidget *tunnels = page.findChild<QTreeWidget *>(QStringLiteral("wireguardVpnTunnels"));
-    if (!check(handshake && peer && relays && hints && tunnels, "telemetry controls are missing")) return 1;
+    if (!check(handshake && peer && relays && hints, "telemetry controls are missing")) return 1;
     if (!check(handshake->text().endsWith(QStringLiteral("ago"))
                    && peer->text() == QStringLiteral("192.0.2.10:51820")
                    && relays->text().contains(QStringLiteral("3 total"))
-                   && tunnels->topLevelItemCount() == 1 && tunnels->isHidden()
-                   && tunnels->topLevelItem(0)->text(0) == QStringLiteral("http://dvmdb.example:8080")
+                   && active->text() == QStringLiteral("http://dvmdb.example:8080")
                    && info->text().contains(QStringLiteral("completed a handshake"))
                    && hints->text().contains(QStringLiteral("failed: 1")),
-               "sampled telemetry was not presented, or one tunnel duplicated the summary")) return 1;
+               "sampled telemetry was not presented")) return 1;
+    // A second connection on the same profile shares the tunnel: it is listed,
+    // and the telemetry still describes the one tunnel.
+    QObject sharing_source;
+    monitor.starting(id, &sharing_source, QStringLiteral("http://map.example:9090"));
+    monitor.running(&sharing_source, [sample_now](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
+    {
+        out.started_unix_ms = sample_now - 60000;
+        out.last_handshake_unix_ms = sample_now - 5000;
+        out.received_bytes = 2048;
+        out.sent_bytes = 1024;
+        out.accepted_relays = 3;
+        out.failed_dials = 1;
+        out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
+        return true;
+    });
+    if (!check(active->text() == QStringLiteral("http://dvmdb.example:8080\nhttp://map.example:9090")
+                   && relays->text().contains(QStringLiteral("3 total")),
+               "sharing connection was not listed, or telemetry was aggregated")) return 1;
+    monitor.stopped(&sharing_source);
+    monitor.stopped(&telemetry_source);
     QObject silent_source;
     monitor.starting(id, &silent_source);
     monitor.running(&silent_source, [sample_now](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
@@ -292,12 +311,10 @@ int main(int argc, char **argv)
         out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
         return true;
     });
-    if (!check(tunnels->topLevelItemCount() == 2 && !tunnels->isHidden()
-                   && hints->text().contains(QStringLiteral("No WireGuard handshake has completed")),
+    if (!check(hints->text().contains(QStringLiteral("No WireGuard handshake has completed")),
                "missing first handshake was not reported")) return 1;
     monitor.stopped(&silent_source);
-    monitor.stopped(&telemetry_source);
-    if (!check(handshake->text() == QStringLiteral("—") && tunnels->isHidden() && hints->isHidden(),
+    if (!check(handshake->text() == QStringLiteral("—") && hints->isHidden(),
                "stopped tunnels left stale telemetry on the page")) return 1;
 
     // A referenced profile is never deleted.

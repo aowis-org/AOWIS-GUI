@@ -8368,10 +8368,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>Last handshake</source>
       <translation>آخر مصافحة</translation>
     </message>
-<message>
-      <source>Sent</source>
-      <translation>مرسَل</translation>
-    </message>
     <message>
       <source>New profile</source>
       <translation>ملف جديد</translation>
@@ -8395,10 +8391,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Error</source>
       <translation>خطأ</translation>
-    </message>
-    <message>
-      <source>Unavailable</source>
-      <translation>غير متاح</translation>
     </message>
     <message>
       <source>Unknown</source>
@@ -8485,10 +8477,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <translation>يتطلب كل قسم [Peer] مفتاح PublicKey.</translation>
     </message>
       <message>
-      <source>Active tunnels</source>
-      <translation>الأنفاق النشطة</translation>
-    </message>
-      <message>
       <source>Not started</source>
       <translation>لم يبدأ</translation>
     </message>
@@ -8535,18 +8523,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Relayed connections</source>
       <translation>الاتصالات المُمرَّرة</translation>
-    </message>
-    <message>
-      <source>Connection</source>
-      <translation>الاتصال</translation>
-    </message>
-    <message>
-      <source>Received</source>
-      <translation>المستلم</translation>
-    </message>
-    <message>
-      <source>Connection %1</source>
-      <translation>الاتصال %1</translation>
     </message>
     <message>
       <source>Off</source>
@@ -8605,10 +8581,6 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <translation>الاتصالات الفاشلة عبر النفق: %1. لم يوجّهها النظير إلى الخدمة، أو رفضتها الخدمة. تحقّق من AllowedIPs وعنوان الخدمة.</translation>
     </message>
     <message>
-      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
-      <translation>لم يُبلغ محرك WireGuard المدمج عن بيانات القياس لكل الأنفاق.</translation>
-    </message>
-    <message>
       <source>%1 s</source>
       <translation>%1 ث</translation>
     </message>
@@ -8627,6 +8599,22 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>%1/s</source>
       <translation>%1/ث</translation>
+    </message>
+    <message>
+      <source>Unnamed connection</source>
+      <translation>اتصال بلا اسم</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>لا يوجد</translation>
+    </message>
+    <message>
+      <source>Used by now</source>
+      <translation>مستخدم حاليًا من قبل</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry.</source>
+      <translation>لم يُبلغ محرك WireGuard المدمج عن بيانات القياس.</translation>
     </message>
   </context>
 </TS>

@@ -8316,10 +8316,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <source>Last handshake</source>
       <translation>Dernière poignée de main</translation>
     </message>
-<message>
-      <source>Sent</source>
-      <translation>Envoyé</translation>
-    </message>
     <message>
       <source>New profile</source>
       <translation>Nouveau profil</translation>
@@ -8343,10 +8339,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Error</source>
       <translation>Erreur</translation>
-    </message>
-    <message>
-      <source>Unavailable</source>
-      <translation>Indisponible</translation>
     </message>
     <message>
       <source>Unknown</source>
@@ -8433,10 +8425,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <translation>Chaque section [Peer] doit contenir une PublicKey.</translation>
     </message>
       <message>
-      <source>Active tunnels</source>
-      <translation>Tunnels actifs</translation>
-    </message>
-      <message>
       <source>Not started</source>
       <translation>Non démarré</translation>
     </message>
@@ -8483,18 +8471,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Relayed connections</source>
       <translation>Connexions relayées</translation>
-    </message>
-    <message>
-      <source>Connection</source>
-      <translation>Connexion</translation>
-    </message>
-    <message>
-      <source>Received</source>
-      <translation>Reçu</translation>
-    </message>
-    <message>
-      <source>Connection %1</source>
-      <translation>Connexion %1</translation>
     </message>
     <message>
       <source>Off</source>
@@ -8553,10 +8529,6 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <translation>Connexions en échec à travers le tunnel : %1. Le pair ne les a pas acheminées vers le service, ou le service les a refusées. Vérifiez AllowedIPs et l’adresse du service.</translation>
     </message>
     <message>
-      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
-      <translation>Le moteur WireGuard intégré n’a pas fourni de télémétrie pour chaque tunnel.</translation>
-    </message>
-    <message>
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
@@ -8575,6 +8547,22 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>%1/s</source>
       <translation>%1/s</translation>
+    </message>
+    <message>
+      <source>Unnamed connection</source>
+      <translation>Connexion sans nom</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Aucune</translation>
+    </message>
+    <message>
+      <source>Used by now</source>
+      <translation>Utilisé actuellement par</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry.</source>
+      <translation>Le moteur WireGuard intégré n’a pas fourni de télémétrie.</translation>
     </message>
   </context>
 </TS>
