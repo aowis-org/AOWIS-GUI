@@ -1,5 +1,8 @@
 #include "network/wireguard_runtime_status.h"
 
+#include <algorithm>
+#include <utility>
+
 WireGuardRuntimeStatus &WireGuardRuntimeStatus::instance()
 {
     // No persistent storage, no network access, and no implicit tunnel start.
@@ -7,21 +10,24 @@ WireGuardRuntimeStatus &WireGuardRuntimeStatus::instance()
     return monitor;
 }
 
-void WireGuardRuntimeStatus::starting(const QString &profile_id, const QObject *owner)
+void WireGuardRuntimeStatus::starting(const QString &profile_id, const QObject *owner, const QString &service)
 {
     if (profile_id.isEmpty() || owner == nullptr) return;
     if (this->transports.contains(owner)) this->stopped(owner);
-    this->transports.insert(owner, {profile_id, State::Starting, false});
+    // A fresh ID per attempt: owners may be reused, and rate computation in
+    // the settings page must never mix counters of two different tunnels.
+    this->transports.insert(owner, {profile_id, State::Starting, false, ++this->next_tunnel_id, service, {}});
     this->attempted.insert(profile_id);
     this->errors.remove(profile_id); // A new attempt supersedes an old error.
     emit this->statusChanged(profile_id);
 }
 
-void WireGuardRuntimeStatus::running(const QObject *owner)
+void WireGuardRuntimeStatus::running(const QObject *owner, TelemetrySampler sampler)
 {
     QHash<const QObject *, Transport>::iterator it = this->transports.find(owner);
     if (it == this->transports.end()) return;
     it->state = State::Running;
+    it->sampler = std::move(sampler);
     emit this->statusChanged(it->profile_id);
 }
 
@@ -72,5 +78,28 @@ WireGuardRuntimeStatus::Snapshot WireGuardRuntimeStatus::snapshot(const QString 
     else if (result.starting_tunnels > 0) result.state = State::Starting;
     else if (this->errors.contains(profile_id)) result.state = State::Error;
     result.last_error = this->errors.value(profile_id);
+    return result;
+}
+
+QList<WireGuardRuntimeStatus::TunnelTelemetry> WireGuardRuntimeStatus::telemetry(const QString &profile_id) const
+{
+    QList<TunnelTelemetry> result;
+    for (QHash<const QObject *, Transport>::const_iterator it = this->transports.cbegin();
+         it != this->transports.cend(); ++it)
+    {
+        if (it->profile_id != profile_id || it->state != State::Running) continue;
+        TunnelTelemetry sample;
+        if (it->sampler) sample.available = it->sampler(sample);
+        if (!sample.available) sample = TunnelTelemetry(); // Never show partial engine data.
+        sample.tunnel_id = it->tunnel_id;
+        sample.service = it->service;
+        sample.http_reachable = it->http_reachable;
+        result.append(sample);
+    }
+    // QHash order is arbitrary; keep rows stable in the order tunnels started.
+    std::sort(result.begin(), result.end(), [](const TunnelTelemetry &left, const TunnelTelemetry &right)
+    {
+        return left.tunnel_id < right.tunnel_id;
+    });
     return result;
 }

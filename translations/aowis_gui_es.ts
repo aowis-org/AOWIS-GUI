@@ -8464,13 +8464,117 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>El último intento de iniciar el túnel WireGuard ha fallado.</translation>
     </message>
-      <message>
-      <source>Not exposed by the embedded WireGuard runtime</source>
-      <translation>No disponible en el motor WireGuard integrado</translation>
+    <message>
+      <source>Throughput</source>
+      <translation>Rendimiento</translation>
     </message>
-      <message>
-      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
-      <translation>El motor WireGuard integrado no proporciona los intercambios de claves con pares ni los contadores de transferencia.</translation>
+    <message>
+      <source>Peer endpoint</source>
+      <translation>Extremo del par</translation>
+    </message>
+    <message>
+      <source>Keepalive</source>
+      <translation>Keepalive</translation>
+    </message>
+    <message>
+      <source>Uptime</source>
+      <translation>Tiempo activo</translation>
+    </message>
+    <message>
+      <source>Relayed connections</source>
+      <translation>Conexiones retransmitidas</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>Conexión</translation>
+    </message>
+    <message>
+      <source>Received</source>
+      <translation>Recibido</translation>
+    </message>
+    <message>
+      <source>Connection %1</source>
+      <translation>Conexión %1</translation>
+    </message>
+    <message>
+      <source>Off</source>
+      <translation>Desactivado</translation>
+    </message>
+    <message>
+      <source>Every %1</source>
+      <translation>Cada %1</translation>
+    </message>
+    <message>
+      <source>%1 ago</source>
+      <translation>hace %1</translation>
+    </message>
+    <message>
+      <source>None yet</source>
+      <translation>Ninguno todavía</translation>
+    </message>
+    <message>
+      <source>%1 open · %2 total · %3 failed</source>
+      <translation>%1 abiertas · %2 en total · %3 fallidas</translation>
+    </message>
+    <message>
+      <source>%1 received · %2 sent</source>
+      <translation>%1 recibidos · %2 enviados</translation>
+    </message>
+    <message>
+      <source>%1 in · %2 out</source>
+      <translation>%1 entrada · %2 salida</translation>
+    </message>
+    <message>
+      <source>Measuring…</source>
+      <translation>Midiendo…</translation>
+    </message>
+    <message>
+      <source>The WireGuard peer completed a handshake. No HTTP response has been received through it yet.</source>
+      <translation>El par WireGuard completó un handshake. Todavía no se ha recibido ninguna respuesta HTTP a través de él.</translation>
+    </message>
+    <message>
+      <source>No WireGuard handshake has completed. Check the peer endpoint and both public keys, and that outgoing UDP to the peer is not blocked by a firewall.</source>
+      <translation>No se ha completado ningún handshake de WireGuard. Compruebe el extremo del par y ambas claves públicas, y que ningún cortafuegos bloquee el UDP saliente hacia el par.</translation>
+    </message>
+    <message>
+      <source>Waiting for the first WireGuard handshake…</source>
+      <translation>Esperando el primer handshake de WireGuard…</translation>
+    </message>
+    <message>
+      <source>The last handshake is older than 3 minutes although keepalive is enabled. WireGuard renews sessions every 2 minutes, so the peer has probably become unreachable.</source>
+      <translation>El último handshake tiene más de 3 minutos aunque keepalive está activado. WireGuard renueva las sesiones cada 2 minutos, por lo que probablemente el par ya no es accesible.</translation>
+    </message>
+    <message>
+      <source>No recent handshake: keepalive is off, so WireGuard only renews the session while traffic flows. This is normal for an idle tunnel.</source>
+      <translation>Sin handshake reciente: keepalive está desactivado, por lo que WireGuard solo renueva la sesión mientras hay tráfico. Es normal en un túnel inactivo.</translation>
+    </message>
+    <message>
+      <source>Connections through the tunnel failed: %1. The peer did not route them to the service, or the service refused them. Check AllowedIPs and the service address.</source>
+      <translation>Conexiones fallidas a través del túnel: %1. El par no las encaminó al servicio o el servicio las rechazó. Compruebe AllowedIPs y la dirección del servicio.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
+      <translation>El motor WireGuard integrado no informó telemetría de todos los túneles.</translation>
+    </message>
+    <message>
+      <source>%1 s</source>
+      <translation>%1 s</translation>
+    </message>
+    <message>
+      <source>%1 min %2 s</source>
+      <translation>%1 min %2 s</translation>
+    </message>
+    <message>
+      <source>%1 h %2 min</source>
+      <translation>%1 h %2 min</translation>
+    </message>
+    <message>
+      <source>%1 d %2 h</source>
+      <translation>%1 d %2 h</translation>
+    </message>
+    <message>
+      <source>%1/s</source>
+      <translation>%1/s</translation>
     </message>
   </context>
 </TS>

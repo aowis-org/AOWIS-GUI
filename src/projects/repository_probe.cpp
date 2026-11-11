@@ -11,6 +11,7 @@
 #include "config/wireguard_profile_storage.h"
 
 #include <aowis/network/qt_http_client.h>
+#include <aowis/network/wireguard_client.h>
 #include <aowis/network/wireguard_conf.h>
 #include <QPointer>
 #include <QFutureWatcher>
@@ -63,7 +64,39 @@ TunnelStart startTunnel(const QString &profile_id)
         return {{}, QString::fromStdString(start_error)};
     return {tunnel, {}};
 }
+
+// Holds the tunnel weakly: the monitor must never extend a tunnel's lifetime
+// beyond its DvmdbConnection, which stops it on destruction.
+WireGuardRuntimeStatus::TelemetrySampler tunnelSampler(const std::shared_ptr<aowis::network::WireGuardClient> &tunnel)
+{
+    const std::weak_ptr<aowis::network::WireGuardClient> weak = tunnel;
+    return [weak](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
+    {
+        const std::shared_ptr<aowis::network::WireGuardClient> locked = weak.lock();
+        if (!locked) return false;
+        aowis::network::WireGuardTelemetry sample;
+        if (!locked->telemetry(&sample)) return false;
+        out.started_unix_ms = static_cast<qint64>(sample.startedUnixMs);
+        out.last_handshake_unix_ms = static_cast<qint64>(sample.lastHandshakeUnixMs);
+        out.received_bytes = static_cast<quint64>(sample.receivedBytes);
+        out.sent_bytes = static_cast<quint64>(sample.sentBytes);
+        out.persistent_keepalive_seconds = static_cast<quint64>(sample.persistentKeepaliveSeconds);
+        out.active_connections = static_cast<quint64>(sample.activeProxyConnections);
+        out.accepted_connections = static_cast<quint64>(sample.acceptedProxyConnections);
+        out.failed_dials = static_cast<quint64>(sample.failedProxyDials);
+        out.peer_endpoint = QString::fromStdString(sample.peerEndpoint);
+        return true;
+    };
+}
 #endif
+
+// Presentation label for the settings page: the DVMDB origin, no path,
+// query or credentials.
+QString serviceLabel(const QUrl &endpoint)
+{
+    return endpoint.adjusted(QUrl::RemoveUserInfo | QUrl::RemovePath | QUrl::RemoveQuery
+                             | QUrl::RemoveFragment).toString();
+}
 }
 
 DvmdbConnection::DvmdbConnection(const QUrl &endpoint, const QString &wireguard_profile_id, QObject *parent)
@@ -98,7 +131,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     }
     this->opening.append(std::move(finished));
     if (this->opening.size() > 1) return;
-    WireGuardRuntimeStatus::instance().starting(this->profile, this);
+    WireGuardRuntimeStatus::instance().starting(this->profile, this, serviceLabel(this->endpoint));
     QFutureWatcher<TunnelStart> *watcher = new QFutureWatcher<TunnelStart>(this);
     connect(watcher, &QFutureWatcher<TunnelStart>::finished, this, [this, watcher]() {
         const TunnelStart result = watcher->result();
@@ -115,7 +148,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
             {
                 this->tunnel = result.tunnel;
                 this->http = std::move(http);
-                WireGuardRuntimeStatus::instance().running(this);
+                WireGuardRuntimeStatus::instance().running(this, tunnelSampler(this->tunnel));
             }
         }
         if (!result.tunnel && error.isEmpty())
@@ -133,7 +166,7 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
     watcher->setFuture(QtConcurrent::run(startTunnel, this->profile));
 #else
     const QString error = QObject::tr("WireGuard is unavailable in this build.");
-    WireGuardRuntimeStatus::instance().starting(this->profile, this);
+    WireGuardRuntimeStatus::instance().starting(this->profile, this, serviceLabel(this->endpoint));
     WireGuardRuntimeStatus::instance().failed(this, error);
     finished(error);
 #endif

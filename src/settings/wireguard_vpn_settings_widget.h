@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QHash>
 #include <QList>
 #include <QString>
@@ -14,7 +15,9 @@ class QPushButton;
 class QTabWidget;
 class QTreeWidget;
 class QEvent;
+class QHideEvent;
 class QShowEvent;
+class QTimer;
 
 // Settings → WireGuard VPN. Profiles are the GUI's AOWIS-CONFIG WireGuard
 // records (config/wireguard_profile_storage.h): New and Import create
@@ -23,7 +26,10 @@ class QShowEvent;
 // refused while any does, checked inside the same owner session as the
 // delete. With the embedded engine (AOWIS_GUI_WIREGUARD_PROBE) the text is
 // validated by AOWIS-NETWORK's parseWireGuardConf(), the parser tunnels use.
-// Never log profile text or keys.
+// Never log profile text or keys. The Status tab shows lifecycle state and,
+// while visible and a tunnel runs, polls redacted engine telemetry once per
+// second (handshake age, encrypted traffic and throughput, peer endpoint,
+// keepalive, SOCKS5 relays) with plain-language health hints.
 class WireGuardVpnSettingsWidget final : public QWidget
 {
     Q_OBJECT
@@ -53,6 +59,7 @@ signals:
 protected:
     void changeEvent(QEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
@@ -98,7 +105,28 @@ private:
     QLabel *active_consumers = nullptr;
     QLabel *traffic = nullptr;
     QLabel *tunnel_error = nullptr;
-    QLabel *peer_telemetry_notice = nullptr;
+    QLabel *peer_telemetry_notice = nullptr; // Health hints; hidden when there are none
+    QLabel *last_handshake = nullptr;
+    QLabel *throughput = nullptr;
+    QLabel *peer_endpoint = nullptr;
+    QLabel *keepalive = nullptr;
+    QLabel *uptime = nullptr;
+    QLabel *relays = nullptr;
+    QTreeWidget *tunnel_table = nullptr;
+    QTimer *telemetry_timer = nullptr;
+
+    // Throughput is derived from consecutive counter samples per tunnel ID.
+    struct RateSample
+    {
+        qint64 sampled_ms = 0;  // telemetry_clock time of the counters below
+        quint64 received = 0;
+        quint64 sent = 0;
+        double received_per_second = 0.0;
+        double sent_per_second = 0.0;
+        bool has_rate = false;
+    };
+    QHash<quint64, RateSample> rate_samples;
+    QElapsedTimer telemetry_clock;
 
     Profile *findProfile(const QString &id);
     const Profile *findProfile(const QString &id) const;
@@ -115,6 +143,10 @@ private:
     void refreshProfileList();
     void refreshUsage();
     void refreshStatus();
+    void refreshTelemetry(bool running);
+    QString durationText(qint64 seconds) const;
+    QString bytesText(quint64 bytes) const;
+    QString rateText(double bytes_per_second) const;
     void refreshControls();
     void retranslate();
     bool hasChanges() const;

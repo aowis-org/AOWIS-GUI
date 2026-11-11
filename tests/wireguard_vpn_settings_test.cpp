@@ -6,6 +6,7 @@
 #include "projects/dvmdb_identity.h"
 
 #include <QApplication>
+#include <QDateTime>
 #include <QAbstractButton>
 #include <QColor>
 #include <QEvent>
@@ -251,6 +252,53 @@ int main(int argc, char **argv)
                && monitor.snapshot(id).last_error.isEmpty(),
                "successful retry retained a stale error")) return 1;
     monitor.stopped(&source);
+
+    // Engine telemetry arrives through the sampler the transport registers.
+    const qint64 sample_now = QDateTime::currentMSecsSinceEpoch();
+    QObject telemetry_source;
+    monitor.starting(id, &telemetry_source, QStringLiteral("http://dvmdb.example:8080"));
+    monitor.running(&telemetry_source, [sample_now](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
+    {
+        out.started_unix_ms = sample_now - 60000;
+        out.last_handshake_unix_ms = sample_now - 5000;
+        out.received_bytes = 2048;
+        out.sent_bytes = 1024;
+        out.persistent_keepalive_seconds = 25;
+        out.active_connections = 1;
+        out.accepted_connections = 3;
+        out.failed_dials = 1;
+        out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
+        return true;
+    });
+    QLabel *handshake = page.findChild<QLabel *>(QStringLiteral("wireguardVpnLastHandshake"));
+    QLabel *peer = page.findChild<QLabel *>(QStringLiteral("wireguardVpnPeerEndpoint"));
+    QLabel *relays = page.findChild<QLabel *>(QStringLiteral("wireguardVpnRelays"));
+    QLabel *hints = page.findChild<QLabel *>(QStringLiteral("wireguardVpnPeerTelemetryNotice"));
+    QTreeWidget *tunnels = page.findChild<QTreeWidget *>(QStringLiteral("wireguardVpnTunnels"));
+    if (!check(handshake && peer && relays && hints && tunnels, "telemetry controls are missing")) return 1;
+    if (!check(handshake->text().endsWith(QStringLiteral("ago"))
+                   && peer->text() == QStringLiteral("192.0.2.10:51820")
+                   && relays->text().contains(QStringLiteral("3 total"))
+                   && tunnels->topLevelItemCount() == 1
+                   && tunnels->topLevelItem(0)->text(0) == QStringLiteral("http://dvmdb.example:8080")
+                   && info->text().contains(QStringLiteral("completed a handshake"))
+                   && hints->text().contains(QStringLiteral("failed: 1")),
+               "sampled telemetry was not presented")) return 1;
+    QObject silent_source;
+    monitor.starting(id, &silent_source);
+    monitor.running(&silent_source, [sample_now](WireGuardRuntimeStatus::TunnelTelemetry &out) -> bool
+    {
+        out.started_unix_ms = sample_now - 60000; // No handshake after a minute
+        out.peer_endpoint = QStringLiteral("192.0.2.10:51820");
+        return true;
+    });
+    if (!check(tunnels->topLevelItemCount() == 2
+                   && hints->text().contains(QStringLiteral("No WireGuard handshake has completed")),
+               "missing first handshake was not reported")) return 1;
+    monitor.stopped(&silent_source);
+    monitor.stopped(&telemetry_source);
+    if (!check(handshake->text() == QStringLiteral("—") && tunnels->isHidden() && hints->isHidden(),
+               "stopped tunnels left stale telemetry on the page")) return 1;
 
     // A referenced profile is never deleted.
     answerNextMessage(QMessageBox::Ok);

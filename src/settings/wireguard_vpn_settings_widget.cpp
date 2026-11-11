@@ -12,6 +12,7 @@
 
 #include <QAbstractItemView>
 #include <QColor>
+#include <QDateTime>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
@@ -20,8 +21,10 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QHideEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -34,16 +37,30 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabWidget>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QUuid>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
+#include <limits>
 #include <string>
 
 namespace
 {
 constexpr qint64 MaximumImportBytes = 128 * 1024;
+constexpr int TelemetryIntervalMs = 1000;
+// WireGuard protocol timers (whitepaper §6.1): sessions are renewed after
+// REKEY_AFTER_TIME (120 s) while packets flow and rejected after
+// REJECT_AFTER_TIME (180 s). With persistent keepalive there is always
+// traffic, so a handshake older than 180 s means renewal is failing.
+constexpr qint64 RejectAfterTimeSeconds = 180;
+// Initial handshake retries every ~5 s; three silent attempts is a real
+// problem rather than a cold start.
+constexpr qint64 FirstHandshakeGraceSeconds = 15;
+// Shorter windows make rates jump when status signals trigger extra refreshes.
+constexpr qint64 MinimumRateWindowMs = 500;
 
 
 // Pure Qt text formatting: no native networking, third-party editor, or
@@ -329,29 +346,53 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->status_info = wrappedLabel(status_tab);
     this->status_info->setObjectName(QStringLiteral("wireguardVpnStatusInfo"));
     status_layout->addWidget(this->status_info);
-    QFormLayout *status_fields = new QFormLayout();
-    this->tunnel_state = wrappedLabel(status_tab);
-    this->tunnel_state->setObjectName(QStringLiteral("wireguardVpnTunnelState"));
-    this->active_consumers = wrappedLabel(status_tab);
-    this->active_consumers->setObjectName(QStringLiteral("wireguardVpnActiveConsumers"));
-    this->traffic = wrappedLabel(status_tab);
-    this->traffic->setObjectName(QStringLiteral("wireguardVpnTraffic"));
-    this->tunnel_error = wrappedLabel(status_tab);
-    QLabel *state_caption = new QLabel(status_tab);
-    state_caption->setObjectName(QStringLiteral("wireguardVpnStateCaption"));
-    QLabel *consumers_caption = new QLabel(status_tab);
-    consumers_caption->setObjectName(QStringLiteral("wireguardVpnConsumersCaption"));
-    QLabel *traffic_caption = new QLabel(status_tab);
-    traffic_caption->setObjectName(QStringLiteral("wireguardVpnTrafficCaption"));
-    status_fields->addRow(state_caption, this->tunnel_state);
-    status_fields->addRow(consumers_caption, this->active_consumers);
-    status_fields->addRow(traffic_caption, this->traffic);
-    status_layout->addLayout(status_fields);
-    status_layout->addWidget(this->tunnel_error);
     this->peer_telemetry_notice = wrappedLabel(status_tab);
     this->peer_telemetry_notice->setObjectName(QStringLiteral("wireguardVpnPeerTelemetryNotice"));
+    this->peer_telemetry_notice->hide();
     status_layout->addWidget(this->peer_telemetry_notice);
+    QFormLayout *status_fields = new QFormLayout();
+    // Caption object names are resolved in retranslate().
+    const std::function<QLabel *(const QString &, const QString &)> addStatusRow =
+        [status_tab, status_fields](const QString &value_name, const QString &caption_name) -> QLabel *
+    {
+        QLabel *value = wrappedLabel(status_tab);
+        value->setObjectName(value_name);
+        value->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        QLabel *caption = new QLabel(status_tab);
+        caption->setObjectName(caption_name);
+        status_fields->addRow(caption, value);
+        return value;
+    };
+    this->tunnel_state = addStatusRow(QStringLiteral("wireguardVpnTunnelState"), QStringLiteral("wireguardVpnStateCaption"));
+    this->active_consumers = addStatusRow(QStringLiteral("wireguardVpnActiveConsumers"), QStringLiteral("wireguardVpnConsumersCaption"));
+    this->last_handshake = addStatusRow(QStringLiteral("wireguardVpnLastHandshake"), QStringLiteral("wireguardVpnHandshakeCaption"));
+    this->traffic = addStatusRow(QStringLiteral("wireguardVpnTraffic"), QStringLiteral("wireguardVpnTrafficCaption"));
+    this->throughput = addStatusRow(QStringLiteral("wireguardVpnThroughput"), QStringLiteral("wireguardVpnThroughputCaption"));
+    this->peer_endpoint = addStatusRow(QStringLiteral("wireguardVpnPeerEndpoint"), QStringLiteral("wireguardVpnPeerEndpointCaption"));
+    this->keepalive = addStatusRow(QStringLiteral("wireguardVpnKeepalive"), QStringLiteral("wireguardVpnKeepaliveCaption"));
+    this->uptime = addStatusRow(QStringLiteral("wireguardVpnUptime"), QStringLiteral("wireguardVpnUptimeCaption"));
+    this->relays = addStatusRow(QStringLiteral("wireguardVpnRelays"), QStringLiteral("wireguardVpnRelaysCaption"));
+    status_layout->addLayout(status_fields);
+    this->tunnel_error = wrappedLabel(status_tab);
+    status_layout->addWidget(this->tunnel_error);
+    // One row per running tunnel: several connections may share a profile,
+    // and each owns an independent tunnel with its own handshake state.
+    this->tunnel_table = new QTreeWidget(status_tab);
+    this->tunnel_table->setObjectName(QStringLiteral("wireguardVpnTunnels"));
+    this->tunnel_table->setRootIsDecorated(false);
+    this->tunnel_table->setAlternatingRowColors(true);
+    this->tunnel_table->setSelectionMode(QAbstractItemView::NoSelection);
+    this->tunnel_table->setColumnCount(6);
+    this->tunnel_table->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    for (int column = 1; column < 6; ++column)
+        this->tunnel_table->header()->setSectionResizeMode(column, QHeaderView::ResizeToContents);
+    this->tunnel_table->hide();
+    status_layout->addWidget(this->tunnel_table, 1);
     status_layout->addStretch();
+    this->telemetry_timer = new QTimer(this);
+    this->telemetry_timer->setInterval(TelemetryIntervalMs);
+    connect(this->telemetry_timer, &QTimer::timeout, this, [this] { refreshStatus(); });
+    this->telemetry_clock.start();
     this->detail_tabs->addTab(status_tab, QString());
 
     splitter->addWidget(list_panel);
@@ -476,6 +517,14 @@ void WireGuardVpnSettingsWidget::showEvent(QShowEvent *event)
     QWidget::showEvent(event);
     // Connections (Projects) and profiles (inspector import) change elsewhere.
     if (!event->spontaneous()) this->refreshFromStorage();
+    this->refreshStatus(); // (Re)starts telemetry polling when a tunnel runs.
+}
+
+void WireGuardVpnSettingsWidget::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    // Never poll the engine for a page nobody sees.
+    this->telemetry_timer->stop();
 }
 
 void WireGuardVpnSettingsWidget::reportStorageError(const QString &title, const QString &message)
@@ -966,12 +1015,8 @@ void WireGuardVpnSettingsWidget::refreshStatus()
     const WireGuardRuntimeStatus::Snapshot status =
         WireGuardRuntimeStatus::instance().snapshot(this->selected_id);
     this->tunnel_error->setText(status.last_error);
+    this->tunnel_error->setVisible(!status.last_error.isEmpty());
     this->active_consumers->setText(QString::number(status.running_tunnels));
-    // The embedded runtime does not currently expose interface counters or
-    // peer handshake timestamps. Never display invented zero-byte statistics.
-    this->traffic->setText(tr("Not exposed by the embedded WireGuard runtime"));
-    this->peer_telemetry_notice->setText(
-        tr("Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime."));
     switch (status.state)
     {
         case WireGuardRuntimeStatus::State::NotStarted:
@@ -997,6 +1042,205 @@ void WireGuardVpnSettingsWidget::refreshStatus()
             this->status_info->setText(tr("The last WireGuard tunnel attempt failed."));
             break;
     }
+    const bool running = status.state == WireGuardRuntimeStatus::State::Running;
+    this->refreshTelemetry(running);
+    if (running && this->isVisible())
+    {
+        if (!this->telemetry_timer->isActive()) this->telemetry_timer->start();
+    }
+    else this->telemetry_timer->stop();
+}
+
+void WireGuardVpnSettingsWidget::refreshTelemetry(bool running)
+{
+    const QString none = QStringLiteral("—");
+    const QList<WireGuardRuntimeStatus::TunnelTelemetry> tunnels = running
+        ? WireGuardRuntimeStatus::instance().telemetry(this->selected_id)
+        : QList<WireGuardRuntimeStatus::TunnelTelemetry>();
+    const qint64 now_ms = QDateTime::currentMSecsSinceEpoch();
+    const qint64 clock_ms = this->telemetry_clock.elapsed();
+
+    // Aggregate across tunnels: newest handshake, summed counters, oldest
+    // start. Health hints are evaluated per tunnel and de-duplicated.
+    qint64 newest_handshake_ms = 0;
+    qint64 oldest_start_ms = 0;
+    quint64 received = 0;
+    quint64 sent = 0;
+    double received_rate = 0.0;
+    double sent_rate = 0.0;
+    bool any_rate = false;
+    quint64 active = 0;
+    quint64 accepted = 0;
+    quint64 failed = 0;
+    int sampled = 0;
+    int unavailable = 0;
+    bool waiting_for_first_handshake = false;
+    bool no_first_handshake = false;
+    bool stale_with_keepalive = false;
+    bool idle_without_keepalive = false;
+    bool handshake_completed = false;
+    QStringList endpoints;
+    QStringList keepalive_texts;
+    QSet<quint64> live_ids;
+
+    this->tunnel_table->clear();
+    for (const WireGuardRuntimeStatus::TunnelTelemetry &tunnel : tunnels)
+    {
+        QTreeWidgetItem *row = new QTreeWidgetItem(this->tunnel_table);
+        row->setText(0, tunnel.service.isEmpty() ? tr("Connection %1").arg(tunnel.tunnel_id) : tunnel.service);
+        if (!tunnel.available)
+        {
+            ++unavailable;
+            row->setText(1, tr("Unavailable"));
+            continue;
+        }
+        ++sampled;
+        live_ids.insert(tunnel.tunnel_id);
+        const qint64 uptime_seconds = std::max<qint64>(0, (now_ms - tunnel.started_unix_ms) / 1000);
+        if (oldest_start_ms == 0 || tunnel.started_unix_ms < oldest_start_ms) oldest_start_ms = tunnel.started_unix_ms;
+        received += tunnel.received_bytes;
+        sent += tunnel.sent_bytes;
+        active += tunnel.active_connections;
+        accepted += tunnel.accepted_connections;
+        failed += tunnel.failed_dials;
+        if (!tunnel.peer_endpoint.isEmpty() && !endpoints.contains(tunnel.peer_endpoint))
+            endpoints.append(tunnel.peer_endpoint);
+        const QString keepalive_text = tunnel.persistent_keepalive_seconds == 0
+            ? tr("Off") : tr("Every %1").arg(this->durationText(static_cast<qint64>(tunnel.persistent_keepalive_seconds)));
+        if (!keepalive_texts.contains(keepalive_text)) keepalive_texts.append(keepalive_text);
+
+        // Throughput from the previous sample of the same tunnel ID.
+        QHash<quint64, RateSample>::iterator previous = this->rate_samples.find(tunnel.tunnel_id);
+        if (previous == this->rate_samples.end())
+            previous = this->rate_samples.insert(tunnel.tunnel_id, {clock_ms, tunnel.received_bytes, tunnel.sent_bytes, 0.0, 0.0, false});
+        else if (clock_ms - previous->sampled_ms >= MinimumRateWindowMs)
+        {
+            const double seconds = static_cast<double>(clock_ms - previous->sampled_ms) / 1000.0;
+            // Counters are monotonic for one tunnel; guard anyway.
+            previous->received_per_second = tunnel.received_bytes >= previous->received
+                ? static_cast<double>(tunnel.received_bytes - previous->received) / seconds : 0.0;
+            previous->sent_per_second = tunnel.sent_bytes >= previous->sent
+                ? static_cast<double>(tunnel.sent_bytes - previous->sent) / seconds : 0.0;
+            previous->received = tunnel.received_bytes;
+            previous->sent = tunnel.sent_bytes;
+            previous->sampled_ms = clock_ms;
+            previous->has_rate = true;
+        }
+        if (previous->has_rate)
+        {
+            any_rate = true;
+            received_rate += previous->received_per_second;
+            sent_rate += previous->sent_per_second;
+        }
+
+        QString handshake_cell;
+        if (tunnel.last_handshake_unix_ms > 0)
+        {
+            handshake_completed = true;
+            newest_handshake_ms = std::max(newest_handshake_ms, tunnel.last_handshake_unix_ms);
+            const qint64 age_seconds = std::max<qint64>(0, (now_ms - tunnel.last_handshake_unix_ms) / 1000);
+            handshake_cell = tr("%1 ago").arg(this->durationText(age_seconds));
+            if (age_seconds > RejectAfterTimeSeconds)
+            {
+                if (tunnel.persistent_keepalive_seconds > 0) stale_with_keepalive = true;
+                else idle_without_keepalive = true;
+            }
+        }
+        else
+        {
+            handshake_cell = tr("None yet");
+            if (uptime_seconds >= FirstHandshakeGraceSeconds) no_first_handshake = true;
+            else waiting_for_first_handshake = true;
+        }
+        row->setText(1, tunnel.peer_endpoint);
+        row->setText(2, handshake_cell);
+        row->setText(3, this->bytesText(tunnel.received_bytes));
+        row->setText(4, this->bytesText(tunnel.sent_bytes));
+        row->setText(5, tr("%1 open · %2 total · %3 failed")
+                            .arg(tunnel.active_connections).arg(tunnel.accepted_connections).arg(tunnel.failed_dials));
+        if (tunnel.last_handshake_unix_ms > 0)
+            row->setToolTip(2, this->locale().toString(QDateTime::fromMSecsSinceEpoch(tunnel.last_handshake_unix_ms),
+                                                       QLocale::LongFormat));
+    }
+    // Forget counters of tunnels that ended so a new tunnel never inherits them.
+    for (QHash<quint64, RateSample>::iterator it = this->rate_samples.begin(); it != this->rate_samples.end();)
+    {
+        if (live_ids.contains(it.key())) ++it;
+        else it = this->rate_samples.erase(it);
+    }
+    this->tunnel_table->setVisible(!tunnels.isEmpty());
+
+    if (sampled == 0)
+    {
+        for (QLabel *label : {this->last_handshake, this->traffic, this->throughput, this->peer_endpoint,
+                              this->keepalive, this->uptime, this->relays})
+            label->setText(none);
+        this->last_handshake->setToolTip(QString());
+    }
+    else
+    {
+        if (newest_handshake_ms > 0)
+        {
+            this->last_handshake->setText(tr("%1 ago").arg(this->durationText(
+                std::max<qint64>(0, (now_ms - newest_handshake_ms) / 1000))));
+            this->last_handshake->setToolTip(this->locale().toString(
+                QDateTime::fromMSecsSinceEpoch(newest_handshake_ms), QLocale::LongFormat));
+        }
+        else
+        {
+            this->last_handshake->setText(tr("None yet"));
+            this->last_handshake->setToolTip(QString());
+        }
+        this->traffic->setText(tr("%1 received · %2 sent").arg(this->bytesText(received), this->bytesText(sent)));
+        this->throughput->setText(any_rate
+            ? tr("%1 in · %2 out").arg(this->rateText(received_rate), this->rateText(sent_rate))
+            : tr("Measuring…"));
+        this->peer_endpoint->setText(endpoints.isEmpty() ? none : endpoints.join(QStringLiteral(", ")));
+        this->keepalive->setText(keepalive_texts.join(QStringLiteral(", ")));
+        this->uptime->setText(this->durationText(std::max<qint64>(0, (now_ms - oldest_start_ms) / 1000)));
+        this->relays->setText(tr("%1 open · %2 total · %3 failed").arg(active).arg(accepted).arg(failed));
+    }
+
+    // A completed handshake is cryptographic proof the peer is reachable and
+    // holds the matching keys; refine the lifecycle summary accordingly.
+    const WireGuardRuntimeStatus::Snapshot status =
+        WireGuardRuntimeStatus::instance().snapshot(this->selected_id);
+    if (running && status.http_reachable_tunnels == 0 && handshake_completed)
+        this->status_info->setText(tr("The WireGuard peer completed a handshake. No HTTP response has been received through it yet."));
+
+    QStringList hints;
+    if (no_first_handshake)
+        hints.append(tr("No WireGuard handshake has completed. Check the peer endpoint and both public keys, and that outgoing UDP to the peer is not blocked by a firewall."));
+    else if (waiting_for_first_handshake && !handshake_completed)
+        hints.append(tr("Waiting for the first WireGuard handshake…"));
+    if (stale_with_keepalive)
+        hints.append(tr("The last handshake is older than 3 minutes although keepalive is enabled. WireGuard renews sessions every 2 minutes, so the peer has probably become unreachable."));
+    if (idle_without_keepalive)
+        hints.append(tr("No recent handshake: keepalive is off, so WireGuard only renews the session while traffic flows. This is normal for an idle tunnel."));
+    if (failed > 0)
+        hints.append(tr("Connections through the tunnel failed: %1. The peer did not route them to the service, or the service refused them. Check AllowedIPs and the service address.").arg(failed));
+    if (unavailable > 0)
+        hints.append(tr("The embedded WireGuard engine did not report telemetry for every tunnel."));
+    this->peer_telemetry_notice->setText(hints.join(QStringLiteral("\n")));
+    this->peer_telemetry_notice->setVisible(!hints.isEmpty());
+}
+
+QString WireGuardVpnSettingsWidget::durationText(qint64 seconds) const
+{
+    if (seconds < 60) return tr("%1 s").arg(seconds);
+    if (seconds < 3600) return tr("%1 min %2 s").arg(seconds / 60).arg(seconds % 60);
+    if (seconds < 86400) return tr("%1 h %2 min").arg(seconds / 3600).arg((seconds % 3600) / 60);
+    return tr("%1 d %2 h").arg(seconds / 86400).arg((seconds % 86400) / 3600);
+}
+
+QString WireGuardVpnSettingsWidget::bytesText(quint64 bytes) const
+{
+    return this->locale().formattedDataSize(static_cast<qint64>(std::min<quint64>(bytes, static_cast<quint64>(std::numeric_limits<qint64>::max()))));
+}
+
+QString WireGuardVpnSettingsWidget::rateText(double bytes_per_second) const
+{
+    return tr("%1/s").arg(this->locale().formattedDataSize(static_cast<qint64>(bytes_per_second + 0.5)));
 }
 
 void WireGuardVpnSettingsWidget::retranslate()
@@ -1020,6 +1264,14 @@ void WireGuardVpnSettingsWidget::retranslate()
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnStateCaption"))->setText(tr("Tunnel"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnConsumersCaption"))->setText(tr("Active tunnels"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnTrafficCaption"))->setText(tr("Traffic"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnHandshakeCaption"))->setText(tr("Last handshake"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnThroughputCaption"))->setText(tr("Throughput"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnPeerEndpointCaption"))->setText(tr("Peer endpoint"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnKeepaliveCaption"))->setText(tr("Keepalive"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnUptimeCaption"))->setText(tr("Uptime"));
+    this->findChild<QLabel *>(QStringLiteral("wireguardVpnRelaysCaption"))->setText(tr("Relayed connections"));
+    this->tunnel_table->setHeaderLabels({tr("Connection"), tr("Peer endpoint"), tr("Last handshake"),
+                                         tr("Received"), tr("Sent"), tr("Relayed connections")});
     this->usage_table->setHeaderLabels({tr("Service"), tr("Type"), tr("Endpoint")});
     this->refreshProfileList();
     this->refreshUsage();

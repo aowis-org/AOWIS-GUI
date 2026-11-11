@@ -8516,13 +8516,117 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <source>The last WireGuard tunnel attempt failed.</source>
       <translation>فشلت آخر محاولة لبدء نفق WireGuard.</translation>
     </message>
-      <message>
-      <source>Not exposed by the embedded WireGuard runtime</source>
-      <translation>غير متاح من مشغّل WireGuard المدمج</translation>
+    <message>
+      <source>Throughput</source>
+      <translation>معدل النقل</translation>
     </message>
-      <message>
-      <source>Peer handshakes and transfer counters are not exposed by the embedded WireGuard runtime.</source>
-      <translation>لا يوفر مشغّل WireGuard المدمج معلومات المصافحة مع النظراء أو عدادات نقل البيانات.</translation>
+    <message>
+      <source>Peer endpoint</source>
+      <translation>نقطة نهاية النظير</translation>
+    </message>
+    <message>
+      <source>Keepalive</source>
+      <translation>الإبقاء على الاتصال</translation>
+    </message>
+    <message>
+      <source>Uptime</source>
+      <translation>مدة التشغيل</translation>
+    </message>
+    <message>
+      <source>Relayed connections</source>
+      <translation>الاتصالات المُمرَّرة</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>الاتصال</translation>
+    </message>
+    <message>
+      <source>Received</source>
+      <translation>المستلم</translation>
+    </message>
+    <message>
+      <source>Connection %1</source>
+      <translation>الاتصال %1</translation>
+    </message>
+    <message>
+      <source>Off</source>
+      <translation>متوقف</translation>
+    </message>
+    <message>
+      <source>Every %1</source>
+      <translation>كل %1</translation>
+    </message>
+    <message>
+      <source>%1 ago</source>
+      <translation>منذ %1</translation>
+    </message>
+    <message>
+      <source>None yet</source>
+      <translation>لا يوجد بعد</translation>
+    </message>
+    <message>
+      <source>%1 open · %2 total · %3 failed</source>
+      <translation>%1 مفتوحة · %2 إجمالًا · %3 فاشلة</translation>
+    </message>
+    <message>
+      <source>%1 received · %2 sent</source>
+      <translation>%1 مستلمة · %2 مرسلة</translation>
+    </message>
+    <message>
+      <source>%1 in · %2 out</source>
+      <translation>%1 وارد · %2 صادر</translation>
+    </message>
+    <message>
+      <source>Measuring…</source>
+      <translation>جارٍ القياس…</translation>
+    </message>
+    <message>
+      <source>The WireGuard peer completed a handshake. No HTTP response has been received through it yet.</source>
+      <translation>أكمل نظير WireGuard المصافحة. لم يتم استلام أي استجابة HTTP عبره بعد.</translation>
+    </message>
+    <message>
+      <source>No WireGuard handshake has completed. Check the peer endpoint and both public keys, and that outgoing UDP to the peer is not blocked by a firewall.</source>
+      <translation>لم تكتمل أي مصافحة WireGuard. تحقّق من نقطة نهاية النظير ومن كلا المفتاحين العامّين، وتأكّد من أن جدار الحماية لا يحظر حركة UDP الصادرة إلى النظير.</translation>
+    </message>
+    <message>
+      <source>Waiting for the first WireGuard handshake…</source>
+      <translation>بانتظار أول مصافحة WireGuard…</translation>
+    </message>
+    <message>
+      <source>The last handshake is older than 3 minutes although keepalive is enabled. WireGuard renews sessions every 2 minutes, so the peer has probably become unreachable.</source>
+      <translation>مضى على آخر مصافحة أكثر من 3 دقائق رغم تفعيل الإبقاء على الاتصال. يجدّد WireGuard الجلسات كل دقيقتين، لذا يُرجَّح أن النظير أصبح غير قابل للوصول.</translation>
+    </message>
+    <message>
+      <source>No recent handshake: keepalive is off, so WireGuard only renews the session while traffic flows. This is normal for an idle tunnel.</source>
+      <translation>لا توجد مصافحة حديثة: الإبقاء على الاتصال متوقف، لذا لا يجدّد WireGuard الجلسة إلا أثناء مرور البيانات. هذا طبيعي لنفق خامل.</translation>
+    </message>
+    <message>
+      <source>Connections through the tunnel failed: %1. The peer did not route them to the service, or the service refused them. Check AllowedIPs and the service address.</source>
+      <translation>الاتصالات الفاشلة عبر النفق: %1. لم يوجّهها النظير إلى الخدمة، أو رفضتها الخدمة. تحقّق من AllowedIPs وعنوان الخدمة.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard engine did not report telemetry for every tunnel.</source>
+      <translation>لم يُبلغ محرك WireGuard المدمج عن بيانات القياس لكل الأنفاق.</translation>
+    </message>
+    <message>
+      <source>%1 s</source>
+      <translation>%1 ث</translation>
+    </message>
+    <message>
+      <source>%1 min %2 s</source>
+      <translation>%1 د %2 ث</translation>
+    </message>
+    <message>
+      <source>%1 h %2 min</source>
+      <translation>%1 س %2 د</translation>
+    </message>
+    <message>
+      <source>%1 d %2 h</source>
+      <translation>%1 ي %2 س</translation>
+    </message>
+    <message>
+      <source>%1/s</source>
+      <translation>%1/ث</translation>
     </message>
   </context>
 </TS>
