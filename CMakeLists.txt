@@ -250,44 +250,60 @@ target_link_libraries(aowis-epanet-js-import
         Qt6::Sql
 )
 
-# Keep the .qm files embedded by translations.qrc synchronized with .ts.
-# Native Qt LinguistTools provides a host lrelease (also usable when cross-
-# compiling the GUI for WebAssembly). Without that tool, preserve the checked-
-# in catalogues and warn rather than unexpectedly breaking older Qt kits.
+# Translations: .ts sources are compiled to .qm in the build tree and embedded
+# as :/i18n/aowis_<domain>_<lang>.qm. Generated catalogues are never written to
+# or committed in the source tree. lrelease is a host tool: Qt's own target when
+# LinguistTools is in the kit, else any Qt 6 lrelease on the host (the .qm
+# format is stable across Qt 6), which also serves WebAssembly cross builds.
 find_package(Qt6 QUIET COMPONENTS LinguistTools)
 set(AOWIS_GUI_LRELEASE_COMMAND "")
 if(TARGET Qt6::lrelease)
     set(AOWIS_GUI_LRELEASE_COMMAND "$<TARGET_FILE:Qt6::lrelease>")
 else()
-    find_program(AOWIS_GUI_LRELEASE_EXECUTABLE NAMES lrelease6 lrelease-qt6 lrelease)
+    # NO_CMAKE_FIND_ROOT_PATH: cross toolchains (Emscripten) re-root program
+    # searches into the target sysroot, where no host tool exists.
+    find_program(AOWIS_GUI_LRELEASE_EXECUTABLE
+        NAMES lrelease6 lrelease-qt6 lrelease
+        HINTS /usr/lib/qt6/bin /usr/lib/qt6/libexec /usr/local/opt/qt/bin
+        NO_CMAKE_FIND_ROOT_PATH)
     if(AOWIS_GUI_LRELEASE_EXECUTABLE)
         set(AOWIS_GUI_LRELEASE_COMMAND "${AOWIS_GUI_LRELEASE_EXECUTABLE}")
     endif()
 endif()
-
-if(AOWIS_GUI_LRELEASE_COMMAND)
-    set(AOWIS_GUI_TRANSLATION_OUTPUTS "")
-    foreach(AOWIS_GUI_LANGUAGE fr ar de es)
-        foreach(AOWIS_GUI_TRANSLATION_DOMAIN gui render)
-            set(AOWIS_GUI_TS
-                "${CMAKE_CURRENT_SOURCE_DIR}/translations/aowis_${AOWIS_GUI_TRANSLATION_DOMAIN}_${AOWIS_GUI_LANGUAGE}.ts")
-            set(AOWIS_GUI_QM
-                "${CMAKE_CURRENT_SOURCE_DIR}/translations/aowis_${AOWIS_GUI_TRANSLATION_DOMAIN}_${AOWIS_GUI_LANGUAGE}.qm")
-            add_custom_command(OUTPUT "${AOWIS_GUI_QM}"
-                COMMAND "${AOWIS_GUI_LRELEASE_COMMAND}" "${AOWIS_GUI_TS}" -qm "${AOWIS_GUI_QM}"
-                DEPENDS "${AOWIS_GUI_TS}" VERBATIM)
-            list(APPEND AOWIS_GUI_TRANSLATION_OUTPUTS "${AOWIS_GUI_QM}")
-        endforeach()
-    endforeach()
-    add_custom_target(aowis-gui-compiled-translations
-        DEPENDS ${AOWIS_GUI_TRANSLATION_OUTPUTS})
-else()
-    message(WARNING "Qt lrelease is unavailable: translation catalogues will not be rebuilt from .ts. Install Qt LinguistTools to compile updated translations.")
+if(NOT AOWIS_GUI_LRELEASE_COMMAND)
+    message(FATAL_ERROR "Qt lrelease not found. Install Qt LinguistTools (e.g. Ubuntu/Debian: qt6-l10n-tools) "
+                        "or set AOWIS_GUI_LRELEASE_EXECUTABLE.")
 endif()
+
+set(AOWIS_GUI_QM_DIR "${CMAKE_CURRENT_BINARY_DIR}/translations")
+file(MAKE_DIRECTORY "${AOWIS_GUI_QM_DIR}")
+set(AOWIS_GUI_TRANSLATION_OUTPUTS "")
+foreach(AOWIS_GUI_LANGUAGE fr ar de es)
+    foreach(AOWIS_GUI_TRANSLATION_DOMAIN gui render)
+        set(AOWIS_GUI_TS
+            "${CMAKE_CURRENT_SOURCE_DIR}/translations/aowis_${AOWIS_GUI_TRANSLATION_DOMAIN}_${AOWIS_GUI_LANGUAGE}.ts")
+        set(AOWIS_GUI_QM "${AOWIS_GUI_QM_DIR}/aowis_${AOWIS_GUI_TRANSLATION_DOMAIN}_${AOWIS_GUI_LANGUAGE}.qm")
+        add_custom_command(OUTPUT "${AOWIS_GUI_QM}"
+            COMMAND "${AOWIS_GUI_LRELEASE_COMMAND}" -silent "${AOWIS_GUI_TS}" -qm "${AOWIS_GUI_QM}"
+            DEPENDS "${AOWIS_GUI_TS}"
+            COMMENT "Compiling translation aowis_${AOWIS_GUI_TRANSLATION_DOMAIN}_${AOWIS_GUI_LANGUAGE}"
+            VERBATIM)
+        list(APPEND AOWIS_GUI_TRANSLATION_OUTPUTS "${AOWIS_GUI_QM}")
+    endforeach()
+endforeach()
+add_custom_target(aowis-gui-compiled-translations DEPENDS ${AOWIS_GUI_TRANSLATION_OUTPUTS})
+
+# Embeds every compiled catalogue under :/i18n/ in the given target.
+function(aowis_gui_add_translations target)
+    qt_add_resources(${target} "aowis_gui_translations"
+        PREFIX "/i18n"
+        BASE "${AOWIS_GUI_QM_DIR}"
+        FILES ${AOWIS_GUI_TRANSLATION_OUTPUTS})
+    add_dependencies(${target} aowis-gui-compiled-translations)
+endfunction()
 
 qt_add_executable(aowis-server-gui
     resources.qrc
-    translations/translations.qrc
 
     # Application
     src/app/builtin_examples.cpp
@@ -909,14 +925,11 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/gui_language.cpp
         src/config/gui_configuration.cpp
         src/config/gui_preferences.cpp
-        src/config/gui_config_store.cpp
-        translations/translations.qrc)
+        src/config/gui_config_store.cpp)
+    aowis_gui_add_translations(aowis-top-control-bar-language-tests)
     target_include_directories(aowis-top-control-bar-language-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-top-control-bar-language-tests PRIVATE Qt6::Widgets aowis::config)
-    if(TARGET aowis-gui-compiled-translations)
-        add_dependencies(aowis-top-control-bar-language-tests aowis-gui-compiled-translations)
-    endif()
     add_test(NAME aowis-top-control-bar-language
         COMMAND aowis-top-control-bar-language-tests)
     set_tests_properties(aowis-top-control-bar-language PROPERTIES
@@ -931,13 +944,10 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/config/gui_configuration.cpp
         src/config/gui_preferences.cpp
         src/config/gui_config_store.cpp
-        src/config/gui_language.cpp
-        translations/translations.qrc)
+        src/config/gui_language.cpp)
+    aowis_gui_add_translations(aowis-gui-language-tests)
     target_include_directories(aowis-gui-language-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(aowis-gui-language-tests PRIVATE Qt6::Widgets aowis::config)
-    if(TARGET aowis-gui-compiled-translations)
-        add_dependencies(aowis-gui-language-tests aowis-gui-compiled-translations)
-    endif()
     add_test(NAME aowis-gui-language COMMAND aowis-gui-language-tests)
     set_tests_properties(aowis-gui-language PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1450,8 +1460,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-unit-numeric-spin-box COMMAND aowis-unit-numeric-spin-box-tests)
     set_tests_properties(aowis-unit-numeric-spin-box PROPERTIES LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     add_executable(aowis-unit-table-presentation-tests
-        tests/unit_table_presentation_test.cpp
-        translations/translations.qrc)
+        tests/unit_table_presentation_test.cpp)
+    aowis_gui_add_translations(aowis-unit-table-presentation-tests)
     target_include_directories(aowis-unit-table-presentation-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include)
@@ -1966,6 +1976,4 @@ if(TARGET Qt6::QSQLiteDriverPlugin)
     )
 endif()
 
-if(TARGET aowis-gui-compiled-translations)
-    add_dependencies(aowis-server-gui aowis-gui-compiled-translations)
-endif()
+aowis_gui_add_translations(aowis-server-gui)

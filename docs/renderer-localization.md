@@ -28,9 +28,10 @@ On selection the GUI loads **both** translation domains:
 | `translations/aowis_render_{fr,ar,de,es}.ts` | bgfx map HUD text and tooltips supplied by Render | `MapBgfxHud` |
 
 `.ts` sources are compiled into `.qm` resources for the application, including
-WebAssembly. CMake regenerates `.qm` with Qt LinguistTools (`lrelease`); when
-shipping a catalogue change, rebuild and commit the corresponding generated
-`.qm` files. The GUI installs both domains through `QTranslator`. It does not
+WebAssembly. CMake compiles them with Qt LinguistTools (`lrelease`) into the
+build tree and embeds them; `.qm` files are build output and never committed.
+`lrelease` is required (Ubuntu/Debian: `qt6-l10n-tools`; the WebAssembly Docker
+image installs it). The GUI installs both domains through `QTranslator`. It does not
 load GUI translation internals from Render or put MODEL/domain state into the
 renderer library. If the requested catalogue cannot be loaded, language
 activation fails instead of knowingly installing only a partial language.
@@ -165,8 +166,8 @@ reported build success alone does not establish every interaction above.
 3. Update the **existing** widget on `LanguageChange`; keep stable IDs and
    current editing state. When Render HUD geometry changes, update layout
    and hit testing in the same frame.
-4. Run the source audit and both build/test gates as applicable. Regenerate
-   and commit `.qm` resources. Check native and browser layouts when text
+4. Run the source audit and both build/test gates as applicable (`.qm`
+   resources are rebuilt automatically). Check native and browser layouts when text
    wrapping, RTL or custom-rendered HUD placement changes.
 
 AOWIS-GUI-Mobile is outside this HUD contract; it renders its own Qt Quick HUD.

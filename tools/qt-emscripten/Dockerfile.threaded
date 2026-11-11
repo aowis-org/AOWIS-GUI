@@ -14,6 +14,8 @@ LABEL org.opencontainers.image.title="AOWIS Qt WebAssembly toolchain"
 LABEL org.opencontainers.image.description="Threaded Qt WebAssembly build environment with QRhi, ShaderTools/qsb, Qt SQL and bundled SQLite support"
 LABEL org.opencontainers.image.version="Qt ${QT_VERSION} / Emscripten ${EMSCRIPTEN_VERSION}"
 
+# qt6-l10n-tools: host lrelease, which compiles the GUI's .ts catalogues in the
+# build tree (the .qm format is stable across Qt 6, so the distro version works).
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -25,6 +27,7 @@ RUN apt-get update \
         perl \
         pkg-config \
         python3 \
+        qt6-l10n-tools \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
