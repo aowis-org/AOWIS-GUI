@@ -281,6 +281,8 @@ bool ConfigUnitProfileStorage::save(const UnitProfileSnapshot &snapshot) const
             }
         }
     }
+    // Release the owner lock first: the preference update takes it itself.
+    session.reset();
     const bool selected = GuiPreferences::update(selection_group(), QJsonObject{
         {QStringLiteral("selected_profile_id"), snapshot.active_id},
         {QStringLiteral("selected_profile"), snapshot.legacy_active_name}});

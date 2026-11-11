@@ -175,7 +175,12 @@ QString loadShortcut(const QJsonObject &stored, const QString &key, const QStrin
     const QString shortcut = value.toString().trimmed();
     if (shortcut.isEmpty())
         return QString();
-    if (!parseShortcutKeySequence(shortcut).isEmpty())
+    // Unknown key names parse to Qt::Key_unknown, not to an empty sequence.
+    const QKeySequence sequence = parseShortcutKeySequence(shortcut);
+    bool known = !sequence.isEmpty();
+    for (int index = 0; index < sequence.count(); ++index)
+        known = known && sequence[index].key() != Qt::Key_unknown;
+    if (known)
         return shortcut;
     qWarning() << "Invalid stored shortcut" << key << "- using advertised default" << default_value;
     return default_value;

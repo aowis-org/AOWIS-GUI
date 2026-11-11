@@ -73,7 +73,7 @@ int main(int argc, char **argv)
     if (!require(GuiPreferences::update(guiShortcutPreferenceGroup(), QJsonObject{
                      {QStringLiteral("sidebar_toggle"), QStringLiteral("Ctrl+B")},
                      {QStringLiteral("map_zoom_in"), QString()},
-                     {QStringLiteral("map_zoom_out"), QStringLiteral("NotAKey+++")}}),
+                     {QStringLiteral("map_zoom_out"), QStringLiteral("Ctrl+NoSuchKey")}}),
                  "storing shortcuts failed")) return 1;
     if (!require(GuiPreferences::update(QStringLiteral("symbology"), QJsonObject{
                      {QStringLiteral("link_palette"), QStringLiteral("magma")},
