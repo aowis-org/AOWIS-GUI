@@ -3,6 +3,7 @@
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_gpu.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
+#include "map/bgfx/map_bgfx_label_gpu.h"
 #include "tabs/project_graph_bgfx_scene.h"
 
 #include <QObject>
@@ -55,9 +56,14 @@ private:
     QPointer<QWidget> container;
     QTimer retry_timer;
     QTimer redraw_timer;
+    // Shapes (cards, routes) with the HUD program; atlas holds their white
+    // texel. Text on top: glyph quads from the distance atlas (fs_label_sdf).
     MapBgfxHudCanvas canvas;
     MapBgfxHudTextCache atlas;
     MapBgfxHudGpu gpu;
+    MapBgfxHudCanvas text_canvas;
+    MapBgfxGlyphAtlas glyphs{1024};
+    MapBgfxLabelGpu text_gpu;
     ProjectGraphBgfxScene::Index scene_index;
     bool scene_dirty = true;
     QSize allocated_pixels;

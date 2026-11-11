@@ -147,53 +147,30 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
           end - QPointF(0, sign * bend), end, width, color, dashed);
 }
 
-// HUD text is a *raster* sprite, unlike the cards and edges. Enlarging the
-// same atlas entry by the camera zoom magnifies individual glyph pixels.
-// Rasterize instead at a scale at least as large as the screen-space scale.
-// Quarter-step buckets reuse entries throughout inertial zoom animations.
-// At zoom <= 1 the existing atlas glyphs are only minified.
-double textRasterScale(double zoom)
-{
-    return std::max(1.0, std::ceil(zoom * 4.0 - 1e-7) / 4.0);
-}
-
-QFont textRasterFont(const QFont &font, double scale)
-{
-    if (scale <= 1.0)
-        return font;
-    QFont scaled = font;
-    if (font.pixelSize() > 0)
-        scaled.setPixelSize(std::max(1, int(std::ceil(double(font.pixelSize()) * scale))));
-    else if (font.pointSizeF() > 0.0)
-        scaled.setPointSizeF(font.pointSizeF() * scale);
-    return scaled;
-}
-
-void text(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
-          const QString &value, const QFont &font, const QRectF &rect,
-          double zoom, quint32 color, ProjectGraphBgfxScene::Stats *stats)
+// Card text as signed-distance glyphs at the camera zoom (fs_label_sdf):
+// the font is laid out at its graph size and every quad is scaled by zoom,
+// so text grows and shrinks with the cards, sharp at any zoom, without
+// per-zoom rasterization.
+void text(const ProjectGraphBgfxScene::TextTarget &target, const QString &value,
+          const QFont &font, const QRectF &rect, double zoom, quint32 color,
+          ProjectGraphBgfxScene::Stats *stats, int *glyph_budget)
 {
     if (value.isEmpty() || rect.width() <= 0.0 || rect.height() <= 0.0)
         return;
-    // Eliding uses graph-space metrics, exactly as before: changing raster
-    // resolution must not alter the name/branch text that fits on a card.
+    // Eliding uses graph-space metrics, exactly as before: the zoom must not
+    // alter the name/branch text that fits on a card.
     const QFontMetricsF metrics(font);
     const QString display = metrics.elidedText(value, Qt::ElideRight,
                                                int(rect.width() / zoom));
-    const double raster_scale = textRasterScale(zoom);
-    const MapBgfxHudSprite sprite = atlas->text(display, textRasterFont(font, raster_scale));
-    if (!sprite.valid)
+    if (display.isEmpty())
         return;
-    // The font was enlarged before rasterization. Undo that extra size when
-    // placing its atlas quad so the text retains its original graph size.
-    // This factor never exceeds one: no blurry magnification at high zoom.
-    const double draw_scale = zoom / raster_scale;
-    const double rendered_height = sprite.height * draw_scale;
+    const double rendered_height = metrics.height() * zoom;
     const double y = rect.top() + (rect.height() - rendered_height) * 0.5;
-    canvas->sprite({rect.left() - sprite.origin_x * draw_scale,
-                    y - sprite.origin_y * draw_scale,
-                    sprite.width * draw_scale, rendered_height}, sprite, color);
-    ++stats->text_runs;
+    if (target.glyphs->emitLine(target.canvas, display, font, rect.left(), y, zoom, color,
+                                glyph_budget))
+        ++stats->text_runs;
+    else
+        ++stats->text_deferred;
 }
 
 void rectCard(MapBgfxHudCanvas *canvas, const QRectF &rect, double radius,
@@ -464,18 +441,24 @@ void ProjectGraphBgfxScene::Index::rebuild(
 }
 
 ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
-    MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
+    MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas, const TextTarget &text_target,
     const Index &index, const View &view)
 {
     const QVector<ProjectGraphNode> &nodes = index.nodes;
     const QVector<Fold> &folds = index.folds;
     Stats stats;
-    if (canvas == nullptr || atlas == nullptr || view.zoom <= 0.0
-        || view.viewport.isEmpty())
+    if (canvas == nullptr || atlas == nullptr || text_target.canvas == nullptr
+        || text_target.glyphs == nullptr || view.zoom <= 0.0 || view.viewport.isEmpty())
         return stats;
     canvas->clear();
+    text_target.canvas->clear();
     atlas->beginFrame();
     canvas->setWhiteTexel(atlas->whiteU(), atlas->whiteV());
+    // An atlas that ran full in an earlier frame starts over before any
+    // quad of this frame refers to it.
+    if (text_target.glyphs->full())
+        text_target.glyphs->clear();
+    int glyph_budget = std::max(1, text_target.glyph_budget);
 
     const QColor base = view.palette.color(QPalette::Base);
     const QColor ink = view.palette.color(QPalette::Text);
@@ -502,8 +485,8 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
 
     if (nodes.isEmpty())
     {
-        text(canvas, atlas, QStringLiteral("No revisions to display"), title_font,
-             view.viewport.adjusted(24, 15, -24, -15), view.zoom, muted.rgba(), &stats);
+        text(text_target, QStringLiteral("No revisions to display"), title_font,
+             view.viewport.adjusted(24, 15, -24, -15), view.zoom, muted.rgba(), &stats, &glyph_budget);
         return stats;
     }
 
@@ -595,12 +578,12 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
             const QString short_id = DvmdbIdentity::shortLabel(
                 node.display_id.isEmpty() ? node.id : node.display_id);
             const QString title = ProjectRevisionCardGeometry::distinctTitle(node.title, short_id);
-            text(canvas, atlas, title, title_font,
+            text(text_target, title, title_font,
                  screenRect(ProjectRevisionCardGeometry::titleRect(original), view),
-                 view.zoom, ink.rgba(), &stats);
-            text(canvas, atlas, node.branch, small_font,
+                 view.zoom, ink.rgba(), &stats, &glyph_budget);
+            text(text_target, node.branch, small_font,
                  screenRect(ProjectRevisionCardGeometry::revisionIdRect(original), view),
-                 view.zoom, muted.rgba(), &stats);
+                 view.zoom, muted.rgba(), &stats, &glyph_budget);
             continue;
         }
         const QRectF original = cardBounds(node);
@@ -610,12 +593,12 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         const double left = server ? 53.0 : 14.0;
         const QString label = server && node.personal_server
             ? QStringLiteral("♛ ") + node.title : node.title;
-        text(canvas, atlas, label, title_font,
+        text(text_target, label, title_font,
              screenRect(original.adjusted(left, 6, server ? -33 : -12, -32), view),
-             view.zoom, ink.rgba(), &stats);
-        text(canvas, atlas, node.branch, small_font,
+             view.zoom, ink.rgba(), &stats, &glyph_budget);
+        text(text_target, node.branch, small_font,
              screenRect(original.adjusted(left, 35, -12, -6), view),
-             view.zoom, secondary.rgba(), &stats);
+             view.zoom, secondary.rgba(), &stats, &glyph_budget);
         if (server)
         {
             const QRectF badge = screenRect(QRectF(original.left() + 16,
@@ -653,23 +636,23 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         const QString line_two = QCoreApplication::translate("ProjectRevisionGraph",
             "Click to unfold");
         const double half = box.height() * 0.5;
-        text(canvas, atlas, line_one, small_font,
+        text(text_target, line_one, small_font,
              QRectF(box.left() + 8, box.top() + 3, box.width() - 16, half - 3),
-             view.zoom, ink.rgba(), &stats);
-        text(canvas, atlas, line_two, small_font,
+             view.zoom, ink.rgba(), &stats, &glyph_budget);
+        text(text_target, line_two, small_font,
              QRectF(box.left() + 8, box.top() + half, box.width() - 16, half - 3),
-             view.zoom, ink.rgba(), &stats);
+             view.zoom, ink.rgba(), &stats, &glyph_budget);
         ++stats.fold_markers;
     }
     return stats;
 }
 
 ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
-    MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
+    MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas, const TextTarget &text_target,
     const QVector<ProjectGraphNode> &nodes, const QVector<Fold> &folds,
     const View &view)
 {
     Index index;
     index.rebuild(nodes, folds, view.top_down);
-    return build(canvas, atlas, index, view);
+    return build(canvas, atlas, text_target, index, view);
 }

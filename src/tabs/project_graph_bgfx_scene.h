@@ -1,5 +1,6 @@
 #pragma once
 
+#include "map/bgfx/map_bgfx_glyph_atlas.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "tabs/project_revision_graph.h"
@@ -12,10 +13,17 @@
 #include <QString>
 #include <QVector>
 
-// CPU staging for the Projects DAG's bgfx draw list. This generates native
-// GPU-ready triangles and atlas sprites; it never initializes bgfx or owns a
-// window. The native graph viewport submits this canvas through the process-
-// global frame coordinator using MapBgfxHudGpu's existing shader.
+// CPU staging for the Projects DAG's bgfx draw lists. This generates native
+// GPU-ready triangles and glyph quads; it never initializes bgfx or owns a
+// window. The native graph viewport submits the shape canvas with
+// MapBgfxHudGpu and the text canvas with MapBgfxLabelGpu (fs_label_sdf)
+// through the process-global frame coordinator, text on top.
+//
+// Text is signed-distance-field glyphs (MapBgfxGlyphAtlas): one atlas entry
+// per glyph for every size, scaled by the camera zoom on the GPU, so card
+// titles stay sharp at every zoom and device pixel ratio. (It used to be
+// whole runs rasterized per quarter-zoom bucket and minified through a
+// point-sampled atlas, which dropped and doubled glyph columns.)
 //
 // The widget's camera, graph layout, selection and input handling remain the
 // source of truth. Geometry is generated in *viewport* coordinates, which is
@@ -51,6 +59,8 @@ public:
         int fold_markers = 0;
         int culled_cards = 0;
         int text_runs = 0;
+        // Text runs waiting for glyphs (budget spent): draw again next frame.
+        int text_deferred = 0;
         // Number of indexed objects inspected after spatial pruning.
         int candidate_items = 0;
     };
@@ -111,14 +121,24 @@ public:
         int head_edges = 0;
     };
 
+    // Where text goes: its own canvas (cleared by build()) and glyph atlas.
+    struct TextTarget
+    {
+        MapBgfxHudCanvas *canvas = nullptr;
+        MapBgfxGlyphAtlas *glyphs = nullptr;
+        // New glyph distance fields per build (only the first frames).
+        int glyph_budget = 128;
+    };
+
     // Fast path: retained graph-space index + viewport-specific GPU geometry.
+    // atlas supplies the white texel of the solid shapes in canvas.
     static Stats build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
-                       const Index &index, const View &view);
+                       const TextTarget &text, const Index &index, const View &view);
 
     // Compatibility entry point for standalone one-shot callers. Production
     // and the performance benchmark must retain and reuse Index themselves.
     // This convenience overload intentionally builds a temporary index.
     static Stats build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *atlas,
-                       const QVector<ProjectGraphNode> &nodes,
+                       const TextTarget &text, const QVector<ProjectGraphNode> &nodes,
                        const QVector<Fold> &folds, const View &view);
 };

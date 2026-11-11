@@ -159,6 +159,11 @@ Result measure(int revisions, int repeats, const QApplication &application)
 
     MapBgfxHudCanvas canvas;
     MapBgfxHudTextCache atlas(2048);
+    MapBgfxHudCanvas text_canvas;
+    MapBgfxGlyphAtlas glyphs(1024);
+    ProjectGraphBgfxScene::TextTarget text_target;
+    text_target.canvas = &text_canvas;
+    text_target.glyphs = &glyphs;
     ProjectGraphBgfxScene::View view;
     view.viewport = QRectF(0, 0, 1280, 800);
     view.palette = application.palette();
@@ -192,7 +197,7 @@ Result measure(int revisions, int repeats, const QApplication &application)
         view.offset += QPointF(55.0, 30.0);
         timer.restart();
         const ProjectGraphBgfxScene::Stats stats = ProjectGraphBgfxScene::build(
-            &canvas, &atlas, index, view);
+            &canvas, &atlas, text_target, index, view);
         samples.append(milliseconds(timer));
         result.visible_cards = stats.cards;
         result.indexed_candidates = stats.candidate_items;

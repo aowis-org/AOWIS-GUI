@@ -303,9 +303,10 @@ void ProjectGraphBgfxViewport::tryAttach()
         this->graph->update();
         return;
     }
-    if (!this->gpu.initialize())
+    if (!this->gpu.initialize() || !this->text_gpu.initialize())
     {
         this->gpu.release();
+        this->text_gpu.release();
         device.targets().release(this);
         device.frames().release(this);
         if (primary)
@@ -316,7 +317,7 @@ void ProjectGraphBgfxViewport::tryAttach()
         this->unavailable = true;
         this->retry_timer.stop();
         this->container->hide();
-        qWarning() << "Projects bgfx viewport: GPU HUD shader unavailable; using QPainter";
+        qWarning() << "Projects bgfx viewport: GPU HUD or text shader unavailable; using QPainter";
         this->graph->update();
         return;
     }
@@ -340,7 +341,10 @@ void ProjectGraphBgfxViewport::detach()
     if (device.isCurrent(this, this->device_generation))
     {
         if (this->gpu_initialized)
+        {
             this->gpu.release();
+            this->text_gpu.release();
+        }
         device.targets().release(this);
         device.frames().release(this);
         if (!device.owns(this))
@@ -352,6 +356,8 @@ void ProjectGraphBgfxViewport::detach()
         // replacement device is invalid. Discard their CPU-side wrappers.
         this->gpu = MapBgfxHudGpu();
         this->atlas = MapBgfxHudTextCache(2048);
+        // The glyph atlas is CPU data: kept, uploaded whole to the new texture.
+        this->text_gpu = MapBgfxLabelGpu();
     }
     this->gpu_initialized = false;
     this->attached = false;
@@ -416,13 +422,16 @@ void ProjectGraphBgfxViewport::render()
         this->scene_index.rebuild(this->graph->nodes, folds, this->graph->top_down);
         this->scene_dirty = false;
     }
-    ProjectGraphBgfxScene::build(&this->canvas, &this->atlas,
-                                 this->scene_index, view);
-    // Qt's text atlas may evict old sprites while building a large scene.
-    // Rebuild once with fresh texel references to avoid stale card labels.
+    ProjectGraphBgfxScene::TextTarget text_target;
+    text_target.canvas = &this->text_canvas;
+    text_target.glyphs = &this->glyphs;
+    ProjectGraphBgfxScene::Stats stats = ProjectGraphBgfxScene::build(
+        &this->canvas, &this->atlas, text_target, this->scene_index, view);
+    // The HUD atlas may evict while building: rebuild once with fresh texel
+    // references (the glyph atlas never evicts during a build).
     if (this->atlas.evictedSinceFrameStart())
-        ProjectGraphBgfxScene::build(&this->canvas, &this->atlas,
-                                     this->scene_index, view);
+        stats = ProjectGraphBgfxScene::build(&this->canvas, &this->atlas, text_target,
+                                             this->scene_index, view);
     bgfx::setViewRect(this->view_id, 0, 0,
                       targetDimension(pixels.width()), targetDimension(pixels.height()));
     bgfx::setViewMode(this->view_id, bgfx::ViewMode::Sequential);
@@ -431,6 +440,10 @@ void ProjectGraphBgfxViewport::render()
     bgfx::touch(this->view_id);
     this->gpu.uploadAtlas(&this->atlas);
     this->gpu.draw(this->view_id, this->canvas, QSizeF(this->graph->size()));
+    // Text on top of the cards; no halo (the cards are its background).
+    this->text_gpu.uploadAtlas(&this->glyphs);
+    this->text_gpu.draw(this->view_id, this->text_canvas, QSizeF(this->graph->size()),
+                        0x00000000u, 0.0, this->window->devicePixelRatio());
     // The Maps viewport retains its view reservation when its tab is hidden.
     // present() deliberately refuses multiple registered clients, so the
     // graph must submit its already-queued GPU commands through the shared
@@ -438,6 +451,9 @@ void ProjectGraphBgfxViewport::render()
     // reserved view to draw on every tick (hidden maps remain idle).
     if (!device.frames().renderAndPresent({{this, {}}}))
         qWarning() << "Projects bgfx viewport: frame coordinator refused submission";
+    // Text still waiting for glyph distance fields (first frames only).
+    if (stats.text_deferred > 0)
+        requestRedraw();
 }
 
 bool ProjectGraphBgfxViewport::eventFilter(QObject *watched, QEvent *event)
