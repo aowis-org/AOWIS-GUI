@@ -2244,6 +2244,10 @@ Base de datos personal: %3
 %4
 Clic para inspeccionar HEAD; doble clic para abrir la red</translation>
     </message>
+    <message>
+      <source>%1 Retrying in %2 s.</source>
+      <translation>%1 Reintentando en %2 s.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

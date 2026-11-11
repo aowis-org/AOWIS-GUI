@@ -39,21 +39,28 @@ text, including its private key. Files are private to the user account but
   reported above the list; **Remove damaged…** deletes them after
   confirmation, except records written by a newer AOWIS version or still
   referenced by a connection.
+- Tabs: **Status**, **Configuration**, **Used by**. The editor hides each
+  `PrivateKey` value behind a mask by default; **Show/edit private key**
+  reveals it. Hidden keys are restored for validation and saving, so other
+  lines can be edited and saved with the key hidden; copying while hidden
+  copies the mask. Every newly shown or saved profile starts hidden.
+- **One tunnel per profile:** all connections using a profile share one
+  embedded tunnel (two tunnels with the same key would make the peer roam
+  between them). It starts with the first connection and stops when the last
+  one closes; profile edits apply from the next start.
 - **Status** observes `WireGuardRuntimeStatus`, a process-local registry
-  updated by `DvmdbConnection` as the AOWIS-NETWORK embedded engine starts,
-  runs, fails or stops. It updates immediately when connections change, even
-  when Settings is already open. Multiple connections using one profile are
-  counted as separate active tunnel instances; they are not pooled yet.
-- **Running** means the embedded engine and local SOCKS5 proxy are running;
-  it does **not** prove a WireGuard peer handshake. Once an actual DVMDB HTTP
-  response arrives through the tunnel the tab reports that a response was received;
-  that is evidence of past reachability, not a continuous connectivity check.
-  **Not started**, **Starting**, **Stopped**, and **Error** are separate states,
-  and the most recent tunnel startup error is shown without keys.
-- **Traffic counters and peer handshake timestamps** remain explicitly
-  unavailable: the current AOWIS-NETWORK `WireGuardClient` API does not expose
-  them. The UI must not fabricate zeros. `Active tunnels` means *live embedded
-  tunnel instances*, not number of configured service references.
+  updated by `DvmdbConnection`. **Used by now** lists the connections using
+  the tunnel. **Running** means the engine and its local SOCKS5 proxy run;
+  peer health comes from engine telemetry, polled once per second while the
+  page is visible: last handshake, encrypted traffic and throughput, peer
+  endpoint, keepalive, uptime and relayed connections. Hints flag a missing
+  first handshake (after 15 s), a handshake older than 3 minutes with
+  keepalive on, an idle tunnel without keepalive, and failed in-tunnel
+  connections. The most recent start error is shown without keys.
+- **Reconnect:** wireguard-go retries handshakes itself. A host-name
+  endpoint is re-resolved after 135 s without a handshake (multi-address
+  failover, or the new address if the name moved). A failed tunnel start is
+  retried by Projects after 5, 10, 20, 40, then every 60 seconds.
 - On **WebAssembly** the navigation entry stays visible but disabled, with a
   tooltip: browsers cannot run the embedded UDP/TUN WireGuard client.
 
@@ -71,4 +78,6 @@ highlighting, storing and reopening profiles, rename by stable ID, parser
 validation and warnings, revert, "Used by" from connection records, refused
 deletion while referenced, storage deletion, draft revert, damaged-record
 removal, and live status transitions (starting/running/HTTP confirmed/stopped/
-error/retry), including multiple consumers of one profile.
+error/retry), multiple connections sharing one profile, sampled telemetry and
+health hints, and the hidden private key (default hidden, editing other lines,
+toggling with unsaved edits, changing the key).

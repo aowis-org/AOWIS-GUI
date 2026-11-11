@@ -218,6 +218,10 @@ struct ProjectsWidget::SourceSession
     ProjectSourceReader *reader = nullptr;
     HttpHealthMonitor *health = nullptr; // only remote sources have HTTP health monitoring
     QTimer *refresh = nullptr;
+    // Retries a failed transport open (e.g. WireGuard tunnel start while
+    // offline or the peer name does not resolve) with capped backoff.
+    QTimer *reopen = nullptr;
+    int open_failures = 0;
     SourceState state = SourceState::Checking;
     QString repository_id;
     QString error;
@@ -232,6 +236,7 @@ ProjectsWidget::~ProjectsWidget()
         if (session->health != nullptr) session->health->stop();
         session->reader->cancel();
         delete session->refresh;
+        delete session->reopen;
         delete session->health;
         delete session->reader;
         delete session;
@@ -1698,6 +1703,7 @@ void ProjectsWidget::resetSource(const QString &id)
         if (session->health != nullptr) session->health->stop();
         session->reader->cancel();
         delete session->refresh;
+        delete session->reopen;
         delete session->health;
         delete session->reader;
         delete session;
@@ -1734,6 +1740,15 @@ void ProjectsWidget::startSource(const ProjectServerProfile &profile)
     session->refresh->setInterval(60000);
     this->source_sessions.insert(profile.id, session);
     const QString id = profile.id;
+    if (profile.connection_type == QStringLiteral("remote"))
+    {
+        session->reopen = new QTimer(this);
+        session->reopen->setSingleShot(true);
+        connect(session->reopen, &QTimer::timeout, this, [this, profile]
+        {
+            if (this->source_sessions.contains(profile.id)) openRemoteSource(profile);
+        });
+    }
     connect(session->refresh, &QTimer::timeout, this, [this, id]
     {
         SourceSession *current = this->source_sessions.value(id, nullptr);
@@ -1768,11 +1783,19 @@ void ProjectsWidget::openRemoteSource(const ProjectServerProfile &profile)
         session->opening = false;
         if (error.isEmpty())
         {
+            session->open_failures = 0;
+            if (session->reopen != nullptr) session->reopen->stop();
             this->startRemoteHealth(profile);
             return;
         }
+        // The transport may recover (network back, peer name resolvable):
+        // retry after 5, 10, 20, 40, then every 60 seconds. Never falls back
+        // to another transport; each attempt reports to the runtime monitor.
+        ++session->open_failures;
+        const int delay_ms = std::min(60000, 5000 << std::min(session->open_failures - 1, 4));
+        if (session->reopen != nullptr) session->reopen->start(delay_ms);
         session->state = SourceState::Error;
-        session->error = error;
+        session->error = tr("%1 Retrying in %2 s.").arg(error).arg(delay_ms / 1000);
         populateProjectTree();
         this->rebuildGraph();
         this->updateConnectionStatus();

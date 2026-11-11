@@ -2244,6 +2244,10 @@ Persönliche Datenbank: %3
 %4
 Klicken: HEAD anzeigen; Doppelklicken: Netzwerk öffnen</translation>
     </message>
+    <message>
+      <source>%1 Retrying in %2 s.</source>
+      <translation>%1 Neuer Versuch in %2 s.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

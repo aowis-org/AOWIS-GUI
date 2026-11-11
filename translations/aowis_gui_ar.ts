@@ -2264,6 +2264,10 @@ Click to inspect HEAD; double-click to open network</source>
 %4
 انقر لفحص HEAD؛ انقر مرتين لفتح الشبكة</translation>
     </message>
+    <message>
+      <source>%1 Retrying in %2 s.</source>
+      <translation>%1 إعادة المحاولة خلال %2 ث.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
