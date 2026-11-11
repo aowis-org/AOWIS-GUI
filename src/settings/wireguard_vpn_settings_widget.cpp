@@ -1,5 +1,13 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 
+#include "config/project_server_profile_storage.h"
+#include "config/wireguard_profile_storage.h"
+
+#include <aowis/config/object_id.h>
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include <aowis/network/wireguard_conf.h>
+#endif
+
 #include <QAbstractItemView>
 #include <QColor>
 #include <QEvent>
@@ -16,6 +24,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QSet>
+#include <QShowEvent>
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
 #include <QTextDocument>
@@ -26,6 +35,9 @@
 #include <QTreeWidget>
 #include <QUuid>
 #include <QVBoxLayout>
+
+#include <algorithm>
+#include <string>
 
 namespace
 {
@@ -215,6 +227,16 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->session_notice = wrappedLabel(this);
     this->session_notice->setObjectName(QStringLiteral("wireguardVpnStorageNotice"));
     outer->addWidget(this->session_notice);
+    QHBoxLayout *damaged_row = new QHBoxLayout();
+    this->damaged_notice = wrappedLabel(this);
+    this->damaged_notice->setObjectName(QStringLiteral("wireguardVpnDamagedNotice"));
+    this->remove_damaged_button = new QPushButton(this);
+    this->remove_damaged_button->setObjectName(QStringLiteral("wireguardVpnRemoveDamaged"));
+    damaged_row->addWidget(this->damaged_notice, 1);
+    damaged_row->addWidget(this->remove_damaged_button);
+    outer->addLayout(damaged_row);
+    this->damaged_notice->hide();
+    this->remove_damaged_button->hide();
 
     QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
     splitter->setChildrenCollapsible(false);
@@ -350,6 +372,7 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     });
     connect(this->import_button, &QPushButton::clicked, this, &WireGuardVpnSettingsWidget::importProfile);
     connect(this->delete_button, &QPushButton::clicked, this, &WireGuardVpnSettingsWidget::deleteProfile);
+    connect(this->remove_damaged_button, &QPushButton::clicked, this, &WireGuardVpnSettingsWidget::removeDamagedProfiles);
     connect(this->save_button, &QPushButton::clicked, this, &WireGuardVpnSettingsWidget::saveProfile);
     connect(this->revert_button, &QPushButton::clicked, this, &WireGuardVpnSettingsWidget::revertProfile);
     connect(this->profile_list, &QListWidget::currentItemChanged, this,
@@ -361,8 +384,104 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
         if (item != nullptr) emit serviceActivated(item->data(0, Qt::UserRole).toString());
     });
     this->retranslate();
-    this->refreshProfileList();
+    this->refreshFromStorage();
     this->loadSelection();
+}
+
+void WireGuardVpnSettingsWidget::refreshFromStorage()
+{
+    // Decide on the old model whether the editor holds unsaved work.
+    const bool keep_editor = hasChanges();
+    QList<Profile> drafts;
+    for (const Profile &profile : this->profiles)
+        if (profile.draft) drafts.append(profile);
+
+    QList<Profile> stored;
+    QString error;
+    this->unreadable_profiles = 0;
+    if (const aowis::config::WireGuardProfiles *storage = guiWireGuardProfiles(&error))
+    {
+        const aowis::config::Result<aowis::config::WireGuardProfileListing> listing = storage->list();
+        if (listing)
+        {
+            this->unreadable_profiles = static_cast<int>(listing.value().unreadable.size());
+            for (const aowis::config::WireGuardProfileSummary &summary : listing.value().profiles)
+            {
+                const aowis::config::Result<aowis::config::WireGuardProfile> full = storage->read(summary.info.id);
+                if (!full)
+                {
+                    ++this->unreadable_profiles;
+                    continue;
+                }
+                stored.append({QString::fromStdString(summary.info.id.value()),
+                               QString::fromStdString(full.value().summary.info.revision),
+                               QString::fromStdString(full.value().summary.name),
+                               QString::fromStdString(full.value().summary.description),
+                               QString::fromStdString(full.value().configuration), false});
+            }
+        }
+        else error = QString::fromStdString(listing.error().message);
+    }
+    std::sort(stored.begin(), stored.end(), [](const Profile &left, const Profile &right)
+    {
+        const int order = QString::compare(left.name, right.name, Qt::CaseInsensitive);
+        return order != 0 ? order < 0 : left.id < right.id;
+    });
+    this->profiles = stored + drafts;
+
+    // "Used by" counts configured connections, not tunnels or sockets. This
+    // also opens the connections collection before any deletion session.
+    this->references.clear();
+    for (const Profile &profile : stored)
+        this->references.insert(profile.id, {});
+    for (const ProjectServerProfile &connection : loadProjectServerProfiles())
+    {
+        if (!this->references.contains(connection.wireguard_profile_id)) continue;
+        this->references[connection.wireguard_profile_id].append({connection.id, connection.name,
+            QStringLiteral("DVMDB"),
+            connection.connection_type == QStringLiteral("local") ? connection.local_path : connection.endpoint});
+    }
+
+    if (findProfile(this->selected_id) == nullptr)
+        this->selected_id = this->profiles.isEmpty() ? QString() : this->profiles.first().id;
+    if (!error.isEmpty())
+    {
+        this->damaged_notice->setText(tr("WireGuard profiles cannot be loaded: %1").arg(error));
+        this->damaged_notice->show();
+        this->remove_damaged_button->hide();
+    }
+    else if (this->unreadable_profiles > 0)
+    {
+        this->damaged_notice->setText(tr("%n stored WireGuard profile(s) cannot be read and are not listed.", "",
+                                         this->unreadable_profiles));
+        this->damaged_notice->show();
+        this->remove_damaged_button->show();
+    }
+    else
+    {
+        this->damaged_notice->hide();
+        this->remove_damaged_button->hide();
+    }
+    this->refreshProfileList();
+    if (keep_editor)
+    {
+        this->refreshUsage();
+        this->refreshStatus();
+        this->refreshControls();
+    }
+    else this->loadSelection();
+}
+
+void WireGuardVpnSettingsWidget::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // Connections (Projects) and profiles (inspector import) change elsewhere.
+    if (!event->spontaneous()) this->refreshFromStorage();
+}
+
+void WireGuardVpnSettingsWidget::reportStorageError(const QString &title, const QString &message)
+{
+    QMessageBox::warning(this, title, message);
 }
 
 WireGuardVpnSettingsWidget::Profile *WireGuardVpnSettingsWidget::findProfile(const QString &id)
@@ -403,7 +522,7 @@ QString WireGuardVpnSettingsWidget::profileConfig(const QString &profile_id) con
 void WireGuardVpnSettingsWidget::createProfile(const QString &name, const QString &configuration)
 {
     Profile profile;
-    profile.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    profile.id = QStringLiteral("draft:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
     profile.name = name;
     profile.configuration = configuration;
     profile.draft = true;
@@ -506,12 +625,13 @@ void WireGuardVpnSettingsWidget::refreshProfileList()
     int selected_row = -1;
     for (const Profile &profile : this->profiles)
     {
-        QString reference_text = tr("Service usage unavailable");
+        QString reference_text = tr("Not saved yet");
         if (this->references.contains(profile.id))
         {
             const qsizetype count = this->references.value(profile.id).size();
-            reference_text = count == 1 ? tr("Used by 1 service")
-                                        : tr("Used by %1 services").arg(static_cast<qlonglong>(count));
+            reference_text = count == 0 ? tr("Not used")
+                : count == 1 ? tr("Used by 1 connection")
+                             : tr("Used by %1 connections").arg(static_cast<qlonglong>(count));
         }
         QString state_text = tr("Status unavailable");
         if (this->runtime.contains(profile.id))
@@ -552,48 +672,34 @@ void WireGuardVpnSettingsWidget::loadSelection()
     this->refreshControls();
 }
 
-QString WireGuardVpnSettingsWidget::configurationValidation(const QString &configuration) const
+QString WireGuardVpnSettingsWidget::configurationValidation(const QString &configuration, QString *notes) const
 {
-    bool interface_seen = false;
-    bool private_key_seen = false;
-    int peers = 0;
-    bool peer_has_public_key = false;
-    QString section;
-    const QStringList lines = configuration.split('\n');
-    for (int index = 0; index < lines.size(); ++index)
+    if (notes != nullptr) notes->clear();
+    const QByteArray bytes = configuration.toUtf8();
+    if (bytes.trimmed().isEmpty()) return tr("Enter or import a WireGuard configuration.");
+    if (static_cast<std::size_t>(bytes.size()) > aowis::config::max_wireguard_configuration_bytes)
+        return tr("The configuration exceeds the 2 MiB limit.");
+    if (bytes.contains('\0')) return tr("The configuration must not contain NUL characters.");
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // The parser tunnels use: what passes here is what the engine can run.
+    const aowis::network::WireGuardConfParse parsed =
+        aowis::network::parseWireGuardConf(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+    QStringList warnings;
+    QString error;
+    for (const aowis::network::WireGuardConfDiagnostic &diagnostic : parsed.diagnostics)
     {
-        const QString line = lines.at(index).trimmed();
-        if (line.isEmpty() || line.startsWith(QLatin1Char('#')) || line.startsWith(QLatin1Char(';'))) continue;
-        if (line.startsWith(QLatin1Char('[')) && line.endsWith(QLatin1Char(']')))
+        const QString message = QString::fromStdString(diagnostic.message);
+        const QString located = diagnostic.line > 0
+            ? tr("Line %1: %2").arg(static_cast<qulonglong>(diagnostic.line)).arg(message) : message;
+        if (diagnostic.severity == aowis::network::WireGuardConfSeverity::error)
         {
-            if (section == QStringLiteral("Peer") && !peer_has_public_key)
-                return tr("Each [Peer] section requires a PublicKey.");
-            section = line.mid(1, line.size() - 2).trimmed();
-            if (section == QStringLiteral("Interface"))
-            {
-                if (interface_seen) return tr("Only one [Interface] section is supported.");
-                interface_seen = true;
-            }
-            else if (section == QStringLiteral("Peer"))
-            {
-                ++peers;
-                peer_has_public_key = false;
-            }
-            else return tr("Unknown section at line %1.").arg(index + 1);
-            continue;
+            if (error.isEmpty()) error = located;
         }
-        const qsizetype separator = line.indexOf(QLatin1Char('='));
-        if (separator <= 0 || section.isEmpty()) return tr("Invalid configuration line %1.").arg(index + 1);
-        const QString key = line.left(separator).trimmed();
-        if (key.isEmpty() || line.mid(separator + 1).trimmed().isEmpty())
-            return tr("Missing key or value at line %1.").arg(index + 1);
-        if (section == QStringLiteral("Interface") && key == QStringLiteral("PrivateKey")) private_key_seen = true;
-        if (section == QStringLiteral("Peer") && key == QStringLiteral("PublicKey")) peer_has_public_key = true;
+        else if (warnings.size() < 5) warnings.append(located);
     }
-    if (section == QStringLiteral("Peer") && !peer_has_public_key)
-        return tr("Each [Peer] section requires a PublicKey.");
-    if (!interface_seen || !private_key_seen || peers == 0)
-        return tr("A profile requires [Interface] with PrivateKey and at least one [Peer] with PublicKey.");
+    if (notes != nullptr) *notes = warnings.join(QLatin1Char('\n'));
+    if (!parsed.ok()) return error.isEmpty() ? tr("The embedded WireGuard client cannot use this profile.") : error;
+#endif
     return {};
 }
 
@@ -611,7 +717,8 @@ void WireGuardVpnSettingsWidget::refreshControls()
         this->validation_label->clear();
         return;
     }
-    const QString error = configurationValidation(this->configuration_edit->toPlainText());
+    QString notes;
+    const QString error = configurationValidation(this->configuration_edit->toPlainText(), &notes);
     bool unique_name = !this->name_edit->text().trimmed().isEmpty();
     for (const Profile &candidate : this->profiles)
     {
@@ -620,9 +727,13 @@ void WireGuardVpnSettingsWidget::refreshControls()
             unique_name = false;
     }
     this->save_button->setEnabled(dirty && unique_name && error.isEmpty());
-    this->validation_label->setText(error.isEmpty()
-        ? tr("Configuration structure looks valid. This is not a tunnel connectivity check.")
-        : error);
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    const QString accepted = tr("The embedded WireGuard client can use this profile. This is not a connectivity check.");
+#else
+    const QString accepted = tr("This build has no embedded WireGuard client; the profile is stored as written.");
+#endif
+    this->validation_label->setText(!error.isEmpty() ? error
+        : notes.isEmpty() ? accepted : accepted + QLatin1Char('\n') + notes);
 }
 
 void WireGuardVpnSettingsWidget::saveProfile()
@@ -650,12 +761,71 @@ void WireGuardVpnSettingsWidget::saveProfile()
         QMessageBox::warning(this, tr("Invalid configuration"), error);
         return;
     }
-    profile->name = name;
-    profile->description = this->description_edit->toPlainText();
-    profile->configuration = config;
-    profile->draft = false;
-    this->refreshProfileList();
-    this->refreshControls();
+    QString storage_error;
+    const aowis::config::WireGuardProfiles *storage = guiWireGuardProfiles(&storage_error);
+    if (storage == nullptr)
+    {
+        reportStorageError(tr("Profile not saved"), storage_error);
+        return;
+    }
+    const aowis::config::WireGuardProfileInput input{name.toStdString(),
+        this->description_edit->toPlainText().toStdString(), config.toStdString()};
+    QString saved_id;
+    if (profile->draft)
+    {
+        const aowis::config::Result<aowis::config::WireGuardProfile> created = storage->importText(input);
+        if (!created)
+        {
+            reportStorageError(tr("Profile not saved"), QString::fromStdString(created.error().message));
+            return;
+        }
+        saved_id = QString::fromStdString(created.value().summary.info.id.value());
+        const QString draft_id = profile->id;
+        for (qsizetype index = 0; index < this->profiles.size(); ++index)
+        {
+            if (this->profiles.at(index).id == draft_id)
+            {
+                this->profiles.removeAt(index);
+                break;
+            }
+        }
+    }
+    else
+    {
+        const aowis::config::Result<aowis::config::ObjectId> id = aowis::config::ObjectId::parse(profile->id.toStdString());
+        if (!id) return;
+        const aowis::config::Result<aowis::config::WireGuardProfile> updated =
+            storage->update(id.value(), profile->revision.toStdString(), input);
+        if (!updated)
+        {
+            if (updated.error().code == aowis::config::ErrorCode::conflict)
+            {
+                reportStorageError(tr("Profile changed elsewhere"),
+                    tr("This profile was changed by another AOWIS window. Your edits were not saved; the stored version is shown."));
+                // Drop only this stale entry, so the stored version replaces
+                // the editor while other unsaved drafts stay.
+                const QString stale_id = profile->id;
+                for (qsizetype index = 0; index < this->profiles.size(); ++index)
+                {
+                    if (this->profiles.at(index).id == stale_id)
+                    {
+                        this->profiles.removeAt(index);
+                        break;
+                    }
+                }
+                this->selected_id = stale_id;
+                this->refreshFromStorage();
+                this->loadSelection();
+                return;
+            }
+            reportStorageError(tr("Profile not saved"), QString::fromStdString(updated.error().message));
+            return;
+        }
+        saved_id = profile->id;
+    }
+    this->selected_id = saved_id;
+    this->refreshFromStorage();
+    this->loadSelection();
 }
 
 void WireGuardVpnSettingsWidget::revertProfile()
@@ -683,39 +853,93 @@ void WireGuardVpnSettingsWidget::deleteProfile()
 {
     const Profile *profile = findProfile(this->selected_id);
     if (profile == nullptr) return;
-    if (this->references.contains(profile->id) && !this->references.value(profile->id).isEmpty())
+    if (profile->draft)
+    {
+        this->revertProfile(); // An unsaved draft exists only on this page.
+        return;
+    }
+    // Fresh usage before asking (and the connections collection is opened
+    // here, before the deletion session below).
+    const QString id_text = profile->id;
+    this->refreshFromStorage();
+    profile = findProfile(id_text);
+    if (profile == nullptr) return;
+    if (!this->references.value(profile->id).isEmpty())
     {
         QMessageBox::warning(this, tr("Profile in use"),
-            tr("This profile is referenced by configured services. Remove those references before deleting it."));
+            tr("This profile is used by configured connections. Change those connections before deleting it."));
         this->detail_tabs->setCurrentIndex(1);
         return;
     }
     if (QMessageBox::question(this, tr("Delete WireGuard profile?"),
-        tr("Delete '%1' from this session? Existing server connection settings will not be changed.").arg(profile->name),
+        tr("Delete '%1'? Its stored configuration, including the private key, is removed.").arg(profile->name),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
-    const QString id = profile->id;
-    for (qsizetype index = 0; index < this->profiles.size(); ++index)
+    QString storage_error;
+    const aowis::config::WireGuardProfiles *storage = guiWireGuardProfiles(&storage_error);
+    const aowis::config::Result<aowis::config::ObjectId> id = aowis::config::ObjectId::parse(profile->id.toStdString());
+    if (storage == nullptr || !id)
     {
-        if (this->profiles.at(index).id == id)
-        {
-            this->profiles.removeAt(index);
-            break;
-        }
+        reportStorageError(tr("Profile not deleted"), storage_error);
+        return;
     }
-    this->references.remove(id);
-    this->runtime.remove(id);
-    this->selected_id = this->profiles.isEmpty() ? QString() : this->profiles.first().id;
-    this->refreshProfileList();
+    // The usage count runs inside the deleting owner session, so no other
+    // AOWIS instance can assign the profile between the check and the delete.
+    const aowis::config::Result<bool> erased = storage->erase(id.value(), profile->revision.toStdString(),
+        [](const aowis::config::OwnerSession &session, const aowis::config::ObjectId &profile_id) {
+            return countConnectionsUsingWireGuardProfile(session, QString::fromStdString(profile_id.value()));
+        });
+    if (!erased)
+    {
+        reportStorageError(erased.error().code == aowis::config::ErrorCode::profile_in_use
+                ? tr("Profile in use") : tr("Profile not deleted"),
+            erased.error().code == aowis::config::ErrorCode::profile_in_use
+                ? tr("A configured connection now uses this profile.")
+                : QString::fromStdString(erased.error().message));
+        this->refreshFromStorage();
+        return;
+    }
+    this->runtime.remove(id_text);
+    this->selected_id.clear();
+    this->refreshFromStorage();
     this->loadSelection();
 }
 
-void WireGuardVpnSettingsWidget::setServiceReferences(
-    const QString &profile_id, const QList<ServiceReference> &services)
+void WireGuardVpnSettingsWidget::removeDamagedProfiles()
 {
-    if (findProfile(profile_id) == nullptr) return;
-    this->references.insert(profile_id, services);
-    this->refreshProfileList();
-    if (this->selected_id == profile_id) this->refreshUsage();
+    if (QMessageBox::question(this, tr("Remove damaged profiles?"),
+        tr("Remove stored WireGuard profiles that cannot be read? Profiles written by a newer AOWIS version are kept."),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
+    QString storage_error;
+    const aowis::config::WireGuardProfiles *storage = guiWireGuardProfiles(&storage_error);
+    if (storage == nullptr)
+    {
+        reportStorageError(tr("Profiles not removed"), storage_error);
+        return;
+    }
+    static_cast<void>(loadProjectServerProfiles()); // Opens connections before the sessions below.
+    const aowis::config::Result<aowis::config::WireGuardProfileListing> listing = storage->list();
+    int kept = 0;
+    if (listing)
+    {
+        for (const aowis::config::UnreadableObject &damaged : listing.value().unreadable)
+        {
+            if (!damaged.id.has_value())
+            {
+                ++kept;
+                continue;
+            }
+            const aowis::config::Result<bool> removed = storage->eraseUnreadable(*damaged.id,
+                [](const aowis::config::OwnerSession &session, const aowis::config::ObjectId &profile_id) {
+                    return countConnectionsUsingWireGuardProfile(session, QString::fromStdString(profile_id.value()));
+                });
+            if (!removed) ++kept;
+        }
+    }
+    if (kept > 0)
+        reportStorageError(tr("Profiles not removed"),
+            tr("%n damaged profile(s) were kept: they are used by connections, written by a newer AOWIS version, or not removable.",
+               "", kept));
+    this->refreshFromStorage();
 }
 
 void WireGuardVpnSettingsWidget::setTunnelStatus(const QString &profile_id, const TunnelStatus &status)
@@ -732,14 +956,15 @@ void WireGuardVpnSettingsWidget::refreshUsage()
     if (this->selected_id.isEmpty()) return;
     if (!this->references.contains(this->selected_id))
     {
-        this->usage_info->setText(tr("Service references are not yet connected to the central profile manager. Existing file-path connections are unchanged."));
+        this->usage_info->setText(tr("Save the profile before connections can use it."));
         return;
     }
     const QList<ServiceReference> services = this->references.value(this->selected_id);
-    this->usage_info->setText(services.isEmpty() ? tr("No services use this profile.")
+    this->usage_info->setText(services.isEmpty()
+        ? tr("No configured connection uses this profile. Choose it in Projects → Connection → WireGuard.")
         : services.size() == 1
-            ? tr("Used by 1 configured service. This does not imply an active tunnel.")
-            : tr("Used by %1 configured services. This does not imply an active tunnel.")
+            ? tr("Used by 1 configured connection. This does not imply an active tunnel.")
+            : tr("Used by %1 configured connections. This does not imply an active tunnel.")
                   .arg(static_cast<qlonglong>(services.size())));
     for (const ServiceReference &service : services)
     {
@@ -784,7 +1009,8 @@ void WireGuardVpnSettingsWidget::retranslate()
 {
     this->title->setText(tr("WireGuard VPN"));
     this->introduction->setText(tr("Import and manage reusable WireGuard profiles. Services can share a profile without creating separate configurations."));
-    this->session_notice->setText(tr("GUI preview: profiles exist only for this session. Configuration storage, service assignment and runtime integration will follow. Private keys are not written to disk."));
+    this->session_notice->setText(tr("Profiles are stored in your AOWIS configuration, including their private keys. The files are readable only by your user account but are not encrypted; treat backups of the configuration as secret."));
+    this->remove_damaged_button->setText(tr("Remove damaged…"));
     this->empty_notice->setText(tr("No profile selected. Import a .conf file or create a new profile."));
     this->new_button->setText(tr("New"));
     this->import_button->setText(tr("Import…"));

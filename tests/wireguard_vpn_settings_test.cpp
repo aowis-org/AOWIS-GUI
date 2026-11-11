@@ -1,5 +1,9 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 
+#include "config/project_server_profile_storage.h"
+#include "config/wireguard_profile_storage.h"
+#include "projects/dvmdb_identity.h"
+
 #include <QApplication>
 #include <QAbstractButton>
 #include <QColor>
@@ -12,6 +16,7 @@
 #include <QPalette>
 #include <QPushButton>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -51,10 +56,22 @@ void answerNextMessage(QMessageBox::StandardButton response)
         }
     });
 }
+
+// A profile the embedded engine accepts (one interface address, one peer).
+const QString valid_profile = QStringLiteral(
+    "[Interface]\nPrivateKey = k5yQ1m2b3c4d5e6f7g8h9i0j1k2l3m4n5o6p7q8r9s0=\nAddress = 10.8.0.2/32\n"
+    "[Peer]\nPublicKey = V0hERXJ4MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU=\n"
+    "Endpoint = vpn.example.invalid:51820\nAllowedIPs = 10.8.0.0/24\n");
 }
 
 int main(int argc, char **argv)
 {
+    // Profiles and connections live in the GUI's AOWIS-CONFIG store; keep it
+    // isolated from the developer's real configuration.
+    QTemporaryDir configuration;
+    if (!check(configuration.isValid(), "temporary configuration unavailable")) return 1;
+    qputenv("XDG_CONFIG_HOME", configuration.path().toUtf8());
+    qputenv("XDG_DATA_HOME", configuration.path().toUtf8());
     QApplication app(argc, argv);
     WireGuardVpnSettingsWidget page;
     QListWidget *list = page.findChild<QListWidget *>(QStringLiteral("wireguardVpnProfileList"));
@@ -124,39 +141,75 @@ int main(int argc, char **argv)
                "blank profile should be editable and validated")) return 1;
     name->setText(QStringLiteral("Office VPN"));
     description->setPlainText(QStringLiteral("Office infrastructure"));
-    editor->setPlainText(QStringLiteral("[Interface]\nPrivateKey = local-test-key\nAddress = 10.8.0.2/32\n"
-                                         "[Peer]\nPublicKey = test-peer-key\nAllowedIPs = 10.8.0.0/24\n"));
+    editor->setPlainText(valid_profile);
     if (!check(save->isEnabled(), "Save should activate on valid user edits")) return 1;
     save->click();
     const QString id = page.profileIdForName(QStringLiteral("Office VPN"));
-    if (!check(!id.isEmpty() && page.profileConfig(id).contains(QStringLiteral("PrivateKey"))
-               && !save->isEnabled(), "saved draft was not preserved in session model")) return 1;
-    if (!check(list->item(0)->text().contains(QStringLiteral("unavailable"), Qt::CaseInsensitive),
-               "GUI must not fabricate runtime status or service counts")) return 1;
+    if (!check(DvmdbIdentity::isUuidV7(id) && page.profileConfig(id) == valid_profile && !save->isEnabled(),
+               "saved draft did not become a stored profile")) return 1;
+    std::string stored_text;
+    QString storage_error;
+    if (!check(listWireGuardProfiles().size() == 1
+                   && readWireGuardProfileText(id, stored_text, &storage_error)
+                   && QString::fromStdString(stored_text) == valid_profile,
+               "profile text was not stored verbatim in AOWIS-CONFIG")) return 1;
+    {
+        WireGuardVpnSettingsWidget reopened;
+        if (!check(reopened.profileIdForName(QStringLiteral("Office VPN")) == id
+                       && reopened.profileConfig(id) == valid_profile,
+                   "stored profile not shown by a new settings page")) return 1;
+    }
+    if (!check(list->item(0)->text().contains(QStringLiteral("Not used"))
+                   && list->item(0)->text().contains(QStringLiteral("Status unavailable")),
+               "GUI must show real usage and must not fabricate runtime status")) return 1;
 
     name->setText(QStringLiteral("Renamed office VPN"));
     save->click();
     if (!check(page.profileIdForName(QStringLiteral("Renamed office VPN")) == id
-               && page.profileIdForName(QStringLiteral("Office VPN")).isEmpty(),
-               "renaming must retain a stable profile identity")) return 1;
+                   && page.profileIdForName(QStringLiteral("Office VPN")).isEmpty()
+                   && listWireGuardProfiles().size() == 1
+                   && listWireGuardProfiles().at(0).name == QStringLiteral("Renamed office VPN"),
+               "renaming must retain the stored profile identity")) return 1;
     QEvent language_change(QEvent::LanguageChange);
     QApplication::sendEvent(&page, &language_change);
     if (!check(page.profileIdForName(QStringLiteral("Renamed office VPN")) == id,
                "language change modified profile identity")) return 1;
 
-    // Reverting changes must not overwrite the committed in-session configuration.
+    // Reverting changes must not overwrite the stored configuration.
     editor->setPlainText(QStringLiteral("invalid text"));
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // The editor uses AOWIS-NETWORK's parser: what the engine cannot run is
+    // never saved, and a second peer is something it cannot run.
+    if (!check(!save->isEnabled(), "unusable configuration could be saved")) return 1;
+    editor->setPlainText(valid_profile + QStringLiteral("[Peer]\nPublicKey = V0hERXJ4MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU=\n"));
+    QLabel *validation = page.findChild<QLabel *>(QStringLiteral("wireguardVpnValidation"));
+    if (!check(!save->isEnabled() && validation != nullptr && validation->text().contains(QStringLiteral("Line")),
+               "parser diagnostics are not shown with their line")) return 1;
+    // Ignored wg-quick directives are warnings: saveable, but explained.
+    QString with_hook = valid_profile;
+    with_hook.replace(QStringLiteral("Address = 10.8.0.2/32\n"),
+                      QStringLiteral("Address = 10.8.0.2/32\nPostUp = /bin/true\n"));
+    editor->setPlainText(with_hook);
+    if (!check(save->isEnabled() && validation->text().contains(QStringLiteral("ignored")),
+               "ignored directive must be saveable with a warning")) return 1;
+#endif
     page.findChild<QPushButton *>(QStringLiteral("wireguardVpnRevert"))->click();
-    if (!check(editor->toPlainText() == page.profileConfig(id), "revert lost committed contents")) return 1;
+    if (!check(editor->toPlainText() == page.profileConfig(id), "revert lost stored contents")) return 1;
 
-    WireGuardVpnSettingsWidget::ServiceReference service;
-    service.id = QStringLiteral("db-service-id");
-    service.name = QStringLiteral("Personal DVMDB");
-    service.kind = QStringLiteral("DVMDB");
-    service.endpoint = QStringLiteral("http://10.8.0.10:8080");
-    page.setServiceReferences(id, {service});
-    if (!check(list->item(0)->text().contains(QStringLiteral("1")) && used_by->topLevelItemCount() == 1,
-               "configured service usage did not update")) return 1;
+    // "Used by" is computed from configured connections.
+    ProjectServerProfile connection;
+    connection.id = DvmdbIdentity::newUuidV7();
+    connection.name = QStringLiteral("Personal DVMDB");
+    connection.endpoint = QStringLiteral("http://10.8.0.10:8080");
+    connection.auth_mode = QStringLiteral("None");
+    connection.wireguard_profile_id = id;
+    QList<ProjectServerProfile> connections{connection};
+    if (!check(saveProjectServerProfiles(connections), "could not store a connection")) return 1;
+    page.refreshFromStorage();
+    if (!check(list->item(0)->text().contains(QStringLiteral("Used by 1 connection"))
+                   && used_by->topLevelItemCount() == 1
+                   && used_by->topLevelItem(0)->text(0) == QStringLiteral("Personal DVMDB"),
+               "configured connection usage did not update")) return 1;
 
     WireGuardVpnSettingsWidget::TunnelStatus tunnel;
     tunnel.state = WireGuardVpnSettingsWidget::TunnelStatus::State::Running;
@@ -167,19 +220,40 @@ int main(int argc, char **argv)
     if (!check(state->text() == QStringLiteral("Running") && active->text() == QStringLiteral("1"),
                "runtime snapshot did not update status")) return 1;
 
-    // The GUI refuses to delete a referenced profile even without a backend.
+    // A referenced profile is never deleted.
     answerNextMessage(QMessageBox::Ok);
     remove->click();
-    if (!check(page.profileIds().size() == 1, "referenced profile was deleted")) return 1;
-    page.setServiceReferences(id, {});
+    if (!check(page.profileIds().size() == 1 && listWireGuardProfiles().size() == 1,
+               "referenced profile was deleted")) return 1;
+    connections.clear();
+    if (!check(saveProjectServerProfiles(connections), "could not remove the connection")) return 1;
     answerNextMessage(QMessageBox::Yes);
     remove->click();
-    if (!check(page.profileIds().isEmpty(), "unreferenced profile was not deleted")) return 1;
+    if (!check(page.profileIds().isEmpty() && listWireGuardProfiles().isEmpty(),
+               "unreferenced profile was not deleted from storage")) return 1;
 
     create->click();
     if (!check(page.profileIds().size() == 1, "second draft was not created")) return 1;
     page.findChild<QPushButton *>(QStringLiteral("wireguardVpnRevert"))->click();
-    if (!check(page.profileIds().isEmpty(), "reverting unsaved draft must remove it")) return 1;
+    if (!check(page.profileIds().isEmpty() && listWireGuardProfiles().isEmpty(),
+               "reverting unsaved draft must remove it without storing")) return 1;
+
+    // Damaged records are reported and can be removed deliberately.
+    const aowis::config::WireGuardProfiles *storage = guiWireGuardProfiles();
+    if (!check(storage != nullptr
+                   && storage->collection().create(R"({"type":"not-wireguard"})").hasValue(),
+               "could not plant a damaged profile record")) return 1;
+    page.refreshFromStorage();
+    QLabel *damaged = page.findChild<QLabel *>(QStringLiteral("wireguardVpnDamagedNotice"));
+    QPushButton *remove_damaged = page.findChild<QPushButton *>(QStringLiteral("wireguardVpnRemoveDamaged"));
+    if (!check(damaged != nullptr && remove_damaged != nullptr && !damaged->isHidden()
+                   && !remove_damaged->isHidden() && list->count() == 0,
+               "damaged profile record not reported")) return 1;
+    answerNextMessage(QMessageBox::Yes);
+    remove_damaged->click();
+    const aowis::config::Result<aowis::config::WireGuardProfileListing> after = storage->list();
+    if (!check(after && after.value().unreadable.empty() && damaged->isHidden(),
+               "damaged profile record not removed")) return 1;
 
     std::puts("WireGuard VPN settings GUI regression checks passed");
     return 0;

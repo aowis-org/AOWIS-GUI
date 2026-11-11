@@ -333,6 +333,30 @@ bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles)
     return saveProjectServerProfiles(copy);
 }
 
+aowis::config::Result<std::size_t> countConnectionsUsingWireGuardProfile(
+    const aowis::config::OwnerSession &session, const QString &profile_id)
+{
+    QString error;
+    const aowis::config::ObjectCollection *collection = connections(&error);
+    if (collection == nullptr)
+        return aowis::config::Result<std::size_t>::failure(
+            {aowis::config::ErrorCode::reference_unavailable, error.toStdString()});
+    const aowis::config::Result<aowis::config::ObjectSnapshot> snapshot = collection->readAll(session);
+    if (!snapshot) return aowis::config::Result<std::size_t>::failure(snapshot.error());
+    if (!snapshot.value().unreadable.empty())
+        return aowis::config::Result<std::size_t>::failure({aowis::config::ErrorCode::reference_unavailable,
+            "Some connection records cannot be read, so WireGuard profile usage is unknown"});
+    std::size_t count = 0;
+    for (const aowis::config::StoredObject &stored : snapshot.value().objects)
+    {
+        const QJsonObject transport = payloadObject(stored).value(QStringLiteral("transport")).toObject();
+        if (transport.value(QStringLiteral("type")).toString() == QStringLiteral("wireguard")
+            && transport.value(QStringLiteral("profile_id")).toString().trimmed() == profile_id)
+            ++count;
+    }
+    return aowis::config::Result<std::size_t>::success(count);
+}
+
 QString defaultLocalDvmdbPath()
 {
     // Keep standalone's embedded database separate from the DVMDB HTTP

@@ -1,63 +1,61 @@
 # WireGuard VPN settings
 
-**Settings → WireGuard VPN** is the native AOWIS GUI's central place for
-managing reusable WireGuard configuration drafts.
+**Settings → WireGuard VPN** manages the GUI's reusable WireGuard profiles.
+Profiles are stored by [AOWIS-CONFIG](https://github.com/aowis-org/AOWIS-CONFIG)
+in the GUI's owner root, one record per profile:
 
-## Current behavior
+```text
+Linux:   ${XDG_CONFIG_HOME:-~/.config}/aowis/gui/wireguard/<uuidv7>.json   (0600, directory 0700)
+Windows: %LOCALAPPDATA%\aowis\gui\wireguard\   (needs the AOWIS-CONFIG Windows backend; not yet implemented)
+```
 
-- The profile list supports **New**, **Import .conf**, **Edit**, **Save changes**,
-  **Revert** and **Delete**. The right pane has **Configuration**, **Used by**
-  and **Status** tabs. Both profile names and the complete INI-like WireGuard
-  configuration are editable. An imported file is copied into the editor; its
-  path is not used as an identifier or retained by this page.
-- The plain-text `.conf` editor highlights section headers, recognized interface
-  and peer directives, values, comments, and malformed lines. Unrecognized
-  directives are differentiated without rewriting or rejecting their contents.
-  Highlighting adapts to light/dark Qt palettes and works on desktop and Qt
-  WebAssembly (although the VPN settings page itself is disabled on WASM).
-- Configurations are syntax-checked for sections and required interface/peer
-  keys. This is **not** a cryptographic validation or a network test. The GUI
-  can represent multiple peers; current AOWIS-NETWORK probe support may have
-  stricter limitations when it is integrated.
-- Profiles have a stable generated ID. Service references and runtime snapshots
-  are associated with this ID, not the profile name.
-- **Used by** describes saved *service configurations* referencing a profile,
-  not connections or sockets. The live **Status** tab represents independently
-  supplied tunnel state, active consumers, traffic, peers and handshakes.
-  Nothing is represented as online or assigned until supplied by a real adapter.
-- Deleting a profile with known service references is refused. Renaming does
-  not change its ID. The editor warns about unsaved changes.
-- On **WebAssembly**, the Settings navigation entry remains visible but disabled,
-  with a tooltip explaining that the browser cannot supply the native UDP/TUN
-  networking capabilities required by the embedded WireGuard client.
+A record holds the profile's name, description and the **exact** `.conf`
+text, including its private key. Files are private to the user account but
+**not encrypted**; treat copies and backups of the configuration as secret.
 
-## Boundaries of this GUI-only implementation
+## Behavior
 
-**This page is still session-local and is not yet persisted**; it is moved
-onto AOWIS-CONFIG next. The page displays a persistent notice to that effect.
+- **New** and **Import…** create unsaved drafts; **Save changes** stores them
+  (import copies the file's text; the path is never kept). **Revert** discards
+  edits or an unsaved draft. **Delete** removes the stored record.
+- Names are unique (case-insensitive). Renaming keeps the profile's ID, so
+  connections referencing it are unaffected.
+- Validation: on builds with the embedded engine (Linux,
+  `AOWIS_GUI_WIREGUARD_PROBE`) the editor runs AOWIS-NETWORK's
+  `parseWireGuardConf()`, the same parser that starts tunnels. Profiles it
+  rejects cannot be saved; its first error is shown with its line. Ignored
+  wg-quick directives (`PostUp`, `Table`, …) are warnings: saveable, never
+  executed. Other builds only check text integrity (non-empty, ≤ 2 MiB, no NUL).
+- The syntax highlighter is presentation only and adapts to light/dark
+  palettes.
+- **Used by** lists the configured connections (Projects → Connection →
+  WireGuard) whose `transport.profile_id` references the profile. It refreshes
+  whenever the page is shown. It counts configuration, not running tunnels.
+- **Delete** is refused while any connection references the profile. The
+  check runs inside the same AOWIS-CONFIG owner session as the delete, so no
+  other AOWIS instance can assign the profile in between; if any connection
+  record cannot be read, deletion is refused as well.
+- Damaged profile records (unreadable, or not a WireGuard profile) are
+  reported above the list; **Remove damaged…** deletes them after
+  confirmation, except records written by a newer AOWIS version or still
+  referenced by a connection.
+- **Status** shows only what a tunnel runtime reports via
+  `setTunnelStatus(profile_id, snapshot)`; no adapter is connected yet, so it
+  shows **Unavailable** rather than a fabricated state.
+- On **WebAssembly** the navigation entry stays visible but disabled, with a
+  tooltip: browsers cannot run the embedded UDP/TUN WireGuard client.
 
-**DVMDB connections already use stored profiles.** Projects → Connection →
-WireGuard selects a profile from the GUI's AOWIS-CONFIG store
-(`aowis/gui/wireguard/<uuidv7>.json`, mode 0600) or the direct connection;
-**Import WireGuard profile…** copies a `.conf` file's text into that store
-(the path is not kept). A connection references its profile by ID
-(`transport.profile_id` of its `connections` record). AOWIS-NETWORK's
-`parseWireGuardConf()` checks the file on import, refusing what the embedded
-engine cannot run (it supports exactly one interface address and one peer),
-and again whenever a tunnel starts. A connection whose profile is missing or
-unusable stays closed; it never falls back to direct HTTP.
+## Connections
 
-The widget provides `setServiceReferences(profile_id, services)` and
-`setTunnelStatus(profile_id, snapshot)` to support central service discovery and
-WireGuard runtime monitoring when those components are connected. A profile
-without snapshots explicitly displays **Service usage unavailable** and
-**Status unavailable** rather than fabricated zeroes or a fake `Stopped` state.
-
-The editor necessarily displays private keys while the user edits them. The
-page does not copy them to the clipboard, log them, or save them to QSettings.
+Projects → Connection → WireGuard selects a stored profile or the direct
+connection, and **Import WireGuard profile…** stores a `.conf` there
+directly. A connection whose profile is missing or unusable stays closed and
+never falls back to direct HTTP; the selector shows it as **Missing profile**.
 
 ## Testing
 
-`aowis-wireguard-vpn-settings-tests` checks the editor, session-local CRUD,
-renaming via stable IDs, snapshot views, deletion blocking for known consumers,
-the absence of invented runtime status, syntax formatting, and palette changes.
+`aowis-wireguard-vpn-settings-tests` (isolated `XDG_CONFIG_HOME`) checks
+highlighting, storing and reopening profiles, rename by stable ID, parser
+validation and warnings, revert, "Used by" from connection records, refused
+deletion while referenced, storage deletion, draft revert, and damaged-record
+removal.

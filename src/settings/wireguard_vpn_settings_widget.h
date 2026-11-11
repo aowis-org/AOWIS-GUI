@@ -14,11 +14,16 @@ class QPushButton;
 class QTabWidget;
 class QTreeWidget;
 class QEvent;
+class QShowEvent;
 
-// Settings GUI only. Profiles are session-local drafts until the central AOWIS
-// configuration store is designed. Never serialize WireGuard private keys to
-// QSettings or log them. The runtime and service registries can later publish
-// their real snapshots through the two explicit update entry points below.
+// Settings → WireGuard VPN. Profiles are the GUI's AOWIS-CONFIG WireGuard
+// records (config/wireguard_profile_storage.h): New and Import create
+// unsaved drafts; Save stores them, Delete removes them. "Used by" lists the
+// configured connections whose transport references a profile; deletion is
+// refused while any does, checked inside the same owner session as the
+// delete. With the embedded engine (AOWIS_GUI_WIREGUARD_PROBE) the text is
+// validated by AOWIS-NETWORK's parseWireGuardConf(), the parser tunnels use.
+// Never log profile text or keys.
 class WireGuardVpnSettingsWidget final : public QWidget
 {
     Q_OBJECT
@@ -53,9 +58,12 @@ public:
 
     explicit WireGuardVpnSettingsWidget(QWidget *parent = nullptr);
 
-    // Future service/tunnel adapters supply data keyed by stable profile ID.
-    // No counts or connection states are fabricated by this settings page.
-    void setServiceReferences(const QString &profile_id, const QList<ServiceReference> &services);
+    // Reloads profiles and their connection references from storage; also
+    // done whenever the page is shown. Unsaved drafts and edits are kept.
+    void refreshFromStorage();
+
+    // A future tunnel runtime adapter supplies status keyed by profile ID.
+    // No connection state is fabricated by this settings page.
     void setTunnelStatus(const QString &profile_id, const TunnelStatus &status);
 
     QStringList profileIds() const;
@@ -67,12 +75,14 @@ signals:
 
 protected:
     void changeEvent(QEvent *event) override;
+    void showEvent(QShowEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     struct Profile
     {
-        QString id;
+        QString id;       // Stored UUIDv7, or "draft:<uuid>" until first saved
+        QString revision; // Stored revision; empty for drafts
         QString name;
         QString description;
         QString configuration;
@@ -83,6 +93,7 @@ private:
     QHash<QString, QList<ServiceReference>> references;
     QHash<QString, TunnelStatus> runtime;
     QString selected_id;
+    int unreadable_profiles = 0;
     bool selecting = false;
     bool loading_editor = false;
 
@@ -90,6 +101,8 @@ private:
     QLabel *introduction = nullptr;
     QLabel *session_notice = nullptr;
     QLabel *empty_notice = nullptr;
+    QLabel *damaged_notice = nullptr;
+    QPushButton *remove_damaged_button = nullptr;
     QListWidget *profile_list = nullptr;
     QPushButton *new_button = nullptr;
     QPushButton *import_button = nullptr;
@@ -116,6 +129,8 @@ private:
     void createProfile(const QString &name, const QString &configuration);
     void importProfile();
     void deleteProfile();
+    void removeDamagedProfiles();
+    void reportStorageError(const QString &title, const QString &message);
     void saveProfile();
     void revertProfile();
     bool leaveCurrentProfile();
@@ -127,5 +142,6 @@ private:
     void refreshControls();
     void retranslate();
     bool hasChanges() const;
-    QString configurationValidation(const QString &configuration) const;
+    // Blocking problem, or empty; warnings (ignored directives) go to *notes.
+    QString configurationValidation(const QString &configuration, QString *notes = nullptr) const;
 };

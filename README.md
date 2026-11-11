@@ -217,9 +217,12 @@ Usually as a Desktop-Client, you might want to prefer [AOWIS-SERVER-Standalone](
 
 ## GUI configuration
 
-Configured DVMDB connections (Projects → servers) are stored with
-[AOWIS-CONFIG](https://github.com/aowis-org/AOWIS-CONFIG) in the GUI's owner
-root, one record per connection in the `connections` collection:
+Configured DVMDB connections (Projects → servers) and WireGuard profiles
+(Settings → WireGuard VPN, see [docs/wireguard-vpn-settings.md](docs/wireguard-vpn-settings.md))
+are stored with [AOWIS-CONFIG](https://github.com/aowis-org/AOWIS-CONFIG) in
+the GUI's owner root, one record per object in the `connections` and
+`wireguard` collections (WireGuard records contain private keys; they are
+private to your user but not encrypted):
 
 ```text
 Linux:   ${XDG_CONFIG_HOME:-~/.config}/aowis/gui/connections/<uuidv7>.json

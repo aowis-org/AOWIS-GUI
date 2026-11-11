@@ -928,15 +928,22 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     set_tests_properties(aowis-gui-language PROPERTIES
         LABELS "aowis" ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-    # Session-local WireGuard VPN GUI: CRUD, service reference and runtime
-    # diagnostics views. Does not require the native WireGuard engine.
+    # WireGuard VPN settings on the GUI's AOWIS-CONFIG store: CRUD, "Used by"
+    # from configured connections, guarded deletion, damaged records. Uses
+    # AOWIS-NETWORK's parser where the embedded engine is built (see below).
     add_executable(aowis-wireguard-vpn-settings-tests
         tests/wireguard_vpn_settings_test.cpp
         src/settings/wireguard_vpn_settings_widget.cpp
-        src/settings/wireguard_vpn_settings_widget.h)
+        src/settings/wireguard_vpn_settings_widget.h
+        src/config/wireguard_profile_storage.cpp
+        src/config/wireguard_profile_storage.h
+        src/config/project_server_profile_storage.cpp
+        src/config/project_server_profile_storage.h
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h)
     target_include_directories(aowis-wireguard-vpn-settings-tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(aowis-wireguard-vpn-settings-tests PRIVATE Qt6::Widgets)
+    target_link_libraries(aowis-wireguard-vpn-settings-tests PRIVATE Qt6::Widgets aowis::config)
     add_test(NAME aowis-wireguard-vpn-settings
         COMMAND aowis-wireguard-vpn-settings-tests)
     set_tests_properties(aowis-wireguard-vpn-settings PROPERTIES
@@ -1864,7 +1871,7 @@ qt_import_plugins(aowis-server-gui
 )
 
 if(TARGET AOWIS::NetworkQt AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
-    foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests)
+    foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests aowis-wireguard-vpn-settings-tests)
         if(TARGET ${probe_target})
             target_compile_definitions(${probe_target} PRIVATE AOWIS_GUI_WIREGUARD_PROBE)
             target_link_libraries(${probe_target} PRIVATE AOWIS::NetworkQt Qt6::Concurrent)
