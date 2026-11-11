@@ -2253,6 +2253,7 @@ int main(int argc, char **argv)
     // source's WireGuard connection). A closed connection fails the
     // checkout and is never replaced by a direct request.
     int transported = 0;
+    const int provisions_before_transport = stub.provision_count;
     QNetworkAccessManager source_manager;
     client.setSourceTransport([&](const QNetworkRequest &request) -> QNetworkReply *
     {
@@ -2265,7 +2266,7 @@ int main(int argc, char **argv)
         DvmdbIdentity::newUuidV7(), project_id, QStringLiteral("Network test"), branch_id, head_id,
         [&](const QString &failure) { error = failure; done = true; });
     if (!check(until(application, [&] { return done; }) && !error.isEmpty() && transported == 1
-                   && stub.provision_count == 1,
+                   && stub.provision_count == provisions_before_transport,
                "checkout did not read the source through the given transport")) return 1;
     const int exports_before_closed = source.bundle_export_count;
     client.setSourceTransport([&](const QNetworkRequest &) -> QNetworkReply *
@@ -2278,7 +2279,8 @@ int main(int argc, char **argv)
         different_repository, project_id, QStringLiteral("Network test"), branch_id, head_id,
         [&](const QString &failure) { error = failure; done = true; });
     if (!check(done && error.contains(QStringLiteral("WireGuard")) && transported == 2
-                   && source.bundle_export_count == exports_before_closed && stub.provision_count == 1,
+                   && source.bundle_export_count == exports_before_closed
+                   && stub.provision_count == provisions_before_transport,
                "closed source connection did not fail the checkout")) return 1;
     client.setSourceTransport({});
 
