@@ -145,7 +145,7 @@ int main(int argc, char **argv)
                      && saved_transport.value(QStringLiteral("type")).toString() == QStringLiteral("wireguard")
                      && saved_transport.value(QStringLiteral("profile_id")).toString() == tunnel_profile
                      && tunnelled_loaded.wireguard_profile_id == tunnel_profile
-                     && tunnelled_loaded.base_url == configured.base_url,
+                     && tunnelled_loaded.base_url == configured.base_url.trimmed(),
                  "WireGuard transport did not round-trip")) return 1;
     configured.wireguard_profile_id.clear();
     if (!require(saveMapServerClientConfiguration(configured)
