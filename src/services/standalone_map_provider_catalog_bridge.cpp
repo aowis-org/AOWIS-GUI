@@ -3,6 +3,7 @@
 
 #include <QCoreApplication>
 #include <QHostAddress>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTimer>
