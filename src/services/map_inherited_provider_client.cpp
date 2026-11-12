@@ -44,6 +44,8 @@ void MapInheritedProviderClient::setServer(const MapServerRestConfiguration &ser
     this->network.setProxy(server.proxy);
     this->has_catalog = false;
     this->entries.clear();
+    this->local_provider_count = 0;
+    this->local_with_upstreams = 0;
     emit catalogChanged();
 }
 
@@ -83,6 +85,8 @@ void MapInheritedProviderClient::refresh()
         }
         QVector<MapInheritedProviderEntry> parsed;
         QSet<QString> identities;
+        int local_count = 0;
+        int local_upstream_count = 0;
         for (const QJsonValue &value : array)
         {
             if (!value.isObject())
@@ -91,8 +95,15 @@ void MapInheritedProviderClient::refresh()
                 return;
             }
             const QJsonObject object = value.toObject();
-            if (object.value(QStringLiteral("origin")).toString() != QStringLiteral("inherited"))
+            const QString origin = object.value(QStringLiteral("origin")).toString();
+            if (origin == QStringLiteral("local"))
+            {
+                ++local_count;
+                if (!object.value(QStringLiteral("upstreams")).toArray().isEmpty())
+                    ++local_upstream_count;
                 continue;
+            }
+            if (origin != QStringLiteral("inherited")) continue;
             MapInheritedProviderEntry entry;
             entry.id = object.value(QStringLiteral("id")).toString();
             entry.name = object.value(QStringLiteral("name")).toString();
@@ -111,6 +122,8 @@ void MapInheritedProviderClient::refresh()
             parsed.append(entry);
         }
         this->entries = parsed;
+        this->local_provider_count = local_count;
+        this->local_with_upstreams = local_upstream_count;
         this->has_catalog = true;
         emit catalogChanged();
     });

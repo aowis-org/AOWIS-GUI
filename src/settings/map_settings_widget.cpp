@@ -481,9 +481,10 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     });
     QVBoxLayout *inherited_layout = new QVBoxLayout(inherited_group);
     inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
-        "Upstream provider definitions are read-only. You can enable or disable them "
-        "on this MAP server without changing upstream settings. An administrator "
-        "key is required to change availability."), inherited_group));
+        "This section lists only additional providers inherited from upstream MAP servers. "
+        "Providers already defined locally appear in the editor above, even if an upstream "
+        "also offers them. Inherited definitions are read-only; an administrator key "
+        "is required to change their local availability."), inherited_group));
     this->inherited_provider_table = new QTableWidget(0, 5, inherited_group);
     LiveUiText::bind(this->inherited_provider_table, [this]
     {
@@ -895,7 +896,21 @@ void MapSettingsWidget::refreshInheritedProviderTable()
     if (!this->inherited_provider_client->loaded())
         this->inherited_provider_status->setText(tr("Waiting for MAP's available-provider catalog."));
     else if (this->inherited_provider_client->providers().isEmpty())
-        this->inherited_provider_status->setText(tr("No upstream providers are currently advertised."));
+    {
+        const int local = this->inherited_provider_client->localProviderCount();
+        const int also_upstream = this->inherited_provider_client->locallyDefinedWithUpstreams();
+        if (also_upstream > 0)
+            this->inherited_provider_status->setText(
+                tr("MAP advertises %1 local providers; %2 are also offered upstream. "
+                   "No additional providers to inherit.").arg(local).arg(also_upstream));
+        else if (local > 0)
+            this->inherited_provider_status->setText(
+                tr("MAP advertises %1 local providers. No additional upstream providers "
+                   "are available.").arg(local));
+        else
+            this->inherited_provider_status->setText(
+                tr("MAP advertises no providers. Check its local catalog and upstream settings."));
+    }
     else if (!this->inherited_provider_client->canEdit())
         this->inherited_provider_status->setText(tr("Read-only: configure the MAP admin/delete key to change inherited provider availability."));
     else

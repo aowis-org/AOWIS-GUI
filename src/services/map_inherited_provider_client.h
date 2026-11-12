@@ -31,6 +31,8 @@ public:
     void setEnabled(const QString &id, bool enabled);
     const QVector<MapInheritedProviderEntry> &providers() const { return this->entries; }
     bool loaded() const { return this->has_catalog; }
+    int localProviderCount() const { return this->local_provider_count; }
+    int locallyDefinedWithUpstreams() const { return this->local_with_upstreams; }
     bool canEdit() const { return this->map_server.configured() && !this->map_server.delete_api_key.isEmpty(); }
     bool updating() const { return this->change_pending; }
 
@@ -45,6 +47,8 @@ private:
     QVector<MapInheritedProviderEntry> entries;
     quint64 request_generation = 0;
     bool has_catalog = false;
+    int local_provider_count = 0;
+    int local_with_upstreams = 0;
     bool change_pending = false;
 };
 

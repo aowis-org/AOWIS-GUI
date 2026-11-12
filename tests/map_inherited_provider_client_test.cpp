@@ -78,8 +78,19 @@ public:
                             {QStringLiteral("minimum_zoom"), 3},
                             {QStringLiteral("maximum_zoom"), 14},
                             {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("central")}}};
+                        QJsonArray advertised;
+                        if (this->only_local)
+                        {
+                            advertised.append(QJsonObject{
+                                {QStringLiteral("id"), QStringLiteral("0381bc44-67e9-5af9-aeb0-023ccba36658")},
+                                {QStringLiteral("name"), QStringLiteral("OpenStreetMap")},
+                                {QStringLiteral("origin"), QStringLiteral("local")},
+                                {QStringLiteral("upstreams"), this->local_also_upstream ?
+                                    QJsonArray{QStringLiteral("central")} : QJsonArray{}}});
+                        }
+                        else advertised.append(provider);
                         body = QJsonDocument(QJsonObject{{QStringLiteral("providers"),
-                            QJsonArray{provider}}}).toJson(QJsonDocument::Compact);
+                            advertised}}).toJson(QJsonDocument::Compact);
                         code = 200;
                     }
                     else if (header.startsWith("PUT /map/v1/providers/inherited") && admin_key)
@@ -110,6 +121,8 @@ public:
     QTcpServer tcp;
     bool enabled = true;
     int updates = 0;
+    bool only_local = false;
+    bool local_also_upstream = false;
 };
 }
 
@@ -144,5 +157,18 @@ int main(int argc, char **argv)
     QCoreApplication::processEvents();
     if (!expect(!client.canEdit() && server.updates == 1 && !client.providers().at(0).enabled,
                 "read-only connection cannot edit")) return 1;
+
+    server.only_local = true;
+    server.local_also_upstream = true;
+    client.refresh();
+    if (!expect(pumpUntil([&client]() {
+        return client.providers().isEmpty() && client.localProviderCount() == 1 &&
+            client.locallyDefinedWithUpstreams() == 1;
+    }), "local provider with matching upstream is advertised, not inherited")) return 1;
+    server.local_also_upstream = false;
+    client.refresh();
+    if (!expect(pumpUntil([&client]() {
+        return client.localProviderCount() == 1 && client.locallyDefinedWithUpstreams() == 0;
+    }), "local provider without matching upstream is still advertised")) return 1;
     return 0;
 }
