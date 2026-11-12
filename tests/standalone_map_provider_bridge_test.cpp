@@ -302,12 +302,38 @@ int main(int argc, char **argv)
     if (!expect(repository != nullptr && repository->readProviders(&stored, nullptr, &error) &&
                 stored.at(0).name == QStringLiteral("Edited embedded provider"),
                 "catalog persisted exclusively by MAP")) return 1;
+    // The combined catalog emits providersChanged for acquisition-mode changes,
+    // too. Measure this rejection relative to the current count, not the one
+    // successful provider edit earlier in the test.
+    const Result before_invalid = request(&manager, url, server.api_key, "GET");
+    if (!expect(before_invalid.code == 200,
+                "catalog readable before invalid edit")) return 1;
+    const int changes_before_invalid = changed;
     first.insert(QStringLiteral("url"), QStringLiteral("file:///etc/passwd"));
     providers.replace(0, first);
     catalog.insert(QStringLiteral("providers"), providers);
     const Result rejected = request(&manager, url, server.api_key, "PUT",
                                     QJsonDocument(catalog).toJson(QJsonDocument::Compact));
-    if (!expect(rejected.code == 400 && changed == 1, "invalid edit rejected atomically")) return 1;
+    const Result after_invalid = request(&manager, url, server.api_key, "GET");
+    QVector<Aowis::Map::MapProvider> persisted_after_invalid;
+    const bool persisted_unchanged = repository->readProviders(
+        &persisted_after_invalid, nullptr, &error) &&
+        Aowis::Map::encodeProviderCatalog(persisted_after_invalid) ==
+            Aowis::Map::encodeProviderCatalog(stored);
+    if (!expect(rejected.code == 400 && changed == changes_before_invalid &&
+                after_invalid.code == 200 &&
+                after_invalid.body == before_invalid.body && persisted_unchanged,
+                "invalid edit rejected atomically"))
+    {
+        std::fprintf(stderr, "invalid PUT status=%d, signals=%d->%d, "
+                     "GET status=%d, catalog unchanged=%d, persisted unchanged=%d, "
+                     "response=%s, repository error=%s\n",
+                     rejected.code, changes_before_invalid, changed,
+                     after_invalid.code, after_invalid.body == before_invalid.body,
+                     persisted_unchanged, rejected.body.constData(),
+                     error.toUtf8().constData());
+        return 1;
+    }
 
     // Inherited definitions are read-only, but their availability and routing
     // are local MAP settings that persist independently from the upstream.
