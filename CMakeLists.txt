@@ -84,8 +84,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 # Configuration storage (AOWIS-CONFIG) on every platform, including WASM:
-# native POSIX files, browser localStorage. Standalone registers GUI's pinned
-# copy at the top level so GUI and embedded MAP link the same target.
+# native POSIX files, browser localStorage. Its tests are not built here.
 if(NOT TARGET aowis::config)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-CONFIG/CMakeLists.txt")
         message(FATAL_ERROR "Missing AOWIS-CONFIG sources. Run ./git_submodule_init.sh --config and verify the GUI gitlink.")
