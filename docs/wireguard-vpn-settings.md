@@ -6,7 +6,7 @@ in the GUI's owner root, one record per profile:
 
 ```text
 Linux:   ${XDG_CONFIG_HOME:-~/.config}/aowis/gui/wireguard/<uuidv7>.json   (0600, directory 0700)
-Windows: %LOCALAPPDATA%\aowis\gui\wireguard\   (needs the AOWIS-CONFIG Windows backend; not yet implemented)
+Windows: %LOCALAPPDATA%\aowis\gui\wireguard\<uuidv7>.json   (private DACL, AOWIS-CONFIG Windows backend)
 ```
 
 A record holds the profile's name, description and the **exact** `.conf`
@@ -20,8 +20,9 @@ text, including its private key. Files are private to the user account but
   edits or an unsaved draft. **Delete** removes the stored record.
 - Names are unique (case-insensitive). Renaming keeps the profile's ID, so
   connections referencing it are unaffected.
-- Validation: on builds with the embedded engine (Linux,
-  `AOWIS_GUI_WIREGUARD_PROBE`) the editor runs AOWIS-NETWORK's
+- Validation: on builds with the embedded engine (Linux and Windows,
+  `AOWIS_GUI_WIREGUARD_PROBE`; Windows links the engine archive prebuilt by
+  Standalone's `compile_windows.sh`) the editor runs AOWIS-NETWORK's
   `parseWireGuardConf()`, the same parser that starts tunnels. Profiles it
   rejects cannot be saved; its first error is shown with its line. Ignored
   wg-quick directives (`PostUp`, `Table`, …) are warnings: saveable, never

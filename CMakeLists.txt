@@ -67,8 +67,16 @@ if(NOT EMSCRIPTEN)
     )
 endif()
 
-# The Go bridge currently builds for its host. Keep cross builds on Qt HTTP.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
+# Embedded WireGuard: native Linux builds compile the Go engine themselves;
+# Windows (MinGW under Wine) links the engine archive Standalone prebuilds and
+# passes as AOWIS_NETWORK_WIREGUARD_ARCHIVE. Other cross builds (macOS, WASM)
+# stay on Qt HTTP without tunnels.
+if((CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING) OR WIN32)
+    set(AOWIS_GUI_WITH_WIREGUARD ON)
+else()
+    set(AOWIS_GUI_WITH_WIREGUARD OFF)
+endif()
+if(AOWIS_GUI_WITH_WIREGUARD)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-NETWORK/CMakeLists.txt")
         message(FATAL_ERROR "Missing AOWIS-NETWORK sources. Run ./git_submodule_init.sh --network and verify the GUI gitlink.")
     endif()
@@ -79,7 +87,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
     endfunction()
     aowis_add_gui_network()
     if(NOT TARGET AOWIS::NetworkQt OR NOT AOWIS_NETWORK_WITH_WIREGUARD)
-        message(FATAL_ERROR "Native Linux GUI requires the NETWORK Qt adapter and WireGuard engine.")
+        message(FATAL_ERROR "The Linux/Windows GUI requires the NETWORK Qt adapter and WireGuard engine.")
     endif()
 endif()
 
@@ -1983,7 +1991,7 @@ qt_import_plugins(aowis-server-gui
     INCLUDE_BY_TYPE imageformats
 )
 
-if(TARGET AOWIS::NetworkQt AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_CROSSCOMPILING)
+if(TARGET AOWIS::NetworkQt AND AOWIS_GUI_WITH_WIREGUARD)
     foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests aowis-wireguard-vpn-settings-tests)
         if(TARGET ${probe_target})
             target_compile_definitions(${probe_target} PRIVATE AOWIS_GUI_WIREGUARD_PROBE)
