@@ -1,4 +1,6 @@
 #include "map/core/gui_map_provider_catalog.h"
+#include "map/core/gui_available_map_provider_directory.h"
+#include "services/map_inherited_provider_client.h"
 
 #include "config/gui_preferences.h"
 #include "services/map_server_transport_factory.h"
@@ -54,4 +56,39 @@ MapProviderCatalog &mapProviderCatalog()
         configureCatalog(&catalog);
     }
     return catalog;
+}
+GuiAvailableMapProviderDirectory &guiAvailableMapProviderDirectory()
+{
+    // Keep the editable catalog and the renderer's available-provider view
+    // independent. Both obtain their data exclusively through MAP APIs.
+    MapProviderCatalog &local = mapProviderCatalog();
+    static MapInheritedProviderClient inherited;
+    static GuiAvailableMapProviderDirectory directory(local, inherited);
+    MapInheritedProviderClient *client = &inherited;
+    static bool configured = false;
+    if (!configured)
+    {
+        configured = true;
+#ifdef AOWIS_STANDALONE
+        StandaloneMapProviderCatalogBridge &bridge =
+            StandaloneMapProviderCatalogBridge::instance();
+        inherited.setServer(bridge.catalogServer());
+        QObject::connect(&bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
+                         &directory, [client]() { client->refresh(); });
+        inherited.refresh();
+#else
+        whenGuiMapServerReachable(&directory,
+            [client](const MapServerRestConfiguration &server)
+        {
+            client->setServer(server);
+            client->refresh();
+        });
+#endif
+        QTimer *refresh_timer = new QTimer(&directory);
+        refresh_timer->setInterval(15 * 60 * 1000);
+        QObject::connect(refresh_timer, &QTimer::timeout,
+                         &directory, &GuiAvailableMapProviderDirectory::refresh);
+        refresh_timer->start();
+    }
+    return directory;
 }

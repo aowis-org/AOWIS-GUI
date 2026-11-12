@@ -61,6 +61,15 @@ int main(int argc, char **argv)
     qputenv("XDG_CONFIG_HOME", root.path().toUtf8());
     qputenv("XDG_DATA_HOME", root.path().toUtf8());
     QCoreApplication application(argc, argv);
+    // Standalone must respect its MAP-owned administrator acquisition policy.
+    QString setup_error;
+    std::unique_ptr<Aowis::Map::SettingsRepository> setup_repository =
+        Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&setup_error);
+    if (!expect(setup_repository != nullptr, "Standalone MAP settings repository")) return 1;
+    Aowis::Map::MapCascadeConfig cascade;
+    cascade.allow_direct_fetch = false;
+    if (!expect(setup_repository->saveCascade(cascade, {}, nullptr, &setup_error),
+                "persist direct-fetch prohibition")) return 1;
     StandaloneMapProviderCatalogBridge &bridge = StandaloneMapProviderCatalogBridge::instance();
     const MapServerRestConfiguration server = bridge.catalogServer();
     if (!expect(!server.base_url.isEmpty() && !server.api_key.isEmpty(), "localhost catalog listening")) return 1;
@@ -121,9 +130,50 @@ int main(int argc, char **argv)
             {QStringLiteral("mode"), QStringLiteral("cascade")}
         }).toJson(QJsonDocument::Compact));
     if (!expect(policy.code == 200, "Standalone MAP policy uses library-owned repository")) return 1;
+    const QJsonDocument policy_result = QJsonDocument::fromJson(policy.body);
+    if (!expect(policy_result.isObject() &&
+                policy_result.object().value(QStringLiteral("ok")).toBool(),
+                "Standalone acquisition response is valid JSON")) return 1;
+    const Result updated_available = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/available")),
+        server.api_key, "GET");
+    const QJsonArray updated_rows = QJsonDocument::fromJson(updated_available.body)
+        .object().value(QStringLiteral("providers")).toArray();
+    bool cascade_visible = false;
+    for (const QJsonValue &value : updated_rows)
+        if (value.toObject().value(QStringLiteral("id")).toString() == first_id)
+            cascade_visible = value.toObject().value(
+                QStringLiteral("acquisition_mode")).toString() == QStringLiteral("cascade");
+    if (!expect(updated_available.code == 200 && cascade_visible,
+                "Standalone read-only catalog reflects selected acquisition")) return 1;
+    const Result denied_direct = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/acquisition")),
+        server.delete_api_key, "PUT", QJsonDocument(QJsonObject{
+            {QStringLiteral("id"), first_id},
+            {QStringLiteral("mode"), QStringLiteral("direct")}
+        }).toJson(QJsonDocument::Compact));
+    const QJsonDocument denied_direct_json = QJsonDocument::fromJson(denied_direct.body);
+    if (!expect(denied_direct.code == 403 && denied_direct_json.isObject() &&
+                !denied_direct_json.object().value(QStringLiteral("error")).toString().isEmpty(),
+                "global policy forbids Direct and returns valid JSON")) return 1;
+    const Result invalid_mode = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/acquisition")),
+        server.delete_api_key, "PUT", QJsonDocument(QJsonObject{
+            {QStringLiteral("id"), first_id},
+            {QStringLiteral("mode"), QStringLiteral("invalid")}
+        }).toJson(QJsonDocument::Compact));
+    if (!expect(invalid_mode.code == 400 &&
+                QJsonDocument::fromJson(invalid_mode.body).isObject(),
+                "invalid acquisition mode is rejected with valid JSON")) return 1;
     QString error;
     std::unique_ptr<Aowis::Map::SettingsRepository> repository =
         Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&error);
+    QHash<QString, Aowis::Map::MapProviderAcquisitionMode> stored_modes;
+    if (!expect(repository->readProviderAcquisitionModes(
+                    &stored_modes, nullptr, &error) &&
+                stored_modes.value(first_id) ==
+                    Aowis::Map::MapProviderAcquisitionMode::Cascade,
+                "acquisition persists in MAP-owned repository")) return 1;
     QVector<Aowis::Map::MapProvider> stored;
     if (!expect(repository != nullptr && repository->readProviders(&stored, nullptr, &error) &&
                 stored.at(0).name == QStringLiteral("Edited embedded provider"),

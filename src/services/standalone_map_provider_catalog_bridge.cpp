@@ -371,7 +371,7 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
     {
         if (this->repository == nullptr || this->available_catalog == nullptr)
         {
-            sendResponse(socket, 503, "{"error":"MAP settings unavailable"}");
+            sendResponse(socket, 503, "{\"error\":\"MAP settings unavailable\"}");
             return;
         }
         QJsonParseError parse_error;
@@ -386,7 +386,7 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
             !Aowis::Map::parseProviderAcquisitionMode(
                 body.value(QStringLiteral("mode")).toString(), &mode))
         {
-            sendResponse(socket, 400, "{"error":"Invalid acquisition mode"}");
+            sendResponse(socket, 400, "{\"error\":\"Invalid acquisition mode\"}");
             return;
         }
         bool found = false;
@@ -402,12 +402,12 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
             }
         if (!found)
         {
-            sendResponse(socket, 404, "{"error":"Unknown provider"}");
+            sendResponse(socket, 404, "{\"error\":\"Unknown provider\"}");
             return;
         }
         if (mode == Aowis::Map::MapProviderAcquisitionMode::Direct && !direct_allowed)
         {
-            sendResponse(socket, 403, "{"error":"Direct acquisition forbidden"}");
+            sendResponse(socket, 403, "{\"error\":\"Direct acquisition forbidden\"}");
             return;
         }
         QHash<QString, Aowis::Map::MapProviderAcquisitionMode> updated = this->acquisition_modes;
@@ -432,7 +432,7 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
             this->acquisition_modes = updated;
             this->available_catalog->setAcquisitionModes(updated);
         }
-        sendResponse(socket, 200, "{"ok":true}");
+        sendResponse(socket, 200, "{\"ok\":true}");
         return;
     }
     if (route.first() == "GET" && route.at(1) == "/map/v1/providers")

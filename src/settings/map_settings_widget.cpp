@@ -6,6 +6,7 @@
 #include <aowis/map/settings_repository.h>
 #endif
 #include "map/core/gui_map_provider_catalog.h"
+#include "map/core/gui_available_map_provider_directory.h"
 #include "services/map_inherited_provider_client.h"
 #include "services/map_server_transport_factory.h"
 #ifdef AOWIS_STANDALONE
@@ -544,6 +545,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
             this, [this](bool success, const QString &error)
     {
         if (!success) this->inherited_provider_status->setText(error);
+        else guiAvailableMapProviderDirectory().refresh();
     });
     connect(this->inherited_provider_table, &QTableWidget::itemChanged,
             this, [this](QTableWidgetItem *item)

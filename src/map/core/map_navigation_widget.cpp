@@ -1,4 +1,5 @@
 #include "map/core/map_navigation_widget.h"
+#include "map/core/gui_available_map_provider_directory.h"
 
 #include "config/gui_configuration.h"
 #include "map/core/gui_map_provider_catalog.h"
@@ -156,10 +157,10 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         for (int index = 0; index < ProviderShortcutCount; ++index)
         {
             const GuiShortcutId shortcut_id = ProviderShortcutIds[index];
-            const QString provider_name = mapProviderCatalog().provider(
+            const QString provider_name = guiAvailableMapProviderDirectory().provider(
                 MapProviderCatalog::builtinId(index + 1)) == nullptr
                 ? tr("Map provider %1").arg(index + 1)
-                : mapProviderCatalog().provider(MapProviderCatalog::builtinId(index + 1))->name;
+                : guiAvailableMapProviderDirectory().provider(MapProviderCatalog::builtinId(index + 1))->name;
             const QString action_text = tr("Edit %1 shortcut (%2)…").arg(
                 provider_name, guiShortcutPresentation(shortcut_id));
 #ifdef Q_OS_WASM
@@ -183,7 +184,7 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         if (index < 0) return;
         this->map->model()->setProviderId(this->combo_provider->itemData(index).toString());
     });
-    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
+    connect(&guiAvailableMapProviderDirectory(), &GuiAvailableMapProviderDirectory::catalogChanged,
             this, &MapNavigationWidget::refreshProviderChoices);
     connect(this->map->model(), &MapModel::providerIdChanged,
             this, [this](const QString &) {refreshProviderChoices();});
@@ -510,13 +511,17 @@ void MapNavigationWidget::refreshProviderChoices()
     const QString active_id = this->map->model()->providerId();
     const QSignalBlocker blocker(this->combo_provider);
     this->combo_provider->clear();
-    for (const MapProviderEntry &entry : mapProviderCatalog().providers())
+    for (const MapProviderEntry &entry : guiAvailableMapProviderDirectory().providers())
     {
         if (entry.enabled)
         {
             this->combo_provider->addItem(entry.name, entry.id);
+            const QString tooltip = guiAvailableMapProviderDirectory().isInherited(entry.id)
+                ? tr("Inherited from MAP upstream: %1").arg(
+                    guiAvailableMapProviderDirectory().upstreams(entry.id).join(", "))
+                : entry.name;
             this->combo_provider->setItemData(this->combo_provider->count() - 1,
-                entry.name, Qt::ToolTipRole);
+                tooltip, Qt::ToolTipRole);
         }
     }
     this->combo_provider->setCurrentIndex(this->combo_provider->findData(active_id));

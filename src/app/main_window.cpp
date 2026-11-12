@@ -5,6 +5,7 @@
 #include "tabs/tab_projects_widget.h"
 #include "config/gui_configuration.h"
 #include "map/core/gui_map_provider_catalog.h"
+#include "map/core/gui_available_map_provider_directory.h"
 #include "services/map_server_transport_factory.h"
 #include "config/unit_profile_manager.h"
 #include "config/shortcut_registry.h"
@@ -62,7 +63,7 @@ MainWindow::MainWindow(QWidget *parent)
     top_control_bar( new TopControlBar(this) ),
     map_tile_repository( new MapTileRepository(guiMapServerTransport(), this) ),
     map_terrain_repository( new MapTerrainRepository(guiMapServerTransport(), this) ),
-    map_model_monitor( new MapModel(&mapProviderCatalog(), this) ),
+    map_model_monitor( new MapModel(&guiAvailableMapProviderDirectory(), this) ),
     settings( new SettingsWidget(this) ),
     map_monitor( new MapMonitorContainer(this->map_model_monitor, this->map_tile_repository,
                                          this->map_terrain_repository, this->hydraulic_data,
@@ -858,11 +859,11 @@ MainWindow::MainWindow(QWidget *parent)
     // The model (Render) sees the providers only through its directory
     // interface: forward the catalog's changes, and read the orbit setting
     // live so a changed value applies to the next drag.
-    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
+    connect(&guiAvailableMapProviderDirectory(), &GuiAvailableMapProviderDirectory::catalogChanged,
             this->map_model_monitor, &MapModel::providerCatalogChanged);
     // Provider URLs may change under stable ids: cached tiles of a changed
     // provider are dropped (the repository is Render's, without the catalog).
-    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged,
+    connect(&guiAvailableMapProviderDirectory(), &GuiAvailableMapProviderDirectory::catalogChanged,
             this->map_tile_repository, &MapTileRepository::invalidateProviderCatalog);
     connect(&mapProviderCatalog(), &MapProviderCatalog::fallbackChanged,
             this->map_model_monitor, &MapModel::providerFallbackChanged);

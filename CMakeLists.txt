@@ -472,6 +472,8 @@ qt_add_executable(aowis-server-gui
     # Map core
     src/map/core/gui_map_provider_catalog.cpp
     src/map/core/gui_map_provider_catalog.h
+    src/map/core/gui_available_map_provider_directory.cpp
+    src/map/core/gui_available_map_provider_directory.h
     src/map/core/map_models.h
     src/map/core/map_navigation_widget.cpp
     src/map/core/map_navigation_widget.h
@@ -1056,6 +1058,22 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     add_test(NAME aowis-map-inherited-provider-client
         COMMAND aowis-map-inherited-provider-client-tests)
     set_tests_properties(aowis-map-inherited-provider-client PROPERTIES LABELS "aowis")
+
+    # Render consumes a read-only union of local and inherited MAP providers.
+    # The editable provider catalog remains local-only.
+    add_executable(aowis-map-available-provider-directory-tests
+        tests/map_available_provider_directory_test.cpp
+        src/map/core/gui_available_map_provider_directory.cpp
+        src/map/core/gui_available_map_provider_directory.h
+        src/services/map_inherited_provider_client.cpp
+        src/services/map_inherited_provider_client.h)
+    target_include_directories(aowis-map-available-provider-directory-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-available-provider-directory-tests PRIVATE
+        Qt6::Core Qt6::Network AOWIS::RenderMap AOWIS::RenderMapRest)
+    add_test(NAME aowis-map-available-provider-directory
+        COMMAND aowis-map-available-provider-directory-tests)
+    set_tests_properties(aowis-map-available-provider-directory PROPERTIES LABELS "aowis")
 
     # Map-server connection in AOWIS-CONFIG; former INI section removed.
     add_executable(aowis-map-server-client-configuration-tests
