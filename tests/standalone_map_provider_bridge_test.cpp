@@ -70,6 +70,23 @@ int main(int argc, char **argv)
     if (!expect(unauthorized.finished && unauthorized.code == 403, "key required")) return 1;
     const Result original = request(&manager, url, server.api_key, "GET");
     if (!expect(original.finished && original.code == 200, "catalog GET")) return 1;
+    const Result available = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/available")),
+        server.api_key, "GET");
+    if (!expect(available.code == 200, "combined catalog GET")) return 1;
+    const QJsonArray available_rows = QJsonDocument::fromJson(available.body)
+        .object().value(QStringLiteral("providers")).toArray();
+    if (!expect(available_rows.size() == 4 &&
+        available_rows.at(0).toObject().value(QStringLiteral("origin")).toString() ==
+            QStringLiteral("local"), "bridge distinguishes local catalog")) return 1;
+    const Result rejected_inherited = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/inherited")),
+        server.api_key, "PUT",
+        QJsonDocument(QJsonObject{{QStringLiteral("id"),
+            available_rows.at(0).toObject().value(QStringLiteral("id"))},
+            {QStringLiteral("enabled"), false}}).toJson(QJsonDocument::Compact));
+    if (!expect(rejected_inherited.code == 404,
+                "local provider cannot be changed as inherited")) return 1;
     QJsonObject catalog = QJsonDocument::fromJson(original.body).object();
     QJsonArray providers = catalog.value(QStringLiteral("providers")).toArray();
     if (!expect(providers.size() == 4, "default providers loaded")) return 1;

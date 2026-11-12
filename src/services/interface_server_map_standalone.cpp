@@ -118,22 +118,24 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
     this->map_tiles->setCascadeConfig(cascade);
     StandaloneMapProviderCatalogBridge &provider_bridge =
         StandaloneMapProviderCatalogBridge::instance();
-    this->map_tiles->configureProviders(provider_bridge.providers(), {}, {});
+    this->map_tiles->configureProviders(provider_bridge.availableProviders(), {}, {},
+                                        provider_bridge.inheritedUpstreams());
     connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
             this, [this, &provider_bridge]
     {
-        const QVector<Aowis::Map::MapProvider> updated = provider_bridge.providers();
+        const QVector<Aowis::Map::MapProvider> updated = provider_bridge.availableProviders();
+        const QHash<QString, QSet<QString>> inherited = provider_bridge.inheritedUpstreams();
 #ifdef Q_OS_WIN
         // MapTiles lives on its dedicated thread in Windows Standalone.
         MapTiles *tiles = this->map_tiles;
-        QMetaObject::invokeMethod(tiles, [tiles, updated]
+        QMetaObject::invokeMethod(tiles, [tiles, updated, inherited]
         {
             tiles->cancelUpstreamDownloads();
-            tiles->configureProviders(updated, {}, {});
+            tiles->configureProviders(updated, {}, {}, inherited);
         }, Qt::QueuedConnection);
 #else
         this->map_tiles->cancelUpstreamDownloads();
-        this->map_tiles->configureProviders(updated, {}, {});
+        this->map_tiles->configureProviders(updated, {}, {}, inherited);
 #endif
     });
     const QByteArray cascade_instance_id = this->map_tiles->cascadeInstanceId();

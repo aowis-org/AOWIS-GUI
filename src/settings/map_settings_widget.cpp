@@ -6,6 +6,11 @@
 #include <aowis/map/settings_repository.h>
 #endif
 #include "map/core/gui_map_provider_catalog.h"
+#include "services/map_inherited_provider_client.h"
+#include "services/map_server_transport_factory.h"
+#ifdef AOWIS_STANDALONE
+#include "services/standalone_map_provider_catalog_bridge.h"
+#endif
 #include "config/map_server_client_configuration.h"
 #include "config/wireguard_profile_storage.h"
 #include "map/render/map_globe_terrain_levels.h"
@@ -466,7 +471,89 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
         "Provider edits affect the server; per-user fallback persistence is supported in native GUI builds."));
 #endif
+    // Inherited providers are shown separately from the editable local catalog:
+    // the PUT /providers payload must never contain upstream-owned definitions.
+    QGroupBox *inherited_group = new QGroupBox(parent_widget);
+    LiveUiText::bind(inherited_group, [inherited_group]
+    {
+        inherited_group->setTitle(LiveUiText::translate(
+            QT_TRANSLATE_NOOP("LiveUiText", "Providers from upstream MAP servers")));
+    });
+    QVBoxLayout *inherited_layout = new QVBoxLayout(inherited_group);
+    inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
+        "Upstream provider definitions are read-only. You can enable or disable them "
+        "on this MAP server without changing upstream settings. An administrator "
+        "key is required to change availability."), inherited_group));
+    this->inherited_provider_table = new QTableWidget(0, 5, inherited_group);
+    LiveUiText::bind(this->inherited_provider_table, [this]
+    {
+        this->inherited_provider_table->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "On")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display name")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile URL")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Zoom")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Upstream servers"))});
+    });
+    this->inherited_provider_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    this->inherited_provider_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    this->inherited_provider_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    this->inherited_provider_table->setMinimumHeight(140);
+    inherited_layout->addWidget(this->inherited_provider_table);
+    this->inherited_provider_status = new QLabel(inherited_group);
+    this->inherited_provider_status->setWordWrap(true);
+    inherited_layout->addWidget(this->inherited_provider_status);
+    this->inherited_provider_client = new MapInheritedProviderClient(this);
+    connect(this->inherited_provider_client, &MapInheritedProviderClient::catalogChanged,
+            this, &MapSettingsWidget::refreshInheritedProviderTable);
+    connect(this->inherited_provider_client, &MapInheritedProviderClient::errorOccurred,
+            this, [this](const QString &error)
+    {
+        this->inherited_provider_status->setText(error);
+    });
+    connect(this->inherited_provider_client, &MapInheritedProviderClient::updateFinished,
+            this, [this](bool success, const QString &error)
+    {
+        if (!success) this->inherited_provider_status->setText(error);
+    });
+    connect(this->inherited_provider_table, &QTableWidget::itemChanged,
+            this, [this](QTableWidgetItem *item)
+    {
+        if (this->loading_provider_table || item == nullptr || item->column() != 0 ||
+            this->inherited_provider_client == nullptr ||
+            !this->inherited_provider_client->canEdit() ||
+            this->inherited_provider_client->updating()) return;
+        this->inherited_provider_table->setEnabled(false);
+        this->inherited_provider_client->setEnabled(item->data(Qt::UserRole).toString(),
+            item->checkState() == Qt::Checked);
+    });
+    connect(this->inherited_provider_client, &MapInheritedProviderClient::updateFinished,
+            this, [this](bool, const QString &)
+    {
+        this->inherited_provider_table->setEnabled(true);
+    });
+#ifdef AOWIS_STANDALONE
+    this->inherited_provider_client->setServer(
+        StandaloneMapProviderCatalogBridge::instance().catalogServer());
+    connect(&StandaloneMapProviderCatalogBridge::instance(),
+        &StandaloneMapProviderCatalogBridge::providersChanged, this, [this]
+    {
+        this->inherited_provider_client->refresh();
+    });
+    this->inherited_provider_client->refresh();
+#else
+    whenGuiMapServerReachable(this, [this](const MapServerRestConfiguration &server)
+    {
+        this->inherited_provider_client->setServer(server);
+        this->inherited_provider_client->refresh();
+    });
+#endif
+    connect(reload, &QPushButton::clicked, this, [this]
+    {
+        this->inherited_provider_client->refresh();
+    });
+    refreshInheritedProviderTable();
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(providers_group);
+    static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(inherited_group);
 }
 
 #ifdef AOWIS_STANDALONE
@@ -774,6 +861,45 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
         refreshFallbackChoices();
         scheduleProviderSave();
     });
+}
+
+void MapSettingsWidget::refreshInheritedProviderTable()
+{
+    if (this->inherited_provider_table == nullptr ||
+        this->inherited_provider_client == nullptr) return;
+    const QSignalBlocker blocker(this->inherited_provider_table);
+    const bool old_loading = this->loading_provider_table;
+    this->loading_provider_table = true;
+    this->inherited_provider_table->setRowCount(0);
+    for (const MapInheritedProviderEntry &entry : this->inherited_provider_client->providers())
+    {
+        const int row = this->inherited_provider_table->rowCount();
+        this->inherited_provider_table->insertRow(row);
+        QTableWidgetItem *enabled = new QTableWidgetItem();
+        enabled->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
+        Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+        if (this->inherited_provider_client->canEdit()) flags |= Qt::ItemIsUserCheckable;
+        enabled->setFlags(flags);
+        enabled->setData(Qt::UserRole, entry.id);
+        this->inherited_provider_table->setItem(row, 0, enabled);
+        this->inherited_provider_table->setItem(row, 1, new QTableWidgetItem(entry.name));
+        this->inherited_provider_table->setItem(row, 2, new QTableWidgetItem(entry.url));
+        this->inherited_provider_table->setItem(row, 3,
+            new QTableWidgetItem(QStringLiteral("%1–%2")
+                .arg(entry.minimum_zoom).arg(entry.maximum_zoom)));
+        this->inherited_provider_table->setItem(row, 4,
+            new QTableWidgetItem(entry.upstreams.join(QStringLiteral(", "))));
+    }
+    this->loading_provider_table = old_loading;
+    this->inherited_provider_table->setEnabled(!this->inherited_provider_client->updating());
+    if (!this->inherited_provider_client->loaded())
+        this->inherited_provider_status->setText(tr("Waiting for MAP's available-provider catalog."));
+    else if (this->inherited_provider_client->providers().isEmpty())
+        this->inherited_provider_status->setText(tr("No upstream providers are currently advertised."));
+    else if (!this->inherited_provider_client->canEdit())
+        this->inherited_provider_status->setText(tr("Read-only: configure the MAP admin/delete key to change inherited provider availability."));
+    else
+        this->inherited_provider_status->setText(tr("Inherited availability changes are saved immediately on this MAP server."));
 }
 
 void MapSettingsWidget::refreshProviderTable()

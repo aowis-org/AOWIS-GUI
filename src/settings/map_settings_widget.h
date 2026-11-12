@@ -18,6 +18,7 @@ class QCheckBox;
 class QSpinBox;
 class QNetworkAccessManager;
 class SliderNumberControl;
+class MapInheritedProviderClient;
 
 // Settings > Map Settings: navigation sensitivity, terrain performance knobs
 // for the globe, and map server connection details.
@@ -70,6 +71,10 @@ private:
                         int minimum_zoom, int maximum_zoom, bool enabled,
                         const QString &fallback_id = QString());
     void saveProviderEdits();
+    void refreshInheritedProviderTable();
+    QTableWidget *inherited_provider_table = nullptr;
+    QLabel *inherited_provider_status = nullptr;
+    MapInheritedProviderClient *inherited_provider_client = nullptr;
 
     void buildNavigationSection(QWidget *parent_widget);
     void buildPerformanceSection(QWidget *parent_widget);

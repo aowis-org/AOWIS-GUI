@@ -7,6 +7,9 @@
 #include <QJsonObject>
 #include <QTimer>
 #include <QDebug>
+#include <QStandardPaths>
+#include <QDir>
+#include <QJsonParseError>
 #include <QTcpSocket>
 #include <QUuid>
 
@@ -51,6 +54,35 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
         for (Aowis::Map::MapProvider &provider : this->map_providers)
             provider.remote_fetch_enabled = false;
     }
+    Aowis::Map::MapCascadeConfig cascade;
+    cascade.allow_direct_fetch = false;
+    if (this->repository != nullptr)
+    {
+        QString error;
+        if (!this->repository->readCascade(&cascade, nullptr, &error))
+        {
+            qCritical().noquote() << "Invalid MAP cascade settings:" << error;
+            cascade = Aowis::Map::MapCascadeConfig();
+            cascade.allow_direct_fetch = false;
+        }
+        if (!this->repository->readDisabledInheritedProviders(
+                &this->disabled_inherited, &this->inherited_revision, &error))
+        {
+            qCritical().noquote() << "Invalid inherited MAP overrides:" << error;
+            // Do not accidentally re-enable inherited sources when the local
+            // persisted deny-list is unreadable. Keep local providers usable.
+            cascade.upstreams.clear();
+            this->disabled_inherited.clear();
+        }
+    }
+    this->available_catalog.reset(new Aowis::Map::ProviderCatalog(
+        QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
+            .filePath(QStringLiteral("maptiles")), this));
+    this->available_catalog->configure(this->map_providers, cascade);
+    this->available_catalog->setDisabledInheritedProviders(this->disabled_inherited);
+    connect(this->available_catalog.get(), &Aowis::Map::ProviderCatalog::catalogChanged,
+            this, &StandaloneMapProviderCatalogBridge::providersChanged);
+    this->available_catalog->refresh();
     this->access_token = QUuid::createUuid().toString(QUuid::WithoutBraces).toUtf8();
     connect(&this->listener, &QTcpServer::newConnection,
             this, &StandaloneMapProviderCatalogBridge::acceptConnections);
@@ -65,8 +97,24 @@ MapServerRestConfiguration StandaloneMapProviderCatalogBridge::catalogServer() c
     {
         config.base_url = QStringLiteral("http://127.0.0.1:%1").arg(this->listener.serverPort());
         config.api_key = this->access_token;
+        config.delete_api_key = this->access_token;
     }
     return config;
+}
+
+QVector<Aowis::Map::MapProvider> StandaloneMapProviderCatalogBridge::availableProviders() const
+{
+    QVector<Aowis::Map::MapProvider> result;
+    if (this->available_catalog == nullptr) return this->map_providers;
+    for (const Aowis::Map::AvailableMapProvider &entry : this->available_catalog->available())
+        result.append(entry.provider);
+    return result;
+}
+
+QHash<QString, QSet<QString>> StandaloneMapProviderCatalogBridge::inheritedUpstreams() const
+{
+    return this->available_catalog == nullptr ? QHash<QString, QSet<QString>>() :
+        this->available_catalog->inheritedUpstreams();
 }
 
 QByteArray StandaloneMapProviderCatalogBridge::catalogJson() const
@@ -91,7 +139,10 @@ bool StandaloneMapProviderCatalogBridge::storeCatalog(const QByteArray &body, QS
         return false;
     this->provider_revision = revision;
     this->map_providers = parsed;
-    emit providersChanged();
+    if (this->available_catalog != nullptr)
+        this->available_catalog->setLocalProviders(parsed); // Emits providersChanged once.
+    else
+        emit providersChanged();
     return true;
 }
 
@@ -149,7 +200,9 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
     const QList<QByteArray> lines = request.left(delimiter).split('\n');
     const QByteArray first = lines.isEmpty() ? QByteArray() : lines.first().trimmed();
     const QList<QByteArray> route = first.split(' ');
-    if (route.size() < 2 || route.at(1) != "/map/v1/providers")
+    if (route.size() < 2 || (route.at(1) != "/map/v1/providers" &&
+        route.at(1) != "/map/v1/providers/available" &&
+        route.at(1) != "/map/v1/providers/inherited"))
     {
         sendResponse(socket, 404, "{}");
         return;
@@ -167,12 +220,66 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
         sendResponse(socket, 403, "{}");
         return;
     }
-    if (route.first() == "GET")
+    if (route.first() == "GET" && route.at(1) == "/map/v1/providers/available")
+    {
+        sendResponse(socket, 200, this->available_catalog == nullptr ? QByteArray("{}") :
+            this->available_catalog->encodedAvailable());
+        return;
+    }
+    if (route.first() == "PUT" && route.at(1) == "/map/v1/providers/inherited")
+    {
+        if (this->repository == nullptr || this->available_catalog == nullptr)
+        {
+            sendResponse(socket, 400, "{\"error\":\"MAP settings are unavailable\"}");
+            return;
+        }
+        QJsonParseError parse_error;
+        const QJsonDocument document = QJsonDocument::fromJson(
+            request.mid(delimiter + 4), &parse_error);
+        const QJsonObject object = document.object();
+        const QString id = object.value(QStringLiteral("id")).toString();
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject() ||
+            QUuid(id).isNull() || !object.value(QStringLiteral("enabled")).isBool())
+        {
+            sendResponse(socket, 400, "{\"error\":\"Invalid inherited provider request\"}");
+            return;
+        }
+        bool inherited = false;
+        for (const Aowis::Map::AvailableMapProvider &entry : this->available_catalog->available())
+            if (entry.inherited && entry.provider.id == id) inherited = true;
+        if (!inherited)
+        {
+            sendResponse(socket, 404, "{\"error\":\"Provider is not inherited\"}");
+            return;
+        }
+        QSet<QString> disabled = this->disabled_inherited;
+        if (object.value(QStringLiteral("enabled")).toBool()) disabled.remove(id);
+        else disabled.insert(id);
+        if (disabled != this->disabled_inherited)
+        {
+            QString error;
+            QString revision;
+            if (!this->repository->saveDisabledInheritedProviders(
+                    disabled, this->inherited_revision, &revision, &error))
+            {
+                sendResponse(socket, 400,
+                    QJsonDocument(QJsonObject{{QStringLiteral("error"), error}})
+                        .toJson(QJsonDocument::Compact));
+                return;
+            }
+            this->inherited_revision = revision;
+            this->disabled_inherited = disabled;
+            this->available_catalog->setDisabledInheritedProviders(disabled);
+        }
+        sendResponse(socket, 200, "{\"ok\":true}");
+        return;
+    }
+    if (route.first() == "GET" && route.at(1) == "/map/v1/providers")
     {
         sendResponse(socket, 200, catalogJson());
         return;
     }
-    if (route.first() == "PUT")
+    if (route.first() == "PUT" && route.at(1) == "/map/v1/providers")
     {
         QString error;
         if (storeCatalog(request.mid(delimiter + 4), &error))

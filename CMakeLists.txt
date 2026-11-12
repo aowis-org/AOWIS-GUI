@@ -466,6 +466,8 @@ qt_add_executable(aowis-server-gui
     # Services
     src/services/map_server_transport_factory.cpp
     src/services/map_server_transport_factory.h
+    src/services/map_inherited_provider_client.cpp
+    src/services/map_inherited_provider_client.h
 
     # Map core
     src/map/core/gui_map_provider_catalog.cpp
@@ -1040,6 +1042,20 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
                 COMMAND aowis-standalone-map-provider-bridge-tests)
             set_tests_properties(aowis-standalone-map-provider-bridge PROPERTIES LABELS "aowis")
         endif()
+
+    # MAP's combined provider catalog is read-only. Only the inherited
+    # enablement endpoint accepts admin-authenticated local overrides.
+    add_executable(aowis-map-inherited-provider-client-tests
+        tests/map_inherited_provider_client_test.cpp
+        src/services/map_inherited_provider_client.cpp
+        src/services/map_inherited_provider_client.h)
+    target_include_directories(aowis-map-inherited-provider-client-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-map-inherited-provider-client-tests PRIVATE
+        Qt6::Core Qt6::Network AOWIS::RenderMapRest)
+    add_test(NAME aowis-map-inherited-provider-client
+        COMMAND aowis-map-inherited-provider-client-tests)
+    set_tests_properties(aowis-map-inherited-provider-client PROPERTIES LABELS "aowis")
 
     # Map-server connection in AOWIS-CONFIG; former INI section removed.
     add_executable(aowis-map-server-client-configuration-tests
