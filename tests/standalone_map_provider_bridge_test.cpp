@@ -87,6 +87,15 @@ int main(int argc, char **argv)
             {QStringLiteral("enabled"), false}}).toJson(QJsonDocument::Compact));
     if (!expect(rejected_inherited.code == 404,
                 "local provider cannot be changed as inherited")) return 1;
+    const Result rejected_route = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/upstreams")),
+        server.api_key, "PUT",
+        QJsonDocument(QJsonObject{{QStringLiteral("id"),
+            available_rows.at(0).toObject().value(QStringLiteral("id"))},
+            {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("nonexistent")}}})
+            .toJson(QJsonDocument::Compact));
+    if (!expect(rejected_route.code == 400,
+                "Standalone rejects routing to a non-advertising peer")) return 1;
     QJsonObject catalog = QJsonDocument::fromJson(original.body).object();
     QJsonArray providers = catalog.value(QStringLiteral("providers")).toArray();
     if (!expect(providers.size() == 4, "default providers loaded")) return 1;

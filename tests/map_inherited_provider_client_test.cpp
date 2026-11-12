@@ -77,7 +77,9 @@ public:
                             {QStringLiteral("enabled"), this->enabled},
                             {QStringLiteral("minimum_zoom"), 3},
                             {QStringLiteral("maximum_zoom"), 14},
-                            {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("central")}}};
+                            {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("central"),
+                                                                      QStringLiteral("backup")}},
+                            {QStringLiteral("selected_upstreams"), this->selected_upstreams}};
                         QJsonArray advertised;
                         if (this->only_local)
                         {
@@ -92,6 +94,21 @@ public:
                         body = QJsonDocument(QJsonObject{{QStringLiteral("providers"),
                             advertised}}).toJson(QJsonDocument::Compact);
                         code = 200;
+                    }
+                    else if (header.startsWith("PUT /map/v1/providers/upstreams") && admin_key)
+                    {
+                        const QJsonObject update = QJsonDocument::fromJson(
+                            data.mid(header_end + 4, body_length)).object();
+                        const QJsonArray requested = update.value(QStringLiteral("upstreams")).toArray();
+                        if (update.value(QStringLiteral("id")).toString() == ProviderId &&
+                            update.value(QStringLiteral("upstreams")).isArray())
+                        {
+                            this->selected_upstreams = requested.isEmpty() ?
+                                QJsonArray{QStringLiteral("central"), QStringLiteral("backup")} :
+                                requested;
+                            ++this->route_updates;
+                            code = 200;
+                        }
                     }
                     else if (header.startsWith("PUT /map/v1/providers/inherited") && admin_key)
                     {
@@ -121,6 +138,8 @@ public:
     QTcpServer tcp;
     bool enabled = true;
     int updates = 0;
+    int route_updates = 0;
+    QJsonArray selected_upstreams{QStringLiteral("central"), QStringLiteral("backup")};
     bool only_local = false;
     bool local_also_upstream = false;
 };
@@ -141,8 +160,27 @@ int main(int argc, char **argv)
     client.refresh();
     if (!expect(pumpUntil([&client]() { return client.loaded(); }), "read merged catalog")) return 1;
     if (!expect(client.providers().size() == 1 && client.providers().at(0).id == ProviderId &&
-        client.providers().at(0).upstreams == QStringList{QStringLiteral("central")},
+        client.providers().at(0).upstreams ==
+            QStringList({QStringLiteral("central"), QStringLiteral("backup")}),
         "inherited metadata")) return 1;
+    if (!expect(client.routes().size() == 1 &&
+                client.routes().at(0).selected_upstreams ==
+                    QStringList({QStringLiteral("central"), QStringLiteral("backup")}),
+                "MAP route catalog includes effective priorities")) return 1;
+    client.setUpstreamRoute(ProviderId,
+        {QStringLiteral("backup"), QStringLiteral("central")});
+    if (!expect(pumpUntil([&client, &server]() {
+        return server.route_updates == 1 && !client.updating() &&
+            client.routes().size() == 1 &&
+            client.routes().at(0).selected_upstreams ==
+                QStringList({QStringLiteral("backup"), QStringLiteral("central")});
+    }), "Change provider-specific upstream priority through REST")) return 1;
+    client.setUpstreamRoute(ProviderId, {});
+    if (!expect(pumpUntil([&client, &server]() {
+        return server.route_updates == 2 && !client.updating() &&
+            client.routes().size() == 1 &&
+            client.routes().at(0).selected_upstreams.first() == QStringLiteral("central");
+    }), "Reset provider upstream order to default")) return 1;
     client.setEnabled(ProviderId, false);
     if (!expect(pumpUntil([&client, &server]() {
         return server.updates == 1 && !client.updating() &&

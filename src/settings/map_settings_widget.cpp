@@ -24,6 +24,10 @@
 #include <QVariant>
 #include <QColor>
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QListWidget>
+#include <QPointer>
 #include <QHeaderView>
 #include <QHBoxLayout>
 #include <QHideEvent>
@@ -34,6 +38,7 @@
 #include <QUuid>
 #include <QSignalBlocker>
 #include <QFont>
+#include <functional>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGroupBox>
@@ -503,6 +508,27 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->inherited_provider_status = new QLabel(inherited_group);
     this->inherited_provider_status->setWordWrap(true);
     inherited_layout->addWidget(this->inherited_provider_status);
+
+    inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
+        "Upstream routing is configured separately for each provider, including locally "
+        "defined providers also offered upstream. Select the permitted MAP servers and "
+        "their priority. Changes are local and saved automatically."), inherited_group));
+    this->upstream_routing_table = new QTableWidget(0, 4, inherited_group);
+    LiveUiText::bind(this->upstream_routing_table, [this]
+    {
+        this->upstream_routing_table->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Provider")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Advertised by")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Preferred order")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Routing"))});
+    });
+    this->upstream_routing_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    this->upstream_routing_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    this->upstream_routing_table->setMinimumHeight(140);
+    inherited_layout->addWidget(this->upstream_routing_table);
     this->inherited_provider_client = new MapInheritedProviderClient(this);
     connect(this->inherited_provider_client, &MapInheritedProviderClient::catalogChanged,
             this, &MapSettingsWidget::refreshInheritedProviderTable);
@@ -915,6 +941,159 @@ void MapSettingsWidget::refreshInheritedProviderTable()
         this->inherited_provider_status->setText(tr("Read-only: configure the MAP admin/delete key to change inherited provider availability."));
     else
         this->inherited_provider_status->setText(tr("Inherited availability changes are saved immediately on this MAP server."));
+
+    // This is the read-only available catalog, never the editable provider
+    // definitions. Local and inherited providers may both have MAP upstreams.
+    this->upstream_routing_table->setRowCount(0);
+    for (const MapProviderRouteEntry &route : this->inherited_provider_client->routes())
+    {
+        const int row = this->upstream_routing_table->rowCount();
+        this->upstream_routing_table->insertRow(row);
+        this->upstream_routing_table->setItem(row, 0, new QTableWidgetItem(route.name));
+        this->upstream_routing_table->setItem(row, 1,
+            new QTableWidgetItem(route.upstreams.join(QStringLiteral(", "))));
+        this->upstream_routing_table->setItem(row, 2,
+            new QTableWidgetItem(route.selected_upstreams.join(QStringLiteral(" → "))));
+        QPushButton *edit = new QPushButton(tr("Configure…"), this->upstream_routing_table);
+        edit->setEnabled(this->inherited_provider_client->canEdit() &&
+                         !this->inherited_provider_client->updating());
+        this->upstream_routing_table->setCellWidget(row, 3, edit);
+        connect(edit, &QPushButton::clicked, this, [this, id = route.id]
+        {
+            editProviderUpstreamRoute(id);
+        });
+    }
+}
+
+void MapSettingsWidget::editProviderUpstreamRoute(const QString &id)
+{
+    if (this->inherited_provider_client == nullptr ||
+        !this->inherited_provider_client->canEdit() ||
+        this->inherited_provider_client->updating()) return;
+    MapProviderRouteEntry chosen;
+    bool found = false;
+    for (const MapProviderRouteEntry &entry : this->inherited_provider_client->routes())
+        if (entry.id == id) { chosen = entry; found = true; break; }
+    if (!found || chosen.upstreams.isEmpty()) return;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("MAP upstream priority — %1").arg(chosen.name));
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+    QLabel *explanation = new QLabel(tr(
+        "Check the MAP servers allowed for this provider. Move checked servers up or down "
+        "to set their priority. Changes save automatically; Reset restores global order."),
+        &dialog);
+    explanation->setWordWrap(true);
+    layout->addWidget(explanation);
+    QListWidget *list = new QListWidget(&dialog);
+    QStringList ordered = chosen.selected_upstreams;
+    for (const QString &name : chosen.upstreams)
+        if (!ordered.contains(name)) ordered.append(name);
+    for (const QString &name : ordered)
+    {
+        QListWidgetItem *item = new QListWidgetItem(name, list);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(chosen.selected_upstreams.contains(name) ?
+                            Qt::Checked : Qt::Unchecked);
+    }
+    list->setCurrentRow(0);
+    layout->addWidget(list);
+    QHBoxLayout *buttons = new QHBoxLayout();
+    QPushButton *up = new QPushButton(tr("Move up"), &dialog);
+    QPushButton *down = new QPushButton(tr("Move down"), &dialog);
+    QPushButton *reset = new QPushButton(tr("Reset to global order"), &dialog);
+    buttons->addWidget(up);
+    buttons->addWidget(down);
+    buttons->addWidget(reset);
+    layout->addLayout(buttons);
+    QLabel *status = new QLabel(&dialog);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+    QDialogButtonBox *close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(close);
+
+    const std::function<void()> submit = [this, id, list, status, up, down, reset]()
+    {
+        if (this->inherited_provider_client->updating()) return;
+        QStringList selected;
+        for (int row = 0; row < list->count(); ++row)
+            if (list->item(row)->checkState() == Qt::Checked)
+                selected.append(list->item(row)->text());
+        if (selected.isEmpty())
+        {
+            status->setText(tr("Select at least one upstream, or use Reset."));
+            return;
+        }
+        list->setEnabled(false);
+        up->setEnabled(false);
+        down->setEnabled(false);
+        reset->setEnabled(false);
+        status->setText(tr("Updating MAP routing…"));
+        this->inherited_provider_client->setUpstreamRoute(id, selected);
+    };
+    connect(list, &QListWidget::itemChanged, &dialog,
+            [list, submit, status](QListWidgetItem *changed)
+    {
+        bool any_checked = false;
+        for (int row = 0; row < list->count(); ++row)
+            if (list->item(row)->checkState() == Qt::Checked) any_checked = true;
+        if (!any_checked)
+        {
+            const QSignalBlocker blocker(list);
+            changed->setCheckState(Qt::Checked);
+            status->setText(QObject::tr("At least one upstream must remain selected."));
+            return;
+        }
+        submit();
+    });
+    const std::function<void(int)> move = [list, submit](int difference)
+    {
+        const int row = list->currentRow();
+        const int target = row + difference;
+        if (row < 0 || target < 0 || target >= list->count()) return;
+        {
+            const QSignalBlocker blocker(list);
+            QListWidgetItem *item = list->takeItem(row);
+            list->insertItem(target, item);
+            list->setCurrentRow(target);
+        }
+        submit();
+    };
+    connect(up, &QPushButton::clicked, &dialog, [move]() { move(-1); });
+    connect(down, &QPushButton::clicked, &dialog, [move]() { move(1); });
+    connect(reset, &QPushButton::clicked, &dialog,
+        [this, id, list, status, up, down, reset, chosen]()
+    {
+        if (this->inherited_provider_client->updating()) return;
+        {
+            const QSignalBlocker blocker(list);
+            list->clear();
+            for (const QString &name : chosen.upstreams)
+            {
+                QListWidgetItem *item = new QListWidgetItem(name, list);
+                item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+                item->setCheckState(Qt::Checked);
+            }
+            list->setCurrentRow(0);
+        }
+        list->setEnabled(false);
+        up->setEnabled(false);
+        down->setEnabled(false);
+        reset->setEnabled(false);
+        status->setText(tr("Resetting MAP routing…"));
+        this->inherited_provider_client->setUpstreamRoute(id, {});
+    });
+    connect(this->inherited_provider_client, &MapInheritedProviderClient::updateFinished,
+            &dialog, [list, status, up, down, reset](bool success, const QString &error)
+    {
+        list->setEnabled(true);
+        up->setEnabled(true);
+        down->setEnabled(true);
+        reset->setEnabled(true);
+        status->setText(success ? QObject::tr("Routing saved on this MAP server.") : error);
+    });
+    dialog.exec();
 }
 
 void MapSettingsWidget::refreshProviderTable()

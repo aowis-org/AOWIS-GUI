@@ -72,7 +72,9 @@ private:
                         const QString &fallback_id = QString());
     void saveProviderEdits();
     void refreshInheritedProviderTable();
+    void editProviderUpstreamRoute(const QString &id);
     QTableWidget *inherited_provider_table = nullptr;
+    QTableWidget *upstream_routing_table = nullptr;
     QLabel *inherited_provider_status = nullptr;
     MapInheritedProviderClient *inherited_provider_client = nullptr;
 

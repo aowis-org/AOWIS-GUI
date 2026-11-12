@@ -44,6 +44,7 @@ void MapInheritedProviderClient::setServer(const MapServerRestConfiguration &ser
     this->network.setProxy(server.proxy);
     this->has_catalog = false;
     this->entries.clear();
+    this->route_entries.clear();
     this->local_provider_count = 0;
     this->local_with_upstreams = 0;
     emit catalogChanged();
@@ -84,6 +85,7 @@ void MapInheritedProviderClient::refresh()
             return;
         }
         QVector<MapInheritedProviderEntry> parsed;
+        QVector<MapProviderRouteEntry> parsed_routes;
         QSet<QString> identities;
         int local_count = 0;
         int local_upstream_count = 0;
@@ -96,6 +98,28 @@ void MapInheritedProviderClient::refresh()
             }
             const QJsonObject object = value.toObject();
             const QString origin = object.value(QStringLiteral("origin")).toString();
+            if (origin != QStringLiteral("local") && origin != QStringLiteral("inherited"))
+                continue;
+            MapProviderRouteEntry route;
+            route.id = object.value(QStringLiteral("id")).toString();
+            route.name = object.value(QStringLiteral("name")).toString();
+            route.inherited = origin == QStringLiteral("inherited");
+            for (const QJsonValue &value : object.value(QStringLiteral("upstreams")).toArray())
+                if (value.isString() && !route.upstreams.contains(value.toString()))
+                    route.upstreams.append(value.toString());
+            const QJsonValue chosen = object.value(QStringLiteral("selected_upstreams"));
+            if (chosen.isArray())
+                for (const QJsonValue &value : chosen.toArray())
+                    if (value.isString() && route.upstreams.contains(value.toString()) &&
+                        !route.selected_upstreams.contains(value.toString()))
+                        route.selected_upstreams.append(value.toString());
+            else route.selected_upstreams = route.upstreams; // Older MAP versions.
+            if (QUuid(route.id).isNull() || route.name.isEmpty())
+            {
+                emit errorOccurred(QStringLiteral("Invalid MAP routing provider entry"));
+                return;
+            }
+            if (!route.upstreams.isEmpty()) parsed_routes.append(route);
             if (origin == QStringLiteral("local"))
             {
                 ++local_count;
@@ -122,6 +146,7 @@ void MapInheritedProviderClient::refresh()
             parsed.append(entry);
         }
         this->entries = parsed;
+        this->route_entries = parsed_routes;
         this->local_provider_count = local_count;
         this->local_with_upstreams = local_upstream_count;
         this->has_catalog = true;
@@ -153,5 +178,42 @@ void MapInheritedProviderClient::setEnabled(const QString &id, bool enabled)
         this->change_pending = false;
         emit updateFinished(success, message);
         refresh(); // Server response is authoritative, never optimistic local state.
+    });
+}
+
+void MapInheritedProviderClient::setUpstreamRoute(const QString &id,
+                                                  const QStringList &upstream_names)
+{
+    if (!canEdit() || this->change_pending || QUuid(id).isNull()) return;
+    const MapProviderRouteEntry *entry = nullptr;
+    for (const MapProviderRouteEntry &candidate : this->route_entries)
+        if (candidate.id == id) { entry = &candidate; break; }
+    if (entry == nullptr) return;
+    QJsonArray names;
+    QSet<QString> unique;
+    for (const QString &name : upstream_names)
+    {
+        if (!entry->upstreams.contains(name) || unique.contains(name)) return;
+        unique.insert(name);
+        names.append(name);
+    }
+    this->change_pending = true;
+    const QByteArray body = QJsonDocument(QJsonObject{
+        {QStringLiteral("id"), id}, {QStringLiteral("upstreams"), names}
+    }).toJson(QJsonDocument::Compact);
+    QNetworkReply *reply = this->network.put(makeRequest(this->map_server,
+        QStringLiteral("/map/v1/providers/upstreams"), true), body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]()
+    {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray response = reply->readAll();
+        const bool success = reply->error() == QNetworkReply::NoError && status == 200;
+        const QString message = success ? QString() :
+            QStringLiteral("MAP upstream route update failed: HTTP %1 — %2")
+                .arg(status).arg(QString::fromUtf8(response.left(256)));
+        reply->deleteLater();
+        this->change_pending = false;
+        emit updateFinished(success, message);
+        refresh();
     });
 }

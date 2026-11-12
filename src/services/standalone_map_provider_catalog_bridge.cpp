@@ -74,12 +74,20 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
             cascade.upstreams.clear();
             this->disabled_inherited.clear();
         }
+        if (!this->repository->readProviderUpstreamRoutes(
+                &this->upstream_routes, &this->upstream_routes_revision, &error))
+        {
+            qCritical().noquote() << "Invalid MAP provider routes:" << error;
+            cascade.upstreams.clear(); // Cannot safely apply corrupt routing policy.
+            this->upstream_routes.clear();
+        }
     }
     this->available_catalog.reset(new Aowis::Map::ProviderCatalog(
         QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
             .filePath(QStringLiteral("maptiles")), this));
     this->available_catalog->configure(this->map_providers, cascade);
     this->available_catalog->setDisabledInheritedProviders(this->disabled_inherited);
+    this->available_catalog->setUpstreamRoutes(this->upstream_routes);
     connect(this->available_catalog.get(), &Aowis::Map::ProviderCatalog::catalogChanged,
             this, &StandaloneMapProviderCatalogBridge::providersChanged);
     this->available_catalog->refresh();
@@ -202,7 +210,8 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
     const QList<QByteArray> route = first.split(' ');
     if (route.size() < 2 || (route.at(1) != "/map/v1/providers" &&
         route.at(1) != "/map/v1/providers/available" &&
-        route.at(1) != "/map/v1/providers/inherited"))
+        route.at(1) != "/map/v1/providers/inherited" &&
+        route.at(1) != "/map/v1/providers/upstreams"))
     {
         sendResponse(socket, 404, "{}");
         return;
@@ -270,6 +279,72 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
             this->inherited_revision = revision;
             this->disabled_inherited = disabled;
             this->available_catalog->setDisabledInheritedProviders(disabled);
+        }
+        sendResponse(socket, 200, "{\"ok\":true}");
+        return;
+    }
+    if (route.first() == "PUT" && route.at(1) == "/map/v1/providers/upstreams")
+    {
+        if (this->repository == nullptr || this->available_catalog == nullptr)
+        {
+            sendResponse(socket, 400, "{\"error\":\"MAP settings unavailable\"}");
+            return;
+        }
+        QJsonParseError parse_error;
+        const QJsonDocument document = QJsonDocument::fromJson(
+            request.mid(delimiter + 4), &parse_error);
+        const QJsonObject object = document.object();
+        const QString id = object.value(QStringLiteral("id")).toString();
+        const QJsonValue requested = object.value(QStringLiteral("upstreams"));
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject() ||
+            QUuid(id).isNull() || !requested.isArray() || requested.toArray().size() > 32)
+        {
+            sendResponse(socket, 400, "{\"error\":\"Invalid route request\"}");
+            return;
+        }
+        QStringList advertised;
+        bool found = false;
+        for (const Aowis::Map::AvailableMapProvider &entry : this->available_catalog->available())
+            if (entry.provider.id == id)
+            {
+                advertised = entry.upstream_names;
+                found = true;
+                break;
+            }
+        if (!found)
+        {
+            sendResponse(socket, 404, "{\"error\":\"Unknown provider\"}");
+            return;
+        }
+        QStringList chosen;
+        for (const QJsonValue &value : requested.toArray())
+        {
+            if (!value.isString() || !advertised.contains(value.toString()) ||
+                chosen.contains(value.toString()))
+            {
+                sendResponse(socket, 400, "{\"error\":\"Unknown or duplicate upstream\"}");
+                return;
+            }
+            chosen.append(value.toString());
+        }
+        QHash<QString, QStringList> updated = this->upstream_routes;
+        if (chosen.isEmpty()) updated.remove(id);
+        else updated.insert(id, chosen);
+        if (updated != this->upstream_routes)
+        {
+            QString error;
+            QString revision;
+            if (!this->repository->saveProviderUpstreamRoutes(
+                    updated, this->upstream_routes_revision, &revision, &error))
+            {
+                sendResponse(socket, 409,
+                    QJsonDocument(QJsonObject{{QStringLiteral("error"), error}})
+                        .toJson(QJsonDocument::Compact));
+                return;
+            }
+            this->upstream_routes_revision = revision;
+            this->upstream_routes = updated;
+            this->available_catalog->setUpstreamRoutes(updated);
         }
         sendResponse(socket, 200, "{\"ok\":true}");
         return;
