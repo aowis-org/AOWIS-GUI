@@ -79,9 +79,11 @@ public:
                             {QStringLiteral("maximum_zoom"), 14},
                             {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("central"),
                                                                       QStringLiteral("backup")}},
-                            {QStringLiteral("selected_upstreams"), this->selected_upstreams},
                             {QStringLiteral("acquisition_mode"), this->mode},
                             {QStringLiteral("direct_fetch_allowed"), false}};
+                        if (this->advertise_selected_upstreams)
+                            provider.insert(QStringLiteral("selected_upstreams"),
+                                            this->selected_upstreams);
                         QJsonArray advertised;
                         if (this->only_local)
                         {
@@ -159,6 +161,7 @@ public:
     int mode_updates = 0;
     QString mode = QStringLiteral("cascade");
     QJsonArray selected_upstreams{QStringLiteral("central"), QStringLiteral("backup")};
+    bool advertise_selected_upstreams = true;
     bool only_local = false;
     bool local_also_upstream = false;
 };
@@ -189,6 +192,45 @@ int main(int argc, char **argv)
     if (!expect(client.routes().at(0).acquisition_mode == QStringLiteral("cascade") &&
                 !client.routes().at(0).direct_fetch_allowed,
                 "Read inherited provider acquisition policy")) return 1;
+
+    // The selected upstream list is a strict ordered subset. It must not be
+    // expanded just because the response includes an invalid or duplicate name.
+    int catalog_changes = 0;
+    QObject::connect(&client, &MapInheritedProviderClient::catalogChanged, &app,
+                     [&catalog_changes]() { ++catalog_changes; });
+    server.selected_upstreams = QJsonArray{QStringLiteral("backup")};
+    int previous_changes = catalog_changes;
+    client.refresh();
+    if (!expect(pumpUntil([&catalog_changes, previous_changes]() {
+        return catalog_changes > previous_changes;
+    }) && client.routes().at(0).selected_upstreams ==
+        QStringList{QStringLiteral("backup")},
+        "Preserve explicitly selected backup-only route")) return 1;
+
+    server.selected_upstreams = QJsonArray{QStringLiteral("backup"),
+        QStringLiteral("unknown"), QStringLiteral("backup")};
+    previous_changes = catalog_changes;
+    client.refresh();
+    if (!expect(pumpUntil([&catalog_changes, previous_changes]() {
+        return catalog_changes > previous_changes;
+    }) && client.routes().at(0).selected_upstreams ==
+        QStringList{QStringLiteral("backup")},
+        "Ignore unknown/duplicate upstreams without enabling the primary")) return 1;
+
+    // Old upstream MAP versions have no selected_upstreams field. In that case
+    // the advertised order is the effective fallback order.
+    server.advertise_selected_upstreams = false;
+    previous_changes = catalog_changes;
+    client.refresh();
+    if (!expect(pumpUntil([&catalog_changes, previous_changes]() {
+        return catalog_changes > previous_changes;
+    }) && client.routes().at(0).selected_upstreams ==
+        QStringList({QStringLiteral("central"), QStringLiteral("backup")}),
+        "Legacy MAP response retains advertised upstream order")) return 1;
+    server.advertise_selected_upstreams = true;
+    server.selected_upstreams = QJsonArray{QStringLiteral("central"),
+        QStringLiteral("backup")};
+
     client.setAcquisitionMode(ProviderId, QStringLiteral("direct"));
     if (!expect(!client.updating() && server.mode_updates == 0,
                 "Client never offers forbidden inherited Direct mode")) return 1;

@@ -127,11 +127,19 @@ void MapInheritedProviderClient::refresh()
                     route.upstreams.append(value.toString());
             const QJsonValue chosen = object.value(QStringLiteral("selected_upstreams"));
             if (chosen.isArray())
+            {
                 for (const QJsonValue &value : chosen.toArray())
+                {
                     if (value.isString() && route.upstreams.contains(value.toString()) &&
                         !route.selected_upstreams.contains(value.toString()))
                         route.selected_upstreams.append(value.toString());
-            else route.selected_upstreams = route.upstreams; // Older MAP versions.
+                }
+            }
+            else
+            {
+                // Older MAP versions omit selected_upstreams: use advertised order.
+                route.selected_upstreams = route.upstreams;
+            }
             if (QUuid(route.id).isNull() || route.name.isEmpty())
             {
                 emit errorOccurred(QStringLiteral("Invalid MAP routing provider entry"));
