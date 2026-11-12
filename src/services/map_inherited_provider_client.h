@@ -28,6 +28,8 @@ struct MapProviderRouteEntry
     QStringList upstreams; // Servers advertising this source.
     QStringList selected_upstreams; // Effective priority and subset.
     bool inherited = false;
+    QString acquisition_mode = QStringLiteral("automatic");
+    bool direct_fetch_allowed = false;
 };
 
 class MapInheritedProviderClient final : public QObject
@@ -39,6 +41,7 @@ public:
     void refresh();
     void setEnabled(const QString &id, bool enabled);
     void setUpstreamRoute(const QString &id, const QStringList &upstream_names);
+    void setAcquisitionMode(const QString &id, const QString &mode);
     const QVector<MapProviderRouteEntry> &routes() const { return this->route_entries; }
     const QVector<MapInheritedProviderEntry> &providers() const { return this->entries; }
     bool loaded() const { return this->has_catalog; }

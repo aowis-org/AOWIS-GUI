@@ -79,7 +79,9 @@ public:
                             {QStringLiteral("maximum_zoom"), 14},
                             {QStringLiteral("upstreams"), QJsonArray{QStringLiteral("central"),
                                                                       QStringLiteral("backup")}},
-                            {QStringLiteral("selected_upstreams"), this->selected_upstreams}};
+                            {QStringLiteral("selected_upstreams"), this->selected_upstreams},
+                            {QStringLiteral("acquisition_mode"), this->mode},
+                            {QStringLiteral("direct_fetch_allowed"), false}};
                         QJsonArray advertised;
                         if (this->only_local)
                         {
@@ -94,6 +96,21 @@ public:
                         body = QJsonDocument(QJsonObject{{QStringLiteral("providers"),
                             advertised}}).toJson(QJsonDocument::Compact);
                         code = 200;
+                    }
+                    else if (header.startsWith("PUT /map/v1/providers/acquisition") && admin_key)
+                    {
+                        const QJsonObject update = QJsonDocument::fromJson(
+                            data.mid(header_end + 4, body_length)).object();
+                        if (update.value(QStringLiteral("id")).toString() == ProviderId &&
+                            (update.value(QStringLiteral("mode")).toString() ==
+                                QStringLiteral("cascade") ||
+                             update.value(QStringLiteral("mode")).toString() ==
+                                QStringLiteral("automatic")))
+                        {
+                            this->mode = update.value(QStringLiteral("mode")).toString();
+                            ++this->mode_updates;
+                            code = 200;
+                        }
                     }
                     else if (header.startsWith("PUT /map/v1/providers/upstreams") && admin_key)
                     {
@@ -139,6 +156,8 @@ public:
     bool enabled = true;
     int updates = 0;
     int route_updates = 0;
+    int mode_updates = 0;
+    QString mode = QStringLiteral("cascade");
     QJsonArray selected_upstreams{QStringLiteral("central"), QStringLiteral("backup")};
     bool only_local = false;
     bool local_also_upstream = false;
@@ -167,6 +186,18 @@ int main(int argc, char **argv)
                 client.routes().at(0).selected_upstreams ==
                     QStringList({QStringLiteral("central"), QStringLiteral("backup")}),
                 "MAP route catalog includes effective priorities")) return 1;
+    if (!expect(client.routes().at(0).acquisition_mode == QStringLiteral("cascade") &&
+                !client.routes().at(0).direct_fetch_allowed,
+                "Read inherited provider acquisition policy")) return 1;
+    client.setAcquisitionMode(ProviderId, QStringLiteral("direct"));
+    if (!expect(!client.updating() && server.mode_updates == 0,
+                "Client never offers forbidden inherited Direct mode")) return 1;
+    client.setAcquisitionMode(ProviderId, QStringLiteral("automatic"));
+    if (!expect(pumpUntil([&client, &server]() {
+        return server.mode_updates == 1 && !client.updating() &&
+            client.routes().size() == 1 &&
+            client.routes().at(0).acquisition_mode == QStringLiteral("automatic");
+    }), "Change provider acquisition policy over authenticated REST")) return 1;
     client.setUpstreamRoute(ProviderId,
         {QStringLiteral("backup"), QStringLiteral("central")});
     if (!expect(pumpUntil([&client, &server]() {

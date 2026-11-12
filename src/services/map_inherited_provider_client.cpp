@@ -104,6 +104,24 @@ void MapInheritedProviderClient::refresh()
             route.id = object.value(QStringLiteral("id")).toString();
             route.name = object.value(QStringLiteral("name")).toString();
             route.inherited = origin == QStringLiteral("inherited");
+            route.acquisition_mode = object.value(QStringLiteral("acquisition_mode"))
+                .toString(route.inherited ? QStringLiteral("cascade") :
+                           QStringLiteral("automatic"));
+            route.direct_fetch_allowed = !route.inherited &&
+                object.value(QStringLiteral("direct_fetch_allowed")).toBool(false);
+            if (route.acquisition_mode != QStringLiteral("automatic") &&
+                route.acquisition_mode != QStringLiteral("cascade") &&
+                route.acquisition_mode != QStringLiteral("direct"))
+            {
+                emit errorOccurred(QStringLiteral("Invalid MAP provider acquisition mode"));
+                return;
+            }
+            if (!route.direct_fetch_allowed &&
+                route.acquisition_mode == QStringLiteral("direct"))
+            {
+                emit errorOccurred(QStringLiteral("MAP advertises forbidden direct acquisition"));
+                return;
+            }
             for (const QJsonValue &value : object.value(QStringLiteral("upstreams")).toArray())
                 if (value.isString() && !route.upstreams.contains(value.toString()))
                     route.upstreams.append(value.toString());
@@ -119,7 +137,9 @@ void MapInheritedProviderClient::refresh()
                 emit errorOccurred(QStringLiteral("Invalid MAP routing provider entry"));
                 return;
             }
-            if (!route.upstreams.isEmpty()) parsed_routes.append(route);
+            // Local sources with no MAP upstream still need their acquisition
+            // mode visible/editable (for example, explicitly cascade-only).
+            parsed_routes.append(route);
             if (origin == QStringLiteral("local"))
             {
                 ++local_count;
@@ -210,6 +230,37 @@ void MapInheritedProviderClient::setUpstreamRoute(const QString &id,
         const bool success = reply->error() == QNetworkReply::NoError && status == 200;
         const QString message = success ? QString() :
             QStringLiteral("MAP upstream route update failed: HTTP %1 — %2")
+                .arg(status).arg(QString::fromUtf8(response.left(256)));
+        reply->deleteLater();
+        this->change_pending = false;
+        emit updateFinished(success, message);
+        refresh();
+    });
+}
+
+void MapInheritedProviderClient::setAcquisitionMode(const QString &id, const QString &mode)
+{
+    if (!canEdit() || this->change_pending || QUuid(id).isNull()) return;
+    const MapProviderRouteEntry *found = nullptr;
+    for (const MapProviderRouteEntry &entry : this->route_entries)
+        if (entry.id == id) { found = &entry; break; }
+    if (found == nullptr ||
+        (mode != QStringLiteral("automatic") && mode != QStringLiteral("cascade") &&
+         mode != QStringLiteral("direct")) ||
+        (mode == QStringLiteral("direct") && !found->direct_fetch_allowed)) return;
+    this->change_pending = true;
+    const QByteArray body = QJsonDocument(QJsonObject{
+        {QStringLiteral("id"), id}, {QStringLiteral("mode"), mode}
+    }).toJson(QJsonDocument::Compact);
+    QNetworkReply *reply = this->network.put(makeRequest(this->map_server,
+        QStringLiteral("/map/v1/providers/acquisition"), true), body);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]()
+    {
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QByteArray response = reply->readAll();
+        const bool success = reply->error() == QNetworkReply::NoError && status == 200;
+        const QString message = success ? QString() :
+            QStringLiteral("MAP provider acquisition change failed: HTTP %1 — %2")
                 .arg(status).arg(QString::fromUtf8(response.left(256)));
         reply->deleteLater();
         this->change_pending = false;

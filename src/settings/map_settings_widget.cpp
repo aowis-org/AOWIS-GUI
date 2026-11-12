@@ -482,7 +482,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     LiveUiText::bind(inherited_group, [inherited_group]
     {
         inherited_group->setTitle(LiveUiText::translate(
-            QT_TRANSLATE_NOOP("LiveUiText", "Providers from upstream MAP servers")));
+            QT_TRANSLATE_NOOP("LiveUiText", "MAP provider acquisition and upstreams")));
     });
     QVBoxLayout *inherited_layout = new QVBoxLayout(inherited_group);
     inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
@@ -512,14 +512,17 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
         "Upstream routing is configured separately for each provider, including locally "
         "defined providers also offered upstream. Select the permitted MAP servers and "
-        "their priority. Changes are local and saved automatically."), inherited_group));
-    this->upstream_routing_table = new QTableWidget(0, 4, inherited_group);
+        "their priority. Choose Automatic (MAP then permitted origin), Cascade only, "
+        "or Direct only for locally defined providers if permitted. Changes are "
+        "local and saved automatically."), inherited_group));
+    this->upstream_routing_table = new QTableWidget(0, 5, inherited_group);
     LiveUiText::bind(this->upstream_routing_table, [this]
     {
         this->upstream_routing_table->setHorizontalHeaderLabels({
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Provider")),
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Advertised by")),
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Preferred order")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Acquisition")),
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Routing"))});
     });
     this->upstream_routing_table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -954,10 +957,27 @@ void MapSettingsWidget::refreshInheritedProviderTable()
             new QTableWidgetItem(route.upstreams.join(QStringLiteral(", "))));
         this->upstream_routing_table->setItem(row, 2,
             new QTableWidgetItem(route.selected_upstreams.join(QStringLiteral(" → "))));
-        QPushButton *edit = new QPushButton(tr("Configure…"), this->upstream_routing_table);
-        edit->setEnabled(this->inherited_provider_client->canEdit() &&
+        QComboBox *mode = new QComboBox(this->upstream_routing_table);
+        mode->addItem(tr("Automatic"), QStringLiteral("automatic"));
+        mode->addItem(tr("Cascade only"), QStringLiteral("cascade"));
+        if (route.direct_fetch_allowed)
+            mode->addItem(tr("Direct only"), QStringLiteral("direct"));
+        const int current = mode->findData(route.acquisition_mode);
+        mode->setCurrentIndex(current < 0 ? 0 : current);
+        mode->setEnabled(this->inherited_provider_client->canEdit() &&
                          !this->inherited_provider_client->updating());
-        this->upstream_routing_table->setCellWidget(row, 3, edit);
+        this->upstream_routing_table->setCellWidget(row, 3, mode);
+        connect(mode, &QComboBox::currentIndexChanged, this, [this, mode, id = route.id](int index)
+        {
+            if (index < 0 || this->inherited_provider_client == nullptr) return;
+            this->inherited_provider_client->setAcquisitionMode(
+                id, mode->itemData(index).toString());
+        });
+        QPushButton *edit = new QPushButton(tr("Configure…"), this->upstream_routing_table);
+        edit->setEnabled(!route.upstreams.isEmpty() &&
+                         this->inherited_provider_client->canEdit() &&
+                         !this->inherited_provider_client->updating());
+        this->upstream_routing_table->setCellWidget(row, 4, edit);
         connect(edit, &QPushButton::clicked, this, [this, id = route.id]
         {
             editProviderUpstreamRoute(id);

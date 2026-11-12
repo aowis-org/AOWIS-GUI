@@ -62,6 +62,8 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
         if (!this->repository->readCascade(&cascade, nullptr, &error))
         {
             qCritical().noquote() << "Invalid MAP cascade settings:" << error;
+            this->catalog_valid = false;
+            this->catalog_error = error;
             cascade = Aowis::Map::MapCascadeConfig();
             cascade.allow_direct_fetch = false;
         }
@@ -69,15 +71,29 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
                 &this->disabled_inherited, &this->inherited_revision, &error))
         {
             qCritical().noquote() << "Invalid inherited MAP overrides:" << error;
+            this->catalog_valid = false;
+            this->catalog_error = error;
             // Do not accidentally re-enable inherited sources when the local
             // persisted deny-list is unreadable. Keep local providers usable.
             cascade.upstreams.clear();
             this->disabled_inherited.clear();
         }
+        if (!this->repository->readProviderAcquisitionModes(
+                &this->acquisition_modes, &this->acquisition_modes_revision, &error))
+        {
+            qCritical().noquote() << "Invalid MAP provider acquisition modes:" << error;
+            this->catalog_valid = false;
+            this->catalog_error = error;
+            cascade.upstreams.clear(); // Fail closed on corrupt mode policy.
+            cascade.allow_direct_fetch = false;
+            this->acquisition_modes.clear();
+        }
         if (!this->repository->readProviderUpstreamRoutes(
                 &this->upstream_routes, &this->upstream_routes_revision, &error))
         {
             qCritical().noquote() << "Invalid MAP provider routes:" << error;
+            this->catalog_valid = false;
+            this->catalog_error = error;
             cascade.upstreams.clear(); // Cannot safely apply corrupt routing policy.
             this->upstream_routes.clear();
         }
@@ -88,6 +104,7 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
     this->available_catalog->configure(this->map_providers, cascade);
     this->available_catalog->setDisabledInheritedProviders(this->disabled_inherited);
     this->available_catalog->setUpstreamRoutes(this->upstream_routes);
+    this->available_catalog->setAcquisitionModes(this->acquisition_modes);
     connect(this->available_catalog.get(), &Aowis::Map::ProviderCatalog::catalogChanged,
             this, &StandaloneMapProviderCatalogBridge::providersChanged);
     this->available_catalog->refresh();
@@ -211,7 +228,8 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
     if (route.size() < 2 || (route.at(1) != "/map/v1/providers" &&
         route.at(1) != "/map/v1/providers/available" &&
         route.at(1) != "/map/v1/providers/inherited" &&
-        route.at(1) != "/map/v1/providers/upstreams"))
+        route.at(1) != "/map/v1/providers/upstreams" &&
+        route.at(1) != "/map/v1/providers/acquisition"))
     {
         sendResponse(socket, 404, "{}");
         return;
@@ -347,6 +365,74 @@ void StandaloneMapProviderCatalogBridge::respond(QTcpSocket *socket, const QByte
             this->available_catalog->setUpstreamRoutes(updated);
         }
         sendResponse(socket, 200, "{\"ok\":true}");
+        return;
+    }
+    if (route.first() == "PUT" && route.at(1) == "/map/v1/providers/acquisition")
+    {
+        if (this->repository == nullptr || this->available_catalog == nullptr)
+        {
+            sendResponse(socket, 503, "{"error":"MAP settings unavailable"}");
+            return;
+        }
+        QJsonParseError parse_error;
+        const QJsonDocument document = QJsonDocument::fromJson(
+            request.mid(delimiter + 4), &parse_error);
+        const QJsonObject body = document.object();
+        const QString id = body.value(QStringLiteral("id")).toString();
+        const QUuid uuid(id);
+        Aowis::Map::MapProviderAcquisitionMode mode;
+        if (parse_error.error != QJsonParseError::NoError || !document.isObject() ||
+            uuid.isNull() || uuid.toString(QUuid::WithoutBraces) != id ||
+            !Aowis::Map::parseProviderAcquisitionMode(
+                body.value(QStringLiteral("mode")).toString(), &mode))
+        {
+            sendResponse(socket, 400, "{"error":"Invalid acquisition mode"}");
+            return;
+        }
+        bool found = false;
+        bool inherited = false;
+        bool direct_allowed = false;
+        for (const Aowis::Map::AvailableMapProvider &entry : this->available_catalog->available())
+            if (entry.provider.id == id)
+            {
+                found = true;
+                inherited = entry.inherited;
+                direct_allowed = entry.direct_fetch_allowed;
+                break;
+            }
+        if (!found)
+        {
+            sendResponse(socket, 404, "{"error":"Unknown provider"}");
+            return;
+        }
+        if (mode == Aowis::Map::MapProviderAcquisitionMode::Direct && !direct_allowed)
+        {
+            sendResponse(socket, 403, "{"error":"Direct acquisition forbidden"}");
+            return;
+        }
+        QHash<QString, Aowis::Map::MapProviderAcquisitionMode> updated = this->acquisition_modes;
+        const Aowis::Map::MapProviderAcquisitionMode default_mode = inherited ?
+            Aowis::Map::MapProviderAcquisitionMode::Cascade :
+            Aowis::Map::MapProviderAcquisitionMode::Automatic;
+        if (mode == default_mode) updated.remove(id);
+        else updated.insert(id, mode);
+        if (updated != this->acquisition_modes)
+        {
+            QString error;
+            QString revision;
+            if (!this->repository->saveProviderAcquisitionModes(
+                    updated, this->acquisition_modes_revision, &revision, &error))
+            {
+                sendResponse(socket, 409,
+                    QJsonDocument(QJsonObject{{QStringLiteral("error"), error}})
+                        .toJson(QJsonDocument::Compact));
+                return;
+            }
+            this->acquisition_modes_revision = revision;
+            this->acquisition_modes = updated;
+            this->available_catalog->setAcquisitionModes(updated);
+        }
+        sendResponse(socket, 200, "{"ok":true}");
         return;
     }
     if (route.first() == "GET" && route.at(1) == "/map/v1/providers")

@@ -113,6 +113,14 @@ int main(int argc, char **argv)
     if (!expect(QJsonDocument::fromJson(updated.body).object().value(QStringLiteral("providers"))
                     .toArray().at(0).toObject().value(QStringLiteral("name")).toString() ==
                     QStringLiteral("Edited embedded provider"), "updated catalog readable")) return 1;
+    const QString first_id = providers.at(0).toObject().value(QStringLiteral("id")).toString();
+    const Result policy = request(&manager,
+        QUrl(server.base_url + QStringLiteral("/map/v1/providers/acquisition")),
+        server.delete_api_key, "PUT", QJsonDocument(QJsonObject{
+            {QStringLiteral("id"), first_id},
+            {QStringLiteral("mode"), QStringLiteral("cascade")}
+        }).toJson(QJsonDocument::Compact));
+    if (!expect(policy.code == 200, "Standalone MAP policy uses library-owned repository")) return 1;
     QString error;
     std::unique_ptr<Aowis::Map::SettingsRepository> repository =
         Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&error);

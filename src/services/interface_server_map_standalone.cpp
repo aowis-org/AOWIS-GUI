@@ -118,26 +118,38 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
     this->map_tiles->setCascadeConfig(cascade);
     StandaloneMapProviderCatalogBridge &provider_bridge =
         StandaloneMapProviderCatalogBridge::instance();
+    // The bridge validates all MAP-owned routing and inherited-provider
+    // records. Do not use the separately read cascade configuration if any
+    // of those records is corrupt: that could re-enable direct downloads.
+    if (!provider_bridge.isCatalogValid())
+    {
+        cascade.upstreams.clear();
+        cascade.allow_direct_fetch = false;
+        this->map_tiles->setCascadeConfig(cascade);
+    }
     this->map_tiles->configureProviders(provider_bridge.availableProviders(), {}, {},
                                         provider_bridge.inheritedUpstreams(),
-                                        provider_bridge.upstreamRoutes());
+                                        provider_bridge.upstreamRoutes(),
+                                        provider_bridge.acquisitionModes());
     connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
             this, [this, &provider_bridge]
     {
         const QVector<Aowis::Map::MapProvider> updated = provider_bridge.availableProviders();
         const QHash<QString, QSet<QString>> inherited = provider_bridge.inheritedUpstreams();
         const QHash<QString, QStringList> routes = provider_bridge.upstreamRoutes();
+        const QHash<QString, Aowis::Map::MapProviderAcquisitionMode> modes =
+            provider_bridge.acquisitionModes();
 #ifdef Q_OS_WIN
         // MapTiles lives on its dedicated thread in Windows Standalone.
         MapTiles *tiles = this->map_tiles;
-        QMetaObject::invokeMethod(tiles, [tiles, updated, inherited, routes]
+        QMetaObject::invokeMethod(tiles, [tiles, updated, inherited, routes, modes]
         {
             tiles->cancelUpstreamDownloads();
-            tiles->configureProviders(updated, {}, {}, inherited, routes);
+            tiles->configureProviders(updated, {}, {}, inherited, routes, modes);
         }, Qt::QueuedConnection);
 #else
         this->map_tiles->cancelUpstreamDownloads();
-        this->map_tiles->configureProviders(updated, {}, {}, inherited, routes);
+        this->map_tiles->configureProviders(updated, {}, {}, inherited, routes, modes);
 #endif
     });
     const QByteArray cascade_instance_id = this->map_tiles->cascadeInstanceId();

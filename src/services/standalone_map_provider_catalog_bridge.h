@@ -25,6 +25,8 @@ public:
     QVector<Aowis::Map::MapProvider> availableProviders() const;
     QHash<QString, QSet<QString>> inheritedUpstreams() const;
     QHash<QString, QStringList> upstreamRoutes() const { return this->upstream_routes; }
+    QHash<QString, Aowis::Map::MapProviderAcquisitionMode> acquisitionModes() const
+    { return this->acquisition_modes; }
     bool isCatalogValid() const { return this->catalog_valid; }
 
 signals:
@@ -44,6 +46,8 @@ private:
     std::unique_ptr<Aowis::Map::ProviderCatalog> available_catalog;
     QSet<QString> disabled_inherited;
     QHash<QString, QStringList> upstream_routes;
+    QHash<QString, Aowis::Map::MapProviderAcquisitionMode> acquisition_modes;
+    QString acquisition_modes_revision;
     QString upstream_routes_revision;
     QString inherited_revision;
     QString provider_revision;
