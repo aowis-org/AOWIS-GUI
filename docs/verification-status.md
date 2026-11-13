@@ -101,6 +101,7 @@ See [Rendering architecture](rendering-architecture.md),
 | Globe and terrain | Quadtree, DEM meshes, sparse updates, sky, heatmap, network on the globe, all in Render | Recording-bgfx mock tests and boundary checks; earlier native smoke checks | OpenGL/Vulkan terrain LOD and skirts, partial DEM updates, wireframe, caps, sky and heatmap |
 | Device and native windows | One device, client retirement, swapchain registry, Qt native-surface adapter in Render | Focused lifecycle tests; three-map and Projects handoff observed natively on Vulkan and OpenGL 4.3 | X11/Wayland resize and reparent, shutdown and recreation, Windows, WebAssembly |
 | AOWIS-GUI-Mobile | Same engine in Qt Quick's EGL context (`HostContext`) | Linux and Android builds in progress | Android device acceptance |
+| Globe camera and input (13 November 2026) | Crosshair-terrain orbit pivot, Alt free look (straight down to up), Orbit/FreeLook camera modes with terrain following in both, configurable hold keys, HUD controls card and gesture hint, MSAA setting via `SwapChain::flags`, Windows drag fix for the click's focus routing | User reported the camera behaviour working on Linux ("so far, so good", 13 November 2026); new Render tests (`render_view_test`, `render_globe_terrain_test`, `bgfx_hud_test` additions) not yet reported as run | Windows: left-drag pan and bare Alt release; MSAA levels on every backend; free-look panning over real DEM relief |
 
 ### Focused renderer regression
 

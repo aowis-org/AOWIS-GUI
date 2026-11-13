@@ -111,16 +111,43 @@ reopens them while the variable is set.
 the events. On focus loss, `MapBgfxSurface` forwards `FocusOut` and
 `WindowDeactivate` to the navigation cancellation, and `MapWidget` watches
 application deactivation for platforms that omit native releases.
-Cancellation stops key movement, mouse panning, globe orbit and its pointer
-lock and the HUD joystick, and restores the cursor without warping it into an
-inactive window. The editor canvas also aborts unfinished entity moves and
+Cancellation stops key movement, mouse panning, globe orbit and free look
+and their pointer lock and the HUD joystick, and restores the cursor without
+warping it into an inactive window. Focus changes caused by the map's own
+click focus routing are not a loss: while a mouse button is held and focus
+stays in the map's top-level window, Render ignores them (on Windows every
+click moves the system focus between the top-level and the embedded native
+window, which cancelled every drag), and `MapBgfxSurface::focusNavigationInput()`
+returns at once when the native window already has focus. The editor canvas also aborts unfinished entity moves and
 rectangle drags, keeping completed selections and an armed creation tool. The
 diagnostic windows drop their drag state too.
 
 Manual check: hold a pan or zoom key, a left drag, a middle-button globe orbit
 or an editor drag, then alt-tab away before releasing. Back on the map, the
-old gesture must not resume and no cursor grab may remain. Repeat on X11 and
-Wayland.
+old gesture must not resume and no cursor grab may remain. Repeat on X11,
+Wayland and Windows (there also: a plain left drag pans).
+
+## Globe camera gestures
+
+`MapWidget` starts the globe gestures; Render's camera modes and terrain
+following are described in Render's `docs/renderer.md` ("Camera modes and
+terrain following").
+
+| Input | Gesture | Camera mode |
+| --- | --- | --- |
+| Orbit hold key (default Ctrl) + mouse move, or middle-button drag | Orbit around the terrain under the crosshair, tilt 0 to 90 degrees | Orbit |
+| Look hold key (default Alt) + mouse move | Free look from the camera, straight down to straight up | FreeLook (kept after release) |
+| Left drag, keys, HUD joystick | Pan; follows the terrain in both modes | unchanged |
+
+The hold keys are in Settings → Keyboard Shortcuts, group "Globe Navigation
+(hold)" (`GuiShortcutRegistry` hold modifiers, `GuiHoldModifierId`); the
+middle mouse button is listed there read-only. A hold gesture runs only
+while no mouse button is pressed. When the look key is released, the
+application event filter swallows the release, so a bare Alt does not select
+the window's menu bar on Windows. `MapWidget::navigationGestureChanged()`
+drives the HUD hint; `MapBgfxSurface` opens the globe controls card once on
+the first globe view (`map_hints/globe_controls_help_shown`). The HUD tilt
+slider follows the mode (`MapBgfxGlobeHudController`).
 
 ## Verification
 

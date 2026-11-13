@@ -253,10 +253,11 @@ one per group, natively and in the browser:
 | Group | Keys |
 | --- | --- |
 | `interface` | `language` |
-| `shortcuts` | one per shortcut (`sidebar_toggle`, `fullscreen`, …); `""` unassigns; missing → default |
+| `shortcuts` | one per shortcut (`sidebar_toggle`, `fullscreen`, …); `""` unassigns; missing → default. Globe hold keys `globe_orbit_modifier` (default `Ctrl`) and `globe_look_modifier` (default `Alt`): `Ctrl`, `Alt` or `Win`, never the same key, never Shift (faster keyboard pan) |
 | `symbology` | `node_palette`, `link_palette`, `heatmap_palette` (names such as `viridis`), `*_palette_flipped` |
 | `map_navigation` | `scroll_zoom_sensitivity`, `mouse_3d_pan_sensitivity`, `orbit_3d_sensitivity` (0.1–1.5) |
-| `map_performance` | `terrain_detail_reduction` (0–3) |
+| `map_performance` | `terrain_detail_reduction` (0–3), `antialiasing_samples` (MSAA of the bgfx map and project graph: 0 = off, 2, 4 default, 8, 16; desktop only, the browser antialiases the canvas) |
+| `map_hints` | `globe_controls_help_shown` (the globe controls card opened once as a first-run tip) |
 | `gui` | `examples_builtin_enable` (native; WebAssembly takes it from the deployment) |
 | `units` | `selected_profile_id`, `selected_profile` (active unit profile) |
 | `map_provider_fallback` | provider UUID → personal fallback provider UUID |
