@@ -567,6 +567,8 @@ if(AOWIS_STANDALONE_BUILD)
             src/services/interface_server_map_standalone.cpp
             src/services/standalone_map_provider_catalog_bridge.h
             src/services/standalone_map_provider_catalog_bridge.cpp
+            src/services/map_upstream_tunnels.h
+            src/services/map_upstream_tunnels.cpp
     )
     
     target_compile_definitions(aowis-server-gui
@@ -1037,7 +1039,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         if(AOWIS_STANDALONE_BUILD AND TARGET AOWIS::Map)
             add_executable(aowis-standalone-map-provider-bridge-tests
                 tests/standalone_map_provider_bridge_test.cpp
-                src/services/standalone_map_provider_catalog_bridge.cpp)
+                src/services/standalone_map_provider_catalog_bridge.cpp
+                src/services/map_upstream_tunnels.cpp)
             target_include_directories(aowis-standalone-map-provider-bridge-tests PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src)
             target_link_libraries(aowis-standalone-map-provider-bridge-tests PRIVATE

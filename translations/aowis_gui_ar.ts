@@ -8529,6 +8529,70 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   <context>
     <name>QObject</name>
     <message>
+      <source>At least one upstream must remain selected.</source>
+      <translation>يجب أن يبقى خادم علوي واحد على الأقل محددًا.</translation>
+    </message>
+    <message>
+      <source>Draft changed before import; no data was overwritten.</source>
+      <translation>تغيّرت المسودة قبل الاستيراد؛ لم تُستبدل أي بيانات.</translation>
+    </message>
+    <message>
+      <source>Invalid unit profile name</source>
+      <translation>اسم ملف تعريف الوحدات غير صالح</translation>
+    </message>
+    <message>
+      <source>No WireGuard profile is selected for this connection.</source>
+      <translation>لم يُحدَّد ملف تعريف WireGuard لهذا الاتصال.</translation>
+    </message>
+    <message>
+      <source>Routing saved on this MAP server.</source>
+      <translation>حُفظ التوجيه على خادم MAP هذا.</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used (line %1): %2</source>
+      <translation>لا يمكن استخدام ملف تعريف WireGuard (السطر %1): %2</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used.</source>
+      <translation>لا يمكن استخدام ملف تعريف WireGuard.</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used: %1</source>
+      <translation>لا يمكن استخدام ملف تعريف WireGuard: %1</translation>
+    </message>
+    <message>
+      <source>The map server is configured for WireGuard, which this build cannot run.</source>
+      <translation>خادم الخرائط مهيَّأ لاستخدام WireGuard، وهذا الإصدار لا يستطيع تشغيله.</translation>
+    </message>
+    <message>
+      <source>The profile name must be nonempty and unique. Choose a different name.</source>
+      <translation>يجب أن يكون اسم ملف التعريف غير فارغ وفريدًا. اختر اسمًا آخر.</translation>
+    </message>
+    <message>
+      <source>The selected WireGuard profile no longer exists.</source>
+      <translation>لم يعد ملف تعريف WireGuard المحدَّد موجودًا.</translation>
+    </message>
+    <message>
+      <source>Unable to configure the WireGuard HTTP transport.</source>
+      <translation>تعذّر ضبط نقل HTTP عبر WireGuard.</translation>
+    </message>
+    <message>
+      <source>Use "%1" after import</source>
+      <translation>استخدام «%1» بعد الاستيراد</translation>
+    </message>
+    <message>
+      <source>Use the new unit system after import</source>
+      <translation>استخدام نظام الوحدات الجديد بعد الاستيراد</translation>
+    </message>
+    <message>
+      <source>WireGuard profile</source>
+      <translation>ملف تعريف WireGuard</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel failed to start.</source>
+      <translation>تعذّر بدء نفق WireGuard.</translation>
+    </message>
+    <message>
       <source>WireGuard is unavailable in this build.</source>
       <translation>WireGuard غير متاح في هذه النسخة.</translation>
     </message>
@@ -9066,6 +9130,17 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>WireGuard profile not imported</source>
       <translation>لم يُستورَد ملف تعريف WireGuard</translation>
+    </message>
+  </context>
+  <context>
+    <name>MapUpstreamTunnels</name>
+    <message>
+      <source>MAP upstream (%1)</source>
+      <translation>خادم MAP علوي (%1)</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel failed to start.</source>
+      <translation>تعذّر بدء نفق WireGuard.</translation>
     </message>
   </context>
 </TS>

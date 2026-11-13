@@ -8477,6 +8477,70 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
   <context>
     <name>QObject</name>
     <message>
+      <source>At least one upstream must remain selected.</source>
+      <translation>Al menos un servidor ascendente debe permanecer seleccionado.</translation>
+    </message>
+    <message>
+      <source>Draft changed before import; no data was overwritten.</source>
+      <translation>El borrador cambió antes de la importación; no se sobrescribió ningún dato.</translation>
+    </message>
+    <message>
+      <source>Invalid unit profile name</source>
+      <translation>Nombre de perfil de unidades no válido</translation>
+    </message>
+    <message>
+      <source>No WireGuard profile is selected for this connection.</source>
+      <translation>No hay ningún perfil de WireGuard seleccionado para esta conexión.</translation>
+    </message>
+    <message>
+      <source>Routing saved on this MAP server.</source>
+      <translation>Enrutamiento guardado en este servidor MAP.</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used (line %1): %2</source>
+      <translation>No se puede usar el perfil de WireGuard (línea %1): %2</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used.</source>
+      <translation>No se puede usar el perfil de WireGuard.</translation>
+    </message>
+    <message>
+      <source>The WireGuard profile cannot be used: %1</source>
+      <translation>No se puede usar el perfil de WireGuard: %1</translation>
+    </message>
+    <message>
+      <source>The map server is configured for WireGuard, which this build cannot run.</source>
+      <translation>El servidor de mapas está configurado para WireGuard, que esta compilación no puede ejecutar.</translation>
+    </message>
+    <message>
+      <source>The profile name must be nonempty and unique. Choose a different name.</source>
+      <translation>El nombre del perfil no puede estar vacío y debe ser único. Elija otro nombre.</translation>
+    </message>
+    <message>
+      <source>The selected WireGuard profile no longer exists.</source>
+      <translation>El perfil de WireGuard seleccionado ya no existe.</translation>
+    </message>
+    <message>
+      <source>Unable to configure the WireGuard HTTP transport.</source>
+      <translation>No se puede configurar el transporte HTTP de WireGuard.</translation>
+    </message>
+    <message>
+      <source>Use "%1" after import</source>
+      <translation>Usar «%1» después de la importación</translation>
+    </message>
+    <message>
+      <source>Use the new unit system after import</source>
+      <translation>Usar el nuevo sistema de unidades después de la importación</translation>
+    </message>
+    <message>
+      <source>WireGuard profile</source>
+      <translation>Perfil de WireGuard</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel failed to start.</source>
+      <translation>No se pudo iniciar el túnel de WireGuard.</translation>
+    </message>
+    <message>
       <source>WireGuard is unavailable in this build.</source>
       <translation>WireGuard no está disponible en esta compilación.</translation>
     </message>
@@ -9006,6 +9070,17 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>WireGuard profile not imported</source>
       <translation>Perfil de WireGuard no importado</translation>
+    </message>
+  </context>
+  <context>
+    <name>MapUpstreamTunnels</name>
+    <message>
+      <source>MAP upstream (%1)</source>
+      <translation>Servidor MAP ascendente (%1)</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel failed to start.</source>
+      <translation>No se pudo iniciar el túnel de WireGuard.</translation>
     </message>
   </context>
 </TS>

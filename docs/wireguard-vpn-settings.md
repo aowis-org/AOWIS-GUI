@@ -77,8 +77,11 @@ and **Manage WireGuard profiles…** opens this page; no editor keeps its own
 copy of a profile. A connection whose profile is missing or unusable stays
 closed and never falls back to direct HTTP; the selector shows it as
 **Missing profile**. A cascading upstream stores only the profile ID in
-MAP's cascade record; until the embedded MAP engine gets the tunnel
-transport, such an upstream is skipped (never contacted directly).
+MAP's cascade record; Standalone leases that profile's shared tunnel and
+hands MAP its SOCKS5 proxy, so tiles, terrain and provider discovery of
+that upstream go through it. While the tunnel cannot start (retried after
+5, 10, 20, 40, then every 60 seconds) the upstream is skipped, never
+contacted directly; it appears under **Used by now** as "MAP upstream".
 
 For a WireGuard connection, everything that talks to that server goes
 through its tunnel: the catalogue and health checks, metadata writes,

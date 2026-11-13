@@ -30,8 +30,9 @@ public:
     bool isCatalogValid() const { return this->catalog_valid; }
     // The cascade the embedded map server applies: the stored record, with
     // upstreams and/or direct fetching removed while another MAP record is
-    // unreadable (fail closed).
-    Aowis::Map::MapCascadeConfig cascade() const { return this->effective_cascade; }
+    // unreadable (fail closed), and the tunnel proxy of every WireGuard
+    // upstream whose tunnel runs (MapUpstreamTunnels).
+    Aowis::Map::MapCascadeConfig cascade() const { return this->applied_cascade; }
     // Re-reads the stored cascade record and applies it live: provider
     // discovery is reconfigured and cascadeChanged() is emitted when the
     // effective cascade differs. An unreadable record keeps the last working
@@ -40,7 +41,8 @@ public:
 
 signals:
     void providersChanged();
-    // The effective cascade changed (reloadCascade()).
+    // cascade() changed: reloadCascade(), or a WireGuard upstream's tunnel
+    // started.
     void cascadeChanged();
 
 private:
@@ -64,7 +66,10 @@ private:
     QString provider_revision;
     Aowis::Map::MapCascadeConfig restrictedCascade(Aowis::Map::MapCascadeConfig cascade) const;
 
-    Aowis::Map::MapCascadeConfig effective_cascade;
+    void applyResolvedCascade();
+
+    Aowis::Map::MapCascadeConfig effective_cascade; // Stored, restricted.
+    Aowis::Map::MapCascadeConfig applied_cascade;   // With tunnel proxies.
     bool catalog_valid = false;
     bool providers_valid = false;
     bool policy_records_valid = true;

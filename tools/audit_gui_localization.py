@@ -26,6 +26,8 @@ EXPLICIT_PATTERNS = [
     re.compile(rf'QCoreApplication::translate\(\s*({LITERAL})\s*,\s*({LITERALS})'),
 ]
 SIMPLE_TR = re.compile(rf'(?<![A-Za-z_:])tr\(\s*({LITERALS})')
+# QObject::tr() always translates in the QObject context.
+QOBJECT_TR = re.compile(rf'(?<![A-Za-z_:])QObject::tr\(\s*({LITERALS})')
 UI_LITERAL = re.compile(rf'\b(?:setText|setToolTip|setWindowTitle|setPlaceholderText|setStatusTip|addAction)\(\s*(?:QStringLiteral\(\s*)?({LITERALS})')
 KNOWN_DIRECT = {
     'src/app/footer_statusbar.cpp': 'FooterStatusBar',
@@ -56,6 +58,7 @@ KNOWN_DIRECT = {
     'src/tabs/tab_map_workspace.cpp': 'MapWorkspaceWidget',
     'src/tabs/tab_settings_widget.cpp': 'SettingsWidget',
     'src/settings/wireguard_vpn_settings_widget.cpp': 'WireGuardVpnSettingsWidget',
+    'src/services/map_upstream_tunnels.cpp': 'MapUpstreamTunnels',
 }
 
 
@@ -91,6 +94,9 @@ def audit_sources():
             for match in pattern.finditer(source):
                 key = (decode_cpp_literal(match.group(1)), decode_cpp_literal(match.group(2)))
                 keys.setdefault(key, set()).add(rel)
+        for match in QOBJECT_TR.finditer(source):
+            key = ('QObject', decode_cpp_literal(match.group(1)))
+            keys.setdefault(key, set()).add(rel)
         matches = list(SIMPLE_TR.finditer(source))
         if rel in KNOWN_DIRECT:
             for match in matches:

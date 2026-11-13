@@ -1,5 +1,7 @@
 #include "services/standalone_map_provider_catalog_bridge.h"
 
+#include "services/map_upstream_tunnels.h"
+
 
 #include <QCoreApplication>
 #include <QHostAddress>
@@ -105,10 +107,17 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
     this->catalog_valid = this->catalog_valid && this->policy_records_valid;
     cascade = this->restrictedCascade(cascade);
     this->effective_cascade = cascade;
+    // WireGuard upstreams get their tunnel's proxy once it runs; until then
+    // MAP skips them (never direct).
+    MapUpstreamTunnels &tunnels = MapUpstreamTunnels::instance();
+    tunnels.setCascade(cascade);
+    this->applied_cascade = tunnels.resolved();
     this->available_catalog.reset(new Aowis::Map::ProviderCatalog(
         QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
             .filePath(QStringLiteral("maptiles")), this));
-    this->available_catalog->configure(this->map_providers, cascade);
+    this->available_catalog->configure(this->map_providers, this->applied_cascade);
+    connect(&tunnels, &MapUpstreamTunnels::resolvedChanged,
+            this, &StandaloneMapProviderCatalogBridge::applyResolvedCascade);
     this->available_catalog->setDisabledInheritedProviders(this->disabled_inherited);
     this->available_catalog->setUpstreamRoutes(this->upstream_routes);
     this->available_catalog->setAcquisitionModes(this->acquisition_modes);
@@ -154,15 +163,25 @@ bool StandaloneMapProviderCatalogBridge::reloadCascade(QString *error)
     if (effective == this->effective_cascade)
         return true;
     this->effective_cascade = effective;
+    MapUpstreamTunnels::instance().setCascade(effective);
+    this->applyResolvedCascade();
+    return true;
+}
+
+void StandaloneMapProviderCatalogBridge::applyResolvedCascade()
+{
+    const Aowis::Map::MapCascadeConfig resolved = MapUpstreamTunnels::instance().resolved();
+    if (resolved == this->applied_cascade)
+        return;
+    this->applied_cascade = resolved;
     if (this->available_catalog != nullptr)
     {
         // Validated offline snapshots of the remaining upstreams are reused;
         // discovery refreshes in the background (providersChanged follows).
-        this->available_catalog->configure(this->map_providers, effective);
+        this->available_catalog->configure(this->map_providers, resolved);
         this->available_catalog->refresh();
     }
     emit cascadeChanged();
-    return true;
 }
 
 MapServerRestConfiguration StandaloneMapProviderCatalogBridge::catalogServer() const
