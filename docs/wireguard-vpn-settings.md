@@ -29,13 +29,22 @@ text, including its private key. Files are private to the user account but
   executed. Other builds only check text integrity (non-empty, ≤ 2 MiB, no NUL).
 - The syntax highlighter is presentation only and adapts to light/dark
   palettes.
-- **Used by** lists the configured connections (Projects → Connection →
-  WireGuard) whose `transport.profile_id` references the profile. It refreshes
-  whenever the page is shown. It counts configuration, not running tunnels.
+- **Used by** lists the configured connections whose transport references
+  the profile: DVMDB sources, the GUI's MAP server and, in Standalone, every
+  embedded MAP cascading upstream ("MAP upstream"). It refreshes whenever the
+  page is shown. It counts configuration, not running tunnels; **Used by
+  now** on the Status tab lists what runs (all of them share one tunnel).
 - **Delete** is refused while any connection references the profile. The
-  check runs inside the same AOWIS-CONFIG owner session as the delete, so no
-  other AOWIS instance can assign the profile in between; if any connection
-  record cannot be read, deletion is refused as well.
+  GUI connections are counted inside the same AOWIS-CONFIG owner session as
+  the delete, so no other AOWIS instance can assign the profile in between;
+  MAP's cascade record lives in MAP's own owner store and is read during
+  that check without MAP's lock (a profile assigned there in that instant
+  stays unusable, never direct). If any record cannot be read, deletion is refused as well.
+- **Save** of an edited configuration restarts the profile's running tunnel
+  once: the old tunnel stops first (two tunnels with one key must never run
+  at once), then every connection using it — DVMDB sources, the MAP server,
+  MAP upstreams — reconnects through the single new tunnel. Other profiles
+  are not touched; renaming alone restarts nothing.
 - Damaged profile records (unreadable, or not a WireGuard profile) are
   reported above the list; **Remove damaged…** deletes them after
   confirmation, except records written by a newer AOWIS version or still

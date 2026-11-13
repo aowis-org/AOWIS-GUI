@@ -80,6 +80,25 @@ private:
         this->retry.setSingleShot(true);
         connect(&this->retry, &QTimer::timeout, this, [this]() { this->attempt(); });
         onMapServerClientConfigurationChanged(this, [this]() { this->reconcile(); });
+        // An edited profile: drop the stopped tunnel, then every map server
+        // client reconnects (and so starts the tunnel again).
+        onWireGuardTunnelRestart(this, [this](const QString &profile_id)
+        {
+            if (profile_id.isEmpty() || profile_id != this->profile_id) return;
+            this->release();
+            reconnectMapServerClients();
+        });
+    }
+
+    void release()
+    {
+        ++this->generation;
+        this->lease = WireGuardTunnelLease();
+        this->starting = false;
+        this->failures = 0;
+        this->retry.stop();
+        this->waiters.clear();
+        WireGuardRuntimeStatus::instance().stopped(this);
     }
 
     // Drops the lease, a pending retry and the waiters of a profile the map
@@ -89,14 +108,8 @@ private:
     {
         const QString profile_id = mapServerClientConfiguration().wireguard_profile_id;
         if (profile_id == this->profile_id) return;
-        ++this->generation;
+        this->release();
         this->profile_id = profile_id;
-        this->lease = WireGuardTunnelLease();
-        this->starting = false;
-        this->failures = 0;
-        this->retry.stop();
-        this->waiters.clear();
-        WireGuardRuntimeStatus::instance().stopped(this);
     }
 
     void attempt()

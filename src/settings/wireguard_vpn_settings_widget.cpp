@@ -2,9 +2,15 @@
 
 #include "config/connection_wireguard_references.h"
 #include "config/map_server_client_configuration.h"
+#ifdef AOWIS_STANDALONE
+#include "config/map_upstream_wireguard_references.h"
+#endif
 #include "config/project_server_profile_storage.h"
 #include "config/wireguard_profile_storage.h"
 #include "network/wireguard_runtime_status.h"
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "network/wireguard_tunnel_pool.h"
+#endif
 
 #include <aowis/config/object_id.h>
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
@@ -14,6 +20,7 @@
 #include <QAbstractItemView>
 #include <QColor>
 #include <QDateTime>
+#include <QDebug>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
@@ -54,6 +61,32 @@
 
 namespace
 {
+// The profile deletion guard: configured GUI connections (inside the
+// deleting owner session) plus, in Standalone, embedded MAP upstreams. MAP's
+// record is in another owner store and is read separately; if it is
+// unreadable the guard fails, so a profile is never deleted while it might
+// be used (a later reference to a deleted profile still fails closed).
+aowis::config::Result<std::size_t> countProfileReferences(
+    const aowis::config::OwnerSession &session, const aowis::config::ObjectId &profile_id)
+{
+    const QString id = QString::fromStdString(profile_id.value());
+    const aowis::config::Result<std::size_t> connections = countConnectionsUsingWireGuardProfile(session, id);
+#ifdef AOWIS_STANDALONE
+    if (!connections) return connections;
+    QList<MapUpstreamWireGuardReference> upstreams;
+    QString error;
+    if (!readMapUpstreamWireGuardReferences(&upstreams, &error))
+        return aowis::config::Result<std::size_t>::failure(
+            {aowis::config::ErrorCode::reference_unavailable, error.toStdString()});
+    std::size_t count = connections.value();
+    for (const MapUpstreamWireGuardReference &upstream : upstreams)
+        if (upstream.profile_id == id) ++count;
+    return aowis::config::Result<std::size_t>::success(count);
+#else
+    return connections;
+#endif
+}
+
 constexpr qint64 MaximumImportBytes = 128 * 1024;
 constexpr int TelemetryIntervalMs = 1000;
 
@@ -549,6 +582,23 @@ void WireGuardVpnSettingsWidget::refreshFromStorage()
     if (this->references.contains(map_server.wireguard_profile_id))
         this->references[map_server.wireguard_profile_id].append({QStringLiteral("map-server"), tr("Map server"),
             tr("Map server"), map_server.base_url});
+#ifdef AOWIS_STANDALONE
+    // Embedded MAP cascading upstreams (Settings -> Map Settings).
+    QList<MapUpstreamWireGuardReference> upstreams;
+    QString upstream_error;
+    if (readMapUpstreamWireGuardReferences(&upstreams, &upstream_error))
+    {
+        for (const MapUpstreamWireGuardReference &upstream : upstreams)
+            if (this->references.contains(upstream.profile_id))
+                this->references[upstream.profile_id].append({QStringLiteral("map-upstream:") + upstream.name,
+                    upstream.name, tr("MAP upstream"), upstream.url});
+    }
+    else
+    {
+        // Deleting a profile is refused while this record is unreadable.
+        qWarning().noquote() << "MAP upstream connections cannot be read:" << upstream_error;
+    }
+#endif
 
     if (findProfile(this->selected_id) == nullptr)
         this->selected_id = this->profiles.isEmpty() ? QString() : this->profiles.first().id;
@@ -989,6 +1039,12 @@ void WireGuardVpnSettingsWidget::saveProfile()
             return;
         }
         saved_id = profile->id;
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        // A running tunnel of this profile is restarted once with the edited
+        // configuration; all its connections reconnect through it.
+        if (profile->configuration != config)
+            restartWireGuardTunnel(saved_id);
+#endif
     }
     this->selected_id = saved_id;
     this->refreshFromStorage();
@@ -1052,9 +1108,7 @@ void WireGuardVpnSettingsWidget::deleteProfile()
     // The usage count runs inside the deleting owner session, so no other
     // AOWIS instance can assign the profile between the check and the delete.
     const aowis::config::Result<bool> erased = storage->erase(id.value(), profile->revision.toStdString(),
-        [](const aowis::config::OwnerSession &session, const aowis::config::ObjectId &profile_id) {
-            return countConnectionsUsingWireGuardProfile(session, QString::fromStdString(profile_id.value()));
-        });
+        countProfileReferences);
     if (!erased)
     {
         reportStorageError(erased.error().code == aowis::config::ErrorCode::profile_in_use
@@ -1095,9 +1149,7 @@ void WireGuardVpnSettingsWidget::removeDamagedProfiles()
                 continue;
             }
             const aowis::config::Result<bool> removed = storage->eraseUnreadable(*damaged.id,
-                [](const aowis::config::OwnerSession &session, const aowis::config::ObjectId &profile_id) {
-                    return countConnectionsUsingWireGuardProfile(session, QString::fromStdString(profile_id.value()));
-                });
+                countProfileReferences);
             if (!removed) ++kept;
         }
     }

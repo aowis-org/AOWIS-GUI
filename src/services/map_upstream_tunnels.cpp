@@ -50,6 +50,20 @@ MapUpstreamTunnels &MapUpstreamTunnels::instance()
 MapUpstreamTunnels::MapUpstreamTunnels(QObject *parent)
     : QObject(parent)
 {
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // An edited profile: the old tunnel is stopped; MAP skips the upstreams
+    // (and cancels their downloads) until the new one runs.
+    onWireGuardTunnelRestart(this, [this](const QString &profile_id)
+    {
+        ProfileTunnel *tunnel = this->tunnels.value(profile_id);
+        if (tunnel == nullptr) return;
+        tunnel->lease = WireGuardTunnelLease();
+        tunnel->retry.stop();
+        tunnel->failures = 0;
+        emit this->resolvedChanged();
+        this->start(tunnel);
+    });
+#endif
 }
 
 void MapUpstreamTunnels::setCascade(const Aowis::Map::MapCascadeConfig &cascade)

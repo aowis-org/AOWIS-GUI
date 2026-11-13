@@ -296,6 +296,22 @@ void onMapServerClientConfigurationChanged(QObject *context, std::function<void(
                                                                  std::move(changed)));
 }
 
+namespace
+{
+void notifyObservers()
+{
+    // Copy: an observer may register further observers while notified.
+    const QList<QPair<QPointer<QObject>, std::function<void()>>> notified = observers();
+    for (const QPair<QPointer<QObject>, std::function<void()>> &observer : notified)
+        if (!observer.first.isNull()) observer.second();
+}
+}
+
+void reconnectMapServerClients()
+{
+    notifyObservers();
+}
+
 bool saveMapServerClientConfiguration(const MapServerClientConfiguration &configuration)
 {
 #ifdef __EMSCRIPTEN__
@@ -316,10 +332,7 @@ bool saveMapServerClientConfiguration(const MapServerClientConfiguration &config
     if (sameConfiguration(stored, currentConfiguration()))
         return true;
     currentConfiguration() = stored;
-    // Copy: an observer may register further observers while notified.
-    const QList<QPair<QPointer<QObject>, std::function<void()>>> notified = observers();
-    for (const QPair<QPointer<QObject>, std::function<void()>> &observer : notified)
-        if (!observer.first.isNull()) observer.second();
+    notifyObservers();
     return true;
 #endif
 }

@@ -8560,6 +8560,10 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
 
   <context>
     <name>WireGuardVpnSettingsWidget</name>
+    <message>
+      <source>MAP upstream</source>
+      <translation>Serveur MAP amont</translation>
+    </message>
     <message numerus="yes">
       <source>%n damaged profile(s) were kept: they are used by connections, written by a newer AOWIS version, or not removable.</source>
       <translation>

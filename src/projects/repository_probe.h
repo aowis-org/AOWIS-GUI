@@ -48,6 +48,7 @@ private:
     std::shared_ptr<aowis::network::WireGuardClient> tunnel;
     std::unique_ptr<aowis::network::QtSocks5HttpClient> http;
     QList<std::function<void(const QString &)>> opening;
+    bool restart_observed = false;
 #endif
 };
 

@@ -8612,6 +8612,10 @@ Valve settings have different physical units. Sorting groups compatible quantiti
 
   <context>
     <name>WireGuardVpnSettingsWidget</name>
+    <message>
+      <source>MAP upstream</source>
+      <translation>خادم MAP علوي</translation>
+    </message>
     <message numerus="yes">
       <source>%n damaged profile(s) were kept: they are used by connections, written by a newer AOWIS version, or not removable.</source>
       <translation>

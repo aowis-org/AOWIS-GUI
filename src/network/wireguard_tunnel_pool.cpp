@@ -11,6 +11,8 @@
 #include <QHash>
 #include <QList>
 #include <QObject>
+#include <QPair>
+#include <QPointer>
 #include <QTimer>
 #include <QtConcurrent/qtconcurrentrun.h>
 
@@ -123,6 +125,39 @@ void acquireWireGuardTunnel(const QString &profile_id, std::function<void(const 
         // If no waiter kept the tunnel, `result` releases it here and it stops.
     });
     watcher->setFuture(QtConcurrent::run(startTunnel, profile_id));
+}
+
+namespace
+{
+QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> &restartObservers()
+{
+    static QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> observers;
+    return observers;
+}
+}
+
+void onWireGuardTunnelRestart(QObject *context, std::function<void(const QString &)> restarted)
+{
+    QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> &observers = restartObservers();
+    for (qsizetype index = observers.size() - 1; index >= 0; --index)
+        if (observers.at(index).first.isNull()) observers.removeAt(index);
+    observers.append(QPair<QPointer<QObject>, std::function<void(const QString &)>>(
+        QPointer<QObject>(context), std::move(restarted)));
+}
+
+void restartWireGuardTunnel(const QString &profile_id)
+{
+    QHash<QString, SharedTunnel>::iterator entry = sharedTunnels().find(profile_id);
+    if (entry == sharedTunnels().end()) return;
+    const std::shared_ptr<aowis::network::WireGuardClient> live = entry->tunnel.lock();
+    if (!live || !live->isRunning()) return;
+    // Stop before anyone acquires again: two tunnels with the same key must
+    // never run at once (the peer would roam between them).
+    live->stop();
+    entry->tunnel.reset();
+    const QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> observers = restartObservers();
+    for (const QPair<QPointer<QObject>, std::function<void(const QString &)>> &observer : observers)
+        if (!observer.first.isNull()) observer.second(profile_id);
 }
 
 QNetworkProxy wireGuardQtProxy(const aowis::network::WireGuardClient &tunnel)

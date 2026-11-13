@@ -569,6 +569,8 @@ if(AOWIS_STANDALONE_BUILD)
             src/services/standalone_map_provider_catalog_bridge.cpp
             src/services/map_upstream_tunnels.h
             src/services/map_upstream_tunnels.cpp
+            src/config/map_upstream_wireguard_references.h
+            src/config/map_upstream_wireguard_references.cpp
     )
     
     target_compile_definitions(aowis-server-gui
@@ -989,6 +991,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/settings/wireguard_vpn_settings_widget.h
         src/config/map_server_client_configuration.cpp
         src/config/map_server_client_configuration.h
+        src/network/wireguard_tunnel_pool.cpp
+        src/network/wireguard_tunnel_pool.h
         src/network/wireguard_runtime_status.cpp
         src/network/wireguard_runtime_status.h
         src/config/wireguard_profile_storage.cpp

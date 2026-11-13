@@ -37,6 +37,9 @@ MapServerClientConfiguration readMapServerClientConfiguration();
 // changed() is called after every change of the current configuration while
 // context exists. GUI thread only.
 void onMapServerClientConfigurationChanged(QObject *context, std::function<void()> changed);
+// Calls the observers as after a change, with the configuration unchanged:
+// the map server's WireGuard tunnel was restarted, so consumers reconnect.
+void reconnectMapServerClients();
 // Persists the configuration (updates the map-server record, or creates it),
 // makes the stored record current and notifies the observers when it
 // differs. Returns false if the write failed or the build cannot store it
