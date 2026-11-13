@@ -2364,10 +2364,6 @@ Right-click: animate back to 1.0×</source>
       <translation>الاكتساب</translation>
     </message>
     <message>
-      <source>Adaptive PNG/JPEG selection</source>
-      <translation>اختيار PNG/JPEG التكيفي</translation>
-    </message>
-    <message>
       <source>Add upstream</source>
       <translation>إضافة خادم علوي</translation>
     </message>

@@ -777,9 +777,6 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     this->cascade_poor_internet = LiveUiText::caption<QCheckBox>(
         QT_TRANSLATE_NOOP("LiveUiText", "Poor Internet mode (optimized MAP-to-MAP transfers)"), group);
     layout->addWidget(this->cascade_poor_internet);
-    this->cascade_adaptive_compression = LiveUiText::caption<QCheckBox>(
-        QT_TRANSLATE_NOOP("LiveUiText", "Adaptive PNG/JPEG selection"), group);
-    layout->addWidget(this->cascade_adaptive_compression);
     QFormLayout *quality_form = new QFormLayout();
     this->cascade_jpeg_quality = new QSpinBox(group);
     this->cascade_jpeg_quality->setRange(1, 100);
@@ -800,7 +797,6 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
                               QString::fromUtf8(upstream.api_key), upstream.wireguard_profile_id);
     this->cascade_allow_direct_fetch->setChecked(stored.allow_direct_fetch);
     this->cascade_poor_internet->setChecked(stored.poor_internet_mode);
-    this->cascade_adaptive_compression->setChecked(stored.adaptive_compression);
     this->cascade_jpeg_quality->setValue(stored.jpeg_quality);
 
     this->cascade_status = new QLabel(group);
@@ -822,8 +818,6 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     connect(this->cascade_allow_direct_fetch, &QCheckBox::toggled,
             this, [this](bool) { scheduleEmbeddedCascadeSave(); });
     connect(this->cascade_poor_internet, &QCheckBox::toggled,
-            this, [this](bool) { scheduleEmbeddedCascadeSave(); });
-    connect(this->cascade_adaptive_compression, &QCheckBox::toggled,
             this, [this](bool) { scheduleEmbeddedCascadeSave(); });
     connect(this->cascade_jpeg_quality, QOverload<int>::of(&QSpinBox::valueChanged),
             this, [this](int) { scheduleEmbeddedCascadeSave(); });
@@ -847,7 +841,6 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
     Aowis::Map::MapCascadeConfig configuration;
     configuration.allow_direct_fetch = this->cascade_allow_direct_fetch->isChecked();
     configuration.poor_internet_mode = this->cascade_poor_internet->isChecked();
-    configuration.adaptive_compression = this->cascade_adaptive_compression->isChecked();
     configuration.jpeg_quality = this->cascade_jpeg_quality->value();
     for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
     {

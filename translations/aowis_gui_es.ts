@@ -2344,10 +2344,6 @@ Clic derecho: volver a 1,0×</translation>
       <translation>Adquisición</translation>
     </message>
     <message>
-      <source>Adaptive PNG/JPEG selection</source>
-      <translation>Selección adaptativa PNG/JPEG</translation>
-    </message>
-    <message>
       <source>Add upstream</source>
       <translation>Añadir servidor ascendente</translation>
     </message>

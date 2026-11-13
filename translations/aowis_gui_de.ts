@@ -2344,10 +2344,6 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
       <translation>Bezug</translation>
     </message>
     <message>
-      <source>Adaptive PNG/JPEG selection</source>
-      <translation>Adaptive PNG/JPEG-Auswahl</translation>
-    </message>
-    <message>
       <source>Add upstream</source>
       <translation>Upstream hinzufügen</translation>
     </message>

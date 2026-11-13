@@ -103,7 +103,6 @@ private:
     QTableWidget *cascade_upstreams_table = nullptr;
     QCheckBox *cascade_allow_direct_fetch = nullptr;
     QCheckBox *cascade_poor_internet = nullptr;
-    QCheckBox *cascade_adaptive_compression = nullptr;
     QSpinBox *cascade_jpeg_quality = nullptr;
     QLabel *cascade_status = nullptr;
     QString cascade_revision;
