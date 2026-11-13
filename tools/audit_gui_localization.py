@@ -55,6 +55,7 @@ KNOWN_DIRECT = {
     'src/tabs/projects_inspector_panels.h': 'ProjectsWidget',
     'src/tabs/tab_map_workspace.cpp': 'MapWorkspaceWidget',
     'src/tabs/tab_settings_widget.cpp': 'SettingsWidget',
+    'src/settings/wireguard_vpn_settings_widget.cpp': 'WireGuardVpnSettingsWidget',
 }
 
 

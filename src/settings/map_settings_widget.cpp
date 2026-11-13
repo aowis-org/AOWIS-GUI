@@ -14,6 +14,9 @@
 #endif
 #include "config/map_server_client_configuration.h"
 #include "config/wireguard_profile_storage.h"
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "settings/wireguard_profile_import.h"
+#endif
 #include "map/render/map_globe_terrain_levels.h"
 #include "widgets/slider_number_control.h"
 
@@ -317,10 +320,17 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->server_wireguard_combo = new QComboBox(group);
     this->server_wireguard_combo->setObjectName(QStringLiteral("mapServerWireGuardProfile"));
     this->reloadServerWireGuardProfiles(current.wireguard_profile_id);
-    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "WireGuard"), group),
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Connection"), group),
                  this->server_wireguard_combo);
 
     group_layout->addLayout(form);
+#ifndef __EMSCRIPTEN__
+    group_layout->addLayout(wireGuardProfileButtons(group, [this](const QString &profile_id)
+    {
+        this->reloadServerWireGuardProfiles(profile_id);
+        this->saveServerSettings();
+    }));
+#endif
 
     this->server_status = new QLabel(group);
     this->server_status->setWordWrap(true);
@@ -590,7 +600,8 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
 
 #ifdef AOWIS_STANDALONE
 void MapSettingsWidget::appendCascadeUpstream(
-    const QString &name, const QString &url, const QString &api_key)
+    const QString &name, const QString &url, const QString &api_key,
+    const QString &wireguard_profile_id)
 {
     // Rows are also rebuilt while reordering. Never persist an intermediate
     // table containing only some of the rows.
@@ -604,6 +615,32 @@ void MapSettingsWidget::appendCascadeUpstream(
     this->cascade_upstreams_table->setCellWidget(row, 2, key_edit);
     connect(key_edit, &QLineEdit::textChanged, this,
             [this](const QString &) { scheduleEmbeddedCascadeSave(); });
+    QComboBox *connection = new QComboBox(this->cascade_upstreams_table);
+    connection->setObjectName(QStringLiteral("embeddedMapCascadeConnection"));
+    fillWireGuardConnectionCombo(connection, wireguard_profile_id);
+    this->cascade_upstreams_table->setCellWidget(row, 3, connection);
+    connect(connection, &QComboBox::currentIndexChanged, this,
+            [this](int) { scheduleEmbeddedCascadeSave(); });
+}
+
+QString MapSettingsWidget::cascadeUpstreamProfile(int row) const
+{
+    const QComboBox *connection =
+        qobject_cast<QComboBox *>(this->cascade_upstreams_table->cellWidget(row, 3));
+    return connection != nullptr ? connection->currentData().toString() : QString();
+}
+
+void MapSettingsWidget::reloadCascadeUpstreamProfiles()
+{
+    if (this->cascade_upstreams_table == nullptr) return;
+    for (int row = 0; row < this->cascade_upstreams_table->rowCount(); ++row)
+    {
+        QComboBox *connection =
+            qobject_cast<QComboBox *>(this->cascade_upstreams_table->cellWidget(row, 3));
+        if (connection == nullptr) continue;
+        const QSignalBlocker blocker(connection);
+        fillWireGuardConnectionCombo(connection, connection->currentData().toString());
+    }
 }
 
 void MapSettingsWidget::moveCascadeUpstream(int direction)
@@ -621,13 +658,14 @@ void MapSettingsWidget::moveCascadeUpstream(int direction)
         entry.name = this->cascade_upstreams_table->item(row, 0)->text();
         entry.url = QUrl(this->cascade_upstreams_table->item(row, 1)->text(), QUrl::StrictMode);
         entry.api_key = key != nullptr ? key->text().toUtf8() : QByteArray();
+        entry.wireguard_profile_id = cascadeUpstreamProfile(row);
         entries.append(entry);
     }
     std::swap(entries[selected], entries[destination]);
     this->cascade_upstreams_table->setRowCount(0);
     for (const Aowis::Map::MapCascadeUpstream &entry : entries)
         appendCascadeUpstream(entry.name, entry.url.toString(QUrl::FullyEncoded),
-                              QString::fromUtf8(entry.api_key));
+                              QString::fromUtf8(entry.api_key), entry.wireguard_profile_id);
     this->cascade_upstreams_table->setCurrentCell(destination, 0);
     scheduleEmbeddedCascadeSave();
 }
@@ -643,19 +681,23 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
         "Standalone only: each missing map or terrain tile is requested from these MAP servers "
         "in order. Local cache is checked first. Prefer HTTPS for API keys. "
+        "Each upstream is reached directly or through a WireGuard profile of "
+        "Settings → WireGuard VPN; a WireGuard upstream is never contacted directly. "
         "Changes apply immediately."), group));
 
-    this->cascade_upstreams_table = new QTableWidget(0, 3, group);
+    this->cascade_upstreams_table = new QTableWidget(0, 4, group);
     this->cascade_upstreams_table->setObjectName(QStringLiteral("embeddedMapCascadeUpstreams"));
     LiveUiText::bind(this->cascade_upstreams_table, [this] {
         this->cascade_upstreams_table->setHorizontalHeaderLabels({
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Name")),
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Upstream MAP URL")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Read API key"))});
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Read API key")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Connection"))});
     });
     this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    this->cascade_upstreams_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     this->cascade_upstreams_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     this->cascade_upstreams_table->setSelectionMode(QAbstractItemView::SingleSelection);
     this->cascade_upstreams_table->setMinimumHeight(170);
@@ -676,6 +718,19 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     buttons->addWidget(move_down);
     buttons->addStretch();
     layout->addLayout(buttons);
+    layout->addLayout(wireGuardProfileButtons(group, [this](const QString &profile_id)
+    {
+        // A new profile goes to the selected upstream (or the only one).
+        int row = this->cascade_upstreams_table->currentRow();
+        if (row < 0 && this->cascade_upstreams_table->rowCount() == 1) row = 0;
+        this->reloadCascadeUpstreamProfiles();
+        if (row < 0) return;
+        QComboBox *connection =
+            qobject_cast<QComboBox *>(this->cascade_upstreams_table->cellWidget(row, 3));
+        if (connection == nullptr) return;
+        const int index = connection->findData(profile_id);
+        if (index >= 0) connection->setCurrentIndex(index); // Saves.
+    }));
     connect(add, &QPushButton::clicked, this, [this] {
         if (this->cascade_upstreams_table->rowCount() >= 32)
         {
@@ -699,7 +754,7 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
             if (!found)
                 break;
         } while (true);
-        appendCascadeUpstream(name, QString(), QString());
+        appendCascadeUpstream(name, QString(), QString(), QString());
         scheduleEmbeddedCascadeSave();
         const int row = this->cascade_upstreams_table->rowCount() - 1;
         this->cascade_upstreams_table->setCurrentCell(row, 1);
@@ -742,7 +797,7 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
         stored.allow_direct_fetch = false;
     for (const Aowis::Map::MapCascadeUpstream &upstream : stored.upstreams)
         appendCascadeUpstream(upstream.name, upstream.url.toString(QUrl::FullyEncoded),
-                              QString::fromUtf8(upstream.api_key));
+                              QString::fromUtf8(upstream.api_key), upstream.wireguard_profile_id);
     this->cascade_allow_direct_fetch->setChecked(stored.allow_direct_fetch);
     this->cascade_poor_internet->setChecked(stored.poor_internet_mode);
     this->cascade_adaptive_compression->setChecked(stored.adaptive_compression);
@@ -802,6 +857,7 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
         upstream.url = QUrl(this->cascade_upstreams_table->item(row, 1)->text().trimmed(),
                             QUrl::StrictMode);
         upstream.api_key = key != nullptr ? key->text().toUtf8() : QByteArray();
+        upstream.wireguard_profile_id = cascadeUpstreamProfile(row);
         configuration.upstreams.append(upstream);
     }
     QString error;
@@ -1308,24 +1364,53 @@ void MapSettingsWidget::saveServerSettings()
 void MapSettingsWidget::reloadServerWireGuardProfiles(const QString &profile_id)
 {
     const QSignalBlocker blocker(this->server_wireguard_combo);
-    this->server_wireguard_combo->clear();
-    this->server_wireguard_combo->setToolTip(tr("WireGuard profiles are managed in Settings → WireGuard VPN"));
-    this->server_wireguard_combo->addItem(tr("Direct connection"), QString());
+    fillWireGuardConnectionCombo(this->server_wireguard_combo, profile_id);
+}
+
+void MapSettingsWidget::fillWireGuardConnectionCombo(QComboBox *combo, const QString &profile_id)
+{
+    combo->clear();
+    combo->setToolTip(tr("WireGuard profiles are managed in Settings → WireGuard VPN"));
+    combo->addItem(tr("Direct connection"), QString());
     int selected = profile_id.isEmpty() ? 0 : -1;
-#ifndef __EMSCRIPTEN__
-    // Browsers cannot run the embedded WireGuard client.
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // Only builds with the embedded engine can use a profile; elsewhere a
+    // stored selection stays visible as not usable (never direct).
     for (const WireGuardProfileEntry &entry : listWireGuardProfiles())
     {
-        this->server_wireguard_combo->addItem(entry.name, entry.id);
-        if (entry.id == profile_id) selected = this->server_wireguard_combo->count() - 1;
+        combo->addItem(tr("WireGuard: %1").arg(entry.name), entry.id);
+        if (entry.id == profile_id) selected = combo->count() - 1;
     }
 #endif
     if (selected < 0)
     {
-        this->server_wireguard_combo->addItem(tr("Missing profile (not usable)"), profile_id);
-        selected = this->server_wireguard_combo->count() - 1;
+        combo->addItem(tr("Missing profile (not usable)"), profile_id);
+        selected = combo->count() - 1;
     }
-    this->server_wireguard_combo->setCurrentIndex(selected);
+    combo->setCurrentIndex(selected);
+}
+
+QHBoxLayout *MapSettingsWidget::wireGuardProfileButtons(
+    QWidget *parent_widget, std::function<void(const QString &)> imported)
+{
+    QHBoxLayout *row = new QHBoxLayout();
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    QPushButton *import = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Import WireGuard profile…"), parent_widget);
+    connect(import, &QPushButton::clicked, this, [this, imported]()
+    {
+        importWireGuardProfileFromFile(this, imported);
+    });
+    row->addWidget(import);
+#else
+    Q_UNUSED(imported)
+#endif
+    QPushButton *manage = LiveUiText::caption<QPushButton>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Manage WireGuard profiles…"), parent_widget);
+    connect(manage, &QPushButton::clicked, this, &MapSettingsWidget::manageWireGuardProfilesRequested);
+    row->addWidget(manage);
+    row->addStretch();
+    return row;
 }
 
 void MapSettingsWidget::showEvent(QShowEvent *event)
@@ -1334,6 +1419,10 @@ void MapSettingsWidget::showEvent(QShowEvent *event)
     // Profiles are created and deleted in Settings -> WireGuard VPN.
     if (!event->spontaneous() && this->server_wireguard_combo != nullptr)
         this->reloadServerWireGuardProfiles(this->server_wireguard_combo->currentData().toString());
+#ifdef AOWIS_STANDALONE
+    if (!event->spontaneous())
+        this->reloadCascadeUpstreamProfiles();
+#endif
 }
 
 void MapSettingsWidget::hideEvent(QHideEvent *event)
@@ -1366,6 +1455,9 @@ void MapSettingsWidget::changeEvent(QEvent *event)
         return;
     if (this->server_wireguard_combo != nullptr)
         this->reloadServerWireGuardProfiles(this->server_wireguard_combo->currentData().toString());
+#ifdef AOWIS_STANDALONE
+    this->reloadCascadeUpstreamProfiles();
+#endif
 
     // Do not rebuild the table, change its model values, commit cell editors,
     // or restart a pending provider save. Only refresh presentation fields.

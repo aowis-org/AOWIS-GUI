@@ -393,6 +393,8 @@ qt_add_executable(aowis-server-gui
     src/settings/keyboard_shortcuts_settings_widget.cpp
     src/settings/keyboard_shortcuts_settings_widget.h
     src/settings/map_settings_widget.cpp
+    src/settings/wireguard_profile_import.cpp
+    src/settings/wireguard_profile_import.h
     src/settings/map_settings_widget.h
     src/settings/units_settings_widget.cpp
     src/settings/units_settings_widget.h
@@ -1179,6 +1181,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/network/wireguard_runtime_status.cpp
         src/network/wireguard_runtime_status.h
         src/tabs/tab_projects_widget.cpp
+        src/settings/wireguard_profile_import.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
         src/projects/project_source_reader.h
@@ -1227,6 +1230,7 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/network/wireguard_runtime_status.cpp
         src/network/wireguard_runtime_status.h
         src/tabs/tab_projects_widget.cpp
+        src/settings/wireguard_profile_import.cpp
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
         src/projects/project_source_reader.h
@@ -1320,6 +1324,13 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_globe_editor_performance_report.py)
         set_tests_properties(aowis-map-globe-editor-performance-report PROPERTIES
+            LABELS "aowis")
+        # Every user-facing string of the mapped translation contexts must be
+        # translated in all catalogues (de, fr, es, ar).
+        add_test(NAME aowis-gui-localization-completeness
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/audit_gui_localization.py --check-all)
+        set_tests_properties(aowis-gui-localization-completeness PROPERTIES
             LABELS "aowis")
     endif()
 

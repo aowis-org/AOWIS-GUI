@@ -20,10 +20,7 @@
 #include "services/http_health_monitor.h"
 #include <aowis/model/serialization/model_codec.h>
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-#include "config/wireguard_profile_storage.h"
-#include <aowis/network/wireguard_conf.h>
-#include <QFile>
-#include <QFileInfo>
+#include "settings/wireguard_profile_import.h"
 #endif
 
 #include <QAbstractItemView>
@@ -979,42 +976,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     // path is not kept. AOWIS-NETWORK's parser decides whether the embedded
     // engine can run it, and a profile it rejects is never stored.
     connect(this->database_connection->import_wireguard, &QPushButton::clicked, this, [this, set_profile] {
-        const QString path = QFileDialog::getOpenFileName(this, tr("Import WireGuard profile"),
-            QString(), QStringLiteral("WireGuard (*.conf);;*"));
-        if (path.isEmpty()) return;
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"),
-                tr("The file could not be read: %1").arg(file.errorString()));
-            return;
-        }
-        const QByteArray text = file.read(static_cast<qint64>(aowis::network::maxWireGuardConfBytes) + 1);
-        const aowis::network::WireGuardConfParse parsed =
-            aowis::network::parseWireGuardConf(std::string_view(text.constData(), static_cast<std::size_t>(text.size())));
-        if (!parsed.ok())
-        {
-            QStringList problems;
-            for (const aowis::network::WireGuardConfDiagnostic &diagnostic : parsed.diagnostics)
-            {
-                if (diagnostic.severity != aowis::network::WireGuardConfSeverity::error) continue;
-                const QString message = QString::fromStdString(diagnostic.message);
-                problems.append(diagnostic.line > 0
-                    ? tr("Line %1: %2").arg(static_cast<qulonglong>(diagnostic.line)).arg(message) : message);
-                if (problems.size() == 10) break;
-            }
-            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"),
-                tr("The embedded WireGuard client cannot use this profile:\n%1").arg(problems.join(QLatin1Char('\n'))));
-            return;
-        }
-        QString profile_id;
-        QString error;
-        if (!importWireGuardProfile(QFileInfo(path).completeBaseName(), text, &profile_id, &error))
-        {
-            openSourceMessage(this, QMessageBox::Warning, tr("WireGuard profile not imported"), error);
-            return;
-        }
-        set_profile(profile_id);
+        importWireGuardProfileFromFile(this, set_profile);
     });
     connect(this->database_connection->verify_wireguard, &QPushButton::clicked, this, [this] {
         const ProjectServerProfile *server = this->currentServer();

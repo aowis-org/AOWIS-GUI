@@ -6,12 +6,15 @@
 #include <QHash>
 #include <QString>
 
+#include <functional>
+
 class QLabel;
 class QLineEdit;
 class QPushButton;
 class QTimer;
 class QTableWidget;
 class QComboBox;
+class QHBoxLayout;
 class QShowEvent;
 class QHideEvent;
 class QCheckBox;
@@ -29,6 +32,10 @@ class MapSettingsWidget : public QWidget
 public:
     explicit MapSettingsWidget(QWidget *parent = nullptr);
     ~MapSettingsWidget() override;
+
+signals:
+    // "Manage WireGuard profiles…": show Settings -> WireGuard VPN.
+    void manageWireGuardProfilesRequested();
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -83,7 +90,12 @@ private:
     void buildServerSection(QWidget *parent_widget);
 #ifdef AOWIS_STANDALONE
     void buildEmbeddedCascadeSection(QWidget *parent_widget);
-    void appendCascadeUpstream(const QString &name, const QString &url, const QString &api_key);
+    void appendCascadeUpstream(const QString &name, const QString &url, const QString &api_key,
+                               const QString &wireguard_profile_id);
+    // The row's connection: empty for direct, else the WireGuard profile ID.
+    QString cascadeUpstreamProfile(int row) const;
+    // Refills every row's connection selector, keeping its selection.
+    void reloadCascadeUpstreamProfiles();
     void moveCascadeUpstream(int direction);
     void scheduleEmbeddedCascadeSave();
     void saveEmbeddedCascadeSettings();
@@ -105,6 +117,14 @@ private:
     // that names no stored profile stays selected as "missing", so the map
     // server keeps failing closed instead of silently becoming direct.
     void reloadServerWireGuardProfiles(const QString &profile_id);
+    // The shared connection selector of MAP connections (as DVMDB
+    // connections): "Direct connection", "WireGuard: <profile>" per central
+    // profile, and a missing selected profile as "not usable" (fails closed).
+    void fillWireGuardConnectionCombo(QComboBox *combo, const QString &profile_id);
+    // "Import WireGuard profile…" (builds with the embedded engine; calls
+    // imported(profile_id)) and "Manage WireGuard profiles…".
+    QHBoxLayout *wireGuardProfileButtons(QWidget *parent_widget,
+                                         std::function<void(const QString &)> imported);
     void showNavigationStatus(const char *message, bool error);
     void showPerformanceStatus(const char *message, bool error);
     void showServerStatus(const char *message, bool error);

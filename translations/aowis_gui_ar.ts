@@ -333,6 +333,34 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>
+
+In a browser, a reachable URL can still be blocked by cross-origin (CORS) rules. Check the browser console and configure DVMDB to allow requests from the AOWIS GUI origin.</source>
+      <translation>
+
+في المتصفح، قد يظل عنوان URL قابل للوصول محظورًا بقواعد المصادر المتقاطعة (CORS). تحقّق من وحدة تحكم المتصفح واضبط DVMDB للسماح بالطلبات من أصل واجهة AOWIS.</translation>
+    </message>
+    <message>
+      <source>
+
+Save it as an unverified pending connection anyway?</source>
+      <translation>
+
+هل تريد حفظه على أي حال كاتصال معلَّق غير متحقَّق منه؟</translation>
+    </message>
+    <message>
+      <source>Could not reach the database at %1 (%2).</source>
+      <translation>تعذّر الوصول إلى قاعدة البيانات على %1 (%2).</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>ملف تعريف مفقود (غير قابل للاستخدام)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← WireGuard VPN</translation>
+    </message>
+    <message>
       <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
       <translation>هذا المستودع ذو المعرّف UUIDv7 مُعدّ باسم «%1». هل تريد تحديث إعدادات اتصاله لـ %2؟</translation>
     </message>
@@ -2331,6 +2359,110 @@ Right-click: animate back to 1.0×</source>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>Acquisition</source>
+      <translation>الاكتساب</translation>
+    </message>
+    <message>
+      <source>Adaptive PNG/JPEG selection</source>
+      <translation>اختيار PNG/JPEG التكيفي</translation>
+    </message>
+    <message>
+      <source>Add upstream</source>
+      <translation>إضافة خادم علوي</translation>
+    </message>
+    <message>
+      <source>Advertised by</source>
+      <translation>مقدَّم من</translation>
+    </message>
+    <message>
+      <source>Allow direct OSM/imagery/Copernicus downloads as last resort</source>
+      <translation>السماح بالتنزيل المباشر من OSM/الصور/Copernicus كملاذ أخير</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>الاتصال</translation>
+    </message>
+    <message>
+      <source>Connection changes are saved when you finish editing a field and apply immediately.</source>
+      <translation>تُحفظ تغييرات الاتصال عند الانتهاء من تحرير الحقل وتُطبَّق فورًا.</translation>
+    </message>
+    <message>
+      <source>Embedded MAP cascading</source>
+      <translation>تسلسل MAP المضمَّن</translation>
+    </message>
+    <message>
+      <source>Import WireGuard profile…</source>
+      <translation>استيراد ملف تعريف WireGuard…</translation>
+    </message>
+    <message>
+      <source>JPEG quality</source>
+      <translation>جودة JPEG</translation>
+    </message>
+    <message>
+      <source>MAP provider acquisition and upstreams</source>
+      <translation>اكتساب مزوّدي MAP والخوادم العلوية</translation>
+    </message>
+    <message>
+      <source>Manage WireGuard profiles…</source>
+      <translation>إدارة ملفات تعريف WireGuard…</translation>
+    </message>
+    <message>
+      <source>Move down</source>
+      <translation>نقل للأسفل</translation>
+    </message>
+    <message>
+      <source>Move up</source>
+      <translation>نقل للأعلى</translation>
+    </message>
+    <message>
+      <source>Poor Internet mode (optimized MAP-to-MAP transfers)</source>
+      <translation>وضع الإنترنت الضعيف (نقل محسَّن بين خوادم MAP)</translation>
+    </message>
+    <message>
+      <source>Preferred order</source>
+      <translation>الترتيب المفضَّل</translation>
+    </message>
+    <message>
+      <source>Provider</source>
+      <translation>المزوّد</translation>
+    </message>
+    <message>
+      <source>Read API key</source>
+      <translation>مفتاح API للقراءة</translation>
+    </message>
+    <message>
+      <source>Routing</source>
+      <translation>التوجيه</translation>
+    </message>
+    <message>
+      <source>Standalone only: each missing map or terrain tile is requested from these MAP servers in order. Local cache is checked first. Prefer HTTPS for API keys. Each upstream is reached directly or through a WireGuard profile of Settings → WireGuard VPN; a WireGuard upstream is never contacted directly. Changes apply immediately.</source>
+      <translation>في Standalone فقط: يُطلب كل بلاطة خريطة أو تضاريس مفقودة من خوادم MAP هذه بالترتيب. يُفحص التخزين المؤقت المحلي أولًا. يُفضَّل HTTPS لمفاتيح API. يُوصَل إلى كل خادم علوي مباشرةً أو عبر ملف تعريف WireGuard من الإعدادات ← WireGuard VPN؛ ولا يُتصل بخادم علوي عبر WireGuard مباشرةً أبدًا. تُطبَّق التغييرات فورًا.</translation>
+    </message>
+    <message>
+      <source>Standalone providers are editable and saved locally. The cascading upstreams and low-bandwidth settings are just below this table.</source>
+      <translation>مزوّدو Standalone قابلون للتحرير ويُحفظون محليًا. توجد الخوادم العلوية المتسلسلة وإعدادات النطاق الترددي المنخفض أسفل هذا الجدول مباشرةً.</translation>
+    </message>
+    <message>
+      <source>This section lists only additional providers inherited from upstream MAP servers. Providers already defined locally appear in the editor above, even if an upstream also offers them. Inherited definitions are read-only; an administrator key is required to change their local availability.</source>
+      <translation>يعرض هذا القسم فقط المزوّدين الإضافيين الموروثين من خوادم MAP العلوية. يظهر المزوّدون المعرَّفون محليًا في المحرر أعلاه حتى لو قدّمهم خادم علوي أيضًا. التعريفات الموروثة للقراءة فقط؛ ويلزم مفتاح مسؤول لتغيير توفرها المحلي.</translation>
+    </message>
+    <message>
+      <source>Upstream MAP URL</source>
+      <translation>عنوان URL لخادم MAP العلوي</translation>
+    </message>
+    <message>
+      <source>Upstream routing is configured separately for each provider, including locally defined providers also offered upstream. Select the permitted MAP servers and their priority. Choose Automatic (MAP then permitted origin), Cascade only, or Direct only for locally defined providers if permitted. Changes are local and saved automatically.</source>
+      <translation>يُضبط التوجيه العلوي لكل مزوّد على حدة، بما في ذلك المزوّدون المعرَّفون محليًا والمعروضون أيضًا من خادم علوي. اختر خوادم MAP المسموح بها وأولويتها. اختر تلقائي (MAP ثم المصدر المسموح به) أو التسلسل فقط أو المباشر فقط للمزوّدين المعرَّفين محليًا إن كان مسموحًا. التغييرات محلية وتُحفظ تلقائيًا.</translation>
+    </message>
+    <message>
+      <source>Upstream servers</source>
+      <translation>الخوادم العلوية</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>التكبير</translation>
+    </message>
     <message>
       <source>All traffic to this server uses WireGuard: catalogue, metadata writes, private checkouts and, for a personal server, drafts and saves. It never falls back to a direct connection.</source>
       <translation>تمر كل حركة البيانات إلى هذا الخادم عبر WireGuard: الفهرس وعمليات كتابة البيانات الوصفية وعمليات السحب الخاصة، وفي الخادم الشخصي المسودات وعمليات الحفظ. لا يتم الرجوع أبدًا إلى اتصال مباشر.</translation>
@@ -7114,6 +7246,10 @@ Total base demand: %1</source>
   <context>
     <name>MapNavigationWidget</name>
     <message>
+      <source>Inherited from MAP upstream: %1</source>
+      <translation>موروث من خادم MAP العلوي: %1</translation>
+    </message>
+    <message>
       <source>%1
 Keyboard shortcut: %2</source>
       <translation>%1
@@ -7231,6 +7367,110 @@ Right-click to reset.</source>
   </context>
   <context>
     <name>MapSettingsWidget</name>
+    <message>
+      <source>At most 32 MAP upstream servers are supported.</source>
+      <translation>يُدعَم 32 خادم MAP علويًا كحد أقصى.</translation>
+    </message>
+    <message>
+      <source>Automatic</source>
+      <translation>تلقائي</translation>
+    </message>
+    <message>
+      <source>Cascade only</source>
+      <translation>التسلسل فقط</translation>
+    </message>
+    <message>
+      <source>Check the MAP servers allowed for this provider. Move checked servers up or down to set their priority. Changes save automatically; Reset restores global order.</source>
+      <translation>حدّد خوادم MAP المسموح بها لهذا المزوّد. انقل الخوادم المحدَّدة للأعلى أو للأسفل لتعيين أولويتها. تُحفظ التغييرات تلقائيًا؛ ويستعيد «إعادة التعيين» الترتيب العام.</translation>
+    </message>
+    <message>
+      <source>Configure…</source>
+      <translation>تهيئة…</translation>
+    </message>
+    <message>
+      <source>Connection preferences saved and applied.</source>
+      <translation>حُفظت تفضيلات الاتصال وطُبِّقت.</translation>
+    </message>
+    <message>
+      <source>Direct only</source>
+      <translation>المباشر فقط</translation>
+    </message>
+    <message>
+      <source>Embedded MAP settings saved and applied.</source>
+      <translation>حُفظت إعدادات MAP المضمَّن وطُبِّقت.</translation>
+    </message>
+    <message>
+      <source>Inherited availability changes are saved immediately on this MAP server.</source>
+      <translation>تُحفظ تغييرات التوفر الموروث فورًا على خادم MAP هذا.</translation>
+    </message>
+    <message>
+      <source>Invalid stored cascade settings: %1. Remote fetching is disabled until they are corrected here.</source>
+      <translation>إعدادات التسلسل المحفوظة غير صالحة: %1. الجلب البعيد معطَّل حتى تُصحَّح هنا.</translation>
+    </message>
+    <message>
+      <source>MAP advertises %1 local providers. No additional upstream providers are available.</source>
+      <translation>يعرض MAP %1 من المزوّدين المحليين. لا يتوفر مزوّدون علويون إضافيون.</translation>
+    </message>
+    <message>
+      <source>MAP advertises %1 local providers; %2 are also offered upstream. No additional providers to inherit.</source>
+      <translation>يعرض MAP %1 من المزوّدين المحليين؛ ويُعرض %2 منهم أيضًا من خادم علوي. لا يوجد مزوّدون إضافيون للتوريث.</translation>
+    </message>
+    <message>
+      <source>MAP advertises no providers. Check its local catalog and upstream settings.</source>
+      <translation>لا يعرض MAP أي مزوّدين. تحقّق من فهرسه المحلي وإعدادات الخوادم العلوية.</translation>
+    </message>
+    <message>
+      <source>MAP upstream priority — %1</source>
+      <translation>أولوية خوادم MAP العلوية — %1</translation>
+    </message>
+    <message>
+      <source>Move down</source>
+      <translation>نقل للأسفل</translation>
+    </message>
+    <message>
+      <source>Move up</source>
+      <translation>نقل للأعلى</translation>
+    </message>
+    <message>
+      <source>Not saved yet: %1. Correct the settings to save automatically.</source>
+      <translation>لم يُحفظ بعد: %1. صحّح الإعدادات لتُحفظ تلقائيًا.</translation>
+    </message>
+    <message>
+      <source>Read-only: configure the MAP admin/delete key to change inherited provider availability.</source>
+      <translation>للقراءة فقط: اضبط مفتاح الإدارة/الحذف في MAP لتغيير توفر المزوّدين الموروثين.</translation>
+    </message>
+    <message>
+      <source>Reset to global order</source>
+      <translation>إعادة التعيين إلى الترتيب العام</translation>
+    </message>
+    <message>
+      <source>Resetting MAP routing…</source>
+      <translation>جارٍ إعادة تعيين توجيه MAP…</translation>
+    </message>
+    <message>
+      <source>Saved, but not applied: %1. The previous settings stay in use.</source>
+      <translation>حُفظ ولكن لم يُطبَّق: %1. تبقى الإعدادات السابقة قيد الاستخدام.</translation>
+    </message>
+    <message>
+      <source>Saving embedded MAP settings automatically...</source>
+      <translation>جارٍ حفظ إعدادات MAP المضمَّن تلقائيًا...</translation>
+    </message>
+    <message>
+      <source>Select at least one upstream, or use Reset.</source>
+      <translation>اختر خادمًا علويًا واحدًا على الأقل أو استخدم «إعادة التعيين».</translation>
+    </message>
+    <message>
+      <source>Updating MAP routing…</source>
+      <translation>جارٍ تحديث توجيه MAP…</translation>
+    </message>
+    <message>
+      <source>Waiting for MAP's available-provider catalog.</source>
+      <translation>بانتظار فهرس المزوّدين المتاحين في MAP.</translation>
+    </message>
+    <message>
+      <source>WireGuard: %1</source>
+      <translation>WireGuard: %1</translation>
+    </message>
     <message>
       <source>Cannot edit providers until the server catalog has loaded. Check the map server connection and click Reload.</source>
       <translation>لا يمكن تعديل مزودي الخرائط قبل تحميل قائمة الخادم. تحقق من الاتصال بخادم الخرائط وانقر إعادة التحميل.</translation>
@@ -8308,6 +8548,152 @@ Valve settings have different physical units. Sorting groups compatible quantiti
 
   <context>
     <name>WireGuardVpnSettingsWidget</name>
+    <message numerus="yes">
+      <source>%n damaged profile(s) were kept: they are used by connections, written by a newer AOWIS version, or not removable.</source>
+      <translation>
+        <numerusform>لم يُحتفظ بأي ملف تعريف تالف.</numerusform>
+        <numerusform>احتُفظ بملف تعريف تالف واحد: تستخدمه اتصالات، أو كتبه إصدار أحدث من AOWIS، أو تتعذّر إزالته.</numerusform>
+        <numerusform>احتُفظ بملفَّي تعريف تالفين: تستخدمهما اتصالات، أو كتبهما إصدار أحدث من AOWIS، أو تتعذّر إزالتهما.</numerusform>
+        <numerusform>احتُفظ بـ %n ملفات تعريف تالفة: تستخدمها اتصالات، أو كتبها إصدار أحدث من AOWIS، أو تتعذّر إزالتها.</numerusform>
+        <numerusform>احتُفظ بـ %n ملف تعريف تالفًا: تستخدمها اتصالات، أو كتبها إصدار أحدث من AOWIS، أو تتعذّر إزالتها.</numerusform>
+        <numerusform>احتُفظ بـ %n ملف تعريف تالف: تستخدمها اتصالات، أو كتبها إصدار أحدث من AOWIS، أو تتعذّر إزالتها.</numerusform>
+      </translation>
+    </message>
+    <message numerus="yes">
+      <source>%n stored WireGuard profile(s) cannot be read and are not listed.</source>
+      <translation>
+        <numerusform>لا توجد ملفات تعريف WireGuard محفوظة غير قابلة للقراءة.</numerusform>
+        <numerusform>ملف تعريف WireGuard محفوظ واحد غير قابل للقراءة ولا يُعرض.</numerusform>
+        <numerusform>ملفا تعريف WireGuard محفوظان غير قابلين للقراءة ولا يُعرضان.</numerusform>
+        <numerusform>%n ملفات تعريف WireGuard محفوظة غير قابلة للقراءة ولا تُعرض.</numerusform>
+        <numerusform>%n ملف تعريف WireGuard محفوظًا غير قابل للقراءة ولا يُعرض.</numerusform>
+        <numerusform>%n ملف تعريف WireGuard محفوظ غير قابل للقراءة ولا يُعرض.</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>A configured connection now uses this profile.</source>
+      <translation>يستخدم اتصال مهيَّأ ملف التعريف هذا الآن.</translation>
+    </message>
+    <message>
+      <source>Cannot read configuration, or the file is larger than 128 KiB.</source>
+      <translation>تتعذّر قراءة الإعداد، أو أن الملف أكبر من 128 كيبيبايت.</translation>
+    </message>
+    <message>
+      <source>Delete '%1'? Its stored configuration, including the private key, is removed.</source>
+      <translation>حذف «%1»؟ ستُزال إعداداته المحفوظة بما فيها المفتاح الخاص.</translation>
+    </message>
+    <message>
+      <source>Enter or import a WireGuard configuration.</source>
+      <translation>أدخل إعداد WireGuard أو استورده.</translation>
+    </message>
+    <message>
+      <source>Line %1: %2</source>
+      <translation>السطر %1: %2</translation>
+    </message>
+    <message>
+      <source>No configured connection uses this profile. Choose it as the connection of a DVMDB source (Projects) or of a MAP connection (Settings → Map Settings).</source>
+      <translation>لا يستخدم أي اتصال مهيَّأ ملف التعريف هذا. اختره اتصالًا لمصدر DVMDB (المشاريع) أو لاتصال MAP (الإعدادات ← إعدادات الخريطة).</translation>
+    </message>
+    <message>
+      <source>Not saved yet</source>
+      <translation>لم يُحفظ بعد</translation>
+    </message>
+    <message>
+      <source>Not used</source>
+      <translation>غير مستخدم</translation>
+    </message>
+    <message>
+      <source>Profile changed elsewhere</source>
+      <translation>عُدِّل ملف التعريف في مكان آخر</translation>
+    </message>
+    <message>
+      <source>Profile not deleted</source>
+      <translation>لم يُحذف ملف التعريف</translation>
+    </message>
+    <message>
+      <source>Profile not saved</source>
+      <translation>لم يُحفظ ملف التعريف</translation>
+    </message>
+    <message>
+      <source>Profiles are stored in your AOWIS configuration, including their private keys. The files are readable only by your user account but are not encrypted; treat backups of the configuration as secret.</source>
+      <translation>تُخزَّن ملفات التعريف في إعدادات AOWIS الخاصة بك بما فيها مفاتيحها الخاصة. الملفات قابلة للقراءة من حساب المستخدم الخاص بك فقط لكنها غير مشفَّرة؛ تعامل مع النسخ الاحتياطية للإعدادات على أنها سرية.</translation>
+    </message>
+    <message>
+      <source>Profiles not removed</source>
+      <translation>لم تُزل ملفات التعريف</translation>
+    </message>
+    <message>
+      <source>Remove damaged profiles?</source>
+      <translation>إزالة ملفات التعريف التالفة؟</translation>
+    </message>
+    <message>
+      <source>Remove damaged…</source>
+      <translation>إزالة التالفة…</translation>
+    </message>
+    <message>
+      <source>Remove stored WireGuard profiles that cannot be read? Profiles written by a newer AOWIS version are kept.</source>
+      <translation>إزالة ملفات تعريف WireGuard المحفوظة غير القابلة للقراءة؟ يُحتفظ بملفات التعريف التي كتبها إصدار أحدث من AOWIS.</translation>
+    </message>
+    <message>
+      <source>Save the profile before connections can use it.</source>
+      <translation>احفظ ملف التعريف قبل أن تتمكن الاتصالات من استخدامه.</translation>
+    </message>
+    <message>
+      <source>The configuration exceeds the 2 MiB limit.</source>
+      <translation>يتجاوز الإعداد حد 2 ميبيبايت.</translation>
+    </message>
+    <message>
+      <source>The configuration must not contain NUL characters.</source>
+      <translation>يجب ألا يحتوي الإعداد على أحرف NUL.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client can use this profile. This is not a connectivity check.</source>
+      <translation>يمكن لعميل WireGuard المضمَّن استخدام ملف التعريف هذا. هذا ليس فحصًا للاتصال.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client cannot use this profile.</source>
+      <translation>لا يمكن لعميل WireGuard المضمَّن استخدام ملف التعريف هذا.</translation>
+    </message>
+    <message>
+      <source>The selected file is not a plain-text WireGuard configuration.</source>
+      <translation>الملف المحدَّد ليس إعداد WireGuard بنص عادي.</translation>
+    </message>
+    <message>
+      <source>This build has no embedded WireGuard client; the profile is stored as written.</source>
+      <translation>لا يحتوي هذا الإصدار على عميل WireGuard مضمَّن؛ يُحفظ ملف التعريف كما كُتب.</translation>
+    </message>
+    <message>
+      <source>This profile is used by configured connections. Change those connections before deleting it.</source>
+      <translation>تستخدم اتصالات مهيَّأة ملف التعريف هذا. غيّر تلك الاتصالات قبل حذفه.</translation>
+    </message>
+    <message>
+      <source>This profile was changed by another AOWIS window. Your edits were not saved; the stored version is shown.</source>
+      <translation>عُدِّل ملف التعريف هذا من نافذة AOWIS أخرى. لم تُحفظ تعديلاتك؛ تُعرض النسخة المحفوظة.</translation>
+    </message>
+    <message>
+      <source>Used by %1 configured connections. This does not imply an active tunnel.</source>
+      <translation>تستخدمه %1 من الاتصالات المهيَّأة. لا يعني ذلك وجود نفق نشط.</translation>
+    </message>
+    <message>
+      <source>Used by %1 connections</source>
+      <translation>تستخدمه %1 من الاتصالات</translation>
+    </message>
+    <message>
+      <source>Used by 1 configured connection. This does not imply an active tunnel.</source>
+      <translation>يستخدمه اتصال مهيَّأ واحد. لا يعني ذلك وجود نفق نشط.</translation>
+    </message>
+    <message>
+      <source>Used by 1 connection</source>
+      <translation>يستخدمه اتصال واحد</translation>
+    </message>
+    <message>
+      <source>WireGuard configurations (*.conf);;All files (*)</source>
+      <translation>إعدادات WireGuard (*.conf);;كل الملفات (*)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles cannot be loaded: %1</source>
+      <translation>تتعذّر تحميل ملفات تعريف WireGuard: %1</translation>
+    </message>
     <message>
       <source>WireGuard VPN</source>
       <translation>شبكة WireGuard الخاصة</translation>
@@ -8655,6 +9041,31 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Map server</source>
       <translation>خادم الخرائط</translation>
+    </message>
+  </context>
+  <context>
+    <name>WireGuardProfileImport</name>
+    <message>
+      <source>Import WireGuard profile</source>
+      <translation>استيراد ملف تعريف WireGuard</translation>
+    </message>
+    <message>
+      <source>Line %1: %2</source>
+      <translation>السطر %1: %2</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client cannot use this profile:
+%1</source>
+      <translation>لا يمكن لعميل WireGuard المضمَّن استخدام ملف التعريف هذا:
+%1</translation>
+    </message>
+    <message>
+      <source>The file could not be read: %1</source>
+      <translation>تعذّرت قراءة الملف: %1</translation>
+    </message>
+    <message>
+      <source>WireGuard profile not imported</source>
+      <translation>لم يُستورَد ملف تعريف WireGuard</translation>
     </message>
   </context>
 </TS>

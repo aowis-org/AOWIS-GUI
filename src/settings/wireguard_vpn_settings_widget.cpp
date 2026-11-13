@@ -1119,7 +1119,7 @@ void WireGuardVpnSettingsWidget::refreshUsage()
     }
     const QList<ServiceReference> services = this->references.value(this->selected_id);
     this->usage_info->setText(services.isEmpty()
-        ? tr("No configured connection uses this profile. Choose it in Projects → Connection → WireGuard.")
+        ? tr("No configured connection uses this profile. Choose it as the connection of a DVMDB source (Projects) or of a MAP connection (Settings → Map Settings).")
         : services.size() == 1
             ? tr("Used by 1 configured connection. This does not imply an active tunnel.")
             : tr("Used by %1 configured connections. This does not imply an active tunnel.")

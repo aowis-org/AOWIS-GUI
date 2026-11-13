@@ -325,6 +325,34 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>
+
+In a browser, a reachable URL can still be blocked by cross-origin (CORS) rules. Check the browser console and configure DVMDB to allow requests from the AOWIS GUI origin.</source>
+      <translation>
+
+En un navegador, una URL accesible puede seguir bloqueada por las reglas de origen cruzado (CORS). Revise la consola del navegador y configure DVMDB para permitir solicitudes desde el origen de la GUI de AOWIS.</translation>
+    </message>
+    <message>
+      <source>
+
+Save it as an unverified pending connection anyway?</source>
+      <translation>
+
+¿Guardarla de todos modos como conexión pendiente no verificada?</translation>
+    </message>
+    <message>
+      <source>Could not reach the database at %1 (%2).</source>
+      <translation>No se pudo acceder a la base de datos en %1 (%2).</translation>
+    </message>
+    <message>
+      <source>Missing profile (not usable)</source>
+      <translation>Perfil ausente (no utilizable)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
+      <translation>Los perfiles de WireGuard se gestionan en Configuración → VPN WireGuard</translation>
+    </message>
+    <message>
       <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
       <translation>Este repositorio UUIDv7 ya está configurado como «%1». ¿Actualizar su conexión para %2?</translation>
     </message>
@@ -2311,6 +2339,110 @@ Clic derecho: volver a 1,0×</translation>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>Acquisition</source>
+      <translation>Adquisición</translation>
+    </message>
+    <message>
+      <source>Adaptive PNG/JPEG selection</source>
+      <translation>Selección adaptativa PNG/JPEG</translation>
+    </message>
+    <message>
+      <source>Add upstream</source>
+      <translation>Añadir servidor ascendente</translation>
+    </message>
+    <message>
+      <source>Advertised by</source>
+      <translation>Ofrecido por</translation>
+    </message>
+    <message>
+      <source>Allow direct OSM/imagery/Copernicus downloads as last resort</source>
+      <translation>Permitir descargas directas de OSM/imágenes/Copernicus como último recurso</translation>
+    </message>
+    <message>
+      <source>Connection</source>
+      <translation>Conexión</translation>
+    </message>
+    <message>
+      <source>Connection changes are saved when you finish editing a field and apply immediately.</source>
+      <translation>Los cambios de conexión se guardan al terminar de editar un campo y se aplican de inmediato.</translation>
+    </message>
+    <message>
+      <source>Embedded MAP cascading</source>
+      <translation>Cascada del MAP integrado</translation>
+    </message>
+    <message>
+      <source>Import WireGuard profile…</source>
+      <translation>Importar perfil de WireGuard…</translation>
+    </message>
+    <message>
+      <source>JPEG quality</source>
+      <translation>Calidad JPEG</translation>
+    </message>
+    <message>
+      <source>MAP provider acquisition and upstreams</source>
+      <translation>Adquisición de proveedores MAP y servidores ascendentes</translation>
+    </message>
+    <message>
+      <source>Manage WireGuard profiles…</source>
+      <translation>Gestionar perfiles de WireGuard…</translation>
+    </message>
+    <message>
+      <source>Move down</source>
+      <translation>Bajar</translation>
+    </message>
+    <message>
+      <source>Move up</source>
+      <translation>Subir</translation>
+    </message>
+    <message>
+      <source>Poor Internet mode (optimized MAP-to-MAP transfers)</source>
+      <translation>Modo de Internet deficiente (transferencias MAP a MAP optimizadas)</translation>
+    </message>
+    <message>
+      <source>Preferred order</source>
+      <translation>Orden preferido</translation>
+    </message>
+    <message>
+      <source>Provider</source>
+      <translation>Proveedor</translation>
+    </message>
+    <message>
+      <source>Read API key</source>
+      <translation>Clave de API de lectura</translation>
+    </message>
+    <message>
+      <source>Routing</source>
+      <translation>Enrutamiento</translation>
+    </message>
+    <message>
+      <source>Standalone only: each missing map or terrain tile is requested from these MAP servers in order. Local cache is checked first. Prefer HTTPS for API keys. Each upstream is reached directly or through a WireGuard profile of Settings → WireGuard VPN; a WireGuard upstream is never contacted directly. Changes apply immediately.</source>
+      <translation>Solo Standalone: cada tesela de mapa o de terreno que falte se solicita a estos servidores MAP en orden. Primero se consulta la caché local. Prefiera HTTPS para las claves de API. Cada servidor ascendente se alcanza directamente o a través de un perfil de WireGuard de Configuración → VPN WireGuard; un servidor ascendente WireGuard nunca se contacta directamente. Los cambios se aplican de inmediato.</translation>
+    </message>
+    <message>
+      <source>Standalone providers are editable and saved locally. The cascading upstreams and low-bandwidth settings are just below this table.</source>
+      <translation>Los proveedores de Standalone son editables y se guardan localmente. Los servidores ascendentes en cascada y los ajustes de bajo ancho de banda están justo debajo de esta tabla.</translation>
+    </message>
+    <message>
+      <source>This section lists only additional providers inherited from upstream MAP servers. Providers already defined locally appear in the editor above, even if an upstream also offers them. Inherited definitions are read-only; an administrator key is required to change their local availability.</source>
+      <translation>Esta sección solo enumera los proveedores adicionales heredados de servidores MAP ascendentes. Los proveedores ya definidos localmente aparecen en el editor de arriba, aunque un servidor ascendente también los ofrezca. Las definiciones heredadas son de solo lectura; se requiere una clave de administrador para cambiar su disponibilidad local.</translation>
+    </message>
+    <message>
+      <source>Upstream MAP URL</source>
+      <translation>URL del servidor MAP ascendente</translation>
+    </message>
+    <message>
+      <source>Upstream routing is configured separately for each provider, including locally defined providers also offered upstream. Select the permitted MAP servers and their priority. Choose Automatic (MAP then permitted origin), Cascade only, or Direct only for locally defined providers if permitted. Changes are local and saved automatically.</source>
+      <translation>El enrutamiento ascendente se configura por separado para cada proveedor, incluidos los proveedores definidos localmente que también se ofrecen en sentido ascendente. Seleccione los servidores MAP permitidos y su prioridad. Elija Automático (MAP y luego el origen permitido), Solo cascada o, para proveedores definidos localmente si está permitido, Solo directo. Los cambios son locales y se guardan automáticamente.</translation>
+    </message>
+    <message>
+      <source>Upstream servers</source>
+      <translation>Servidores ascendentes</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>Zoom</translation>
+    </message>
     <message>
       <source>All traffic to this server uses WireGuard: catalogue, metadata writes, private checkouts and, for a personal server, drafts and saves. It never falls back to a direct connection.</source>
       <translation>Todo el tráfico hacia este servidor usa WireGuard: catálogo, escrituras de metadatos, checkouts privados y, en un servidor personal, borradores y guardados. Nunca recurre a una conexión directa.</translation>
@@ -7082,6 +7214,10 @@ Demanda base total: %1</numerusform>
   <context>
     <name>MapNavigationWidget</name>
     <message>
+      <source>Inherited from MAP upstream: %1</source>
+      <translation>Heredado del servidor MAP ascendente: %1</translation>
+    </message>
+    <message>
       <source>%1
 Keyboard shortcut: %2</source>
       <translation>%1
@@ -7199,6 +7335,110 @@ Clic derecho para restablecer.</translation>
   </context>
   <context>
     <name>MapSettingsWidget</name>
+    <message>
+      <source>At most 32 MAP upstream servers are supported.</source>
+      <translation>Se admiten como máximo 32 servidores MAP ascendentes.</translation>
+    </message>
+    <message>
+      <source>Automatic</source>
+      <translation>Automático</translation>
+    </message>
+    <message>
+      <source>Cascade only</source>
+      <translation>Solo cascada</translation>
+    </message>
+    <message>
+      <source>Check the MAP servers allowed for this provider. Move checked servers up or down to set their priority. Changes save automatically; Reset restores global order.</source>
+      <translation>Marque los servidores MAP permitidos para este proveedor. Mueva los servidores marcados hacia arriba o hacia abajo para fijar su prioridad. Los cambios se guardan automáticamente; Restablecer recupera el orden global.</translation>
+    </message>
+    <message>
+      <source>Configure…</source>
+      <translation>Configurar…</translation>
+    </message>
+    <message>
+      <source>Connection preferences saved and applied.</source>
+      <translation>Preferencias de conexión guardadas y aplicadas.</translation>
+    </message>
+    <message>
+      <source>Direct only</source>
+      <translation>Solo directo</translation>
+    </message>
+    <message>
+      <source>Embedded MAP settings saved and applied.</source>
+      <translation>Ajustes del MAP integrado guardados y aplicados.</translation>
+    </message>
+    <message>
+      <source>Inherited availability changes are saved immediately on this MAP server.</source>
+      <translation>Los cambios de disponibilidad heredada se guardan de inmediato en este servidor MAP.</translation>
+    </message>
+    <message>
+      <source>Invalid stored cascade settings: %1. Remote fetching is disabled until they are corrected here.</source>
+      <translation>Ajustes de cascada guardados no válidos: %1. La obtención remota está desactivada hasta que se corrijan aquí.</translation>
+    </message>
+    <message>
+      <source>MAP advertises %1 local providers. No additional upstream providers are available.</source>
+      <translation>MAP ofrece %1 proveedores locales. No hay proveedores ascendentes adicionales disponibles.</translation>
+    </message>
+    <message>
+      <source>MAP advertises %1 local providers; %2 are also offered upstream. No additional providers to inherit.</source>
+      <translation>MAP ofrece %1 proveedores locales; %2 también se ofrecen en sentido ascendente. No hay proveedores adicionales que heredar.</translation>
+    </message>
+    <message>
+      <source>MAP advertises no providers. Check its local catalog and upstream settings.</source>
+      <translation>MAP no ofrece proveedores. Compruebe su catálogo local y los ajustes ascendentes.</translation>
+    </message>
+    <message>
+      <source>MAP upstream priority — %1</source>
+      <translation>Prioridad de servidores MAP ascendentes — %1</translation>
+    </message>
+    <message>
+      <source>Move down</source>
+      <translation>Bajar</translation>
+    </message>
+    <message>
+      <source>Move up</source>
+      <translation>Subir</translation>
+    </message>
+    <message>
+      <source>Not saved yet: %1. Correct the settings to save automatically.</source>
+      <translation>Aún no guardado: %1. Corrija los ajustes para que se guarden automáticamente.</translation>
+    </message>
+    <message>
+      <source>Read-only: configure the MAP admin/delete key to change inherited provider availability.</source>
+      <translation>Solo lectura: configure la clave de administración/eliminación de MAP para cambiar la disponibilidad de los proveedores heredados.</translation>
+    </message>
+    <message>
+      <source>Reset to global order</source>
+      <translation>Restablecer el orden global</translation>
+    </message>
+    <message>
+      <source>Resetting MAP routing…</source>
+      <translation>Restableciendo el enrutamiento de MAP…</translation>
+    </message>
+    <message>
+      <source>Saved, but not applied: %1. The previous settings stay in use.</source>
+      <translation>Guardado, pero no aplicado: %1. Se siguen usando los ajustes anteriores.</translation>
+    </message>
+    <message>
+      <source>Saving embedded MAP settings automatically...</source>
+      <translation>Guardando automáticamente los ajustes del MAP integrado...</translation>
+    </message>
+    <message>
+      <source>Select at least one upstream, or use Reset.</source>
+      <translation>Seleccione al menos un servidor ascendente o use Restablecer.</translation>
+    </message>
+    <message>
+      <source>Updating MAP routing…</source>
+      <translation>Actualizando el enrutamiento de MAP…</translation>
+    </message>
+    <message>
+      <source>Waiting for MAP's available-provider catalog.</source>
+      <translation>Esperando el catálogo de proveedores disponibles de MAP.</translation>
+    </message>
+    <message>
+      <source>WireGuard: %1</source>
+      <translation>WireGuard: %1</translation>
+    </message>
     <message>
       <source>Cannot edit providers until the server catalog has loaded. Check the map server connection and click Reload.</source>
       <translation>No se pueden editar proveedores hasta que se cargue el catálogo del servidor. Compruebe la conexión al servidor de mapas y pulse Recargar.</translation>
@@ -8256,6 +8496,144 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
 
   <context>
     <name>WireGuardVpnSettingsWidget</name>
+    <message numerus="yes">
+      <source>%n damaged profile(s) were kept: they are used by connections, written by a newer AOWIS version, or not removable.</source>
+      <translation>
+        <numerusform>Se conservó %n perfil dañado: lo usan conexiones, lo escribió una versión más reciente de AOWIS o no se puede eliminar.</numerusform>
+        <numerusform>Se conservaron %n perfiles dañados: los usan conexiones, los escribió una versión más reciente de AOWIS o no se pueden eliminar.</numerusform>
+      </translation>
+    </message>
+    <message numerus="yes">
+      <source>%n stored WireGuard profile(s) cannot be read and are not listed.</source>
+      <translation>
+        <numerusform>%n perfil de WireGuard guardado no se puede leer y no se muestra.</numerusform>
+        <numerusform>%n perfiles de WireGuard guardados no se pueden leer y no se muestran.</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>A configured connection now uses this profile.</source>
+      <translation>Una conexión configurada usa ahora este perfil.</translation>
+    </message>
+    <message>
+      <source>Cannot read configuration, or the file is larger than 128 KiB.</source>
+      <translation>No se puede leer la configuración o el archivo supera los 128 KiB.</translation>
+    </message>
+    <message>
+      <source>Delete '%1'? Its stored configuration, including the private key, is removed.</source>
+      <translation>¿Eliminar «%1»? Se borrará su configuración guardada, incluida la clave privada.</translation>
+    </message>
+    <message>
+      <source>Enter or import a WireGuard configuration.</source>
+      <translation>Introduzca o importe una configuración de WireGuard.</translation>
+    </message>
+    <message>
+      <source>Line %1: %2</source>
+      <translation>Línea %1: %2</translation>
+    </message>
+    <message>
+      <source>No configured connection uses this profile. Choose it as the connection of a DVMDB source (Projects) or of a MAP connection (Settings → Map Settings).</source>
+      <translation>Ninguna conexión configurada usa este perfil. Elíjalo como conexión de un origen DVMDB (Proyectos) o de una conexión MAP (Configuración → Ajustes del mapa).</translation>
+    </message>
+    <message>
+      <source>Not saved yet</source>
+      <translation>Aún no guardado</translation>
+    </message>
+    <message>
+      <source>Not used</source>
+      <translation>Sin uso</translation>
+    </message>
+    <message>
+      <source>Profile changed elsewhere</source>
+      <translation>Perfil modificado en otro lugar</translation>
+    </message>
+    <message>
+      <source>Profile not deleted</source>
+      <translation>Perfil no eliminado</translation>
+    </message>
+    <message>
+      <source>Profile not saved</source>
+      <translation>Perfil no guardado</translation>
+    </message>
+    <message>
+      <source>Profiles are stored in your AOWIS configuration, including their private keys. The files are readable only by your user account but are not encrypted; treat backups of the configuration as secret.</source>
+      <translation>Los perfiles se guardan en su configuración de AOWIS, incluidas sus claves privadas. Los archivos solo los puede leer su cuenta de usuario, pero no están cifrados; trate las copias de seguridad de la configuración como secretas.</translation>
+    </message>
+    <message>
+      <source>Profiles not removed</source>
+      <translation>Perfiles no eliminados</translation>
+    </message>
+    <message>
+      <source>Remove damaged profiles?</source>
+      <translation>¿Eliminar los perfiles dañados?</translation>
+    </message>
+    <message>
+      <source>Remove damaged…</source>
+      <translation>Eliminar dañados…</translation>
+    </message>
+    <message>
+      <source>Remove stored WireGuard profiles that cannot be read? Profiles written by a newer AOWIS version are kept.</source>
+      <translation>¿Eliminar los perfiles de WireGuard guardados que no se pueden leer? Se conservan los perfiles escritos por una versión más reciente de AOWIS.</translation>
+    </message>
+    <message>
+      <source>Save the profile before connections can use it.</source>
+      <translation>Guarde el perfil antes de que las conexiones puedan usarlo.</translation>
+    </message>
+    <message>
+      <source>The configuration exceeds the 2 MiB limit.</source>
+      <translation>La configuración supera el límite de 2 MiB.</translation>
+    </message>
+    <message>
+      <source>The configuration must not contain NUL characters.</source>
+      <translation>La configuración no debe contener caracteres NUL.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client can use this profile. This is not a connectivity check.</source>
+      <translation>El cliente de WireGuard integrado puede usar este perfil. Esto no es una prueba de conectividad.</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client cannot use this profile.</source>
+      <translation>El cliente de WireGuard integrado no puede usar este perfil.</translation>
+    </message>
+    <message>
+      <source>The selected file is not a plain-text WireGuard configuration.</source>
+      <translation>El archivo seleccionado no es una configuración de WireGuard en texto plano.</translation>
+    </message>
+    <message>
+      <source>This build has no embedded WireGuard client; the profile is stored as written.</source>
+      <translation>Esta compilación no tiene cliente de WireGuard integrado; el perfil se guarda tal como está escrito.</translation>
+    </message>
+    <message>
+      <source>This profile is used by configured connections. Change those connections before deleting it.</source>
+      <translation>Este perfil lo usan conexiones configuradas. Cambie esas conexiones antes de eliminarlo.</translation>
+    </message>
+    <message>
+      <source>This profile was changed by another AOWIS window. Your edits were not saved; the stored version is shown.</source>
+      <translation>Otra ventana de AOWIS modificó este perfil. Sus cambios no se guardaron; se muestra la versión guardada.</translation>
+    </message>
+    <message>
+      <source>Used by %1 configured connections. This does not imply an active tunnel.</source>
+      <translation>Lo usan %1 conexiones configuradas. Esto no implica un túnel activo.</translation>
+    </message>
+    <message>
+      <source>Used by %1 connections</source>
+      <translation>Usado por %1 conexiones</translation>
+    </message>
+    <message>
+      <source>Used by 1 configured connection. This does not imply an active tunnel.</source>
+      <translation>Lo usa 1 conexión configurada. Esto no implica un túnel activo.</translation>
+    </message>
+    <message>
+      <source>Used by 1 connection</source>
+      <translation>Usado por 1 conexión</translation>
+    </message>
+    <message>
+      <source>WireGuard configurations (*.conf);;All files (*)</source>
+      <translation>Configuraciones de WireGuard (*.conf);;Todos los archivos (*)</translation>
+    </message>
+    <message>
+      <source>WireGuard profiles cannot be loaded: %1</source>
+      <translation>No se pueden cargar los perfiles de WireGuard: %1</translation>
+    </message>
     <message>
       <source>WireGuard VPN</source>
       <translation>WireGuard VPN</translation>
@@ -8603,6 +8981,31 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Map server</source>
       <translation>Servidor de mapas</translation>
+    </message>
+  </context>
+  <context>
+    <name>WireGuardProfileImport</name>
+    <message>
+      <source>Import WireGuard profile</source>
+      <translation>Importar perfil de WireGuard</translation>
+    </message>
+    <message>
+      <source>Line %1: %2</source>
+      <translation>Línea %1: %2</translation>
+    </message>
+    <message>
+      <source>The embedded WireGuard client cannot use this profile:
+%1</source>
+      <translation>El cliente de WireGuard integrado no puede usar este perfil:
+%1</translation>
+    </message>
+    <message>
+      <source>The file could not be read: %1</source>
+      <translation>No se pudo leer el archivo: %1</translation>
+    </message>
+    <message>
+      <source>WireGuard profile not imported</source>
+      <translation>Perfil de WireGuard no importado</translation>
     </message>
   </context>
 </TS>

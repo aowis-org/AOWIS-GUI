@@ -67,10 +67,18 @@ text, including its private key. Files are private to the user account but
 
 ## Connections
 
-Projects → Connection → WireGuard selects a stored profile or the direct
-connection, and **Import WireGuard profile…** stores a `.conf` there
-directly. A connection whose profile is missing or unusable stays closed and
-never falls back to direct HTTP; the selector shows it as **Missing profile**.
+Every connection editor has the same selector: **Direct connection** or
+**WireGuard: <profile>** for each central profile — Projects → Connection
+(DVMDB sources), Settings → Map Settings → Map Server Settings → Connection
+(the GUI's MAP server) and, in Standalone, the **Connection** column of
+Embedded MAP cascading (each upstream). **Import WireGuard profile…** stores
+a `.conf` in the central store (it then appears in every selector and here),
+and **Manage WireGuard profiles…** opens this page; no editor keeps its own
+copy of a profile. A connection whose profile is missing or unusable stays
+closed and never falls back to direct HTTP; the selector shows it as
+**Missing profile**. A cascading upstream stores only the profile ID in
+MAP's cascade record; until the embedded MAP engine gets the tunnel
+transport, such an upstream is skipped (never contacted directly).
 
 For a WireGuard connection, everything that talks to that server goes
 through its tunnel: the catalogue and health checks, metadata writes,
@@ -79,7 +87,7 @@ when it is the personal server, every draft, lease, save and bundle import of
 `PersonalWorkingCopyClient`. A checkout from a WireGuard source whose
 connection is not open fails; nothing falls back to direct HTTP.
 
-**Settings → Map → Map server → WireGuard** does the same for the map
+**Settings → Map Settings → Map Server Settings → Connection** does the same for the map
 server (record `service_type` "map-server", same `transport` format). Its
 tunnel starts on first use and stays up while the connection uses that
 profile. Changing any map-server field applies at once: switching profile or

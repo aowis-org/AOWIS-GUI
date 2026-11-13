@@ -54,6 +54,13 @@ SettingsWidget::SettingsWidget(QWidget *parent)
     wireguard_entry->setToolTip(tr("WireGuard VPN is unavailable in WebAssembly: browser networking does not provide the required UDP/TUN access."));
 #endif
 
+    // Connection editors manage profiles centrally, never in their own pages.
+    connect(this->map_settings_page, &MapSettingsWidget::manageWireGuardProfilesRequested,
+            this, [this]()
+    {
+        this->table_of_contents->setCurrentRow(this->pages->indexOf(this->wireguard_vpn_page));
+    });
+
     connect(this->table_of_contents, &QListWidget::currentRowChanged,
             this, [this](int row)
     {
