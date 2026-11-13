@@ -33,7 +33,7 @@
 //   shortcuts       <config key> -> portable key sequence ("" = unassigned)
 //   map_navigation  scroll_zoom_sensitivity, mouse_3d_pan_sensitivity,
 //                   orbit_3d_sensitivity
-//   map_performance terrain_detail_reduction
+//   map_performance terrain_detail_reduction, antialiasing_samples
 //   (others: interface -> config/gui_language.cpp, units ->
 //   config/unit_profile_storage.cpp, map_provider_fallback ->
 //   map/core/gui_map_provider_catalog.cpp, dvmdb -> commit author identity)
@@ -65,6 +65,15 @@ int validatedTerrainDetailReduction(int value, int fallback)
     if (value < 0 || value > 3)
         return fallback;
     return value;
+}
+
+int validatedAntialiasingSamples(int value, int fallback)
+{
+    // Same set as bgfxAntialiasingSamplesValid() (render library); the
+    // configuration stays free of renderer headers.
+    if (value == 0 || value == 2 || value == 4 || value == 8 || value == 16)
+        return value;
+    return fallback;
 }
 
 QKeySequence parseShortcutKeySequence(const QString &shortcut)
@@ -351,6 +360,12 @@ GuiConfiguration loadConfiguration()
         detail_reduction.isDouble() ? detail_reduction.toInt(default_map_performance.terrain_detail_reduction)
                                     : default_map_performance.terrain_detail_reduction,
         default_map_performance.terrain_detail_reduction);
+    const QJsonValue antialiasing_samples =
+        GuiPreferences::value(group_map_performance, QStringLiteral("antialiasing_samples"));
+    configuration.map_performance.antialiasing_samples = validatedAntialiasingSamples(
+        antialiasing_samples.isDouble() ? antialiasing_samples.toInt(default_map_performance.antialiasing_samples)
+                                        : default_map_performance.antialiasing_samples,
+        default_map_performance.antialiasing_samples);
 
     qInfo() << "Loaded GUI preferences: examples_builtin_enable =" << configuration.examples_builtin_enable;
     return configuration;
@@ -469,7 +484,8 @@ bool saveGuiMapNavigationConfiguration(const GuiMapNavigationConfiguration &conf
 bool saveGuiMapPerformanceConfiguration(const GuiMapPerformanceConfiguration &configuration)
 {
     const bool saved = GuiPreferences::update(group_map_performance, QJsonObject{
-        {QStringLiteral("terrain_detail_reduction"), configuration.terrain_detail_reduction}});
+        {QStringLiteral("terrain_detail_reduction"), configuration.terrain_detail_reduction},
+        {QStringLiteral("antialiasing_samples"), configuration.antialiasing_samples}});
     if (saved)
         mutableGuiConfiguration().map_performance = configuration;
     return saved;

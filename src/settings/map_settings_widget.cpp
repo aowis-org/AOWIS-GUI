@@ -248,6 +248,36 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
                        "never more."),
         group));
 
+#ifndef Q_OS_WASM
+    // WebAssembly: the browser antialiases the map canvas itself (WebGL
+    // context antialias); the bgfx back buffer cannot multisample there.
+    this->antialiasing_combo = new QComboBox(group);
+    const int antialiasing_sample_counts[] = {0, 2, 4, 8, 16};
+    for (const int samples : antialiasing_sample_counts)
+        this->antialiasing_combo->addItem(QString(), samples);
+    QComboBox *antialiasing_combo = this->antialiasing_combo;
+    LiveUiText::bind(antialiasing_combo, [antialiasing_combo]
+    {
+        for (int index = 0; index < antialiasing_combo->count(); ++index)
+        {
+            const int samples = antialiasing_combo->itemData(index).toInt();
+            antialiasing_combo->setItemText(index, samples == 0
+                ? LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Off"))
+                : QStringLiteral("%1x MSAA").arg(samples));
+        }
+    });
+    const int current_antialiasing_index =
+        this->antialiasing_combo->findData(current.antialiasing_samples);
+    this->antialiasing_combo->setCurrentIndex(
+        current_antialiasing_index >= 0 ? current_antialiasing_index
+                                        : this->antialiasing_combo->findData(4));
+    form->addRow(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Antialiasing"), group), this->antialiasing_combo);
+    form->addRow(QString(), helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Smooths the edges of pipes, symbols, labels and terrain in the map and the "
+                       "project graph. More samples cost more GPU time; a level the graphics card "
+                       "does not support falls back to the highest one it does."),
+        group));
+#endif
+
     group_layout->addLayout(form);
 
     this->performance_status = new QLabel(group);
@@ -265,11 +295,23 @@ void MapSettingsWidget::buildPerformanceSection(QWidget *parent_widget)
 
     connect(this->terrain_detail_reduction_control, &SliderNumberControl::valueChanged,
             this, [this](double) { schedulePerformanceSave(); });
+    if (this->antialiasing_combo != nullptr)
+    {
+        // A discrete choice: save (and so apply) at once, no debounce.
+        connect(this->antialiasing_combo, &QComboBox::currentIndexChanged,
+                this, [this](int) { savePerformanceSettingsNow(); });
+    }
 
     connect(restore_defaults, &QPushButton::clicked, this, [this]
     {
         const GuiMapPerformanceConfiguration defaults;
         this->terrain_detail_reduction_control->setValue(double(defaults.terrain_detail_reduction));
+        if (this->antialiasing_combo != nullptr)
+        {
+            const QSignalBlocker blocker(this->antialiasing_combo);
+            this->antialiasing_combo->setCurrentIndex(
+                this->antialiasing_combo->findData(defaults.antialiasing_samples));
+        }
         savePerformanceSettingsNow();
     });
 
@@ -1327,6 +1369,10 @@ void MapSettingsWidget::savePerformanceSettingsNow()
     GuiMapPerformanceConfiguration configuration;
     configuration.terrain_detail_reduction =
         qRound(this->terrain_detail_reduction_control->value());
+    // WebAssembly has no control: keep the stored value.
+    configuration.antialiasing_samples = this->antialiasing_combo != nullptr
+        ? this->antialiasing_combo->currentData().toInt()
+        : guiConfiguration().map_performance.antialiasing_samples;
 
     if (saveGuiMapPerformanceConfiguration(configuration))
         showPerformanceStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Saved."), false);

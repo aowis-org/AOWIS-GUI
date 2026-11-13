@@ -2340,6 +2340,14 @@ Clic droit : revenir à 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Antialiasing</source>
+      <translation>Anticrénelage</translation>
+    </message>
+    <message>
+      <source>Smooths the edges of pipes, symbols, labels and terrain in the map and the project graph. More samples cost more GPU time; a level the graphics card does not support falls back to the highest one it does.</source>
+      <translation>Lisse les bords des conduites, symboles, étiquettes et du terrain dans la carte et le graphe du projet. Davantage d’échantillons coûtent plus de temps GPU ; un niveau non pris en charge par la carte graphique revient au plus élevé qu’elle prend en charge.</translation>
+    </message>
+    <message>
       <source>Acquisition</source>
       <translation>Acquisition</translation>
     </message>

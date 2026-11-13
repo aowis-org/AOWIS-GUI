@@ -2360,6 +2360,14 @@ Right-click: animate back to 1.0×</source>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Antialiasing</source>
+      <translation>تنعيم الحواف</translation>
+    </message>
+    <message>
+      <source>Smooths the edges of pipes, symbols, labels and terrain in the map and the project graph. More samples cost more GPU time; a level the graphics card does not support falls back to the highest one it does.</source>
+      <translation>ينعّم حواف الأنابيب والرموز والتسميات والتضاريس في الخريطة ومخطط المشروع. تتطلب العينات الأكثر وقتًا أطول من وحدة معالجة الرسومات؛ والمستوى الذي لا تدعمه بطاقة الرسومات يرجع إلى أعلى مستوى تدعمه.</translation>
+    </message>
+    <message>
       <source>Acquisition</source>
       <translation>الاكتساب</translation>
     </message>

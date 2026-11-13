@@ -2340,6 +2340,14 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Antialiasing</source>
+      <translation>Kantenglättung</translation>
+    </message>
+    <message>
+      <source>Smooths the edges of pipes, symbols, labels and terrain in the map and the project graph. More samples cost more GPU time; a level the graphics card does not support falls back to the highest one it does.</source>
+      <translation>Glättet die Kanten von Leitungen, Symbolen, Beschriftungen und Gelände in der Karte und im Projektgraphen. Mehr Samples kosten mehr GPU-Zeit; eine Stufe, die die Grafikkarte nicht unterstützt, fällt auf die höchste unterstützte zurück.</translation>
+    </message>
+    <message>
       <source>Acquisition</source>
       <translation>Bezug</translation>
     </message>

@@ -41,6 +41,12 @@ MapBgfxSurface::MapBgfxSurface(MapModel *model, QWidget *parent)
     {
         return guiConfiguration().map_performance.terrain_detail_reduction;
     });
+    // The user's antialiasing setting, read live (a change resets the back
+    // buffer on the next frame).
+    this->view->setAntialiasingSamplesSource([]()
+    {
+        return guiConfiguration().map_performance.antialiasing_samples;
+    });
     // Tank and reservoir model textures are GUI resources.
     this->view->setGlobeModelImages(mapGlobeTankAlbedoImage(), mapGlobeReservoirAlbedoImage());
     // The QWidget HUD's images.

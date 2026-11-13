@@ -2340,6 +2340,14 @@ Clic derecho: volver a 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Antialiasing</source>
+      <translation>Suavizado de bordes</translation>
+    </message>
+    <message>
+      <source>Smooths the edges of pipes, symbols, labels and terrain in the map and the project graph. More samples cost more GPU time; a level the graphics card does not support falls back to the highest one it does.</source>
+      <translation>Suaviza los bordes de tuberías, símbolos, etiquetas y terreno en el mapa y en el grafo del proyecto. Más muestras cuestan más tiempo de GPU; un nivel que la tarjeta gráfica no admite pasa al más alto que sí admite.</translation>
+    </message>
+    <message>
       <source>Acquisition</source>
       <translation>Adquisición</translation>
     </message>

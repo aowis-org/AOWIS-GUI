@@ -70,6 +70,8 @@ private:
     ProjectGraphBgfxScene::Index scene_index;
     bool scene_dirty = true;
     QSize allocated_pixels;
+    // Swap chain flags (MSAA level) the owned back buffer was created with.
+    std::uint32_t allocated_swap_chain_flags = 0;
     std::uint16_t view_id = 0;
     std::uint64_t device_generation = 0;
     bool attached = false;

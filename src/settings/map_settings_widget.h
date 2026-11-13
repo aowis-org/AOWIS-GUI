@@ -53,6 +53,8 @@ private:
 
     // Performance section.
     SliderNumberControl *terrain_detail_reduction_control = nullptr;
+    // MSAA samples as item data (0 = off); desktop only, null in WebAssembly.
+    QComboBox *antialiasing_combo = nullptr;
     QLabel *performance_status = nullptr;
     QTimer *performance_save_debounce = nullptr;
 

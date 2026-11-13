@@ -69,6 +69,11 @@ struct GuiMapPerformanceConfiguration
     // setting shows the full source resolution. Range 0 to 3
     // (MapGlobeTerrainMaximumDetailReduction).
     int terrain_detail_reduction = 1;
+    // Multisample antialiasing of the bgfx map and project graph back buffer
+    // (desktop; WebAssembly: the browser antialiases the canvas). Samples:
+    // 0 = off, 2, 4, 8, 16 (bgfx_antialiasing.h); the GPU's highest
+    // supported level below the request is used.
+    int antialiasing_samples = 4;
 };
 
 struct GuiConfiguration

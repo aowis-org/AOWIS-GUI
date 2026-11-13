@@ -1,5 +1,7 @@
 #include "tabs/project_graph_bgfx_viewport.h"
 
+#include "config/gui_configuration.h"
+#include "map/bgfx/bgfx_antialiasing.h"
 #include "map/bgfx/bgfx_device_manager.h"
 #include "map/bgfx/bgfx_qt_native_surface.h"
 #include "map/bgfx/map_bgfx_backend.h"
@@ -30,7 +32,15 @@ std::uint16_t targetDimension(int value)
 }
 
 constexpr std::uint32_t kGraphResetFlags =
-    BGFX_RESET_VSYNC | BGFX_RESET_MSAA_X4 | BGFX_RESET_FLIP_AFTER_RENDER;
+    BGFX_RESET_VSYNC | BGFX_RESET_FLIP_AFTER_RENDER;
+
+// The map's antialiasing setting also applies to the graph: both own the
+// same shared bgfx device in turn. MSAA is per surface in the pinned bgfx
+// (SwapChain::flags; a BGFX_RESET_MSAA_* reset flag is ignored).
+std::uint32_t graphSwapChainFlags()
+{
+    return bgfxMsaaSwapChainFlag(guiConfiguration().map_performance.antialiasing_samples);
+}
 }
 
 ProjectGraphBgfxViewport::ProjectGraphBgfxViewport(ProjectRevisionGraph *graph)
@@ -165,6 +175,8 @@ bool ProjectGraphBgfxViewport::initializePrimary()
         return false;
     surface.configurePrimary(&settings);
     settings.reset = kGraphResetFlags;
+    settings.swapChain.flags = graphSwapChainFlags();
+    this->allocated_swap_chain_flags = settings.swapChain.flags;
     settings.limits.maxTransientVbSize = 16u << 20;
     settings.limits.maxTransientIbSize = 8u << 20;
 
@@ -382,15 +394,22 @@ void ProjectGraphBgfxViewport::render()
         return;
     }
     const QSize pixels = targetPixels();
-    if (pixels != this->allocated_pixels)
+    // Only the device owner's back buffer carries MSAA (a secondary
+    // swapchain framebuffer has none): its setting change resets too.
+    const std::uint32_t swap_chain_flags = graphSwapChainFlags();
+    const bool swap_chain_flags_changed =
+        device.owns(this) && swap_chain_flags != this->allocated_swap_chain_flags;
+    if (pixels != this->allocated_pixels || swap_chain_flags_changed)
     {
         if (device.owns(this))
         {
             const BgfxNativeSurface surface = BgfxQtNativeSurface::capture(this->window);
             if (!surface.valid())
                 return;
-            const bgfx::SwapChain swap_chain = surface.swapChain();
+            bgfx::SwapChain swap_chain = surface.swapChain();
+            swap_chain.flags = swap_chain_flags;
             bgfx::reset(kGraphResetFlags, &swap_chain);
+            this->allocated_swap_chain_flags = swap_chain_flags;
         }
         else if (!device.targets().resizeWindow(this,
                          BgfxQtNativeSurface::capture(this->window)))
