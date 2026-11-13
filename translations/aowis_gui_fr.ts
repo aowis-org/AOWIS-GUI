@@ -2340,6 +2340,34 @@ Clic droit : revenir à 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>All keyboard shortcuts were reset to their advertised defaults.</source>
+      <translation>Tous les raccourcis clavier ont été réinitialisés à leurs valeurs par défaut.</translation>
+    </message>
+    <message>
+      <source>Reset Keyboard Shortcuts</source>
+      <translation>Réinitialiser les raccourcis clavier</translation>
+    </message>
+    <message>
+      <source>Reset all keyboard shortcuts to their advertised defaults?</source>
+      <translation>Réinitialiser tous les raccourcis clavier à leurs valeurs par défaut ?</translation>
+    </message>
+    <message>
+      <source>Editing keyboard shortcut for %1.</source>
+      <translation>Modification du raccourci clavier pour %1.</translation>
+    </message>
+    <message>
+      <source>Conflict: this shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Conflit : ce raccourci est déjà attribué à « %1 ».</translation>
+    </message>
+    <message>
+      <source>%1 will have no keyboard shortcut.</source>
+      <translation>%1 n’aura pas de raccourci clavier.</translation>
+    </message>
+    <message>
+      <source>%1 shortcut disabled.</source>
+      <translation>Raccourci de %1 désactivé.</translation>
+    </message>
+    <message>
       <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
       <translation>Maintenez cette touche et déplacez la souris (sans bouton enfoncé) sur la carte 3D. Maj est réservée au déplacement rapide au clavier.</translation>
     </message>
@@ -8438,6 +8466,14 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>Unknown keyboard shortcut.</source>
+      <translation>Raccourci clavier inconnu.</translation>
+    </message>
+    <message>
+      <source>This shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Ce raccourci est déjà attribué à « %1 ».</translation>
+    </message>
     <message>
       <source>This key cannot be used for a map gesture.</source>
       <translation>Cette touche ne peut pas être utilisée pour un geste de carte.</translation>

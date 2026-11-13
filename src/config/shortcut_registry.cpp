@@ -459,7 +459,7 @@ bool GuiShortcutRegistry::setShortcut(GuiShortcutId id, const QKeySequence &sequ
     if (index < 0)
     {
         if (error_message != nullptr)
-            *error_message = QStringLiteral("Unknown keyboard shortcut.");
+            *error_message = tr("Unknown keyboard shortcut.");
         return false;
     }
 
@@ -468,8 +468,9 @@ bool GuiShortcutRegistry::setShortcut(GuiShortcutId id, const QKeySequence &sequ
     {
         if (error_message != nullptr)
         {
-            *error_message = QStringLiteral("This shortcut is already assigned to \"%1\".")
-                                 .arg(conflict);
+            *error_message = tr("This shortcut is already assigned to \"%1\".")
+                                 .arg(QCoreApplication::translate("GuiShortcuts",
+                                                                  conflict.toUtf8().constData()));
         }
         return false;
     }

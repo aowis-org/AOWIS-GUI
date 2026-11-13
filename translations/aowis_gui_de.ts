@@ -2340,6 +2340,34 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>All keyboard shortcuts were reset to their advertised defaults.</source>
+      <translation>Alle Tastenkürzel wurden auf ihre Standardwerte zurückgesetzt.</translation>
+    </message>
+    <message>
+      <source>Reset Keyboard Shortcuts</source>
+      <translation>Tastenkürzel zurücksetzen</translation>
+    </message>
+    <message>
+      <source>Reset all keyboard shortcuts to their advertised defaults?</source>
+      <translation>Alle Tastenkürzel auf ihre Standardwerte zurücksetzen?</translation>
+    </message>
+    <message>
+      <source>Editing keyboard shortcut for %1.</source>
+      <translation>Tastenkürzel für %1 wird bearbeitet.</translation>
+    </message>
+    <message>
+      <source>Conflict: this shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Konflikt: Dieses Tastenkürzel ist bereits „%1“ zugewiesen.</translation>
+    </message>
+    <message>
+      <source>%1 will have no keyboard shortcut.</source>
+      <translation>%1 hat dann kein Tastenkürzel.</translation>
+    </message>
+    <message>
+      <source>%1 shortcut disabled.</source>
+      <translation>Tastenkürzel für %1 deaktiviert.</translation>
+    </message>
+    <message>
       <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
       <translation>Diese Taste halten und die Maus (ohne gedrückte Taste) über der 3D-Karte bewegen. Umschalt ist für schnelleres Verschieben per Tastatur reserviert.</translation>
     </message>
@@ -8438,6 +8466,14 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>Unknown keyboard shortcut.</source>
+      <translation>Unbekanntes Tastenkürzel.</translation>
+    </message>
+    <message>
+      <source>This shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Dieses Tastenkürzel ist bereits „%1“ zugewiesen.</translation>
+    </message>
     <message>
       <source>This key cannot be used for a map gesture.</source>
       <translation>Diese Taste kann nicht für eine Kartengeste verwendet werden.</translation>

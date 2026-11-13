@@ -2340,6 +2340,34 @@ Clic derecho: volver a 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>All keyboard shortcuts were reset to their advertised defaults.</source>
+      <translation>Todos los atajos de teclado se restablecieron a sus valores predeterminados.</translation>
+    </message>
+    <message>
+      <source>Reset Keyboard Shortcuts</source>
+      <translation>Restablecer atajos de teclado</translation>
+    </message>
+    <message>
+      <source>Reset all keyboard shortcuts to their advertised defaults?</source>
+      <translation>¿Restablecer todos los atajos de teclado a sus valores predeterminados?</translation>
+    </message>
+    <message>
+      <source>Editing keyboard shortcut for %1.</source>
+      <translation>Editando el atajo de teclado de %1.</translation>
+    </message>
+    <message>
+      <source>Conflict: this shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Conflicto: este atajo ya está asignado a «%1».</translation>
+    </message>
+    <message>
+      <source>%1 will have no keyboard shortcut.</source>
+      <translation>%1 no tendrá atajo de teclado.</translation>
+    </message>
+    <message>
+      <source>%1 shortcut disabled.</source>
+      <translation>Atajo de %1 desactivado.</translation>
+    </message>
+    <message>
       <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
       <translation>Mantenga esta tecla y mueva el ratón (sin pulsar ningún botón) sobre el mapa 3D. Mayús está reservada para el desplazamiento rápido con el teclado.</translation>
     </message>
@@ -8438,6 +8466,14 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>Unknown keyboard shortcut.</source>
+      <translation>Atajo de teclado desconocido.</translation>
+    </message>
+    <message>
+      <source>This shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>Este atajo ya está asignado a «%1».</translation>
+    </message>
     <message>
       <source>This key cannot be used for a map gesture.</source>
       <translation>Esta tecla no se puede usar para un gesto del mapa.</translation>

@@ -2360,6 +2360,34 @@ Right-click: animate back to 1.0×</source>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>All keyboard shortcuts were reset to their advertised defaults.</source>
+      <translation>تمت إعادة تعيين جميع اختصارات لوحة المفاتيح إلى قيمها الافتراضية.</translation>
+    </message>
+    <message>
+      <source>Reset Keyboard Shortcuts</source>
+      <translation>إعادة تعيين اختصارات لوحة المفاتيح</translation>
+    </message>
+    <message>
+      <source>Reset all keyboard shortcuts to their advertised defaults?</source>
+      <translation>هل تريد إعادة تعيين جميع اختصارات لوحة المفاتيح إلى قيمها الافتراضية؟</translation>
+    </message>
+    <message>
+      <source>Editing keyboard shortcut for %1.</source>
+      <translation>جارٍ تعديل اختصار لوحة المفاتيح لـ %1.</translation>
+    </message>
+    <message>
+      <source>Conflict: this shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>تعارض: هذا الاختصار مُعيَّن بالفعل لـ &quot;%1&quot;.</translation>
+    </message>
+    <message>
+      <source>%1 will have no keyboard shortcut.</source>
+      <translation>لن يكون لـ %1 اختصار لوحة مفاتيح.</translation>
+    </message>
+    <message>
+      <source>%1 shortcut disabled.</source>
+      <translation>تم تعطيل اختصار %1.</translation>
+    </message>
+    <message>
       <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
       <translation>اضغط مع الاستمرار على هذا المفتاح وحرّك الفأرة (دون الضغط على أي زر) فوق الخريطة ثلاثية الأبعاد. مفتاح Shift محجوز للتحريك الأسرع بلوحة المفاتيح.</translation>
     </message>
@@ -8490,6 +8518,14 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>Unknown keyboard shortcut.</source>
+      <translation>اختصار لوحة مفاتيح غير معروف.</translation>
+    </message>
+    <message>
+      <source>This shortcut is already assigned to &quot;%1&quot;.</source>
+      <translation>هذا الاختصار مُعيَّن بالفعل لـ &quot;%1&quot;.</translation>
+    </message>
     <message>
       <source>This key cannot be used for a map gesture.</source>
       <translation>لا يمكن استخدام هذا المفتاح لإيماءة على الخريطة.</translation>

@@ -33,6 +33,12 @@ constexpr int shortcut_id_role = Qt::UserRole + 1;
 constexpr int hold_modifier_id_role = Qt::UserRole + 2;
 constexpr int fixed_gesture_role = Qt::UserRole + 3;
 
+// A registry display name / category in the user's language (GuiShortcuts).
+QString translatedShortcutName(const QString &name)
+{
+    return QCoreApplication::translate("GuiShortcuts", name.toUtf8().constData());
+}
+
 // The globe's fixed mouse gestures, listed with the hold modifiers so the
 // page shows every globe navigation input (mouse buttons are not remappable).
 struct FixedGesture
@@ -73,7 +79,7 @@ KeyboardShortcutsSettingsWidget::KeyboardShortcutsSettingsWidget(QWidget *parent
     connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutsReset,
             this, [this]
     {
-        showStatus(QStringLiteral("All keyboard shortcuts were reset to their advertised defaults."),
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "All keyboard shortcuts were reset to their advertised defaults.")),
                    false);
     });
 }
@@ -214,8 +220,8 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
             const GuiShortcutDefinition *shortcut_definition = guiShortcutRegistry().definition(id);
             if (shortcut_definition != nullptr)
             {
-                showStatus(QStringLiteral("%1 reset to %2.")
-                               .arg(shortcut_definition->display_name,
+                showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 reset to %2."))
+                               .arg(translatedShortcutName(shortcut_definition->display_name),
                                     shortcut_definition->default_shortcut),
                            false);
             }
@@ -273,7 +279,7 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
             if (hold_definition != nullptr)
             {
                 showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 reset to %2."))
-                               .arg(QCoreApplication::translate("GuiShortcuts", hold_definition->display_name.toUtf8().constData()),
+                               .arg(translatedShortcutName(hold_definition->display_name),
                                     guiHoldModifierText(hold_definition->default_modifier)),
                            false);
             }
@@ -341,8 +347,8 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
     {
         QMessageBox::StandardButton result = QMessageBox::question(
             this,
-            QStringLiteral("Reset Keyboard Shortcuts"),
-            QStringLiteral("Reset all keyboard shortcuts to their advertised defaults?"),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset Keyboard Shortcuts")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset all keyboard shortcuts to their advertised defaults?")),
             QMessageBox::Yes | QMessageBox::Cancel,
             QMessageBox::Cancel);
         if (result == QMessageBox::Yes)
@@ -368,7 +374,8 @@ void KeyboardShortcutsSettingsWidget::focusShortcut(GuiShortcutId id)
 
     const GuiShortcutDefinition *definition = guiShortcutRegistry().definition(id);
     if (definition != nullptr)
-        showStatus(QStringLiteral("Editing keyboard shortcut for %1.").arg(definition->display_name), false);
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Editing keyboard shortcut for %1."))
+                       .arg(translatedShortcutName(definition->display_name)), false);
 }
 
 void KeyboardShortcutsSettingsWidget::refreshShortcutEditor(GuiShortcutId id)
@@ -436,8 +443,8 @@ void KeyboardShortcutsSettingsWidget::validateShortcutEditor(GuiShortcutId id, c
     const QString conflict = guiShortcutRegistry().conflictDisplayName(id, sequence);
     if (!conflict.isEmpty())
     {
-        showStatus(QStringLiteral("Conflict: this shortcut is already assigned to \"%1\".")
-                       .arg(conflict), true);
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Conflict: this shortcut is already assigned to \"%1\"."))
+                       .arg(translatedShortcutName(conflict)), true);
         return;
     }
 
@@ -446,9 +453,10 @@ void KeyboardShortcutsSettingsWidget::validateShortcutEditor(GuiShortcutId id, c
         return;
 
     if (sequence.isEmpty())
-        showStatus(QStringLiteral("%1 will have no keyboard shortcut.").arg(definition->display_name), false);
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 will have no keyboard shortcut."))
+                       .arg(translatedShortcutName(definition->display_name)), false);
     else
-        showStatus(QStringLiteral("%1 → %2").arg(definition->display_name,
+        showStatus(QStringLiteral("%1 → %2").arg(translatedShortcutName(definition->display_name),
                                                   guiShortcutDisplayText(sequence)), false);
 }
 
@@ -472,9 +480,11 @@ void KeyboardShortcutsSettingsWidget::commitShortcutEditor(GuiShortcutId id)
 
     const QString value = guiShortcutRegistry().shortcut(id);
     if (value.isEmpty())
-        showStatus(QStringLiteral("%1 shortcut disabled.").arg(definition->display_name), false);
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 shortcut disabled."))
+                       .arg(translatedShortcutName(definition->display_name)), false);
     else
-        showStatus(QStringLiteral("%1 set to %2.").arg(definition->display_name, value), false);
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 set to %2."))
+                       .arg(translatedShortcutName(definition->display_name), value), false);
 }
 
 void KeyboardShortcutsSettingsWidget::refreshHoldModifierEditor(GuiHoldModifierId id)
@@ -509,7 +519,7 @@ void KeyboardShortcutsSettingsWidget::commitHoldModifierEditor(GuiHoldModifierId
     if (definition != nullptr)
     {
         showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 set to %2."))
-                       .arg(QCoreApplication::translate("GuiShortcuts", definition->display_name.toUtf8().constData()),
+                       .arg(translatedShortcutName(definition->display_name),
                             guiHoldModifierText(modifier)),
                    false);
     }
