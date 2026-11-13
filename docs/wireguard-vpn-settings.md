@@ -123,3 +123,14 @@ removal, and live status transitions (starting/running/HTTP confirmed/stopped/
 error/retry), multiple connections sharing one profile, sampled telemetry and
 health hints, and the hidden private key (default hidden, editing other lines,
 toggling with unsaved edits, changing the key).
+
+`aowis-map-upstream-wireguard-integration` (Standalone builds, label
+`integration`) runs against the real userspace peer
+`tests/wireguard_catalogue_peer.go`: an embedded MAP upstream is discovered
+and serves raster tiles only through its profile's tunnel (the peer's
+`X-Forwarded-For` proves the path, with the read key); a DVMDB connection
+with the same profile shares the one tunnel (same SOCKS5 proxy, two
+consumers on Status); `restartWireGuardTunnel` stops the old tunnel first
+and every consumer reconnects to one new tunnel; with the peer stopped or
+the profile missing nothing is requested directly; tiles fetched through the
+tunnel stay available offline.

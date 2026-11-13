@@ -1290,6 +1290,29 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         add_test(NAME aowis-wireguard-catalogue COMMAND aowis-projects-multi-source-tests "${catalogue_peer}")
         set_tests_properties(aowis-wireguard-catalogue PROPERTIES LABELS "aowis;integration"
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60)
+        # Standalone: embedded MAP upstreams through the same real peer --
+        # discovery and tiles via the tunnel only, one tunnel shared with
+        # DVMDB, coordinated restart, no direct bypass, offline cache.
+        if(AOWIS_STANDALONE_BUILD AND TARGET AOWIS::Map)
+            add_executable(aowis-map-upstream-wireguard-integration-tests
+                tests/map_upstream_wireguard_integration_test.cpp
+                src/services/map_upstream_tunnels.cpp
+                src/services/map_upstream_tunnels.h
+                src/projects/repository_probe.cpp
+                src/network/wireguard_tunnel_pool.cpp
+                src/network/wireguard_runtime_status.cpp
+                src/config/wireguard_profile_storage.cpp
+                src/config/gui_config_store.cpp)
+            target_include_directories(aowis-map-upstream-wireguard-integration-tests PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/src)
+            target_link_libraries(aowis-map-upstream-wireguard-integration-tests PRIVATE
+                Qt6::Gui Qt6::Network aowis::config AOWIS::Map)
+            add_dependencies(aowis-map-upstream-wireguard-integration-tests aowis-catalogue-peer-fixture)
+            add_test(NAME aowis-map-upstream-wireguard-integration
+                COMMAND aowis-map-upstream-wireguard-integration-tests "${catalogue_peer}")
+            set_tests_properties(aowis-map-upstream-wireguard-integration PROPERTIES
+                LABELS "aowis;integration" TIMEOUT 120)
+        endif()
     endif()
 
     # Native Windows tab padding must not widen the five-icon map sidebar.
@@ -2044,7 +2067,8 @@ qt_import_plugins(aowis-server-gui
 )
 
 if(TARGET AOWIS::NetworkQt AND AOWIS_GUI_WITH_WIREGUARD)
-    foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests aowis-wireguard-vpn-settings-tests)
+    foreach(probe_target IN ITEMS aowis-server-gui aowis-repository-probe-tests aowis-projects-inspector-dock-tests aowis-projects-multi-source-tests aowis-wireguard-vpn-settings-tests
+                                 aowis-map-upstream-wireguard-integration-tests)
         if(TARGET ${probe_target})
             target_compile_definitions(${probe_target} PRIVATE AOWIS_GUI_WIREGUARD_PROBE)
             target_link_libraries(${probe_target} PRIVATE AOWIS::NetworkQt Qt6::Concurrent)
