@@ -111,6 +111,11 @@ protected:
             if (end < 0) return;
             const QByteArray head = received.left(end).toLower();
             this->requests.append(head);
+            // A MAP upstream echoes the requested raster source identity.
+            QByteArray raster_source;
+            for (const QByteArray &line : received.left(end).split('\n'))
+                if (line.toLower().startsWith("x-aowis-raster-source:"))
+                    raster_source = line.mid(line.indexOf(':') + 1).trimmed();
             QByteArray type = QByteArrayLiteral("text/plain");
             QByteArray body = QByteArrayLiteral("AOWIS map server");
             if (head.startsWith("get /map/v1/providers/available "))
@@ -123,8 +128,11 @@ protected:
                 type = QByteArrayLiteral("image/png");
                 body = this->tile;
             }
-            socket->write("HTTP/1.1 200 OK\r\nContent-Type: " + type + "\r\nContent-Length: " +
-                          QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+            QByteArray headers = "HTTP/1.1 200 OK\r\nContent-Type: " + type + "\r\nContent-Length: " +
+                                 QByteArray::number(body.size()) + "\r\n";
+            if (!raster_source.isEmpty())
+                headers += "X-AOWIS-Raster-Source: " + raster_source + "\r\n";
+            socket->write(headers + "Connection: close\r\n\r\n" + body);
             socket->disconnectFromHost();
         });
     }
