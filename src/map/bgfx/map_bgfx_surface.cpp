@@ -11,6 +11,7 @@
 
 #include <QEvent>
 #include <QFocusEvent>
+#include <QGuiApplication>
 #include <QHideEvent>
 #include <QImage>
 #include <QKeyEvent>
@@ -129,6 +130,13 @@ void MapBgfxSurface::focusNavigationInput(Qt::FocusReason reason)
         return;
     }
 #ifndef Q_OS_WASM
+    // The native window already holds keyboard focus: nothing to route.
+    // Re-activating the top-level here would pull Win32 focus off the
+    // embedded child HWND on every click (Windows), only to hand it back.
+    QWindow *focused_native_window = this->view->nativeInputWindow();
+    if (focused_native_window != nullptr
+        && QGuiApplication::focusWindow() == focused_native_window)
+        return;
     // Monitor: QWidget focus on this surface delivers the keys (keyPressEvent)
     // wherever an embedded window cannot be activated by itself (Wayland: a
     // subsurface never gets keyboard focus of its own, so requestActivate()
