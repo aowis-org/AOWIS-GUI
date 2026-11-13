@@ -18,6 +18,7 @@
 #include <aowis/map/map_provider.h>
 #include <aowis/map/maptiles.h>
 #include <aowis/map/provider_catalog.h>
+#include <aowis/map/settings_repository.h>
 #include <aowis/network/wireguard_client.h>
 
 #include <QBuffer>
@@ -117,7 +118,7 @@ protected:
                 type = QByteArrayLiteral("application/json");
                 body = this->catalog;
             }
-            else if (head.section(' ', 1, 1).endsWith(".png"))
+            else if (head.split(' ').value(1).endsWith(".png"))
             {
                 type = QByteArrayLiteral("image/png");
                 body = this->tile;
