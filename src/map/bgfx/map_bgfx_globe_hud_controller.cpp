@@ -1,5 +1,7 @@
 #include "map/bgfx/map_bgfx_globe_hud_controller.h"
 
+#include "config/shortcut_registry.h"
+
 #include "config/unit_profile_manager.h"
 #include "map/core/map_model.h"
 #include "map/core/map_scale_distance.h"
@@ -36,6 +38,26 @@ int tiltMaximumDeg()
 {
     return qRound(MapModel::MaxViewGlobePitchDeg);
 }
+
+// Free look: the same slider is the view angle at the eye, straight down
+// (90) to straight up (-90), MapModel::viewGlobeLookDepressionDeg().
+int lookMaximumDeg()
+{
+    return qRound(MapModel::MaxViewGlobePitchDeg);
+}
+
+int lookMinimumDeg()
+{
+    return -lookMaximumDeg();
+}
+
+bool freeLook(const MapModel &map_model)
+{
+    return map_model.viewGlobeCameraMode() == MapGlobeCameraMode::FreeLook;
+}
+
+// Right-click reset of the look slider: straight ahead.
+constexpr double LookResetDepressionDeg = 0.0;
 
 int exaggerationMinimumStep()
 {
@@ -106,7 +128,10 @@ MapBgfxGlobeHudController::MapBgfxGlobeHudController(MapModel *map_model, QObjec
                     this->map_model->setView3dNetworkGroundOffsetM(number);
                     break;
                 case MapBgfxHud::TiltSlider:
-                    this->map_model->setViewGlobePitchDeg(number);
+                    if (freeLook(*this->map_model))
+                        this->map_model->setViewGlobeLookDepressionDeg(number);
+                    else
+                        this->map_model->setViewGlobePitchDeg(number);
                     break;
                 case MapBgfxHud::DistanceSlider:
                     this->map_model->setViewGlobeDistanceM(number);
@@ -234,7 +259,11 @@ void MapBgfxGlobeHudController::setSliderFraction(int index, double fraction)
                 double(sliderStep(fraction, 0, NetworkGroundOffsetSliderSteps)) / 10.0);
             break;
         case MapBgfxHud::TiltSlider:
-            this->map_model->setViewGlobePitchDeg(double(sliderStep(fraction, tiltMinimumDeg(), tiltMaximumDeg())));
+            if (freeLook(*this->map_model))
+                this->map_model->setViewGlobeLookDepressionDeg(
+                    double(sliderStep(fraction, lookMinimumDeg(), lookMaximumDeg())));
+            else
+                this->map_model->setViewGlobePitchDeg(double(sliderStep(fraction, tiltMinimumDeg(), tiltMaximumDeg())));
             break;
         case MapBgfxHud::DistanceSlider:
             this->map_model->setViewGlobeDistanceM(distanceMeters(sliderStep(fraction, 0, CameraDistanceSliderSteps)));
@@ -258,8 +287,16 @@ void MapBgfxGlobeHudController::resetSlider(int index)
             animation->setEndValue(MapModel::MinView3dNetworkGroundOffsetM);
             break;
         case MapBgfxHud::TiltSlider:
-            animation->setStartValue(this->map_model->viewGlobePitchDeg());
-            animation->setEndValue(MapModel::DefaultViewGlobePitchDeg);
+            if (freeLook(*this->map_model))
+            {
+                animation->setStartValue(this->map_model->viewGlobeLookDepressionDeg());
+                animation->setEndValue(LookResetDepressionDeg);
+            }
+            else
+            {
+                animation->setStartValue(this->map_model->viewGlobePitchDeg());
+                animation->setEndValue(MapModel::DefaultViewGlobePitchDeg);
+            }
             break;
         case MapBgfxHud::DistanceSlider:
             animation->setStartValue(this->map_model->viewGlobeDistanceM());
@@ -385,17 +422,39 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
                                     "Right-click: animate back to %1")
                          .arg(offset.minimum_label, offset.maximum_label);
 
+    // The tilt slider follows the camera mode: orbit tilt 0..90 (the
+    // orbit's lock), or in free look the view angle at the eye from straight
+    // down to straight up.
     MapBgfxHud::GlobeSliderState &tilt = globe->sliders[MapBgfxHud::TiltSlider];
-    const int pitch_deg = qRound(map_model.viewGlobePitchDeg());
-    tilt.fraction = stepFraction(double(pitch_deg), tiltMinimumDeg(), tiltMaximumDeg());
-    tilt.maximum_label = QStringLiteral("%1°").arg(tiltMaximumDeg());
-    tilt.minimum_label = QStringLiteral("%1°").arg(tiltMinimumDeg());
-    tilt.value_label = QStringLiteral("%1°").arg(pitch_deg);
-    tilt.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
-                                "Camera tilt\n%1° = near horizon\n%2° = straight down\n"
-                                  "Right-click: animate back to the default tilt")
-                       .arg(tiltMinimumDeg())
-                       .arg(tiltMaximumDeg());
+    if (freeLook(map_model))
+    {
+        const int depression_deg = qRound(map_model.viewGlobeLookDepressionDeg());
+        tilt.fraction = stepFraction(double(depression_deg), lookMinimumDeg(), lookMaximumDeg());
+        tilt.maximum_label = QStringLiteral("%1°").arg(lookMaximumDeg());
+        tilt.minimum_label = QStringLiteral("%1°").arg(lookMinimumDeg());
+        tilt.value_label = QStringLiteral("%1°").arg(depression_deg);
+        tilt.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                    "Free look: view direction\n%1° = straight down\n0° = straight ahead\n"
+                                      "%2° = straight up\nRight-click: animate back to straight ahead\n"
+                                      "An orbit (%3 or middle mouse button) returns to the 0° to 90° tilt")
+                           .arg(lookMaximumDeg())
+                           .arg(lookMinimumDeg())
+                           .arg(guiHoldModifierText(
+                               guiShortcutRegistry().holdModifier(GuiHoldModifierId::GlobeOrbit)));
+    }
+    else
+    {
+        const int pitch_deg = qRound(map_model.viewGlobePitchDeg());
+        tilt.fraction = stepFraction(double(pitch_deg), tiltMinimumDeg(), tiltMaximumDeg());
+        tilt.maximum_label = QStringLiteral("%1°").arg(tiltMaximumDeg());
+        tilt.minimum_label = QStringLiteral("%1°").arg(tiltMinimumDeg());
+        tilt.value_label = QStringLiteral("%1°").arg(pitch_deg);
+        tilt.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
+                                    "Camera tilt\n%1° = near horizon\n%2° = straight down\n"
+                                      "Right-click: animate back to the default tilt")
+                           .arg(tiltMinimumDeg())
+                           .arg(tiltMaximumDeg());
+    }
 
     MapBgfxHud::GlobeSliderState &distance = globe->sliders[MapBgfxHud::DistanceSlider];
     const double distance_m = map_model.viewGlobeDistanceM();
@@ -427,7 +486,7 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
     globe->scale = MapBgfxHud::ScaleBar();
     const double orbit_distance_m = std::max(MapModel::MinViewGlobeDistanceM, distance_m);
     const double pitch_rad = qDegreesToRadians(
-        std::clamp(map_model.viewGlobePitchDeg(), MapModel::MinViewGlobePitchDeg, MapModel::MaxViewGlobePitchDeg));
+        std::clamp(map_model.viewGlobePitchDeg(), map_model.viewGlobeMinPitchDeg(), MapModel::MaxViewGlobePitchDeg));
     const double horizontal_m = orbit_distance_m * std::cos(pitch_rad);
     const double vertical_m = orbit_distance_m * std::sin(pitch_rad) + map_model.viewGlobeCameraCollisionLiftM();
     const double focus_distance_m = std::hypot(horizontal_m, vertical_m);

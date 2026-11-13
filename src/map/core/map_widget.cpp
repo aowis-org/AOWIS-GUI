@@ -1156,6 +1156,14 @@ void MapWidget::beginView3dOrbit(
     this->view_3d_orbit_input = input;
     if (input != View3dOrbitInput::HudJoystick)
         this->m_model->beginView3dRotateInteraction();
+    // The gesture picks the globe camera mode (after the crosshair anchor
+    // above): an orbit keeps its 0..90 degree tilt lock (a free-look view
+    // above the horizon tilts down to it), the look key turns freely from
+    // straight down to straight up. The HUD tilt slider follows the mode.
+    if (input == View3dOrbitInput::OrbitModifier || input == View3dOrbitInput::MiddleMouse)
+        this->m_model->setViewGlobeCameraMode(MapGlobeCameraMode::Orbit);
+    else if (input == View3dOrbitInput::LookModifier)
+        this->m_model->setViewGlobeCameraMode(MapGlobeCameraMode::FreeLook);
     // HUD hint (MapBgfxHud::NavigationGesture values).
     if (input == View3dOrbitInput::OrbitModifier)
         emit navigationGestureChanged(1);

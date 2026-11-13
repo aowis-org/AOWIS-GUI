@@ -2295,6 +2295,20 @@ Klicken: HEAD anzeigen; Doppelklicken: Netzwerk öffnen</translation>
   <context>
     <name>MapBgfxGlobeHudController</name>
     <message>
+      <source>Free look: view direction
+%1° = straight down
+0° = straight ahead
+%2° = straight up
+Right-click: animate back to straight ahead
+An orbit (%3 or middle mouse button) returns to the 0° to 90° tilt</source>
+      <translation>Freies Umsehen: Blickrichtung
+%1° = senkrecht nach unten
+0° = geradeaus
+%2° = senkrecht nach oben
+Rechtsklick: animiert zurück auf geradeaus
+Ein Kreisen (%3 oder mittlere Maustaste) kehrt zur Neigung 0° bis 90° zurück</translation>
+    </message>
+    <message>
       <source>Water network height above its real model elevation
 %1 = true elevation
 Up to %2 render-only lift to avoid terrain z-fighting
