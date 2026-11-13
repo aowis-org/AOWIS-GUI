@@ -3,6 +3,86 @@
   <context>
     <name>MapBgfxHud</name>
     <message>
+      <source>Mouse and keyboard controls of the 3D map</source>
+      <translation>Maus- und Tastatursteuerung der 3D-Karte</translation>
+    </message>
+    <message>
+      <source>Left drag</source>
+      <translation>Links ziehen</translation>
+    </message>
+    <message>
+      <source>Pan the map</source>
+      <translation>Karte verschieben</translation>
+    </message>
+    <message>
+      <source>Mouse wheel</source>
+      <translation>Mausrad</translation>
+    </message>
+    <message>
+      <source>Zoom to the crosshair</source>
+      <translation>Zum Fadenkreuz zoomen</translation>
+    </message>
+    <message>
+      <source>Hold %1, move mouse</source>
+      <translation>%1 halten, Maus bewegen</translation>
+    </message>
+    <message>
+      <source>Orbit around the terrain at the crosshair</source>
+      <translation>Um das Gelände am Fadenkreuz kreisen</translation>
+    </message>
+    <message>
+      <source>Middle drag</source>
+      <translation>Mitte ziehen</translation>
+    </message>
+    <message>
+      <source>Look around from the camera</source>
+      <translation>Von der Kamera aus umsehen</translation>
+    </message>
+    <message>
+      <source>Pan</source>
+      <translation>Verschieben</translation>
+    </message>
+    <message>
+      <source>Shift + pan keys</source>
+      <translation>Umschalt + Verschiebetasten</translation>
+    </message>
+    <message>
+      <source>Pan faster</source>
+      <translation>Schneller verschieben</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>Zoomen</translation>
+    </message>
+    <message>
+      <source>3D map controls</source>
+      <translation>Steuerung der 3D-Karte</translation>
+    </message>
+    <message>
+      <source>Keys: Settings &gt; Keyboard Shortcuts</source>
+      <translation>Tasten: Einstellungen &gt; Tastenkürzel</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair</source>
+      <translation>Kreisen um das Gelände am Fadenkreuz</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release %1 to stop.</source>
+      <translation>Kreisen um das Gelände am Fadenkreuz. %1 loslassen zum Beenden.</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release the middle mouse button to stop.</source>
+      <translation>Kreisen um das Gelände am Fadenkreuz. Mittlere Maustaste loslassen zum Beenden.</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera</source>
+      <translation>Umsehen von der Kamera aus</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera. Release %1 to stop.</source>
+      <translation>Umsehen von der Kamera aus. %1 loslassen zum Beenden.</translation>
+    </message>
+    <message>
       <source>Map tiles</source>
       <translation>Kartenkacheln</translation>
     </message>

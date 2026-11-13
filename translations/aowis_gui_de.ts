@@ -2340,6 +2340,18 @@ Rechtsklick: zu 1,0× zurückkehren</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
+      <translation>Diese Taste halten und die Maus (ohne gedrückte Taste) über der 3D-Karte bewegen. Umschalt ist für schnelleres Verschieben per Tastatur reserviert.</translation>
+    </message>
+    <message>
+      <source>%1 reset to %2.</source>
+      <translation>%1 auf %2 zurückgesetzt.</translation>
+    </message>
+    <message>
+      <source>%1 set to %2.</source>
+      <translation>%1 auf %2 gesetzt.</translation>
+    </message>
+    <message>
       <source>Antialiasing</source>
       <translation>Kantenglättung</translation>
     </message>
@@ -5268,6 +5280,30 @@ Merge-Commit: Weitere Elternrevisionen sind unter Projekte sichtbar.</translatio
   </context>
   <context>
     <name>GuiShortcuts</name>
+    <message>
+      <source>Orbit around crosshair terrain (hold + move mouse)</source>
+      <translation>Um das Gelände am Fadenkreuz kreisen (halten + Maus bewegen)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera (hold + move mouse)</source>
+      <translation>Von der Kamera aus umsehen (halten + Maus bewegen)</translation>
+    </message>
+    <message>
+      <source>Globe Navigation (hold)</source>
+      <translation>Globusnavigation (halten)</translation>
+    </message>
+    <message>
+      <source>3D Map</source>
+      <translation>3D-Karte</translation>
+    </message>
+    <message>
+      <source>Orbit around crosshair terrain (drag)</source>
+      <translation>Um das Gelände am Fadenkreuz kreisen (ziehen)</translation>
+    </message>
+    <message>
+      <source>Middle mouse button</source>
+      <translation>Mittlere Maustaste</translation>
+    </message>
     <message>
       <source>Application</source>
       <translation>Anwendung</translation>
@@ -8402,6 +8438,14 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>This key cannot be used for a map gesture.</source>
+      <translation>Diese Taste kann nicht für eine Kartengeste verwendet werden.</translation>
+    </message>
+    <message>
+      <source>%1 is already used for &quot;%2&quot;.</source>
+      <translation>%1 wird bereits für „%2“ verwendet.</translation>
+    </message>
     <message>
       <source>Edit keyboard shortcut…</source>
       <translation>Tastenkürzel bearbeiten…</translation>

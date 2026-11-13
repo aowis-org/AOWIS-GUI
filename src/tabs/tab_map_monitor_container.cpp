@@ -629,6 +629,8 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
         // also the held keyboard pan keys.
         connect(this->map, &MapWidget::joystickChanged, surface,
                 [surface](QPointF deflection, bool active) { surface->setHudJoystick(deflection, active); });
+        connect(this->map, &MapWidget::navigationGestureChanged, surface,
+                [surface](int gesture) { surface->setHudNavigationGesture(gesture); });
         connect(this->map, &MapWidget::keyboardPanChanged, surface,
                 [surface](QPointF direction) { surface->setHudKeyboardPan(direction); });
         // Fullscreen shortcut, enabled while the surface presents frames and
@@ -1188,8 +1190,10 @@ void MapMonitorContainer::updateNetworkHover(
     // while the modifier covers the first event before that state changes.
     const bool orbit_view = this->map_model != nullptr
         && this->map_model->viewMode() == MapViewMode::Globe;
+    // The orbit and the free-look hold keys alike (configurable).
     const bool ctrl_orbit_requested = orbit_view
-        && modifiers.testFlag(Qt::ControlModifier);
+        && (modifiers.testFlag(guiShortcutRegistry().holdModifier(GuiHoldModifierId::GlobeOrbit))
+            || modifiers.testFlag(guiShortcutRegistry().holdModifier(GuiHoldModifierId::GlobeLook)));
     const bool camera_navigation_active = orbit_view
         && this->map_model->view3dNavigationState()
             == MapView3dNavigationState::Rotate;

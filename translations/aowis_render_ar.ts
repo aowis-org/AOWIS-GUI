@@ -3,6 +3,86 @@
   <context>
     <name>MapBgfxHud</name>
     <message>
+      <source>Mouse and keyboard controls of the 3D map</source>
+      <translation>عناصر التحكم بالفأرة ولوحة المفاتيح للخريطة ثلاثية الأبعاد</translation>
+    </message>
+    <message>
+      <source>Left drag</source>
+      <translation>سحب بالزر الأيسر</translation>
+    </message>
+    <message>
+      <source>Pan the map</source>
+      <translation>تحريك الخريطة</translation>
+    </message>
+    <message>
+      <source>Mouse wheel</source>
+      <translation>عجلة الفأرة</translation>
+    </message>
+    <message>
+      <source>Zoom to the crosshair</source>
+      <translation>التكبير نحو علامة التصويب</translation>
+    </message>
+    <message>
+      <source>Hold %1, move mouse</source>
+      <translation>اضغط مع الاستمرار على %1، وحرّك الفأرة</translation>
+    </message>
+    <message>
+      <source>Orbit around the terrain at the crosshair</source>
+      <translation>الدوران حول التضاريس عند علامة التصويب</translation>
+    </message>
+    <message>
+      <source>Middle drag</source>
+      <translation>سحب بالزر الأوسط</translation>
+    </message>
+    <message>
+      <source>Look around from the camera</source>
+      <translation>النظر حولك من الكاميرا</translation>
+    </message>
+    <message>
+      <source>Pan</source>
+      <translation>تحريك</translation>
+    </message>
+    <message>
+      <source>Shift + pan keys</source>
+      <translation>Shift + مفاتيح التحريك</translation>
+    </message>
+    <message>
+      <source>Pan faster</source>
+      <translation>تحريك أسرع</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>تكبير/تصغير</translation>
+    </message>
+    <message>
+      <source>3D map controls</source>
+      <translation>عناصر التحكم في الخريطة ثلاثية الأبعاد</translation>
+    </message>
+    <message>
+      <source>Keys: Settings &gt; Keyboard Shortcuts</source>
+      <translation>المفاتيح: الإعدادات &gt; اختصارات لوحة المفاتيح</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair</source>
+      <translation>جارٍ الدوران حول التضاريس عند علامة التصويب</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release %1 to stop.</source>
+      <translation>جارٍ الدوران حول التضاريس عند علامة التصويب. حرّر %1 للإيقاف.</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release the middle mouse button to stop.</source>
+      <translation>جارٍ الدوران حول التضاريس عند علامة التصويب. حرّر زر الفأرة الأوسط للإيقاف.</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera</source>
+      <translation>جارٍ النظر حولك من الكاميرا</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera. Release %1 to stop.</source>
+      <translation>جارٍ النظر حولك من الكاميرا. حرّر %1 للإيقاف.</translation>
+    </message>
+    <message>
       <source>Map tiles</source>
       <translation>بلاطات الخريطة</translation>
     </message>

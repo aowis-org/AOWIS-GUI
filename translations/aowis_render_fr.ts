@@ -3,6 +3,86 @@
   <context>
     <name>MapBgfxHud</name>
     <message>
+      <source>Mouse and keyboard controls of the 3D map</source>
+      <translation>Commandes souris et clavier de la carte 3D</translation>
+    </message>
+    <message>
+      <source>Left drag</source>
+      <translation>Glisser (gauche)</translation>
+    </message>
+    <message>
+      <source>Pan the map</source>
+      <translation>Déplacer la carte</translation>
+    </message>
+    <message>
+      <source>Mouse wheel</source>
+      <translation>Molette</translation>
+    </message>
+    <message>
+      <source>Zoom to the crosshair</source>
+      <translation>Zoomer vers le réticule</translation>
+    </message>
+    <message>
+      <source>Hold %1, move mouse</source>
+      <translation>Maintenir %1, déplacer la souris</translation>
+    </message>
+    <message>
+      <source>Orbit around the terrain at the crosshair</source>
+      <translation>Orbiter autour du terrain sous le réticule</translation>
+    </message>
+    <message>
+      <source>Middle drag</source>
+      <translation>Glisser (central)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera</source>
+      <translation>Regarder autour depuis la caméra</translation>
+    </message>
+    <message>
+      <source>Pan</source>
+      <translation>Déplacer</translation>
+    </message>
+    <message>
+      <source>Shift + pan keys</source>
+      <translation>Maj + touches de déplacement</translation>
+    </message>
+    <message>
+      <source>Pan faster</source>
+      <translation>Déplacer plus vite</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>Zoomer</translation>
+    </message>
+    <message>
+      <source>3D map controls</source>
+      <translation>Commandes de la carte 3D</translation>
+    </message>
+    <message>
+      <source>Keys: Settings &gt; Keyboard Shortcuts</source>
+      <translation>Touches : Paramètres &gt; Raccourcis clavier</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair</source>
+      <translation>Orbite autour du terrain sous le réticule</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release %1 to stop.</source>
+      <translation>Orbite autour du terrain sous le réticule. Relâchez %1 pour arrêter.</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release the middle mouse button to stop.</source>
+      <translation>Orbite autour du terrain sous le réticule. Relâchez le bouton central pour arrêter.</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera</source>
+      <translation>Regard autour depuis la caméra</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera. Release %1 to stop.</source>
+      <translation>Regard autour depuis la caméra. Relâchez %1 pour arrêter.</translation>
+    </message>
+    <message>
       <source>Map tiles</source>
       <translation>Tuiles de carte</translation>
     </message>

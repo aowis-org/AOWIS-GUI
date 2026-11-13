@@ -3,6 +3,86 @@
   <context>
     <name>MapBgfxHud</name>
     <message>
+      <source>Mouse and keyboard controls of the 3D map</source>
+      <translation>Controles de ratón y teclado del mapa 3D</translation>
+    </message>
+    <message>
+      <source>Left drag</source>
+      <translation>Arrastrar (izquierdo)</translation>
+    </message>
+    <message>
+      <source>Pan the map</source>
+      <translation>Desplazar el mapa</translation>
+    </message>
+    <message>
+      <source>Mouse wheel</source>
+      <translation>Rueda del ratón</translation>
+    </message>
+    <message>
+      <source>Zoom to the crosshair</source>
+      <translation>Hacer zoom hacia la cruz</translation>
+    </message>
+    <message>
+      <source>Hold %1, move mouse</source>
+      <translation>Mantener %1, mover el ratón</translation>
+    </message>
+    <message>
+      <source>Orbit around the terrain at the crosshair</source>
+      <translation>Orbitar alrededor del terreno en la cruz</translation>
+    </message>
+    <message>
+      <source>Middle drag</source>
+      <translation>Arrastrar (central)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera</source>
+      <translation>Mirar alrededor desde la cámara</translation>
+    </message>
+    <message>
+      <source>Pan</source>
+      <translation>Desplazar</translation>
+    </message>
+    <message>
+      <source>Shift + pan keys</source>
+      <translation>Mayús + teclas de desplazamiento</translation>
+    </message>
+    <message>
+      <source>Pan faster</source>
+      <translation>Desplazar más rápido</translation>
+    </message>
+    <message>
+      <source>Zoom</source>
+      <translation>Zoom</translation>
+    </message>
+    <message>
+      <source>3D map controls</source>
+      <translation>Controles del mapa 3D</translation>
+    </message>
+    <message>
+      <source>Keys: Settings &gt; Keyboard Shortcuts</source>
+      <translation>Teclas: Configuración &gt; Atajos de teclado</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair</source>
+      <translation>Orbitando alrededor del terreno en la cruz</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release %1 to stop.</source>
+      <translation>Orbitando alrededor del terreno en la cruz. Suelte %1 para detener.</translation>
+    </message>
+    <message>
+      <source>Orbiting around the terrain at the crosshair. Release the middle mouse button to stop.</source>
+      <translation>Orbitando alrededor del terreno en la cruz. Suelte el botón central para detener.</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera</source>
+      <translation>Mirando alrededor desde la cámara</translation>
+    </message>
+    <message>
+      <source>Looking around from the camera. Release %1 to stop.</source>
+      <translation>Mirando alrededor desde la cámara. Suelte %1 para detener.</translation>
+    </message>
+    <message>
       <source>Map tiles</source>
       <translation>Teselas del mapa</translation>
     </message>

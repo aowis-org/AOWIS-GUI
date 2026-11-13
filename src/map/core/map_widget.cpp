@@ -803,7 +803,10 @@ bool MapWidget::handleKeyPressEvent(QKeyEvent *event)
         return false;
 
 #ifndef Q_OS_WASM
-    if (event->key() == Qt::Key_Control
+    const GuiShortcutRegistry &gesture_keys = guiShortcutRegistry();
+    const Qt::Key orbit_key = gesture_keys.holdModifierKey(GuiHoldModifierId::GlobeOrbit);
+    const Qt::Key look_key = gesture_keys.holdModifierKey(GuiHoldModifierId::GlobeLook);
+    if ((event->key() == orbit_key || event->key() == look_key)
         && !event->isAutoRepeat()
         && this->m_model->viewMode() == MapViewMode::Globe
         && !this->view_3d_orbit_active
@@ -813,8 +816,13 @@ bool MapWidget::handleKeyPressEvent(QKeyEvent *event)
         const QPoint local_position = mapFromGlobal(global_position);
         if (rect().contains(local_position))
         {
+            // The orbit key (default Ctrl) orbits around the terrain under
+            // the crosshair, the look key (default Alt) looks around from
+            // the eye (FPS-style, no gravity).
             beginView3dOrbit(
-                local_position, global_position, View3dOrbitInput::CtrlMouse);
+                local_position, global_position,
+                event->key() == look_key ? View3dOrbitInput::LookModifier
+                                         : View3dOrbitInput::OrbitModifier);
             this->pan_velocity = QPointF();
             this->mouse_pan_inertia_active = false;
             stopPanAnimationIfIdle();
@@ -880,9 +888,11 @@ bool MapWidget::handleKeyReleaseEvent(QKeyEvent *event)
     if (!event)
         return false;
 
-    if (event->key() == Qt::Key_Control
-        && this->view_3d_orbit_active
-        && this->view_3d_orbit_input == View3dOrbitInput::CtrlMouse)
+    if (this->view_3d_orbit_active
+        && ((event->key() == guiShortcutRegistry().holdModifierKey(GuiHoldModifierId::GlobeOrbit)
+             && this->view_3d_orbit_input == View3dOrbitInput::OrbitModifier)
+            || (event->key() == guiShortcutRegistry().holdModifierKey(GuiHoldModifierId::GlobeLook)
+                && this->view_3d_orbit_input == View3dOrbitInput::LookModifier)))
     {
         if (!event->isAutoRepeat())
             endView3dOrbit();
@@ -971,7 +981,8 @@ void MapWidget::cancelNavigationInput()
 void MapWidget::clearKeyboardPanInput()
 {
     if (this->view_3d_orbit_active
-        && this->view_3d_orbit_input == View3dOrbitInput::CtrlMouse)
+        && (this->view_3d_orbit_input == View3dOrbitInput::OrbitModifier
+            || this->view_3d_orbit_input == View3dOrbitInput::LookModifier))
     {
         endView3dOrbit();
     }
@@ -1145,6 +1156,13 @@ void MapWidget::beginView3dOrbit(
     this->view_3d_orbit_input = input;
     if (input != View3dOrbitInput::HudJoystick)
         this->m_model->beginView3dRotateInteraction();
+    // HUD hint (MapBgfxHud::NavigationGesture values).
+    if (input == View3dOrbitInput::OrbitModifier)
+        emit navigationGestureChanged(1);
+    else if (input == View3dOrbitInput::MiddleMouse)
+        emit navigationGestureChanged(2);
+    else if (input == View3dOrbitInput::LookModifier)
+        emit navigationGestureChanged(3);
 #ifdef Q_OS_WASM
     this->view_3d_orbit_last_position = position;
 #else
@@ -1245,6 +1263,7 @@ void MapWidget::endView3dOrbit(bool restore_cursor_position)
     else
     {
         this->m_model->endView3dRotateInteraction();
+        emit navigationGestureChanged(0);
     }
 #ifndef Q_OS_WASM
     if (qApp != nullptr)
@@ -1286,7 +1305,11 @@ void MapWidget::applyView3dOrbitPointerDelta(const QPoint &delta)
         return;
     }
 
-    if (this->m_model->viewMode() == MapViewMode::Globe)
+    if (this->m_model->viewMode() != MapViewMode::Globe)
+        return;
+    if (this->view_3d_orbit_input == View3dOrbitInput::LookModifier)
+        this->m_model->lookViewGlobeByPointerDelta(delta);
+    else
         this->m_model->orbitViewGlobeByPointerDelta(delta, true);
 }
 
@@ -1339,12 +1362,29 @@ bool MapWidget::eventFilter(QObject *watched, QEvent *event)
             endView3dOrbit();
             return true;
         }
-        else if (this->view_3d_orbit_input == View3dOrbitInput::CtrlMouse
+        else if (this->view_3d_orbit_input == View3dOrbitInput::OrbitModifier
                  && event->type() == QEvent::KeyRelease)
         {
             QKeyEvent *key_event = static_cast<QKeyEvent *>(event);
-            if (key_event->key() == Qt::Key_Control && !key_event->isAutoRepeat())
+            if (key_event->key() == guiShortcutRegistry().holdModifierKey(GuiHoldModifierId::GlobeOrbit)
+                && !key_event->isAutoRepeat())
                 endView3dOrbit();
+        }
+        else if (this->view_3d_orbit_input == View3dOrbitInput::LookModifier
+                 && event->type() == QEvent::KeyRelease)
+        {
+            QKeyEvent *key_event = static_cast<QKeyEvent *>(event);
+            if (key_event->key() == guiShortcutRegistry().holdModifierKey(GuiHoldModifierId::GlobeLook)
+                && !key_event->isAutoRepeat())
+            {
+                endView3dOrbit();
+                // Swallow the release application-wide (this filter sits on
+                // qApp while the gesture runs): a bare Alt press + release
+                // would otherwise select the window's menu bar on Windows
+                // (QMenuBar's Alt navigation acts on the release) and take
+                // keyboard focus away from the map after every free look.
+                return true;
+            }
         }
     }
 #else
@@ -1473,17 +1513,31 @@ bool MapWidget::handleMouseMoveEvent(QMouseEvent *event)
     const QPoint position = event->position().toPoint();
     this->updatePointerCoordinates(position);
 
-    const bool ctrl_mouse_orbit_requested =
+    // The configured hold keys (settings: Globe Navigation (hold)).
+    const Qt::KeyboardModifier orbit_modifier =
+        guiShortcutRegistry().holdModifier(GuiHoldModifierId::GlobeOrbit);
+    const Qt::KeyboardModifier look_modifier =
+        guiShortcutRegistry().holdModifier(GuiHoldModifierId::GlobeLook);
+    const bool orbit_modifier_requested =
         this->m_model->viewMode() == MapViewMode::Globe
-        && event->modifiers().testFlag(Qt::ControlModifier)
+        && orbit_modifier != Qt::NoModifier
+        && event->modifiers().testFlag(orbit_modifier)
+        && event->buttons() == Qt::NoButton;
+    // Orbit wins when both keys are held: orbit, not look.
+    const bool look_modifier_requested =
+        this->m_model->viewMode() == MapViewMode::Globe
+        && look_modifier != Qt::NoModifier
+        && event->modifiers().testFlag(look_modifier)
+        && !orbit_modifier_requested
         && event->buttons() == Qt::NoButton;
 
-    if (!this->view_3d_orbit_active && ctrl_mouse_orbit_requested)
+    if (!this->view_3d_orbit_active && (orbit_modifier_requested || look_modifier_requested))
     {
         beginView3dOrbit(
             event->position().toPoint(),
             event->globalPosition().toPoint(),
-            View3dOrbitInput::CtrlMouse);
+            orbit_modifier_requested ? View3dOrbitInput::OrbitModifier
+                                       : View3dOrbitInput::LookModifier);
         this->pan_velocity = QPointF();
         this->mouse_pan_inertia_active = false;
         stopPanAnimationIfIdle();
@@ -1496,8 +1550,10 @@ bool MapWidget::handleMouseMoveEvent(QMouseEvent *event)
         bool orbit_input_still_active = false;
         if (this->view_3d_orbit_input == View3dOrbitInput::MiddleMouse)
             orbit_input_still_active = event->buttons().testFlag(Qt::MiddleButton);
-        else if (this->view_3d_orbit_input == View3dOrbitInput::CtrlMouse)
-            orbit_input_still_active = ctrl_mouse_orbit_requested;
+        else if (this->view_3d_orbit_input == View3dOrbitInput::OrbitModifier)
+            orbit_input_still_active = orbit_modifier_requested;
+        else if (this->view_3d_orbit_input == View3dOrbitInput::LookModifier)
+            orbit_input_still_active = look_modifier_requested;
         else if (this->view_3d_orbit_input == View3dOrbitInput::HudJoystick)
             orbit_input_still_active = event->buttons().testFlag(Qt::LeftButton);
 

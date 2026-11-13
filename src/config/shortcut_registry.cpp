@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include "config/gui_preferences.h"
 
+#include <QCoreApplication>
 #include <QJsonObject>
 #include <QWidget>
 
@@ -214,6 +215,22 @@ QVector<GuiShortcutDefinition> createDefinitions()
 
     return definitions;
 }
+
+QVector<GuiHoldModifierDefinition> createHoldModifierDefinitions()
+{
+    // QT_TRANSLATE_NOOP: translated in context GuiShortcuts by the settings
+    // page like the shortcut names.
+    QVector<GuiHoldModifierDefinition> definitions;
+    definitions.append({GuiHoldModifierId::GlobeOrbit, QStringLiteral("globe_orbit_modifier"),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "Orbit around crosshair terrain (hold + move mouse)")),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "Globe Navigation (hold)")),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "3D Map")), Qt::ControlModifier});
+    definitions.append({GuiHoldModifierId::GlobeLook, QStringLiteral("globe_look_modifier"),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "Look around from the camera (hold + move mouse)")),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "Globe Navigation (hold)")),
+                        QString::fromLatin1(QT_TRANSLATE_NOOP("GuiShortcuts", "3D Map")), Qt::AltModifier});
+    return definitions;
+}
 }
 
 GuiShortcutRegistry::GuiShortcutRegistry(QObject *parent)
@@ -224,6 +241,167 @@ GuiShortcutRegistry::GuiShortcutRegistry(QObject *parent)
     const GuiShortcutConfiguration &configured = guiConfiguration().shortcuts;
     for (const GuiShortcutDefinition &definition : this->shortcut_definitions)
         this->shortcut_values.append(configuredShortcut(configured, definition.id));
+
+    // Hold modifiers live in the same preferences group; a missing, unknown
+    // or clashing stored value falls back to the default.
+    this->hold_modifier_definitions = createHoldModifierDefinitions();
+    const QJsonObject stored = GuiPreferences::group(guiShortcutPreferenceGroup());
+    for (const GuiHoldModifierDefinition &definition : this->hold_modifier_definitions)
+    {
+        const Qt::KeyboardModifier modifier =
+            guiHoldModifierFromText(stored.value(definition.config_key).toString());
+        const bool allowed = holdModifierChoices().contains(modifier)
+            && !this->hold_modifier_values.contains(modifier);
+        this->hold_modifier_values.append(allowed ? modifier : definition.default_modifier);
+    }
+    // Two stored defaults may still clash after a fallback: keep the first.
+    for (int index = 0; index < this->hold_modifier_values.size(); ++index)
+    {
+        for (int other = 0; other < index; ++other)
+        {
+            if (this->hold_modifier_values.at(other) == this->hold_modifier_values.at(index))
+            {
+                for (const Qt::KeyboardModifier choice : holdModifierChoices())
+                {
+                    if (!this->hold_modifier_values.contains(choice))
+                    {
+                        this->hold_modifier_values[index] = choice;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+const QVector<GuiHoldModifierDefinition> &GuiShortcutRegistry::holdModifierDefinitions() const
+{
+    return this->hold_modifier_definitions;
+}
+
+const GuiHoldModifierDefinition *GuiShortcutRegistry::holdModifierDefinition(GuiHoldModifierId id) const
+{
+    const int index = indexForHoldModifier(id);
+    if (index < 0)
+        return nullptr;
+    return &this->hold_modifier_definitions.at(index);
+}
+
+QVector<Qt::KeyboardModifier> GuiShortcutRegistry::holdModifierChoices()
+{
+    // Shift is the faster keyboard pan modifier, never a gesture key.
+    return {Qt::ControlModifier, Qt::AltModifier, Qt::MetaModifier};
+}
+
+Qt::KeyboardModifier GuiShortcutRegistry::holdModifier(GuiHoldModifierId id) const
+{
+    const int index = indexForHoldModifier(id);
+    if (index < 0)
+        return Qt::NoModifier;
+    return this->hold_modifier_values.at(index);
+}
+
+Qt::Key GuiShortcutRegistry::holdModifierKey(GuiHoldModifierId id) const
+{
+    switch (holdModifier(id))
+    {
+        case Qt::ControlModifier:
+            return Qt::Key_Control;
+        case Qt::AltModifier:
+            return Qt::Key_Alt;
+        case Qt::MetaModifier:
+            return Qt::Key_Meta;
+        default:
+            break;
+    }
+    return Qt::Key_unknown;
+}
+
+QString GuiShortcutRegistry::holdModifierConflictDisplayName(GuiHoldModifierId id,
+                                                             Qt::KeyboardModifier modifier) const
+{
+    for (int index = 0; index < this->hold_modifier_definitions.size(); ++index)
+    {
+        const GuiHoldModifierDefinition &definition = this->hold_modifier_definitions.at(index);
+        if (definition.id != id && this->hold_modifier_values.at(index) == modifier)
+            return definition.display_name;
+    }
+    return QString();
+}
+
+bool GuiShortcutRegistry::setHoldModifier(GuiHoldModifierId id, Qt::KeyboardModifier modifier,
+                                          QString *error_message)
+{
+    const int index = indexForHoldModifier(id);
+    if (index < 0 || !holdModifierChoices().contains(modifier))
+    {
+        if (error_message != nullptr)
+            *error_message = tr("This key cannot be used for a map gesture.");
+        return false;
+    }
+    const QString conflict = holdModifierConflictDisplayName(id, modifier);
+    if (!conflict.isEmpty())
+    {
+        if (error_message != nullptr)
+            *error_message = tr("%1 is already used for \"%2\".")
+                                 .arg(guiHoldModifierText(modifier),
+                                      QCoreApplication::translate("GuiShortcuts",
+                                                                  conflict.toUtf8().constData()));
+        return false;
+    }
+    if (this->hold_modifier_values.at(index) == modifier)
+        return true;
+    const GuiHoldModifierDefinition &definition = this->hold_modifier_definitions.at(index);
+    if (!GuiPreferences::update(guiShortcutPreferenceGroup(),
+                                QJsonObject{{definition.config_key, guiHoldModifierText(modifier)}}))
+    {
+        if (error_message != nullptr)
+            *error_message = tr("Failed to save the keyboard shortcut configuration.");
+        return false;
+    }
+    this->hold_modifier_values[index] = modifier;
+    emit holdModifierChanged(id);
+    return true;
+}
+
+bool GuiShortcutRegistry::resetHoldModifier(GuiHoldModifierId id, QString *error_message)
+{
+    const GuiHoldModifierDefinition *definition = holdModifierDefinition(id);
+    if (definition == nullptr)
+        return false;
+    // The other gesture may hold this default now: give it the other's
+    // default back first (defaults never clash).
+    const QString conflict = holdModifierConflictDisplayName(id, definition->default_modifier);
+    if (!conflict.isEmpty())
+    {
+        for (const GuiHoldModifierDefinition &other : this->hold_modifier_definitions)
+        {
+            if (other.id != id && holdModifier(other.id) == definition->default_modifier)
+            {
+                // Temporarily free the key: a third choice, then the default.
+                for (const Qt::KeyboardModifier choice : holdModifierChoices())
+                {
+                    if (choice != definition->default_modifier && choice != holdModifier(id))
+                    {
+                        if (!setHoldModifier(other.id, choice, error_message))
+                            return false;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    return setHoldModifier(id, definition->default_modifier, error_message);
+}
+
+int GuiShortcutRegistry::indexForHoldModifier(GuiHoldModifierId id) const
+{
+    for (int index = 0; index < this->hold_modifier_definitions.size(); ++index)
+    {
+        if (this->hold_modifier_definitions.at(index).id == id)
+            return index;
+    }
+    return -1;
 }
 
 const QVector<GuiShortcutDefinition> &GuiShortcutRegistry::definitions() const
@@ -338,6 +516,23 @@ void GuiShortcutRegistry::resetAllShortcuts()
         }
     }
 
+    // Hold modifiers: write both defaults (they never clash with each other).
+    for (int index = 0; index < this->hold_modifier_definitions.size(); ++index)
+    {
+        const GuiHoldModifierDefinition &definition = this->hold_modifier_definitions.at(index);
+        if (this->hold_modifier_values.at(index) == definition.default_modifier)
+            continue;
+        if (!GuiPreferences::update(guiShortcutPreferenceGroup(),
+                                    QJsonObject{{definition.config_key,
+                                                 guiHoldModifierText(definition.default_modifier)}}))
+        {
+            continue;
+        }
+        this->hold_modifier_values[index] = definition.default_modifier;
+        emit holdModifierChanged(definition.id);
+        changed = true;
+    }
+
     if (changed)
         emit shortcutsReset();
 }
@@ -396,6 +591,40 @@ QString guiShortcutDisplayText(const QKeySequence &sequence)
     QString text = sequence.toString(QKeySequence::PortableText);
     text.replace(QStringLiteral("Meta+"), QStringLiteral("Win+"), Qt::CaseInsensitive);
     return text;
+}
+
+QString guiHoldModifierText(Qt::KeyboardModifier modifier)
+{
+    switch (modifier)
+    {
+        case Qt::ControlModifier:
+            return QStringLiteral("Ctrl");
+        case Qt::AltModifier:
+            return QStringLiteral("Alt");
+        case Qt::MetaModifier:
+            // Same naming as guiShortcutDisplayText().
+            return QStringLiteral("Win");
+        case Qt::ShiftModifier:
+            return QStringLiteral("Shift");
+        default:
+            break;
+    }
+    return QString();
+}
+
+Qt::KeyboardModifier guiHoldModifierFromText(const QString &text)
+{
+    const QString key = text.trimmed();
+    if (key.compare(QStringLiteral("Ctrl"), Qt::CaseInsensitive) == 0)
+        return Qt::ControlModifier;
+    if (key.compare(QStringLiteral("Alt"), Qt::CaseInsensitive) == 0)
+        return Qt::AltModifier;
+    if (key.compare(QStringLiteral("Win"), Qt::CaseInsensitive) == 0
+        || key.compare(QStringLiteral("Meta"), Qt::CaseInsensitive) == 0)
+        return Qt::MetaModifier;
+    if (key.compare(QStringLiteral("Shift"), Qt::CaseInsensitive) == 0)
+        return Qt::ShiftModifier;
+    return Qt::NoModifier;
 }
 
 QString guiShortcutPresentation(GuiShortcutId id)

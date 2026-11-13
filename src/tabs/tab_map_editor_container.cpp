@@ -431,6 +431,8 @@ void MapEditorContainer::setupBgfxEditor()
     // the held keyboard pan keys.
     connect(this->map, &MapWidget::joystickChanged, surface,
             [surface](QPointF deflection, bool active) { surface->setHudJoystick(deflection, active); });
+    connect(this->map, &MapWidget::navigationGestureChanged, surface,
+            [surface](int gesture) { surface->setHudNavigationGesture(gesture); });
     connect(this->map, &MapWidget::keyboardPanChanged, surface,
             [surface](QPointF direction) { surface->setHudKeyboardPan(direction); });
     // Keys stay on the canvas (editor keys, window shortcuts of the tools).

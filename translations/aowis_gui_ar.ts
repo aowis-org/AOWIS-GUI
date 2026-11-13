@@ -2360,6 +2360,18 @@ Right-click: animate back to 1.0×</source>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
+      <translation>اضغط مع الاستمرار على هذا المفتاح وحرّك الفأرة (دون الضغط على أي زر) فوق الخريطة ثلاثية الأبعاد. مفتاح Shift محجوز للتحريك الأسرع بلوحة المفاتيح.</translation>
+    </message>
+    <message>
+      <source>%1 reset to %2.</source>
+      <translation>تمت إعادة تعيين %1 إلى %2.</translation>
+    </message>
+    <message>
+      <source>%1 set to %2.</source>
+      <translation>تم تعيين %1 إلى %2.</translation>
+    </message>
+    <message>
       <source>Antialiasing</source>
       <translation>تنعيم الحواف</translation>
     </message>
@@ -5288,6 +5300,30 @@ Merge commit: additional parent history is visible in Projects.</source>
   </context>
   <context>
     <name>GuiShortcuts</name>
+    <message>
+      <source>Orbit around crosshair terrain (hold + move mouse)</source>
+      <translation>الدوران حول التضاريس عند علامة التصويب (اضغط مع الاستمرار + حرّك الفأرة)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera (hold + move mouse)</source>
+      <translation>النظر حولك من الكاميرا (اضغط مع الاستمرار + حرّك الفأرة)</translation>
+    </message>
+    <message>
+      <source>Globe Navigation (hold)</source>
+      <translation>التنقل على الكرة الأرضية (اضغط مع الاستمرار)</translation>
+    </message>
+    <message>
+      <source>3D Map</source>
+      <translation>الخريطة ثلاثية الأبعاد</translation>
+    </message>
+    <message>
+      <source>Orbit around crosshair terrain (drag)</source>
+      <translation>الدوران حول التضاريس عند علامة التصويب (سحب)</translation>
+    </message>
+    <message>
+      <source>Middle mouse button</source>
+      <translation>زر الفأرة الأوسط</translation>
+    </message>
     <message>
       <source>Application</source>
       <translation>التطبيق</translation>
@@ -8454,6 +8490,14 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>This key cannot be used for a map gesture.</source>
+      <translation>لا يمكن استخدام هذا المفتاح لإيماءة على الخريطة.</translation>
+    </message>
+    <message>
+      <source>%1 is already used for &quot;%2&quot;.</source>
+      <translation>%1 مستخدم بالفعل لـ &quot;%2&quot;.</translation>
+    </message>
     <message>
       <source>Edit keyboard shortcut…</source>
       <translation>تعديل اختصار لوحة المفاتيح…</translation>

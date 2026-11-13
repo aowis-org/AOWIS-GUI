@@ -146,6 +146,9 @@ public:
     void setHudFullscreen(bool active);
     // The pan joystick's knob (MapWidget::joystickChanged()).
     void setHudJoystick(const QPointF &deflection, bool active);
+    // The map's running camera gesture (MapWidget::navigationGestureChanged(),
+    // a MapBgfxHud::NavigationGesture as int): the HUD hint.
+    void setHudNavigationGesture(int gesture);
     // Held keyboard pan keys (MapWidget::keyboardPanChanged()): the
     // joystick's arrows glow.
     void setHudKeyboardPan(const QPointF &direction);
@@ -263,8 +266,13 @@ private:
 
     // The GUI's navigation shortcuts in the HUD tooltips.
     void updateHudNavigationKeys();
+    // First time the globe is shown on this installation: open the HUD's
+    // globe controls card for a few seconds (saved flag, never again).
+    void maybeShowGlobeHelpOnce();
 
     std::unique_ptr<MapBgfxMapView> view;
+    // The map model the surface was created with (not owned).
+    MapModel *map_model = nullptr;
     QPointer<QWidget> keyboard_focus_widget;
 };
 

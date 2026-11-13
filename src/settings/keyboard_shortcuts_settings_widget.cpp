@@ -6,6 +6,7 @@
 
 #include <QAbstractItemView>
 #include <QColor>
+#include <QComboBox>
 #include <QEvent>
 #include <QFont>
 #include <QHeaderView>
@@ -19,11 +20,30 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
+#include <iterator>
+#include <QCoreApplication>
+#include <QSignalBlocker>
 #include <QHBoxLayout>
 
 namespace
 {
 constexpr int shortcut_id_role = Qt::UserRole + 1;
+// Rows that are not key sequences: a hold modifier (its GuiHoldModifierId)
+// or a fixed mouse gesture (any value; shown, not editable).
+constexpr int hold_modifier_id_role = Qt::UserRole + 2;
+constexpr int fixed_gesture_role = Qt::UserRole + 3;
+
+// The globe's fixed mouse gestures, listed with the hold modifiers so the
+// page shows every globe navigation input (mouse buttons are not remappable).
+struct FixedGesture
+{
+    const char *action;
+    const char *input;
+};
+const FixedGesture fixed_gestures[] = {
+    {QT_TRANSLATE_NOOP("GuiShortcuts", "Orbit around crosshair terrain (drag)"),
+     QT_TRANSLATE_NOOP("GuiShortcuts", "Middle mouse button")},
+};
 
 QString normalizedSearchText(const QString &text)
 {
@@ -40,6 +60,13 @@ KeyboardShortcutsSettingsWidget::KeyboardShortcutsSettingsWidget(QWidget *parent
             this, [this](GuiShortcutId id)
     {
         refreshShortcutEditor(id);
+        refreshShortcutFilter();
+    });
+
+    connect(&guiShortcutRegistry(), &GuiShortcutRegistry::holdModifierChanged,
+            this, [this](GuiHoldModifierId id)
+    {
+        refreshHoldModifierEditor(id);
         refreshShortcutFilter();
     });
 
@@ -195,7 +222,103 @@ void KeyboardShortcutsSettingsWidget::buildShortcutSettings()
         });
     }
 
+    // Hold modifiers and the fixed mouse gestures of the globe.
+    for (const GuiHoldModifierDefinition &definition : guiShortcutRegistry().holdModifierDefinitions())
+    {
+        QTreeWidgetItem *category_item = category_items.value(definition.category, nullptr);
+        if (category_item == nullptr)
+        {
+            category_item = new QTreeWidgetItem(this->shortcut_tree);
+            QFont category_font = category_item->font(0);
+            category_font.setBold(true);
+            category_item->setFont(0, category_font);
+            category_item->setFirstColumnSpanned(true);
+            category_items.insert(definition.category, category_item);
+        }
+        QTreeWidgetItem *item = new QTreeWidgetItem(category_item);
+        item->setText(3, guiHoldModifierText(definition.default_modifier));
+        item->setData(0, hold_modifier_id_role, static_cast<int>(definition.id));
+        this->hold_modifier_items.insert(static_cast<int>(definition.id), item);
+
+        QComboBox *editor = new QComboBox(this->shortcut_tree);
+        for (const Qt::KeyboardModifier choice : GuiShortcutRegistry::holdModifierChoices())
+            editor->addItem(guiHoldModifierText(choice), static_cast<int>(choice));
+        LiveUiText::bind(editor, [editor] {
+            editor->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.")));
+        });
+        this->shortcut_tree->setItemWidget(item, 1, editor);
+        this->hold_modifier_editors.insert(static_cast<int>(definition.id), editor);
+        refreshHoldModifierEditor(definition.id);
+
+        QPushButton *reset_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Reset"), this->shortcut_tree);
+        LiveUiText::bind(reset_button, [reset_button, key = guiHoldModifierText(definition.default_modifier)] {
+            reset_button->setToolTip(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Reset to %1")).arg(key));
+        });
+        this->shortcut_tree->setItemWidget(item, 4, reset_button);
+
+        connect(editor, &QComboBox::activated, this,
+                [this, id = definition.id](int) { commitHoldModifierEditor(id); });
+        connect(reset_button, &QPushButton::clicked, this, [this, id = definition.id]
+        {
+            QString error_message;
+            if (!guiShortcutRegistry().resetHoldModifier(id, &error_message))
+            {
+                refreshHoldModifierEditor(id);
+                showStatus(error_message, true);
+                return;
+            }
+            refreshHoldModifierEditor(id);
+            const GuiHoldModifierDefinition *hold_definition =
+                guiShortcutRegistry().holdModifierDefinition(id);
+            if (hold_definition != nullptr)
+            {
+                showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 reset to %2."))
+                               .arg(QCoreApplication::translate("GuiShortcuts", hold_definition->display_name.toUtf8().constData()),
+                                    guiHoldModifierText(hold_definition->default_modifier)),
+                           false);
+            }
+        });
+    }
+    {
+        const GuiHoldModifierDefinition *first_hold =
+            guiShortcutRegistry().holdModifierDefinitions().isEmpty()
+            ? nullptr : &guiShortcutRegistry().holdModifierDefinitions().first();
+        QTreeWidgetItem *category_item = first_hold != nullptr
+            ? category_items.value(first_hold->category, nullptr) : nullptr;
+        if (category_item != nullptr)
+        {
+            // Texts are set (and retranslated) by the LiveUiText binding below.
+            for (std::size_t index = 0; index < std::size(fixed_gestures); ++index)
+            {
+                QTreeWidgetItem *item = new QTreeWidgetItem(category_item);
+                item->setData(0, fixed_gesture_role, true);
+                item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+            }
+        }
+    }
+
     LiveUiText::bind(this->shortcut_tree, [this] {
+        for (const GuiHoldModifierDefinition &definition : guiShortcutRegistry().holdModifierDefinitions())
+        {
+            QTreeWidgetItem *item = this->hold_modifier_items.value(static_cast<int>(definition.id));
+            item->setText(0, QCoreApplication::translate("GuiShortcuts", definition.display_name.toUtf8().constData()));
+            item->setText(2, QCoreApplication::translate("GuiShortcuts", definition.scope.toUtf8().constData()));
+            item->parent()->setText(0, QCoreApplication::translate("GuiShortcuts", definition.category.toUtf8().constData()));
+            // The fixed gestures of this category, in fixed_gestures order.
+            int fixed_index = 0;
+            for (int child = 0; child < item->parent()->childCount(); ++child)
+            {
+                QTreeWidgetItem *fixed = item->parent()->child(child);
+                if (!fixed->data(0, fixed_gesture_role).toBool()
+                    || fixed_index >= int(std::size(fixed_gestures)))
+                    continue;
+                const FixedGesture &gesture = fixed_gestures[fixed_index++];
+                fixed->setText(0, QCoreApplication::translate("GuiShortcuts", gesture.action));
+                fixed->setText(1, QCoreApplication::translate("GuiShortcuts", gesture.input));
+                fixed->setText(2, QCoreApplication::translate("GuiShortcuts", definition.scope.toUtf8().constData()));
+                fixed->setText(3, QCoreApplication::translate("GuiShortcuts", gesture.input));
+            }
+        }
         for (const GuiShortcutDefinition &definition : guiShortcutRegistry().definitions())
         {
             QTreeWidgetItem *item = this->shortcut_items.value(static_cast<int>(definition.id));
@@ -269,6 +392,24 @@ void KeyboardShortcutsSettingsWidget::refreshShortcutFilter()
         for (int item_index = 0; item_index < category_item->childCount(); ++item_index)
         {
             QTreeWidgetItem *item = category_item->child(item_index);
+            if (item->data(0, hold_modifier_id_role).isValid()
+                || item->data(0, fixed_gesture_role).isValid())
+            {
+                // Hold modifier / fixed gesture rows: their visible texts.
+                QString input = item->text(1);
+                const QVariant hold_id = item->data(0, hold_modifier_id_role);
+                if (hold_id.isValid())
+                    input = guiHoldModifierText(guiShortcutRegistry().holdModifier(
+                        static_cast<GuiHoldModifierId>(hold_id.toInt())));
+                const QString searchable = (item->text(0) + QLatin1Char(' ') + item->text(2)
+                                            + QLatin1Char(' ') + category_item->text(0)
+                                            + QLatin1Char(' ') + input + QLatin1Char(' ')
+                                            + item->text(3)).toLower();
+                const bool visible = search.isEmpty() || searchable.contains(search);
+                item->setHidden(!visible);
+                category_visible = category_visible || visible;
+                continue;
+            }
             const GuiShortcutId id = static_cast<GuiShortcutId>(
                 item->data(0, shortcut_id_role).toInt());
             const GuiShortcutDefinition *definition = guiShortcutRegistry().definition(id);
@@ -334,6 +475,44 @@ void KeyboardShortcutsSettingsWidget::commitShortcutEditor(GuiShortcutId id)
         showStatus(QStringLiteral("%1 shortcut disabled.").arg(definition->display_name), false);
     else
         showStatus(QStringLiteral("%1 set to %2.").arg(definition->display_name, value), false);
+}
+
+void KeyboardShortcutsSettingsWidget::refreshHoldModifierEditor(GuiHoldModifierId id)
+{
+    QComboBox *editor = this->hold_modifier_editors.value(static_cast<int>(id), nullptr);
+    if (editor == nullptr)
+        return;
+    const int index = editor->findData(static_cast<int>(guiShortcutRegistry().holdModifier(id)));
+    if (index >= 0 && editor->currentIndex() != index)
+    {
+        const QSignalBlocker blocker(editor);
+        editor->setCurrentIndex(index);
+    }
+}
+
+void KeyboardShortcutsSettingsWidget::commitHoldModifierEditor(GuiHoldModifierId id)
+{
+    QComboBox *editor = this->hold_modifier_editors.value(static_cast<int>(id), nullptr);
+    if (editor == nullptr)
+        return;
+    const Qt::KeyboardModifier modifier =
+        static_cast<Qt::KeyboardModifier>(editor->currentData().toInt());
+    QString error_message;
+    if (!guiShortcutRegistry().setHoldModifier(id, modifier, &error_message))
+    {
+        // Back to the stored key (conflicts are not saved).
+        refreshHoldModifierEditor(id);
+        showStatus(error_message, true);
+        return;
+    }
+    const GuiHoldModifierDefinition *definition = guiShortcutRegistry().holdModifierDefinition(id);
+    if (definition != nullptr)
+    {
+        showStatus(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "%1 set to %2."))
+                       .arg(QCoreApplication::translate("GuiShortcuts", definition->display_name.toUtf8().constData()),
+                            guiHoldModifierText(modifier)),
+                   false);
+    }
 }
 
 void KeyboardShortcutsSettingsWidget::showStatus(const QString &message, bool error)

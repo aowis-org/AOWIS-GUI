@@ -2340,6 +2340,18 @@ Clic derecho: volver a 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
+      <translation>Mantenga esta tecla y mueva el ratón (sin pulsar ningún botón) sobre el mapa 3D. Mayús está reservada para el desplazamiento rápido con el teclado.</translation>
+    </message>
+    <message>
+      <source>%1 reset to %2.</source>
+      <translation>%1 restablecido a %2.</translation>
+    </message>
+    <message>
+      <source>%1 set to %2.</source>
+      <translation>%1 establecido en %2.</translation>
+    </message>
+    <message>
       <source>Antialiasing</source>
       <translation>Suavizado de bordes</translation>
     </message>
@@ -5268,6 +5280,30 @@ Commit de fusión: los otros padres se muestran en Proyectos.</translation>
   </context>
   <context>
     <name>GuiShortcuts</name>
+    <message>
+      <source>Orbit around crosshair terrain (hold + move mouse)</source>
+      <translation>Orbitar alrededor del terreno en la cruz (mantener + mover el ratón)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera (hold + move mouse)</source>
+      <translation>Mirar alrededor desde la cámara (mantener + mover el ratón)</translation>
+    </message>
+    <message>
+      <source>Globe Navigation (hold)</source>
+      <translation>Navegación en el globo (mantener)</translation>
+    </message>
+    <message>
+      <source>3D Map</source>
+      <translation>Mapa 3D</translation>
+    </message>
+    <message>
+      <source>Orbit around crosshair terrain (drag)</source>
+      <translation>Orbitar alrededor del terreno en la cruz (arrastrar)</translation>
+    </message>
+    <message>
+      <source>Middle mouse button</source>
+      <translation>Botón central del ratón</translation>
+    </message>
     <message>
       <source>Application</source>
       <translation>Aplicación</translation>
@@ -8402,6 +8438,14 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>This key cannot be used for a map gesture.</source>
+      <translation>Esta tecla no se puede usar para un gesto del mapa.</translation>
+    </message>
+    <message>
+      <source>%1 is already used for &quot;%2&quot;.</source>
+      <translation>%1 ya se usa para «%2».</translation>
+    </message>
     <message>
       <source>Edit keyboard shortcut…</source>
       <translation>Editar atajo de teclado…</translation>

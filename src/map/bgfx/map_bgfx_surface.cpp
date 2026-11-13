@@ -1,6 +1,8 @@
 #include "map/bgfx/map_bgfx_surface.h"
 
 #include "config/gui_configuration.h"
+#include "map/core/map_model.h"
+#include "config/gui_preferences.h"
 #include "config/shortcut_registry.h"
 #include "config/unit_aware_view.h"
 #include "config/unit_profile_manager.h"
@@ -14,6 +16,7 @@
 #include <QGuiApplication>
 #include <QHideEvent>
 #include <QImage>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
@@ -91,6 +94,15 @@ MapBgfxSurface::MapBgfxSurface(MapModel *model, QWidget *parent)
     updateHudNavigationKeys();
     connect(&guiShortcutRegistry(), &GuiShortcutRegistry::shortcutChanged, this,
             [this](GuiShortcutId) { updateHudNavigationKeys(); });
+    connect(&guiShortcutRegistry(), &GuiShortcutRegistry::holdModifierChanged, this,
+            [this](GuiHoldModifierId) { updateHudNavigationKeys(); });
+    // First-run tip: the globe controls card when the globe first shows.
+    this->map_model = model;
+    if (model != nullptr)
+    {
+        connect(model, &MapModel::viewModeChanged, this,
+                [this](MapViewMode) { maybeShowGlobeHelpOnce(); });
+    }
 
 #ifndef Q_OS_WASM
     setFocusPolicy(Qt::StrongFocus);
@@ -121,7 +133,25 @@ void MapBgfxSurface::updateHudNavigationKeys()
     keys.pan_right = registry.shortcut(GuiShortcutId::MapPanRight);
     keys.zoom_in = registry.shortcut(GuiShortcutId::MapZoomIn);
     keys.zoom_out = registry.shortcut(GuiShortcutId::MapZoomOut);
+    keys.orbit_modifier = guiHoldModifierText(registry.holdModifier(GuiHoldModifierId::GlobeOrbit));
+    keys.look_modifier = guiHoldModifierText(registry.holdModifier(GuiHoldModifierId::GlobeLook));
     this->view->setHudNavigationKeys(keys);
+}
+
+void MapBgfxSurface::maybeShowGlobeHelpOnce()
+{
+    // How long the first-run card stays (seconds of shown globe).
+    constexpr double FirstRunGlobeHelpSeconds = 10.0;
+    const QString group = QStringLiteral("map_hints");
+    const QString key = QStringLiteral("globe_controls_help_shown");
+    if (this->map_model == nullptr || this->map_model->viewMode() != MapViewMode::Globe
+        || !isVisible())
+        return;
+    if (GuiPreferences::value(group, key).toBool(false))
+        return;
+    // Saved first: a failing store must not show it on every globe switch.
+    GuiPreferences::update(group, QJsonObject{{key, true}});
+    this->view->showHudGlobeHelpFor(FirstRunGlobeHelpSeconds);
 }
 
 void MapBgfxSurface::focusNavigationInput(Qt::FocusReason reason)
@@ -192,6 +222,7 @@ void MapBgfxSurface::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     this->view->handleHostShown();
+    maybeShowGlobeHelpOnce();
 }
 
 void MapBgfxSurface::hideEvent(QHideEvent *event)
@@ -478,6 +509,11 @@ void MapBgfxSurface::setHudFullscreen(bool active)
 void MapBgfxSurface::setHudJoystick(const QPointF &deflection, bool active)
 {
     this->view->setHudJoystick(deflection, active);
+}
+
+void MapBgfxSurface::setHudNavigationGesture(int gesture)
+{
+    this->view->setHudNavigationGesture(static_cast<MapBgfxHud::NavigationGesture>(gesture));
 }
 
 void MapBgfxSurface::setHudKeyboardPan(const QPointF &direction)

@@ -176,7 +176,13 @@ private:
     {
         None,
         MiddleMouse,
-        CtrlMouse,
+        // The orbit hold modifier (default Ctrl, GuiHoldModifierId::GlobeOrbit)
+        // held, no button: orbit around the crosshair terrain.
+        OrbitModifier,
+        // The look hold modifier (default Alt, GuiHoldModifierId::GlobeLook)
+        // held, no button: free look (eye fixed, the view turns about it;
+        // MapModel::lookViewGlobeByPointerDelta()).
+        LookModifier,
         // The pan joystick shares the orbit's pointer capture
         // (beginJoystickPan()).
         HudJoystick
@@ -276,6 +282,10 @@ signals:
     void signalCoordsUnavailable();
     // The pan joystick's knob moved, or its drag began / ended.
     void joystickChanged(QPointF deflection, bool active);
+    // A camera gesture of the pointer capture started / ended (HUD hint):
+    // a MapBgfxHud::NavigationGesture as int (0 none, 1 orbit hold key,
+    // 2 middle-button orbit, 3 free-look hold key).
+    void navigationGestureChanged(int gesture);
     // The held keyboard pan keys changed: the view's direction (x right,
     // y down; each -1, 0 or 1), shown on the HUD joystick's arrows.
     void keyboardPanChanged(QPointF direction);

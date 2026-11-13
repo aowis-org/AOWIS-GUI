@@ -2340,6 +2340,18 @@ Clic droit : revenir à 1,0×</translation>
   <context>
     <name>LiveUiText</name>
     <message>
+      <source>Hold this key and move the mouse (no button pressed) over the 3D map. Shift is reserved for faster keyboard panning.</source>
+      <translation>Maintenez cette touche et déplacez la souris (sans bouton enfoncé) sur la carte 3D. Maj est réservée au déplacement rapide au clavier.</translation>
+    </message>
+    <message>
+      <source>%1 reset to %2.</source>
+      <translation>%1 réinitialisé sur %2.</translation>
+    </message>
+    <message>
+      <source>%1 set to %2.</source>
+      <translation>%1 défini sur %2.</translation>
+    </message>
+    <message>
       <source>Antialiasing</source>
       <translation>Anticrénelage</translation>
     </message>
@@ -5268,6 +5280,30 @@ Révision de fusion : les autres parents sont visibles dans Projets.</translatio
   </context>
   <context>
     <name>GuiShortcuts</name>
+    <message>
+      <source>Orbit around crosshair terrain (hold + move mouse)</source>
+      <translation>Orbiter autour du terrain sous le réticule (maintenir + déplacer la souris)</translation>
+    </message>
+    <message>
+      <source>Look around from the camera (hold + move mouse)</source>
+      <translation>Regarder autour depuis la caméra (maintenir + déplacer la souris)</translation>
+    </message>
+    <message>
+      <source>Globe Navigation (hold)</source>
+      <translation>Navigation sur le globe (maintenir)</translation>
+    </message>
+    <message>
+      <source>3D Map</source>
+      <translation>Carte 3D</translation>
+    </message>
+    <message>
+      <source>Orbit around crosshair terrain (drag)</source>
+      <translation>Orbiter autour du terrain sous le réticule (glisser)</translation>
+    </message>
+    <message>
+      <source>Middle mouse button</source>
+      <translation>Bouton central de la souris</translation>
+    </message>
     <message>
       <source>Application</source>
       <translation>Application</translation>
@@ -8402,6 +8438,14 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
   </context>
   <context>
     <name>GuiShortcutRegistry</name>
+    <message>
+      <source>This key cannot be used for a map gesture.</source>
+      <translation>Cette touche ne peut pas être utilisée pour un geste de carte.</translation>
+    </message>
+    <message>
+      <source>%1 is already used for &quot;%2&quot;.</source>
+      <translation>%1 est déjà utilisé pour « %2 ».</translation>
+    </message>
     <message>
       <source>Edit keyboard shortcut…</source>
       <translation>Modifier le raccourci clavier…</translation>
