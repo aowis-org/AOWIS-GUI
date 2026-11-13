@@ -28,9 +28,20 @@ public:
     QHash<QString, Aowis::Map::MapProviderAcquisitionMode> acquisitionModes() const
     { return this->acquisition_modes; }
     bool isCatalogValid() const { return this->catalog_valid; }
+    // The cascade the embedded map server applies: the stored record, with
+    // upstreams and/or direct fetching removed while another MAP record is
+    // unreadable (fail closed).
+    Aowis::Map::MapCascadeConfig cascade() const { return this->effective_cascade; }
+    // Re-reads the stored cascade record and applies it live: provider
+    // discovery is reconfigured and cascadeChanged() is emitted when the
+    // effective cascade differs. An unreadable record keeps the last working
+    // configuration and returns false with the reason.
+    bool reloadCascade(QString *error);
 
 signals:
     void providersChanged();
+    // The effective cascade changed (reloadCascade()).
+    void cascadeChanged();
 
 private:
     explicit StandaloneMapProviderCatalogBridge(QObject *parent);
@@ -51,7 +62,14 @@ private:
     QString upstream_routes_revision;
     QString inherited_revision;
     QString provider_revision;
+    Aowis::Map::MapCascadeConfig restrictedCascade(Aowis::Map::MapCascadeConfig cascade) const;
+
+    Aowis::Map::MapCascadeConfig effective_cascade;
     bool catalog_valid = false;
+    bool providers_valid = false;
+    bool policy_records_valid = true;
+    bool upstreams_blocked = false;
+    bool direct_fetch_blocked = false;
     QString catalog_error;
 };
 

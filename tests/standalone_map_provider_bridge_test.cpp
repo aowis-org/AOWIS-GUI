@@ -414,5 +414,38 @@ int main(int argc, char **argv)
                                                  QStringLiteral("backup")}))
             recovered = true;
     if (!expect(recovered, "new MAP catalog restores upstream snapshot offline")) return 1;
+
+    // Live reconfiguration (Map settings): replacing the stopped upstreams by
+    // a new one applies without recreating the bridge. Discovery uses the
+    // new upstream and its key; the removed ones are no longer sources.
+    TestUpstream replacement("replacement-read", upstream_catalog);
+    if (!expect(replacement.start(), "replacement upstream listener")) return 1;
+    Aowis::Map::MapCascadeConfig stored_cascade;
+    QString cascade_revision;
+    if (!expect(setup_repository->readCascade(&stored_cascade, &cascade_revision, &setup_error),
+                "read stored cascade revision")) return 1;
+    Aowis::Map::MapCascadeConfig replaced = stored_cascade;
+    replaced.upstreams.clear();
+    replaced.upstreams.append({QStringLiteral("replacement"), replacement.url(),
+                               QByteArray("replacement-read")});
+    if (!expect(setup_repository->saveCascade(replaced, cascade_revision, nullptr, &setup_error),
+                "persist replaced upstream")) return 1;
+    int cascade_changes = 0;
+    QObject::connect(&bridge, &StandaloneMapProviderCatalogBridge::cascadeChanged,
+                     &bridge, [&cascade_changes]() { ++cascade_changes; });
+    QString reload_error;
+    if (!expect(bridge.reloadCascade(&reload_error) && cascade_changes == 1 &&
+                bridge.cascade().upstreams.size() == 1 &&
+                bridge.cascade().upstreams.first().name == QStringLiteral("replacement") &&
+                !bridge.cascade().allow_direct_fetch,
+                "saved cascade not applied live")) return 1;
+    if (!expect(waitUntil([&bridge, &inherited_id]()
+    {
+        return bridge.inheritedUpstreams().value(inherited_id) ==
+               QSet<QString>{QStringLiteral("replacement")};
+    }) && replacement.authorized_requests > 0,
+                "live cascade did not rediscover through the new upstream")) return 1;
+    if (!expect(bridge.reloadCascade(&reload_error) && cascade_changes == 1,
+                "unchanged cascade reload notified consumers")) return 1;
     return 0;
 }

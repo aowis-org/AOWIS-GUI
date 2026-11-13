@@ -202,6 +202,7 @@ private:
     QLabel *label_image_b;
     
     class HttpHealthMonitor *map_health_monitor = nullptr;
+    class QNetworkAccessManager *map_health_network = nullptr;
     void checkServerMapInit();
     
 protected:

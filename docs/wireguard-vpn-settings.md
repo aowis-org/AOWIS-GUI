@@ -81,8 +81,11 @@ connection is not open fails; nothing falls back to direct HTTP.
 
 **Settings → Map → Map server → WireGuard** does the same for the map
 server (record `service_type` "map-server", same `transport` format). Its
-tunnel starts at launch and stays up for the session (a change needs a
-restart, like the other map-server fields). Tiles, terrain, elevation, the
+tunnel starts on first use and stays up while the connection uses that
+profile. Changing any map-server field applies at once: switching profile or
+to direct releases the old tunnel lease (the pool stops the tunnel when no
+other connection uses it), and new requests use the new connection while
+requests already in flight finish on the previous one. Tiles, terrain, elevation, the
 provider catalog and the footer health check wait for it and then use its
 SOCKS5 proxy on their own network managers; requests made while it starts
 are queued, and a failed start fails them and is retried after 5, 10, 20, 40,

@@ -1036,10 +1036,16 @@ void MainWindow::checkServerMapInit()
     {
         QString base = server.base_url.trimmed();
         while (base.endsWith(QLatin1Char('/'))) base.chop(1);
+        // Called again after a map server connection change: replace the
+        // previous check and its manager.
+        delete this->map_health_monitor;
+        delete this->map_health_network;
+        this->footer->statusUpdateServerMap(StatusColorCode::Yellow);
         // Its own manager so the map server's proxy (WireGuard) is never
         // applied to unrelated requests.
         QNetworkAccessManager *manager = new QNetworkAccessManager(this);
         manager->setProxy(server.proxy);
+        this->map_health_network = manager;
         this->map_health_monitor = new HttpHealthMonitor(this, [manager](const QNetworkRequest &request)
         {
             return manager->get(request);

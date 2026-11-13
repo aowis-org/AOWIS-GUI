@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QObject>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -183,6 +184,33 @@ int main(int argc, char **argv)
     const aowis::config::Result<aowis::config::StoredObject> kept = connections.value().read(newer.value().info.id);
     if (!require(kept.hasValue() && kept.value().info.revision == newer.value().info.revision,
                  "newer record was modified")) return 1;
+
+    // Live configuration: the current configuration follows successful
+    // saves, observers are notified once per change (never for an unchanged
+    // save) and observers whose context is gone are not called.
+    if (!require(mapServerClientConfiguration().base_url == QStringLiteral("https://maps.example.invalid/")
+                     && mapServerClientConfiguration().wireguard_profile_id.isEmpty(),
+                 "current configuration does not match the stored record")) return 1;
+    QObject observer_context;
+    int notifications = 0;
+    onMapServerClientConfigurationChanged(&observer_context, [&notifications]() { ++notifications; });
+    {
+        QObject destroyed_context;
+        onMapServerClientConfigurationChanged(&destroyed_context, [&notifications]() { notifications += 100; });
+    }
+    configured.base_url = QStringLiteral("https://live.example.invalid/");
+    configured.wireguard_profile_id = tunnel_profile;
+    if (!require(saveMapServerClientConfiguration(configured), "live save failed")) return 1;
+    if (!require(notifications == 1
+                     && mapServerClientConfiguration().base_url == QStringLiteral("https://live.example.invalid/")
+                     && mapServerClientConfiguration().wireguard_profile_id == tunnel_profile,
+                 "a saved change was not applied live exactly once")) return 1;
+    if (!require(saveMapServerClientConfiguration(configured) && notifications == 1,
+                 "an unchanged save notified observers")) return 1;
+    configured.wireguard_profile_id.clear();
+    if (!require(saveMapServerClientConfiguration(configured) && notifications == 2
+                     && mapServerClientConfiguration().wireguard_profile_id.isEmpty(),
+                 "switching to direct was not applied live")) return 1;
 
     std::fprintf(stdout, "map server client configuration tests passed\n");
     return 0;

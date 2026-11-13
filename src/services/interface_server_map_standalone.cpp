@@ -1,6 +1,5 @@
 #include "services/interface_server_map_standalone.h"
 
-#include <aowis/map/settings_repository.h>
 #include "services/standalone_map_provider_catalog_bridge.h"
 
 #include <aowis/map/terrain_dataset.h>
@@ -21,7 +20,6 @@
 
 #include <limits>
 #include <optional>
-#include <memory>
 
 namespace
 {
@@ -99,34 +97,14 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
       map_tiles(new MapTiles(this))
 #endif
 {
-    // Configuration is owned by MAP. Legacy GUI preference records are
-    // imported only by the MAP library, never decoded by the GUI.
-    Aowis::Map::MapCascadeConfig cascade;
-    cascade.allow_direct_fetch = false;
-    QString cascade_error;
-    std::unique_ptr<Aowis::Map::SettingsRepository> repository =
-        Aowis::Map::SettingsRepository::openStandaloneForCurrentUser(&cascade_error);
-    if (repository == nullptr || !repository->readCascade(&cascade, nullptr, &cascade_error))
-    {
-        cascade = Aowis::Map::MapCascadeConfig();
-        cascade.allow_direct_fetch = false;
-        qCritical().noquote() << QStringLiteral("Invalid embedded MAP configuration: %1; "
-                                                 "all direct acquisition disabled")
-                                     .arg(cascade_error);
-    }
-    // Configure before the Windows map downloader is moved to its own thread.
-    this->map_tiles->setCascadeConfig(cascade);
+    // Configuration is owned by MAP and read once by the provider bridge,
+    // which also fails closed (no upstreams, no direct downloads) while any
+    // MAP-owned routing or inherited-provider record is corrupt.
     StandaloneMapProviderCatalogBridge &provider_bridge =
         StandaloneMapProviderCatalogBridge::instance();
-    // The bridge validates all MAP-owned routing and inherited-provider
-    // records. Do not use the separately read cascade configuration if any
-    // of those records is corrupt: that could re-enable direct downloads.
-    if (!provider_bridge.isCatalogValid())
-    {
-        cascade.upstreams.clear();
-        cascade.allow_direct_fetch = false;
-        this->map_tiles->setCascadeConfig(cascade);
-    }
+    const Aowis::Map::MapCascadeConfig cascade = provider_bridge.cascade();
+    // Configure before the Windows map downloader is moved to its own thread.
+    this->map_tiles->setCascadeConfig(cascade);
     this->map_tiles->configureProviders(provider_bridge.availableProviders(), {}, {},
                                         provider_bridge.inheritedUpstreams(),
                                         provider_bridge.upstreamRoutes(),
@@ -151,6 +129,26 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
         this->map_tiles->cancelUpstreamDownloads();
         this->map_tiles->configureProviders(updated, {}, {}, inherited, routes, modes);
 #endif
+    });
+    // Live cascade changes (Map settings): later requests use the new
+    // upstreams, credentials, priority and options; downloads from the
+    // previous upstream set are canceled (the repositories retry them).
+    // Cached tiles stay valid. terrain_data is created below.
+    connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::cascadeChanged,
+            this, [this, &provider_bridge]
+    {
+        const Aowis::Map::MapCascadeConfig updated = provider_bridge.cascade();
+#ifdef Q_OS_WIN
+        MapTiles *tiles = this->map_tiles;
+        QMetaObject::invokeMethod(tiles, [tiles, updated]
+        {
+            tiles->setCascadeConfig(updated);
+        }, Qt::QueuedConnection);
+#else
+        this->map_tiles->setCascadeConfig(updated);
+#endif
+        if (this->terrain_data != nullptr)
+            this->terrain_data->setCascadeConfig(updated);
     });
     const QByteArray cascade_instance_id = this->map_tiles->cascadeInstanceId();
 #ifdef Q_OS_WIN

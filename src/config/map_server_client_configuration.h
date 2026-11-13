@@ -4,6 +4,10 @@
 #include <QByteArray>
 #include <QString>
 
+#include <functional>
+
+class QObject;
+
 struct MapServerClientConfiguration
 {
     QString base_url;
@@ -23,16 +27,20 @@ struct MapServerClientConfiguration
 // wireguard one without a profile, fails closed (empty base URL). WebAssembly: globalThis.aowisMapServerConfiguration of the
 // hosting page; nothing is stored in the browser.
 //
-// Read once and cached for the process lifetime.
+// The current configuration (GUI thread only). It changes when
+// saveMapServerClientConfiguration() stores a different one; observers
+// registered with onMapServerClientConfigurationChanged() then reconnect
+// without restarting AOWIS.
 const MapServerClientConfiguration &mapServerClientConfiguration();
-// Reads the stored configuration afresh (not cached).
+// Reads the stored configuration afresh (not the current one).
 MapServerClientConfiguration readMapServerClientConfiguration();
+// changed() is called after every change of the current configuration while
+// context exists. GUI thread only.
+void onMapServerClientConfigurationChanged(QObject *context, std::function<void()> changed);
 // Persists the configuration (updates the map-server record, or creates it),
-// but does NOT update the cached configuration returned by
-// mapServerClientConfiguration() -- the map server client and REST/tile
-// fetch code read that once at construction, so a restart is required for
-// a saved change to actually take effect. Returns false if the write
-// failed or the build cannot store it (WebAssembly).
+// makes the stored record current and notifies the observers when it
+// differs. Returns false if the write failed or the build cannot store it
+// (WebAssembly); the current configuration is then unchanged.
 bool saveMapServerClientConfiguration(const MapServerClientConfiguration &configuration);
 
 #endif // MAP_SERVER_CLIENT_CONFIGURATION_H

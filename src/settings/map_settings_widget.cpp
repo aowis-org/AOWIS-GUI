@@ -287,8 +287,8 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
                        "cannot be changed here."),
         group));
 #else
-    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Connection changes are saved when you finish editing a field. "
-                       "Restart AOWIS for them to take effect."), group));
+    group_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText", "Connection changes are saved when you finish editing a field "
+                       "and apply immediately."), group));
 #endif
 
     QFormLayout *form = new QFormLayout();
@@ -643,7 +643,7 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
         "Standalone only: each missing map or terrain tile is requested from these MAP servers "
         "in order. Local cache is checked first. Prefer HTTPS for API keys. "
-        "Changes take effect after restarting AOWIS."), group));
+        "Changes apply immediately."), group));
 
     this->cascade_upstreams_table = new QTableWidget(0, 3, group);
     this->cascade_upstreams_table->setObjectName(QStringLiteral("embeddedMapCascadeUpstreams"));
@@ -753,7 +753,7 @@ void MapSettingsWidget::buildEmbeddedCascadeSection(QWidget *parent_widget)
     this->cascade_status->setWordWrap(true);
     layout->addWidget(this->cascade_status);
     if (!valid)
-        this->cascade_status->setText(tr("Invalid stored cascade settings: %1. Remote fetching is disabled until repaired and AOWIS is restarted.").arg(error));
+        this->cascade_status->setText(tr("Invalid stored cascade settings: %1. Remote fetching is disabled until they are corrected here.").arg(error));
 
     // Match the rest of Map Settings: save automatically after an edit settles.
     // Connect only after loading persisted values to avoid rewriting them at startup.
@@ -823,8 +823,17 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
         return;
     }
     this->cascade_revision = updated_revision;
+    // Apply live: the embedded map server, terrain and provider discovery.
+    QString apply_error;
+    if (!StandaloneMapProviderCatalogBridge::instance().reloadCascade(&apply_error))
+    {
+        this->cascade_status->setProperty("aowisLocalizedSource", QByteArray());
+        this->cascade_status->setText(
+            tr("Saved, but not applied: %1. The previous settings stay in use.").arg(apply_error));
+        return;
+    }
     const char *message = QT_TRANSLATE_NOOP(
-        "MapSettingsWidget", "Embedded MAP settings saved automatically. Restart AOWIS to apply them.");
+        "MapSettingsWidget", "Embedded MAP settings saved and applied.");
     this->cascade_status->setProperty("aowisLocalizedSource", QByteArray(message));
     this->cascade_status->setText(tr(message));
 }
@@ -1287,7 +1296,7 @@ void MapSettingsWidget::saveServerSettings()
     if (saveMapServerClientConfiguration(configuration))
     {
         showServerStatus(
-            QT_TRANSLATE_NOOP("MapSettingsWidget", "Connection preferences saved. Restart AOWIS to use them."),
+            QT_TRANSLATE_NOOP("MapSettingsWidget", "Connection preferences saved and applied."),
             false);
     }
     else

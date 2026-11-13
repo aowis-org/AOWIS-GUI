@@ -11,31 +11,33 @@
 
 #include <aowis/network/wireguard_client.h>
 
-#include <QList>
-#include <QPair>
-#include <QTimer>
-
 #include <algorithm>
-#include <memory>
 #endif
 
 #include <QCoreApplication>
 #include <QDebug>
+#include <QList>
 #include <QObject>
+#include <QPair>
 #include <QPointer>
 #include <QTimer>
 
+#include <memory>
 #include <utility>
 
 namespace
 {
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
-// The map server's WireGuard tunnel: started on first use and then kept for
-// the process lifetime (the map configuration is read once; a change needs a
-// restart), since tiles, terrain, the catalog and the health check use it
-// continuously. A failed start is retried after 5, 10, 20, 40, then every
-// 60 seconds. Reported to WireGuardRuntimeStatus like DVMDB connections, so
-// Settings -> WireGuard VPN -> Status lists the map server. GUI thread only.
+// The map server's WireGuard tunnel: a lease of the profile's shared tunnel
+// (WireGuardTunnelPool), taken on first use and kept while the map server
+// connection uses that profile, since tiles, terrain, the catalog and the
+// health check use it continuously. A failed start is retried after 5, 10,
+// 20, 40, then every 60 seconds. When the connection's profile changes (or
+// it becomes direct) the lease is released at once and waiters for the old
+// profile are dropped: their owners reconnect through
+// onMapServerClientConfigurationChanged(). Reported to WireGuardRuntimeStatus
+// like DVMDB connections, so Settings -> WireGuard VPN -> Status lists the
+// map server. GUI thread only.
 class MapServerTunnel final : public QObject
 {
 public:
@@ -45,10 +47,12 @@ public:
         return *tunnel;
     }
 
-    // ready(error) after the next start attempt: empty error when running
-    // (at once, from the event loop, when it already runs).
+    // ready(error) after the next start attempt for the current profile:
+    // empty error when running (at once, from the event loop, when it
+    // already runs).
     void whenReady(QObject *context, std::function<void(const QString &)> ready)
     {
+        this->reconcile();
         if (this->lease.tunnel)
         {
             const QPointer<QObject> guard(context);
@@ -75,18 +79,41 @@ private:
     {
         this->retry.setSingleShot(true);
         connect(&this->retry, &QTimer::timeout, this, [this]() { this->attempt(); });
+        onMapServerClientConfigurationChanged(this, [this]() { this->reconcile(); });
+    }
+
+    // Drops the lease, a pending retry and the waiters of a profile the map
+    // server connection no longer uses. A start in flight is discarded when
+    // it completes (generation).
+    void reconcile()
+    {
+        const QString profile_id = mapServerClientConfiguration().wireguard_profile_id;
+        if (profile_id == this->profile_id) return;
+        ++this->generation;
+        this->profile_id = profile_id;
+        this->lease = WireGuardTunnelLease();
+        this->starting = false;
+        this->failures = 0;
+        this->retry.stop();
+        this->waiters.clear();
+        WireGuardRuntimeStatus::instance().stopped(this);
     }
 
     void attempt()
     {
         const MapServerClientConfiguration &configuration = mapServerClientConfiguration();
+        if (configuration.wireguard_profile_id.isEmpty()) return;
+        this->profile_id = configuration.wireguard_profile_id;
         this->starting = true;
+        const quint64 generation = this->generation;
         WireGuardRuntimeStatus::instance().starting(configuration.wireguard_profile_id, this,
             QObject::tr("Map server (%1)").arg(configuration.base_url));
         const QPointer<MapServerTunnel> self(this);
-        acquireWireGuardTunnel(configuration.wireguard_profile_id, [self](const WireGuardTunnelLease &result)
+        acquireWireGuardTunnel(configuration.wireguard_profile_id,
+            [self, generation](const WireGuardTunnelLease &result)
         {
-            if (!self) return;
+            // Released at once (the shared_ptr) when the profile changed meanwhile.
+            if (!self || generation != self->generation) return;
             self->starting = false;
             QString error = result.error;
             if (result.tunnel)
@@ -110,22 +137,69 @@ private:
         });
     }
 
+    QString profile_id;
+    quint64 generation = 0;
     WireGuardTunnelLease lease;
     bool starting = false;
     int failures = 0;
     QTimer retry;
     QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> waiters;
 };
+#endif
 
-// InterfaceServerMap over the map server's WireGuard tunnel: requests made
-// before the tunnel runs are queued and replayed; if a start attempt fails
-// they fail with its error (the repositories retry as for an unreachable
-// server). Once running, everything goes to an InterfaceServerMapREST whose
-// network managers use the tunnel's SOCKS5 proxy.
-class InterfaceServerMapWireGuard final : public InterfaceServerMap
+#ifndef AOWIS_STANDALONE
+// One attempt to make the current map server connection usable: ready(error,
+// server) at once (from the event loop) for a direct connection; after the
+// next tunnel start attempt for a WireGuard one, with the tunnel's proxy set,
+// or with the start error (never a direct fallback). Not called once context
+// is destroyed.
+void whenTransportReady(QObject *context,
+                        std::function<void(const QString &, const MapServerRestConfiguration &)> ready)
+{
+    const QPointer<QObject> guard(context);
+    if (mapServerClientConfiguration().wireguard_profile_id.isEmpty())
+    {
+        QTimer::singleShot(0, context, [guard, ready]()
+        {
+            if (guard) ready(QString(), guiMapServerRestConfiguration());
+        });
+        return;
+    }
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    MapServerTunnel::instance().whenReady(context, [guard, ready](const QString &error)
+    {
+        if (!guard) return;
+        MapServerRestConfiguration server = guiMapServerRestConfiguration();
+        if (error.isEmpty()) server.proxy = MapServerTunnel::instance().proxy();
+        ready(error, server);
+    });
+#else
+    QTimer::singleShot(0, context, [guard, ready]()
+    {
+        if (guard)
+            ready(QObject::tr("The map server is configured for WireGuard, which this build cannot run."),
+                  MapServerRestConfiguration());
+    });
+#endif
+}
+
+// InterfaceServerMap of the GUI's map server connection, direct or over the
+// map server's WireGuard tunnel, following configuration changes without a
+// restart. Requests made while the connection is not usable yet are queued
+// and replayed; if a tunnel start fails they fail with its error (the
+// repositories retry as for an unreachable server). Once usable, everything
+// goes to an InterfaceServerMapREST (with the tunnel's SOCKS5 proxy for
+// WireGuard). After a configuration change new requests use a new
+// InterfaceServerMapREST; the previous one stays connected for a while so
+// requests in flight still deliver their answers (or failures), then it is
+// deleted. Cached tiles are unaffected.
+class InterfaceServerMapRemote final : public InterfaceServerMap
 {
 public:
-    explicit InterfaceServerMapWireGuard(QObject *parent) : InterfaceServerMap(parent) {}
+    explicit InterfaceServerMapRemote(QObject *parent) : InterfaceServerMap(parent)
+    {
+        onMapServerClientConfigurationChanged(this, [this]() { this->reconnect(); });
+    }
 
     void requestTile(const QString &endpoint, const QString &key, int x, int y) override
     {
@@ -174,7 +248,7 @@ public:
         this->dispatch([](InterfaceServerMap *server) { server->requestTerrainUpstreamActivity(); },
                        [this](const QString &error) { emit this->signalUpstreamControlError(error); });
     }
-    // Cancelling before the tunnel runs: nothing reached the server yet.
+    // Cancelling before the connection is usable: nothing reached the server yet.
     void cancelMapTileUpstreamDownloads() override
     {
         if (this->server != nullptr) this->server->cancelMapTileUpstreamDownloads();
@@ -188,6 +262,24 @@ private:
     using Call = std::function<void(InterfaceServerMap *)>;
     using Fail = std::function<void(const QString &)>;
 
+    // Longer than any transfer timeout of InterfaceServerMapREST.
+    static constexpr int RetiredServerLifetimeMs = 180000;
+
+    void reconnect()
+    {
+        ++this->generation;
+        if (this->server != nullptr)
+        {
+            InterfaceServerMap *retired = this->server;
+            this->server = nullptr;
+            QTimer::singleShot(RetiredServerLifetimeMs, retired, &QObject::deleteLater);
+        }
+        // A wait for the previous connection is abandoned; queued requests
+        // wait for the new one.
+        this->waiting = false;
+        if (!this->queued.isEmpty()) this->wait();
+    }
+
     void dispatch(Call call, Fail fail)
     {
         if (this->server != nullptr)
@@ -196,10 +288,17 @@ private:
             return;
         }
         this->queued.append(QPair<Call, Fail>(std::move(call), std::move(fail)));
-        if (this->waiting) return;
+        if (!this->waiting) this->wait();
+    }
+
+    void wait()
+    {
         this->waiting = true;
-        MapServerTunnel::instance().whenReady(this, [this](const QString &error)
+        const quint64 generation = this->generation;
+        whenTransportReady(this, [this, generation](const QString &error,
+                                                    const MapServerRestConfiguration &configuration)
         {
+            if (generation != this->generation) return; // Superseded by reconnect().
             this->waiting = false;
             QList<QPair<Call, Fail>> pending;
             pending.swap(this->queued);
@@ -208,15 +307,13 @@ private:
                 for (const QPair<Call, Fail> &request : pending) request.second(error);
                 return;
             }
-            this->connectServer();
+            this->connectServer(configuration);
             for (const QPair<Call, Fail> &request : pending) request.first(this->server);
         });
     }
 
-    void connectServer()
+    void connectServer(const MapServerRestConfiguration &configuration)
     {
-        MapServerRestConfiguration configuration = guiMapServerRestConfiguration();
-        configuration.proxy = MapServerTunnel::instance().proxy();
         this->server = new InterfaceServerMapREST(configuration, this);
         // Re-emit every answer as this transport's own.
         connect(this->server, &InterfaceServerMap::signalTileDataReceived, this, &InterfaceServerMap::signalTileDataReceived);
@@ -238,18 +335,10 @@ private:
 
     InterfaceServerMap *server = nullptr;
     QList<QPair<Call, Fail>> queued;
+    quint64 generation = 0;
     bool waiting = false;
 };
 #endif
-
-bool usesWireGuard()
-{
-#ifdef AOWIS_STANDALONE
-    return false; // The in-process map server needs no transport.
-#else
-    return !mapServerClientConfiguration().wireguard_profile_id.isEmpty();
-#endif
-}
 }
 
 MapServerRestConfiguration guiMapServerRestConfiguration()
@@ -265,37 +354,50 @@ MapServerRestConfiguration guiMapServerRestConfiguration()
 void whenGuiMapServerReachable(QObject *context,
                                std::function<void(const MapServerRestConfiguration &)> reachable)
 {
+#ifdef AOWIS_STANDALONE
+    // No map server connection: the in-process map server needs none.
     const QPointer<QObject> guard(context);
-    if (!usesWireGuard())
+    QTimer::singleShot(0, context, [guard, reachable]()
     {
-        QTimer::singleShot(0, context, [reachable]() { reachable(guiMapServerRestConfiguration()); });
-        return;
-    }
-#ifdef AOWIS_GUI_WIREGUARD_PROBE
-    // Keep waiting across failed attempts; each retry notifies again.
-    std::shared_ptr<std::function<void(const QString &)>> waiter =
-        std::make_shared<std::function<void(const QString &)>>();
-    *waiter = [guard, reachable, waiter](const QString &error)
-    {
-        if (!guard)
-        {
-            *waiter = {}; // Break the self-reference.
-            return;
-        }
-        if (!error.isEmpty())
-        {
-            MapServerTunnel::instance().whenReady(guard, *waiter);
-            return;
-        }
-        MapServerRestConfiguration configuration = guiMapServerRestConfiguration();
-        configuration.proxy = MapServerTunnel::instance().proxy();
-        reachable(configuration);
-        *waiter = {}; // Break the self-reference.
-    };
-    MapServerTunnel::instance().whenReady(context, *waiter);
+        if (guard) reachable(guiMapServerRestConfiguration());
+    });
 #else
-    Q_UNUSED(guard)
-    qCritical() << "The map server is configured for WireGuard, which this build cannot run; it is disabled";
+    // Deliveries of an earlier configuration are dropped (generation). A
+    // WireGuard connection keeps waiting across failed tunnel starts.
+    const QPointer<QObject> guard(context);
+    const std::shared_ptr<quint64> generation = std::make_shared<quint64>(0);
+    const std::shared_ptr<std::function<void(quint64)>> attempt =
+        std::make_shared<std::function<void(quint64)>>();
+    const std::weak_ptr<std::function<void(quint64)>> weak_attempt = attempt;
+    *attempt = [guard, reachable, generation, weak_attempt](quint64 current)
+    {
+        if (!guard || current != *generation) return;
+        whenTransportReady(guard, [guard, reachable, generation, weak_attempt, current](
+                                      const QString &error, const MapServerRestConfiguration &server)
+        {
+            if (!guard || current != *generation) return;
+            if (error.isEmpty())
+            {
+                reachable(server);
+                return;
+            }
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+            // The tunnel retries with backoff; wait for its next attempt.
+            const std::shared_ptr<std::function<void(quint64)>> retry = weak_attempt.lock();
+            if (retry) (*retry)(current);
+#else
+            // Permanent in this build until the connection changes.
+            Q_UNUSED(weak_attempt)
+            qCritical().noquote() << "Map server unavailable:" << error;
+#endif
+        });
+    };
+    // The observer owns the attempt function for context's lifetime.
+    onMapServerClientConfigurationChanged(context, [attempt, generation]()
+    {
+        (*attempt)(++*generation);
+    });
+    (*attempt)(*generation);
 #endif
 }
 
@@ -319,23 +421,11 @@ MapServerTransport guiMapServerTransport()
     transport.background_tile_requests_in_flight = 2;
 #endif
 #else
-    if (usesWireGuard())
-    {
-        transport.create = [](QObject *parent) -> InterfaceServerMap *
-        {
-#ifdef AOWIS_GUI_WIREGUARD_PROBE
-            return new InterfaceServerMapWireGuard(parent);
-#else
-            Q_UNUSED(parent)
-            qCritical() << "The map server is configured for WireGuard, which this build cannot run; it is disabled";
-            return nullptr; // No map server: never a direct fallback.
-#endif
-        };
-        return transport;
-    }
+    // Direct or WireGuard, switching live on configuration changes; a
+    // WireGuard connection never falls back to direct HTTP.
     transport.create = [](QObject *parent) -> InterfaceServerMap *
     {
-        return new InterfaceServerMapREST(guiMapServerRestConfiguration(), parent);
+        return new InterfaceServerMapRemote(parent);
     };
 #endif
     return transport;

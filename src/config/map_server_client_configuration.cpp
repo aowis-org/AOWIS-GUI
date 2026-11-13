@@ -1,6 +1,11 @@
 #include "config/map_server_client_configuration.h"
 
 #include <QDebug>
+#include <QList>
+#include <QPair>
+#include <QPointer>
+
+#include <utility>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -246,15 +251,49 @@ bool storeConfiguration(const MapServerClientConfiguration &configuration)
 #endif
 }
 
+namespace
+{
+// The current configuration and its observers. GUI thread only.
+MapServerClientConfiguration &currentConfiguration()
+{
+    static MapServerClientConfiguration configuration = loadConfiguration();
+    return configuration;
+}
+
+QList<QPair<QPointer<QObject>, std::function<void()>>> &observers()
+{
+    static QList<QPair<QPointer<QObject>, std::function<void()>>> list;
+    return list;
+}
+
+#ifndef __EMSCRIPTEN__
+bool sameConfiguration(const MapServerClientConfiguration &left,
+                       const MapServerClientConfiguration &right)
+{
+    return left.base_url == right.base_url && left.api_key == right.api_key &&
+           left.delete_api_key == right.delete_api_key &&
+           left.wireguard_profile_id == right.wireguard_profile_id;
+}
+#endif
+}
+
 const MapServerClientConfiguration &mapServerClientConfiguration()
 {
-    static const MapServerClientConfiguration configuration = loadConfiguration();
-    return configuration;
+    return currentConfiguration();
 }
 
 MapServerClientConfiguration readMapServerClientConfiguration()
 {
     return loadConfiguration();
+}
+
+void onMapServerClientConfigurationChanged(QObject *context, std::function<void()> changed)
+{
+    QList<QPair<QPointer<QObject>, std::function<void()>>> &list = observers();
+    for (qsizetype index = list.size() - 1; index >= 0; --index)
+        if (list.at(index).first.isNull()) list.removeAt(index);
+    list.append(QPair<QPointer<QObject>, std::function<void()>>(QPointer<QObject>(context),
+                                                                 std::move(changed)));
 }
 
 bool saveMapServerClientConfiguration(const MapServerClientConfiguration &configuration)
@@ -269,6 +308,18 @@ bool saveMapServerClientConfiguration(const MapServerClientConfiguration &config
                   "the WASM build; it is set by the hosting page.";
     return false;
 #else
-    return storeConfiguration(configuration);
+    if (!storeConfiguration(configuration))
+        return false;
+    // Apply exactly what was stored (and validated: an unusable transport
+    // fails closed in loadConfiguration as at startup), then notify.
+    const MapServerClientConfiguration stored = loadConfiguration();
+    if (sameConfiguration(stored, currentConfiguration()))
+        return true;
+    currentConfiguration() = stored;
+    // Copy: an observer may register further observers while notified.
+    const QList<QPair<QPointer<QObject>, std::function<void()>>> notified = observers();
+    for (const QPair<QPointer<QObject>, std::function<void()>> &observer : notified)
+        if (!observer.first.isNull()) observer.second();
+    return true;
 #endif
 }

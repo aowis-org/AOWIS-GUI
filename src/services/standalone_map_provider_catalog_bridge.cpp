@@ -55,6 +55,7 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
         for (Aowis::Map::MapProvider &provider : this->map_providers)
             provider.remote_fetch_enabled = false;
     }
+    const bool providers_valid = this->catalog_valid;
     Aowis::Map::MapCascadeConfig cascade;
     cascade.allow_direct_fetch = false;
     if (this->repository != nullptr)
@@ -72,33 +73,38 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
                 &this->disabled_inherited, &this->inherited_revision, &error))
         {
             qCritical().noquote() << "Invalid inherited MAP overrides:" << error;
-            this->catalog_valid = false;
+            this->policy_records_valid = false;
             this->catalog_error = error;
             // Do not accidentally re-enable inherited sources when the local
             // persisted deny-list is unreadable. Keep local providers usable.
-            cascade.upstreams.clear();
+            this->upstreams_blocked = true;
             this->disabled_inherited.clear();
         }
         if (!this->repository->readProviderAcquisitionModes(
                 &this->acquisition_modes, &this->acquisition_modes_revision, &error))
         {
             qCritical().noquote() << "Invalid MAP provider acquisition modes:" << error;
-            this->catalog_valid = false;
+            this->policy_records_valid = false;
             this->catalog_error = error;
-            cascade.upstreams.clear(); // Fail closed on corrupt mode policy.
-            cascade.allow_direct_fetch = false;
+            // Fail closed on corrupt mode policy.
+            this->upstreams_blocked = true;
+            this->direct_fetch_blocked = true;
             this->acquisition_modes.clear();
         }
         if (!this->repository->readProviderUpstreamRoutes(
                 &this->upstream_routes, &this->upstream_routes_revision, &error))
         {
             qCritical().noquote() << "Invalid MAP provider routes:" << error;
-            this->catalog_valid = false;
+            this->policy_records_valid = false;
             this->catalog_error = error;
-            cascade.upstreams.clear(); // Cannot safely apply corrupt routing policy.
+            this->upstreams_blocked = true; // Cannot safely apply corrupt routing policy.
             this->upstream_routes.clear();
         }
     }
+    this->providers_valid = providers_valid;
+    this->catalog_valid = this->catalog_valid && this->policy_records_valid;
+    cascade = this->restrictedCascade(cascade);
+    this->effective_cascade = cascade;
     this->available_catalog.reset(new Aowis::Map::ProviderCatalog(
         QDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
             .filePath(QStringLiteral("maptiles")), this));
@@ -114,6 +120,49 @@ StandaloneMapProviderCatalogBridge::StandaloneMapProviderCatalogBridge(QObject *
             this, &StandaloneMapProviderCatalogBridge::acceptConnections);
     if (!this->listener.listen(QHostAddress::LocalHost, 0))
         qCritical() << "Cannot start embedded MAP provider editor:" << this->listener.errorString();
+}
+
+Aowis::Map::MapCascadeConfig StandaloneMapProviderCatalogBridge::restrictedCascade(
+    Aowis::Map::MapCascadeConfig cascade) const
+{
+    if (this->upstreams_blocked) cascade.upstreams.clear();
+    if (this->direct_fetch_blocked) cascade.allow_direct_fetch = false;
+    return cascade;
+}
+
+bool StandaloneMapProviderCatalogBridge::reloadCascade(QString *error)
+{
+    Aowis::Map::MapCascadeConfig stored;
+    QString read_error;
+    if (this->repository == nullptr)
+        read_error = this->catalog_error.isEmpty()
+            ? QStringLiteral("MAP settings repository unavailable") : this->catalog_error;
+    else if (this->repository->readCascade(&stored, nullptr, &read_error))
+        read_error.clear();
+    else if (read_error.isEmpty())
+        read_error = QStringLiteral("Invalid MAP cascade settings");
+    if (!read_error.isEmpty())
+    {
+        // Keep the last working configuration.
+        if (error != nullptr) *error = read_error;
+        return false;
+    }
+    // A repaired cascade record makes the catalog editable again unless
+    // another MAP record is still unreadable.
+    this->catalog_valid = this->providers_valid && this->policy_records_valid;
+    const Aowis::Map::MapCascadeConfig effective = this->restrictedCascade(stored);
+    if (effective == this->effective_cascade)
+        return true;
+    this->effective_cascade = effective;
+    if (this->available_catalog != nullptr)
+    {
+        // Validated offline snapshots of the remaining upstreams are reused;
+        // discovery refreshes in the background (providersChanged follows).
+        this->available_catalog->configure(this->map_providers, effective);
+        this->available_catalog->refresh();
+    }
+    emit cascadeChanged();
+    return true;
 }
 
 MapServerRestConfiguration StandaloneMapProviderCatalogBridge::catalogServer() const
