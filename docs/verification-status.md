@@ -99,9 +99,9 @@ See [Rendering architecture](rendering-architecture.md),
 | Render library | Complete map engine: 2D and globe drawing, imagery and terrain streaming, terrain pipeline, HUD, labels, picking, REST client (`AOWIS::RenderMapRest`), host-context mode for Qt Quick | **48/48** Render tests passed with RTL HUD integration (9 November 2026) | Native/browser visual font and interaction qualification |
 | GUI integration | `MapBgfxSurface` hosts `MapBgfxMapView`; GUI keeps transports, settings, network snapshot and symbology, editor overlay | **79/79** GUI tests passed after the RTL Render gitlink update (9 November 2026) | Re-run after each future Render gitlink update |
 | Globe and terrain | Quadtree, DEM meshes, sparse updates, sky, heatmap, network on the globe, all in Render | Recording-bgfx mock tests and boundary checks; earlier native smoke checks | OpenGL/Vulkan terrain LOD and skirts, partial DEM updates, wireframe, caps, sky and heatmap |
-| Device and native windows | One device, client retirement, swapchain registry, Qt native-surface adapter in Render | Focused lifecycle tests; three-map and Projects handoff observed natively on Vulkan and OpenGL 4.3 | X11/Wayland resize and reparent, shutdown and recreation, Windows, WebAssembly |
-| AOWIS-GUI-Mobile | Same engine in Qt Quick's EGL context (`HostContext`) | Linux and Android builds in progress | Android device acceptance |
-| Globe camera and input (13 November 2026) | Crosshair-terrain orbit pivot, Alt free look (straight down to up), Orbit/FreeLook camera modes with terrain following in both, configurable hold keys, HUD controls card and gesture hint, MSAA setting via `SwapChain::flags`, Windows drag fix for the click's focus routing | User reported the camera behaviour working on Linux ("so far, so good", 13 November 2026); new Render tests (`render_view_test`, `render_globe_terrain_test`, `bgfx_hud_test` additions) not yet reported as run | Windows: left-drag pan and bare Alt release; MSAA levels on every backend; free-look panning over real DEM relief |
+| Device and native windows | One device, client retirement, swapchain registry, Qt native-surface adapter in Render | Focused lifecycle tests; three-map and Projects handoff observed natively on Vulkan and OpenGL 4.3 | X11/Wayland resize and reparent, shutdown and recreation, WebAssembly (Windows reported working, 14 November 2026) |
+| AOWIS-GUI-Mobile | Same engine in Qt Quick's EGL context (`HostContext`) | User reported Mobile working (14 November 2026) | None open |
+| Globe camera and input (13 November 2026) | Crosshair-terrain orbit pivot, Alt free look (straight down to up), Orbit/FreeLook camera modes with terrain following in both, configurable hold keys, HUD controls card and gesture hint, MSAA setting via `SwapChain::flags`, Windows drag fix for the click's focus routing | User reported the camera behaviour working on Linux ("so far, so good", 13 November 2026) and Windows working (14 November 2026); new Render tests (`render_view_test`, `render_globe_terrain_test`, `bgfx_hud_test` additions) not yet reported as run | MSAA levels on every backend; free-look panning over real DEM relief |
 
 ### Focused renderer regression
 
@@ -147,6 +147,6 @@ not in those two windows.
 
 A real GPU screenshot/interactive check is required for terrain depth; the
 headless mocks verify descriptor configuration, not actual z-buffer contents.
-No Windows or Mobile GPU acceptance is implied by these **Linux GPU**
-commands. Desktop and WebAssembly builds have been reported working, but
+These are **Linux GPU** commands; Windows and Mobile were reported working
+by the user separately (14 November 2026). Desktop and WebAssembly builds have been reported working, but
 additional Arabic text/layout visual qualification is documented separately.

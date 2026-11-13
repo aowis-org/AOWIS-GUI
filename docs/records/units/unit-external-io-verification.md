@@ -26,7 +26,7 @@
 
 - **AOWIS-SERVER-DB, REST API, standalone SQLite and PostgreSQL:** Not included. Need schema/serialization inspection and paired backend tests, checking type precision, nullability, canonical units, decimal/float round trips, and protocol field-unit declarations. Implement any SQL in a form valid for **both SQLite and PostgreSQL**, or explicitly isolate and document backend differences.
 - **AOWIS-SERVER-EPANET and MSX source revisions:** Their specific source trees were not provided. The GUI's linked-runner tests exercise real INP round trips, but cannot certify full upstream format combinations, solver report options, reaction orders, MSX units, or independently changing wrapper revisions.
-- **Cross-platform:** Windows and WebAssembly runtime import/export paths, browser file download, and async import profile dialogs have not been executed here. `QSaveFile` is used on native desktop; browser download uses the WASM bridge.
+- **Cross-platform:** WebAssembly runtime import/export paths (Windows: reported working by the user, 14 November 2026), browser file download, and async import profile dialogs have not been executed here. `QSaveFile` is used on native desktop; browser download uses the WASM bridge.
 - **Project persistence beyond UI profile metadata:** A full native AOWIS project read/write and database/API round trip was not available in this GUI snapshot.
 - **Affine units:** The Model unit registry reference snapshot does not expose a temperature quantity or °C/°F conversions. Do not claim affine support; this is a deferred feature unless an actual temperature-valued Model property is introduced. If needed, implement in the Model conversion engine, not at each GUI I/O boundary.
 
@@ -34,4 +34,4 @@
 
 **GUI-controlled EPANET import/export and epanet-js conversion separation are source-reviewed and covered by regression tests** (with an expanded case in this patch). This completes the *GUI-owned verification* of step 6 without changing import/export conversion semantics. **Cross-repository verification is not closed**; the database, REST, standalone and EPANET/MSX boundary checks above must be recorded as pending until the corresponding sources and runtime results are available.
 
-**Next step:** Step 7—execute the updated Linux suite, then collect Windows and WebAssembly runtime evidence. Step 8 measures profile-switch repaint/caching cost on representative networks.
+**Next step:** Step 7—execute the updated Linux suite, then collect WebAssembly runtime evidence (Windows: reported working by the user, 14 November 2026). Step 8 measures profile-switch repaint/caching cost on representative networks.

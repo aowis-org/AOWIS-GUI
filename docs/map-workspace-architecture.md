@@ -297,7 +297,7 @@ measure them are described in the
 A rare `std::bad_alloc` on application close has not been reproduced with a debugger backtrace. Workspace-before-repository teardown
 ordering is explicit, but the exception's root cause is **not confirmed fixed**.
 Keep shutdown testing (including after 2D/3D and mode transitions) in native
-Linux, Windows and WASM release acceptance, and capture a backtrace if it recurs.
+Linux and WASM release acceptance (Windows reported working, 14 November 2026), and capture a backtrace if it recurs.
 
 ## Three independent map views
 

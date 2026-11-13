@@ -101,7 +101,7 @@ lifecycles and do not establish native application or map-renderer behavior.
 ## Remaining acceptance
 
 Separate Linux Debug and Release results are supplied for the pre-Step-5 baseline; the newly added acceptance target still requires execution. Full production and platform sign-off additionally requires live
-inspector/undo behavior, large-network tables and map rendering, Windows and
-browser WebAssembly, EPANET/MSX interoperability, and matching canonical data
+inspector/undo behavior, large-network tables and map rendering, browser
+WebAssembly (Windows: reported working by the user, 14 November 2026), EPANET/MSX interoperability, and matching canonical data
 semantics through **both SQLite and PostgreSQL**. See
 [unit-system-final-acceptance.md](unit-system-final-acceptance.md).

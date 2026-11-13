@@ -51,7 +51,7 @@ Source: `src/input1.c` `initunits` / `convertunits`, `src/qualreact.c` `wallrate
 
 ## Regression policy
 
-`unit_conversion_test.cpp` checks independent numerical references and round trips, and must pass in Release/NDEBUG builds (no `assert`). The GUI EPANET-JS converter tests cover every epanet-js flow-preset spelling, pressure and emitter semantics with specific gravity ≠ 1, unit inference, the quality mass-unit precedence, and the metric/US fixtures. Windows and WASM builds remain unverified here.
+`unit_conversion_test.cpp` checks independent numerical references and round trips, and must pass in Release/NDEBUG builds (no `assert`). The GUI EPANET-JS converter tests cover every epanet-js flow-preset spelling, pressure and emitter semantics with specific gravity ≠ 1, unit inference, the quality mass-unit precedence, and the metric/US fixtures. WASM builds remain unverified here (Windows: reported working by the user, 14 November 2026).
 
 ## Scope closure
 

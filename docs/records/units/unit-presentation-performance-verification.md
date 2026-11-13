@@ -79,6 +79,7 @@ Collect structured results, with a before/after or reproducible baseline, for ea
 | Debug/Release performance comparison on Linux | Pending actual measurements |
 | Production map geometry/terrain rebuild counters | Not instrumented by this patch; requires profiling application |
 | Production hydraulic revision/model write counters | Not instrumented by this patch; requires application run |
-| Windows/native browser WASM performance | Pending |
+| Browser WASM performance | Pending |
+| Windows | Windows: reported working by the user, 14 November 2026 (not benchmarked) |
 
 **Step 8 status:** The synthetic benchmark has passed in a direct Linux run: 100,000 rows × 4 columns, 250 hidden views, 500 changes, 120 display-role reads per viewport, zero premature hidden refreshes, and 250 catch-up refreshes. It is now included as the **22nd regular Linux CTest** and is built by `aowis-tests`. This patch requires a new 22-test suite run for confirmation. Final *production* performance sign-off still needs the real application measurements above. The Step-9 [acceptance ledger](unit-system-final-acceptance.md) records the blocking evidence. **Step 9 (final audit/sign-off) must not treat this step as complete merely because the benchmark target compiles.**

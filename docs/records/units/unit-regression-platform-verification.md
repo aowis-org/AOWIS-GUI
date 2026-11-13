@@ -63,7 +63,7 @@ The native Node.js test `tests/bgfx_map_canvas_test.js` only checks how `aowis-b
 | Environment | Debug | Release | Browser/UI integration | Evidence |
 | --- | --- | --- | --- | --- |
 | Linux native | **Not yet independently rerun for this patch** | **Not yet independently rerun for this patch** | Manual GUI unverified | User's preceding 21/21 Linux result did not specify build configuration |
-| Windows native | Pending | Pending | Pending | Requires actual Windows run |
+| Windows native | Reported working | Reported working | Reported working | User report, 14 November 2026 (no logs recorded) |
 | WebAssembly | Not applicable to native CTest target | Not applicable to native CTest target | Pending | Requires a produced WASM bundle and browser runtime |
 | External DB/REST + EPANET/MSX | Outside GUI-only test suite | Outside GUI-only test suite | Pending | Requires matching repository snapshots and backend-specific validation |
 

@@ -124,7 +124,7 @@
 | `map_render_neutral_tests.cpp` ("map scale unit presentation", "map HUD length presentation") | Profile-defined readable map scales and HUD lengths | Actual WebAssembly browser runtime / ownership |
 | `slider_number_control_test.cpp` | Legacy UI-only slider precision, signal behavior | End-to-end saved settings and application UI |
 
-Step-7 regression/Debug–Release and cross-platform test instructions are tracked in [unit-regression-platform-verification.md](unit-regression-platform-verification.md). **Do not count Windows or WebAssembly as passed without actual runtime results.**
+Step-7 regression/Debug–Release and cross-platform test instructions are tracked in [unit-regression-platform-verification.md](unit-regression-platform-verification.md). **Do not count WebAssembly as passed without actual runtime results.** Windows: reported working by the user, 14 November 2026.
 
 **Step-8 performance verification:** The CTest-registered synthetic benchmark and pending production acceptance matrix are documented in [unit-presentation-performance-verification.md](unit-presentation-performance-verification.md). **Final nine-step status and unverified gates:** [unit-system-final-acceptance.md](unit-system-final-acceptance.md). **No actual performance acceptance evidence** is contained in this snapshot. Steps 7–8 should measure visible-only table repainting, hidden-region generation coalescing, map geometry cache rebuild counts (ideally zero), simulation rerun count (zero), and model property writes (zero) during profile switches. Test small and large networks in both 2D/3D and WASM as appropriate.
 
@@ -138,7 +138,7 @@ Step-7 regression/Debug–Release and cross-platform test instructions are track
 | 4. Remove duplicate/obsolete unit infrastructure | **Source-implemented** | Forwarder, corrected Settings copy, tank control cleanup, Model-header-authority test |
 | 5. Coverage inventory | **Documented in this file** | GUI source coverage established; multi-repository reconciliation belongs to step 6 |
 | 6. External I/O verification | **Partially evidenced** | EPANET-JS tests and source-specific semantics exist; current Model/EPANET/DB/REST export round trips not certified |
-| 7. Regression/platform acceptance | **Linux CTest reported passing** | Release + Windows + WASM runtime and UI interactions outstanding |
+| 7. Regression/platform acceptance | **Linux CTest reported passing** | Release + WASM runtime and UI interactions outstanding (Windows: reported working by the user, 14 November 2026) |
 | 8. Performance verification | **Not evidenced** | Profile-switch throughput, large tables, map cache rebuilds, repeat-switch tests |
 | 9. Final sign-off | **Final audit recorded; acceptance still open** | See [final acceptance ledger](unit-system-final-acceptance.md): Linux suite reported 21/21, but step 6 cross-repo, step 7 platforms, step 8 measured performance remain pending |
 

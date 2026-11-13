@@ -80,7 +80,7 @@ viewport-only formatting) are hard pass conditions; timings are observational.
 
 ## D. External boundaries
 
-This GUI-only acceptance cannot certify Windows, live browser WebAssembly,
+This GUI-only acceptance cannot certify live browser WebAssembly (Windows: reported working by the user, 14 November 2026),
 EPANET/MSX wrapper revisions or REST/database persistence. SQLite and
 PostgreSQL must be verified **separately** against the same canonical data
 contract before marking DB/REST parity as passed. See
