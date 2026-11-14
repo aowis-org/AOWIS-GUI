@@ -1,14 +1,18 @@
 #include "services/map_upstream_tunnels.h"
 
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "network/wireguard_peer_liveness.h"
 #include "network/wireguard_runtime_status.h"
 #include "network/wireguard_tunnel_pool.h"
 
 #include <aowis/network/wireguard_client.h>
 
+#include <QDateTime>
 #include <QDebug>
 #include <QPointer>
+#include <QTcpSocket>
 #include <QTimer>
+#include <QUrl>
 
 #include <algorithm>
 #endif
@@ -25,6 +29,8 @@ public:
     {
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
         this->retry.setSingleShot(true);
+        this->liveness_timer.setInterval(5000);
+        this->probe_timer.setInterval(15000);
 #endif
     }
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
@@ -33,12 +39,35 @@ public:
         WireGuardRuntimeStatus::instance().stopped(this);
     }
 
+    // Drops the lease and all liveness state (released or restarted tunnel).
+    void releaseLease()
+    {
+        this->liveness_timer.stop();
+        this->probe_timer.stop();
+        if (this->probe_socket != nullptr)
+        {
+            this->probe_socket->abort();
+            this->probe_socket->deleteLater();
+            this->probe_socket = nullptr;
+        }
+        this->liveness.reset();
+        this->reachable = true;
+        this->lease = WireGuardTunnelLease();
+    }
+
     WireGuardTunnelLease lease;
     QTimer retry;
     int failures = 0;
+    // Peer liveness of the running tunnel; see MapUpstreamTunnels.
+    WireGuardPeerLiveness liveness;
+    bool reachable = true;
+    QTimer liveness_timer;
+    QTimer probe_timer;
+    QPointer<QTcpSocket> probe_socket;
 #endif
     const QString profile_id;
     QStringList upstream_names;
+    QList<QUrl> upstream_urls; // Probe targets, in cascade order.
 };
 
 MapUpstreamTunnels &MapUpstreamTunnels::instance()
@@ -57,7 +86,7 @@ MapUpstreamTunnels::MapUpstreamTunnels(QObject *parent)
     {
         ProfileTunnel *tunnel = this->tunnels.value(profile_id);
         if (tunnel == nullptr) return;
-        tunnel->lease = WireGuardTunnelLease();
+        tunnel->releaseLease();
         tunnel->retry.stop();
         tunnel->failures = 0;
         emit this->resolvedChanged();
@@ -70,15 +99,20 @@ void MapUpstreamTunnels::setCascade(const Aowis::Map::MapCascadeConfig &cascade)
 {
     this->cascade = cascade;
     QHash<QString, QStringList> referenced;
+    QHash<QString, QList<QUrl>> referenced_urls;
     for (const Aowis::Map::MapCascadeUpstream &upstream : cascade.upstreams)
         if (Aowis::Map::requiresWireGuardTransport(upstream))
+        {
             referenced[upstream.wireguard_profile_id].append(upstream.name);
+            referenced_urls[upstream.wireguard_profile_id].append(upstream.url);
+        }
     for (QHash<QString, ProfileTunnel *>::iterator tunnel = this->tunnels.begin();
          tunnel != this->tunnels.end();)
     {
         if (referenced.contains(tunnel.key()))
         {
             tunnel.value()->upstream_names = referenced.value(tunnel.key());
+            tunnel.value()->upstream_urls = referenced_urls.value(tunnel.key());
             ++tunnel;
             continue;
         }
@@ -91,6 +125,17 @@ void MapUpstreamTunnels::setCascade(const Aowis::Map::MapCascadeConfig &cascade)
         if (this->tunnels.contains(profile.key())) continue;
         ProfileTunnel *tunnel = new ProfileTunnel(profile.key(), this);
         tunnel->upstream_names = profile.value();
+        tunnel->upstream_urls = referenced_urls.value(profile.key());
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+        connect(&tunnel->liveness_timer, &QTimer::timeout, this, [this, tunnel]()
+        {
+            sampleLiveness(tunnel);
+        });
+        connect(&tunnel->probe_timer, &QTimer::timeout, this, [this, tunnel]()
+        {
+            probe(tunnel);
+        });
+#endif
         this->tunnels.insert(profile.key(), tunnel);
         start(tunnel);
     }
@@ -109,8 +154,10 @@ void MapUpstreamTunnels::start(ProfileTunnel *tunnel)
         if (!self || !owner) return;
         if (result.tunnel)
         {
+            tunnel->releaseLease();
             tunnel->lease = result;
             tunnel->failures = 0;
+            tunnel->liveness_timer.start();
             WireGuardRuntimeStatus::instance().running(tunnel, wireGuardTelemetrySampler(result.tunnel));
             emit self->resolvedChanged();
             return;
@@ -132,6 +179,89 @@ void MapUpstreamTunnels::start(ProfileTunnel *tunnel)
 #endif
 }
 
+void MapUpstreamTunnels::sampleLiveness(ProfileTunnel *tunnel)
+{
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    if (!tunnel->lease.tunnel) return;
+    aowis::network::WireGuardTelemetry sample;
+    if (!tunnel->lease.tunnel->telemetry(&sample)) return;
+    const bool unresponsive = tunnel->liveness.update(
+        QDateTime::currentMSecsSinceEpoch(), sample.lastHandshakeUnixMs,
+        sample.sentBytes);
+    setReachable(tunnel, !unresponsive);
+#else
+    Q_UNUSED(tunnel)
+#endif
+}
+
+void MapUpstreamTunnels::probe(ProfileTunnel *tunnel)
+{
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    if (!tunnel->lease.tunnel || tunnel->reachable || tunnel->upstream_urls.isEmpty() ||
+        tunnel->probe_socket != nullptr)
+        return;
+    // Any TCP connection into the tunnel makes WireGuard initiate a
+    // handshake; connecting to the upstream itself also proves it listens.
+    // Never sent anywhere but through this tunnel's own proxy.
+    const QUrl url = tunnel->upstream_urls.first();
+    const quint16 port = quint16(url.port(url.scheme() == QStringLiteral("https") ? 443 : 80));
+    QTcpSocket *socket = new QTcpSocket(tunnel);
+    socket->setProxy(wireGuardQtProxy(*tunnel->lease.tunnel));
+    tunnel->probe_socket = socket;
+    const QPointer<MapUpstreamTunnels> self(this);
+    const QPointer<ProfileTunnel> owner(tunnel);
+    connect(socket, &QTcpSocket::connected, this, [self, owner, socket]()
+    {
+        socket->abort();
+        socket->deleteLater();
+        if (!self || !owner) return;
+        owner->probe_socket = nullptr;
+        owner->liveness.reset();
+        self->setReachable(owner, true);
+    });
+    connect(socket, &QTcpSocket::errorOccurred, this, [owner, socket](QAbstractSocket::SocketError)
+    {
+        socket->deleteLater();
+        if (owner && owner->probe_socket == socket) owner->probe_socket = nullptr;
+    });
+    // Bounded like an upstream request; the next probe starts a new attempt.
+    // abort() reports no error, so the socket is released here as well.
+    QTimer::singleShot(10000, socket, [socket]()
+    {
+        socket->abort();
+        socket->deleteLater();
+    });
+    socket->connectToHost(url.host(), port);
+#else
+    Q_UNUSED(tunnel)
+#endif
+}
+
+void MapUpstreamTunnels::setReachable(ProfileTunnel *tunnel, bool reachable)
+{
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    if (tunnel->reachable == reachable) return;
+    tunnel->reachable = reachable;
+    if (reachable)
+    {
+        tunnel->probe_timer.stop();
+        qInfo().noquote() << "MAP upstream WireGuard peer answers again; using"
+                          << tunnel->upstream_names.join(QStringLiteral(", "));
+    }
+    else
+    {
+        tunnel->probe_timer.start();
+        qWarning().noquote() << "MAP upstream WireGuard peer does not answer; skipping"
+                             << tunnel->upstream_names.join(QStringLiteral(", "))
+                             << "until it does";
+    }
+    emit resolvedChanged();
+#else
+    Q_UNUSED(tunnel)
+    Q_UNUSED(reachable)
+#endif
+}
+
 Aowis::Map::MapCascadeConfig MapUpstreamTunnels::resolved() const
 {
     Aowis::Map::MapCascadeConfig result = this->cascade;
@@ -140,7 +270,8 @@ Aowis::Map::MapCascadeConfig MapUpstreamTunnels::resolved() const
     {
         if (!Aowis::Map::requiresWireGuardTransport(upstream)) continue;
         const ProfileTunnel *tunnel = this->tunnels.value(upstream.wireguard_profile_id);
-        if (tunnel != nullptr && tunnel->lease.tunnel)
+        // An unresponsive peer: no proxy, so MAP skips the upstream at once.
+        if (tunnel != nullptr && tunnel->lease.tunnel && tunnel->reachable)
             upstream.proxy = wireGuardQtProxy(*tunnel->lease.tunnel);
     }
 #endif

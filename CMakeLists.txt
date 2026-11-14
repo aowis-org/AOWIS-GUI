@@ -417,6 +417,7 @@ qt_add_executable(aowis-server-gui
     src/projects/repository_probe.cpp
     src/network/wireguard_tunnel_pool.cpp
     src/network/wireguard_tunnel_pool.h
+    src/network/wireguard_peer_liveness.h
     src/tabs/tab_projects_widget.cpp
     src/tabs/tab_projects_widget.h
     src/projects/project_source_reader.cpp

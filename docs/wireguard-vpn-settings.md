@@ -91,6 +91,11 @@ hands MAP its SOCKS5 proxy, so tiles, terrain and provider discovery of
 that upstream go through it. While the tunnel cannot start (retried after
 5, 10, 20, 40, then every 60 seconds) the upstream is skipped, never
 contacted directly; it appears under **Used by now** as "MAP upstream".
+A running tunnel whose peer stops answering (packets sent for 20 s without
+any WireGuard session, i.e. no handshake in the last 180 s) is treated the
+same way: MAP skips its upstreams at once instead of waiting for each tile
+to time out, and every 15 s a TCP connection to the upstream is attempted
+through the tunnel; the first answer puts the upstreams back in use.
 
 For a WireGuard connection, everything that talks to that server goes
 through its tunnel: the catalogue and health checks, metadata writes,

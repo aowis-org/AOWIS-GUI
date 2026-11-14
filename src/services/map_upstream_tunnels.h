@@ -15,7 +15,13 @@
 // profile no longer referenced is released at once. Leases are reported to
 // WireGuardRuntimeStatus (Settings -> WireGuard VPN -> Status, Used by now).
 // Builds without the embedded engine never set a proxy, so MAP never
-// contacts such upstreams (no direct fallback). GUI thread only.
+// contacts such upstreams (no direct fallback).
+// A started tunnel is not proof that its peer answers: telemetry is sampled
+// every 5 s (WireGuardPeerLiveness), and while the peer does not answer the
+// proxy is withheld, so MAP skips these upstreams at once instead of letting
+// every tile wait for a timeout. Every 15 s a TCP connection to one of the
+// profile's upstreams is attempted through the tunnel, which makes WireGuard
+// retry its handshake; the first answer restores the proxy. GUI thread only.
 class MapUpstreamTunnels final : public QObject
 {
     Q_OBJECT
@@ -36,6 +42,9 @@ private:
     explicit MapUpstreamTunnels(QObject *parent);
     class ProfileTunnel;
     void start(ProfileTunnel *tunnel);
+    void sampleLiveness(ProfileTunnel *tunnel);
+    void probe(ProfileTunnel *tunnel);
+    void setReachable(ProfileTunnel *tunnel, bool reachable);
 
     Aowis::Map::MapCascadeConfig cascade;
     QHash<QString, ProfileTunnel *> tunnels; // By profile ID.
