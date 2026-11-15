@@ -49,7 +49,8 @@ text, including its private key. Files are private to the user account but
   reported above the list; **Remove damaged…** deletes them after
   confirmation, except records written by a newer AOWIS version or still
   referenced by a connection.
-- Tabs: **Status**, **Configuration**, **Used by**. The editor hides each
+- Tabs: **Status** (sections **Tunnel status** and **Used by**) and
+  **Configuration**. The editor hides each
   `PrivateKey` value behind a mask by default; **Show/edit private key**
   reveals it. Hidden keys are restored for validation and saving, so other
   lines can be edited and saved with the key hidden; copying while hidden

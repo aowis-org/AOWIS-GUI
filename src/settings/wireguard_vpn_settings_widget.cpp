@@ -28,6 +28,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QHideEvent>
@@ -382,8 +383,14 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->detail_tabs->setObjectName(QStringLiteral("wireguardVpnDetails"));
     detail_layout->addWidget(this->detail_tabs, 1);
 
-    // Tab order: Status (index 0), Configuration (1), Used by (2).
-    QWidget *status_tab = new QWidget(this->detail_tabs);
+    // Tab order: Status (index 0), Configuration (1). Status holds two
+    // sections: the live tunnel state and the connections using the profile.
+    QWidget *status_page = new QWidget(this->detail_tabs);
+    QVBoxLayout *status_page_layout = new QVBoxLayout(status_page);
+    this->tunnel_group = new QGroupBox(status_page);
+    this->tunnel_group->setObjectName(QStringLiteral("wireguardVpnTunnelSection"));
+    status_page_layout->addWidget(this->tunnel_group);
+    QWidget *status_tab = this->tunnel_group;
     QVBoxLayout *status_layout = new QVBoxLayout(status_tab);
     this->status_info = wrappedLabel(status_tab);
     this->status_info->setObjectName(QStringLiteral("wireguardVpnStatusInfo"));
@@ -436,12 +443,28 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     status_layout->addLayout(toggle_row);
     this->tunnel_error = wrappedLabel(status_tab);
     status_layout->addWidget(this->tunnel_error);
-    status_layout->addStretch();
     this->telemetry_timer = new QTimer(this);
     this->telemetry_timer->setInterval(TelemetryIntervalMs);
     connect(this->telemetry_timer, &QTimer::timeout, this, [this] { refreshStatus(); });
     this->telemetry_clock.start();
-    this->detail_tabs->addTab(status_tab, QString());
+
+    this->usage_group = new QGroupBox(status_page);
+    this->usage_group->setObjectName(QStringLiteral("wireguardVpnUsageSection"));
+    status_page_layout->addWidget(this->usage_group, 1);
+    QVBoxLayout *usage_layout = new QVBoxLayout(this->usage_group);
+    this->usage_info = wrappedLabel(this->usage_group);
+    usage_layout->addWidget(this->usage_info);
+    this->usage_table = new QTreeWidget(this->usage_group);
+    this->usage_table->setObjectName(QStringLiteral("wireguardVpnUsedBy"));
+    this->usage_table->setRootIsDecorated(false);
+    this->usage_table->setAlternatingRowColors(true);
+    this->usage_table->setColumnCount(3);
+    this->usage_table->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    this->usage_table->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    this->usage_table->header()->setSectionResizeMode(2, QHeaderView::Stretch);
+    this->usage_table->setMinimumHeight(120);
+    usage_layout->addWidget(this->usage_table, 1);
+    this->detail_tabs->addTab(status_page, QString());
 
     QWidget *configuration_tab = new QWidget(this->detail_tabs);
     QVBoxLayout *config_layout = new QVBoxLayout(configuration_tab);
@@ -493,21 +516,6 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     save_actions->addWidget(this->save_button);
     config_layout->addLayout(save_actions);
     this->detail_tabs->addTab(configuration_tab, QString());
-
-    QWidget *usage_tab = new QWidget(this->detail_tabs);
-    QVBoxLayout *usage_layout = new QVBoxLayout(usage_tab);
-    this->usage_info = wrappedLabel(usage_tab);
-    usage_layout->addWidget(this->usage_info);
-    this->usage_table = new QTreeWidget(usage_tab);
-    this->usage_table->setObjectName(QStringLiteral("wireguardVpnUsedBy"));
-    this->usage_table->setRootIsDecorated(false);
-    this->usage_table->setAlternatingRowColors(true);
-    this->usage_table->setColumnCount(3);
-    this->usage_table->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    this->usage_table->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    this->usage_table->header()->setSectionResizeMode(2, QHeaderView::Stretch);
-    usage_layout->addWidget(this->usage_table, 1);
-    this->detail_tabs->addTab(usage_tab, QString());
 
 
     splitter->addWidget(list_panel);
@@ -1123,7 +1131,7 @@ void WireGuardVpnSettingsWidget::deleteProfile()
     {
         QMessageBox::warning(this, tr("Profile in use"),
             tr("This profile is used by configured connections. Change those connections before deleting it."));
-        this->detail_tabs->setCurrentIndex(2); // Used by
+        this->detail_tabs->setCurrentIndex(0); // Status, with its "Used by" section
         return;
     }
     if (QMessageBox::question(this, tr("Delete WireGuard profile?"),
@@ -1437,7 +1445,8 @@ void WireGuardVpnSettingsWidget::retranslate()
     this->revert_button->setText(tr("Revert"));
     this->detail_tabs->setTabText(0, tr("Status"));
     this->detail_tabs->setTabText(1, tr("Configuration"));
-    this->detail_tabs->setTabText(2, tr("Used by"));
+    this->tunnel_group->setTitle(tr("Tunnel status"));
+    this->usage_group->setTitle(tr("Used by"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnNameCaption"))->setText(tr("Profile name"));
     this->findChild<QLabel *>(QStringLiteral("wireguardVpnDescriptionCaption"))->setText(tr("Description"));
     this->refreshPrivateKeyControls();

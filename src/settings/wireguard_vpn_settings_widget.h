@@ -14,6 +14,7 @@ class QListWidget;
 class QPlainTextEdit;
 class QSyntaxHighlighter;
 class QPushButton;
+class QGroupBox;
 class QTabWidget;
 class QTreeWidget;
 class QEvent;
@@ -118,6 +119,8 @@ private:
     QLabel *validation_label = nullptr;
     QLabel *usage_info = nullptr;
     QTreeWidget *usage_table = nullptr;
+    QGroupBox *tunnel_group = nullptr; // Status tab: live tunnel state
+    QGroupBox *usage_group = nullptr;  // Status tab: connections using the profile
     QLabel *status_info = nullptr;
     QLabel *tunnel_state = nullptr;
     QLabel *active_consumers = nullptr;

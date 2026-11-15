@@ -8697,6 +8697,10 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Tunnel status</source>
+      <translation>Estado del túnel</translation>
+    </message>
+    <message>
       <source>%1 B</source>
       <translation>%1 B</translation>
     </message>

@@ -8749,6 +8749,10 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Tunnel status</source>
+      <translation>حالة النفق</translation>
+    </message>
+    <message>
       <source>%1 B</source>
       <translation>%1 بايت</translation>
     </message>

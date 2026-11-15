@@ -8697,6 +8697,10 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Tunnel status</source>
+      <translation>État du tunnel</translation>
+    </message>
+    <message>
       <source>%1 B</source>
       <translation>%1 o</translation>
     </message>

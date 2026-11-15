@@ -12,6 +12,7 @@
 #include <QAbstractButton>
 #include <QColor>
 #include <QEvent>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -125,6 +126,13 @@ int main(int argc, char **argv)
     QLabel *active = page.findChild<QLabel *>(QStringLiteral("wireguardVpnActiveConsumers"));
     if (!check(list && name && editor && description && save && create && remove && tabs && used_by && state && active,
                "required controls are missing")) return 1;
+    // "Used by" is a section of the Status tab, next to the tunnel state.
+    QGroupBox *tunnel_section = page.findChild<QGroupBox *>(QStringLiteral("wireguardVpnTunnelSection"));
+    QGroupBox *usage_section = page.findChild<QGroupBox *>(QStringLiteral("wireguardVpnUsageSection"));
+    if (!check(tabs->count() == 2 && tunnel_section && usage_section
+                   && tabs->widget(0)->isAncestorOf(tunnel_section) && tabs->widget(0)->isAncestorOf(usage_section)
+                   && tunnel_section->isAncestorOf(state) && usage_section->isAncestorOf(used_by),
+               "Status tab must hold the tunnel and Used by sections")) return 1;
     if (!check(list->count() == 0 && tabs->isHidden() && page.profileIds().isEmpty(),
                "new manager must not fabricate saved profiles")) return 1;
 

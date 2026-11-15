@@ -8697,6 +8697,10 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Tunnel status</source>
+      <translation>Tunnelstatus</translation>
+    </message>
+    <message>
       <source>%1 B</source>
       <translation>%1 B</translation>
     </message>
