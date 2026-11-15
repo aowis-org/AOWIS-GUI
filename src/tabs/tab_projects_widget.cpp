@@ -323,12 +323,14 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     GroupBoxCollapsible *explorer_group = new GroupBoxCollapsible(tr("Explorer"), left);
     explorer_group->setObjectName(QStringLiteral("explorerCollapsibleGroup"));
     QVBoxLayout *explorer_layout = new QVBoxLayout(explorer_group);
-    QToolButton *add_server = new QToolButton(explorer_group);
-    add_server->setText(QStringLiteral("+"));
-    add_server->setToolTip(tr("Add a database (local or REST)"));
-    add_server->setAccessibleName(tr("Add database"));
-    add_server->setObjectName(QStringLiteral("serversCreateButton"));
-    explorer_group->setHeaderAction(add_server);
+    // The single entry point for adding a database: inside Explorer, directly
+    // above the tree it adds to (no header "+" and no graph-toolbar duplicate).
+    QPushButton *add_server = compactButton(tr("Add server connection"),
+        tr("Add a database (local or REST)"), explorer_group);
+    add_server->setObjectName(QStringLiteral("projectsExplorerAddServerConnectionButton"));
+    add_server->setMinimumWidth(0);
+    add_server->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    explorer_layout->addWidget(add_server, 0);
     this->project_tree = new QTreeWidget(explorer_group);
     this->project_tree->setObjectName(QStringLiteral("projectsTree"));
     this->project_tree->setHeaderHidden(true);
@@ -422,10 +424,6 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     graph_toolbar->setObjectName(QStringLiteral("projectsGraphToolbar"));
     QHBoxLayout *graph_header = new QHBoxLayout(graph_toolbar);
     graph_header->setContentsMargins(0, 0, 0, 0);
-    QPushButton *graph_add_server = compactButton(tr("Add server connection"),
-        tr("Add a database (local or REST)"), graph_toolbar);
-    graph_add_server->setObjectName(QStringLiteral("projectsGraphAddServerConnectionButton"));
-    graph_header->addWidget(graph_add_server);
     graph_header->addStretch();
     // One visibly grouped, mutually exclusive control. The selected half
     // uses the Qt highlight color, so it is unmistakably a view-mode switch.
@@ -494,18 +492,16 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     empty_layout->addWidget(empty_add, 0, Qt::AlignHCenter);
     connect(this, &ProjectsWidget::languageChanged, left,
             [this, explorer_group, revisions_group, no_sources, browse_examples_button,
-             graph_add_server, graph_heads_button, graph_full_button, direction_button,
+             graph_heads_button, graph_full_button, direction_button,
              fit_button, empty_title, empty_description, empty_add, add_server] {
         refreshPreviewTranslations();
         explorer_group->setTitle(tr("Explorer"));
         revisions_group->setTitle(tr("Editable HEADs"));
+        add_server->setText(tr("Add server connection"));
         add_server->setToolTip(tr("Add a database (local or REST)"));
-        add_server->setAccessibleName(tr("Add database"));
         no_sources->setText(tr("No databases configured"));
         if (browse_examples_button)
             browse_examples_button->setText(tr("Browse examples…"));
-        graph_add_server->setText(tr("Add server connection"));
-        graph_add_server->setToolTip(tr("Add a database (local or REST)"));
         graph_heads_button->setText(tr("Editable heads"));
         graph_full_button->setText(tr("Full tree"));
         direction_button->setText(direction_button->isChecked() ? tr("Bottom up ↑") : tr("Top down ↓"));
@@ -750,8 +746,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
 
-    connect(add_server, &QToolButton::clicked, this, &ProjectsWidget::createServer);
-    connect(graph_add_server, &QPushButton::clicked, this, &ProjectsWidget::createServer);
+    connect(add_server, &QPushButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->database_connection->source_refresh_button, &QPushButton::clicked, this, &ProjectsWidget::connectSource);
     connect(empty_add, &QPushButton::clicked, this, &ProjectsWidget::createServer);
     connect(this->database_inspector->save_source, &QPushButton::clicked, this, &ProjectsWidget::saveNewSource);

@@ -491,8 +491,8 @@ int main(int argc, char **argv)
     }
     QPushButton *delete_in_inspector = activeInspectorAction(projects,
         QStringLiteral("projectInspectorDeleteButton"));
-    QToolButton *add_server = projects.findChild<QToolButton *>(
-        QStringLiteral("serversCreateButton"));
+    QPushButton *add_server = projects.findChild<QPushButton *>(
+        QStringLiteral("projectsExplorerAddServerConnectionButton"));
     QPushButton *add_project = projects.findChild<QPushButton *>(
         QStringLiteral("projectsInspectorCreateProject"));
     QPushButton *add_branch = activeInspectorAction(projects,
@@ -1830,16 +1830,29 @@ int main(int argc, char **argv)
             return 1;
     }
 
-    // Replacing the graph heading must not create a separate server-creation
-    // flow: this toolbar button opens the same unsaved Connection inspector.
+    // Adding a database has exactly one entry point: the Explorer button above
+    // the tree. The former Explorer header "+" and graph-toolbar duplicate are gone.
     QPushButton *graph_add_server = projects.findChild<QPushButton *>(
-        QStringLiteral("projectsGraphAddServerConnectionButton"));
+        QStringLiteral("projectsExplorerAddServerConnectionButton"));
     QWidget *graph_toolbar = projects.findChild<QWidget *>(
         QStringLiteral("projectsGraphToolbar"));
+    QWidget *explorer = projects.findChild<QWidget *>(
+        QStringLiteral("explorerCollapsibleGroup"));
+    QTreeWidget *explorer_tree = projects.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
     if (!require(graph_add_server != nullptr && graph_add_server->isVisible()
                      && graph_add_server->text() == QStringLiteral("Add server connection")
-                     && graph_toolbar != nullptr,
-                 "graph toolbar lacks the Add server connection action")) return 1;
+                     && graph_toolbar != nullptr && explorer != nullptr && explorer_tree != nullptr
+                     && explorer->isAncestorOf(graph_add_server)
+                     && graph_add_server->mapTo(explorer, QPoint(0, 0)).y()
+                            < explorer_tree->mapTo(explorer, QPoint(0, 0)).y(),
+                 "Explorer lacks the Add server connection action above its tree")) return 1;
+    if (!require(projects.findChild<QAbstractButton *>(QStringLiteral("serversCreateButton")) == nullptr
+                     && projects.findChild<QAbstractButton *>(
+                            QStringLiteral("projectsGraphAddServerConnectionButton")) == nullptr,
+                 "obsolete Add server buttons remain")) return 1;
+    for (QAbstractButton *button : graph_toolbar->findChildren<QAbstractButton *>())
+        if (!require(button->text() != QStringLiteral("Add server connection"),
+                     "graph toolbar still offers Add server connection")) return 1;
     for (QLabel *label : graph_toolbar->findChildren<QLabel *>())
         if (!require(label->text() != QStringLiteral("Branch & revision graph"),
                      "obsolete branch and revision graph heading remains")) return 1;
