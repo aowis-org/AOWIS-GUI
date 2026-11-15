@@ -9245,4 +9245,23 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <translation>تعذّر بدء نفق WireGuard.</translation>
     </message>
   </context>
+  <context>
+    <name>EmbeddedDvmdbHost</name>
+    <message>
+      <source>Cannot bind the internal DVMDB loopback listener.</source>
+      <translation>تعذّر ربط مستمع الاسترجاع الداخلي لـ DVMDB.</translation>
+    </message>
+    <message>
+      <source>The internal DVMDB listener could not start.</source>
+      <translation>تعذّر بدء المستمع الداخلي لـ DVMDB.</translation>
+    </message>
+    <message>
+      <source>This local DVMDB is configured as shared, not private.</source>
+      <translation>قاعدة DVMDB المحلية هذه مهيأة كمشتركة وليست خاصة.</translation>
+    </message>
+    <message>
+      <source>Choose a dedicated absolute local DVMDB data directory.</source>
+      <translation>اختر دليل بيانات DVMDB محليًا مخصصًا ومطلقًا.</translation>
+    </message>
+  </context>
 </TS>

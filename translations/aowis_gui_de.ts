@@ -9185,4 +9185,23 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <translation>Der WireGuard-Tunnel konnte nicht gestartet werden.</translation>
     </message>
   </context>
+  <context>
+    <name>EmbeddedDvmdbHost</name>
+    <message>
+      <source>Cannot bind the internal DVMDB loopback listener.</source>
+      <translation>Der interne DVMDB-Loopback-Listener konnte nicht gebunden werden.</translation>
+    </message>
+    <message>
+      <source>The internal DVMDB listener could not start.</source>
+      <translation>Der interne DVMDB-Listener konnte nicht gestartet werden.</translation>
+    </message>
+    <message>
+      <source>This local DVMDB is configured as shared, not private.</source>
+      <translation>Diese lokale DVMDB ist als gemeinsam genutzt konfiguriert, nicht als privat.</translation>
+    </message>
+    <message>
+      <source>Choose a dedicated absolute local DVMDB data directory.</source>
+      <translation>Wählen Sie ein eigenes, absolutes lokales DVMDB-Datenverzeichnis.</translation>
+    </message>
+  </context>
 </TS>

@@ -9185,4 +9185,23 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <translation>Le tunnel WireGuard n’a pas pu démarrer.</translation>
     </message>
   </context>
+  <context>
+    <name>EmbeddedDvmdbHost</name>
+    <message>
+      <source>Cannot bind the internal DVMDB loopback listener.</source>
+      <translation>Impossible de lier l’écouteur loopback interne de la DVMDB.</translation>
+    </message>
+    <message>
+      <source>The internal DVMDB listener could not start.</source>
+      <translation>L’écouteur interne de la DVMDB n’a pas pu démarrer.</translation>
+    </message>
+    <message>
+      <source>This local DVMDB is configured as shared, not private.</source>
+      <translation>Cette DVMDB locale est configurée comme partagée, et non privée.</translation>
+    </message>
+    <message>
+      <source>Choose a dedicated absolute local DVMDB data directory.</source>
+      <translation>Choisissez un répertoire de données DVMDB local dédié et absolu.</translation>
+    </message>
+  </context>
 </TS>

@@ -5,6 +5,7 @@
 #include <aowis/dvmdb/project_service.h>
 #include <httplib.h>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
@@ -30,7 +31,8 @@ public:
         aowis::dvmdb::http::registerRoutes(this->server_, this->service_);
         const int port = this->server_.bind_to_any_port("127.0.0.1");
         if (port <= 0)
-            throw std::runtime_error("Cannot bind the internal DVMDB loopback listener");
+            throw std::runtime_error(QCoreApplication::translate(
+                "EmbeddedDvmdbHost", "Cannot bind the internal DVMDB loopback listener.").toStdString());
         this->endpoint_ = QStringLiteral("http://127.0.0.1:%1").arg(port);
         this->thread_ = std::thread([this] { this->server_.listen_after_bind(); });
         this->server_.wait_until_ready();
@@ -38,7 +40,8 @@ public:
         {
             this->server_.stop();
             if (this->thread_.joinable()) this->thread_.join();
-            throw std::runtime_error("Internal DVMDB listener could not start");
+            throw std::runtime_error(QCoreApplication::translate(
+                "EmbeddedDvmdbHost", "The internal DVMDB listener could not start.").toStdString());
         }
     }
 
@@ -55,7 +58,8 @@ public:
     {
         const aowis::dvmdb::RepositoryRole role = this->service_.repositoryRole();
         if (role == aowis::dvmdb::RepositoryRole::Shared)
-            throw std::runtime_error("This local DVMDB is configured as shared, not private");
+            throw std::runtime_error(QCoreApplication::translate(
+                "EmbeddedDvmdbHost", "This local DVMDB is configured as shared, not private.").toStdString());
         if (role == aowis::dvmdb::RepositoryRole::Unconfigured)
             this->service_.configureRepositoryRole(aowis::dvmdb::RepositoryRole::Private);
     }
@@ -100,7 +104,8 @@ QString embeddedDvmdbEndpoint(const QString &storage_path, bool personal,
     // Refuse a filesystem root ("/" or a Windows drive root such as "C:/").
     if (!QDir::isAbsolutePath(path) || path.isEmpty() || QDir(path).isRoot())
     {
-        if (error) *error = QStringLiteral("Choose a dedicated absolute local DVMDB data directory.");
+        if (error) *error = QCoreApplication::translate(
+            "EmbeddedDvmdbHost", "Choose a dedicated absolute local DVMDB data directory.");
         return {};
     }
     try

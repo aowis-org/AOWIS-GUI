@@ -9185,4 +9185,23 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <translation>No se pudo iniciar el túnel de WireGuard.</translation>
     </message>
   </context>
+  <context>
+    <name>EmbeddedDvmdbHost</name>
+    <message>
+      <source>Cannot bind the internal DVMDB loopback listener.</source>
+      <translation>No se puede enlazar el escucha loopback interno de la DVMDB.</translation>
+    </message>
+    <message>
+      <source>The internal DVMDB listener could not start.</source>
+      <translation>No se pudo iniciar el escucha interno de la DVMDB.</translation>
+    </message>
+    <message>
+      <source>This local DVMDB is configured as shared, not private.</source>
+      <translation>Esta DVMDB local está configurada como compartida, no como privada.</translation>
+    </message>
+    <message>
+      <source>Choose a dedicated absolute local DVMDB data directory.</source>
+      <translation>Elija un directorio de datos DVMDB local dedicado y absoluto.</translation>
+    </message>
+  </context>
 </TS>
