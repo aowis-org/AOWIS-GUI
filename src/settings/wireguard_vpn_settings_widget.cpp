@@ -19,6 +19,7 @@
 
 #include <QAbstractItemView>
 #include <QColor>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
 #include <QEvent>
@@ -55,6 +56,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <limits>
 #include <string>
@@ -1291,6 +1293,7 @@ void WireGuardVpnSettingsWidget::refreshTelemetry(bool running)
                               this->keepalive, this->uptime, this->relays})
             label->setText(none);
         this->last_handshake->setToolTip(QString());
+        this->traffic->setToolTip(QString());
         this->rate_sample = RateSample();
         if (running) hints.append(tr("The embedded WireGuard engine did not report telemetry."));
         this->peer_telemetry_notice->setText(hints.join(QStringLiteral("\n")));
@@ -1343,7 +1346,12 @@ void WireGuardVpnSettingsWidget::refreshTelemetry(bool running)
             : tr("Waiting for the first WireGuard handshake…"));
     }
     this->traffic->setText(tr("%1 received · %2 sent")
-                               .arg(this->bytesText(tunnel.received_bytes), this->bytesText(tunnel.sent_bytes)));
+                               .arg(dataSizeText(tunnel.received_bytes, this->locale()),
+                                    dataSizeText(tunnel.sent_bytes, this->locale())));
+    this->traffic->setToolTip(tr("Encrypted WireGuard traffic of this tunnel since it started (%1), including WireGuard and TCP/IP overhead. "
+                                 "Only connections that use this profile are counted. Map tiles and terrain a map server downloads from the internet itself, "
+                                 "and data served from caches, do not pass through the tunnel and are not counted. Stopping or restarting the tunnel resets the counters.")
+                                  .arg(this->locale().toString(QDateTime::fromMSecsSinceEpoch(tunnel.started_unix_ms), QLocale::ShortFormat)));
     this->throughput->setText(rate.has_rate
         ? tr("%1 in · %2 out").arg(this->rateText(rate.received_per_second), this->rateText(rate.sent_per_second))
         : tr("Measuring…"));
@@ -1373,14 +1381,46 @@ QString WireGuardVpnSettingsWidget::durationText(qint64 seconds) const
     return tr("%1 d %2 h").arg(seconds / 86400).arg((seconds % 86400) / 3600);
 }
 
-QString WireGuardVpnSettingsWidget::bytesText(quint64 bytes) const
+QString WireGuardVpnSettingsWidget::dataSizeText(quint64 bytes, const QLocale &locale)
 {
-    return this->locale().formattedDataSize(static_cast<qint64>(std::min<quint64>(bytes, static_cast<quint64>(std::numeric_limits<qint64>::max()))));
+    static const char *const units[] = {
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 B"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 KiB"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 MiB"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 GiB"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 TiB"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 PiB"),
+        QT_TRANSLATE_NOOP("WireGuardVpnSettingsWidget", "%1 EiB")};
+    constexpr int largest_unit = 6;
+    QLocale plain = locale;
+    plain.setNumberOptions(plain.numberOptions() | QLocale::OmitGroupSeparator);
+    if (bytes < 1024)
+        return QCoreApplication::translate("WireGuardVpnSettingsWidget", units[0])
+            .arg(plain.toString(static_cast<qulonglong>(bytes)));
+    int unit = 0;
+    double value = static_cast<double>(bytes);
+    while (value >= 1024.0 && unit < largest_unit)
+    {
+        value /= 1024.0;
+        ++unit;
+    }
+    int decimals = value < 10.0 ? 2 : (value < 100.0 ? 1 : 0);
+    // Rounding can carry into the next unit (1023.7 KiB -> "1024 KiB").
+    const double scale = decimals == 2 ? 100.0 : (decimals == 1 ? 10.0 : 1.0);
+    if (unit < largest_unit && std::round(value * scale) / scale >= 1024.0)
+    {
+        value /= 1024.0;
+        ++unit;
+        decimals = 2;
+    }
+    return QCoreApplication::translate("WireGuardVpnSettingsWidget", units[unit])
+        .arg(plain.toString(value, 'f', decimals));
 }
 
 QString WireGuardVpnSettingsWidget::rateText(double bytes_per_second) const
 {
-    return tr("%1/s").arg(this->locale().formattedDataSize(static_cast<qint64>(bytes_per_second + 0.5)));
+    const double clamped = std::max(0.0, bytes_per_second);
+    return tr("%1/s").arg(dataSizeText(static_cast<quint64>(clamped + 0.5), this->locale()));
 }
 
 void WireGuardVpnSettingsWidget::retranslate()

@@ -8697,6 +8697,38 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>%1 B</source>
+      <translation>%1 B</translation>
+    </message>
+    <message>
+      <source>%1 KiB</source>
+      <translation>%1 KiB</translation>
+    </message>
+    <message>
+      <source>%1 MiB</source>
+      <translation>%1 MiB</translation>
+    </message>
+    <message>
+      <source>%1 GiB</source>
+      <translation>%1 GiB</translation>
+    </message>
+    <message>
+      <source>%1 TiB</source>
+      <translation>%1 TiB</translation>
+    </message>
+    <message>
+      <source>%1 PiB</source>
+      <translation>%1 PiB</translation>
+    </message>
+    <message>
+      <source>%1 EiB</source>
+      <translation>%1 EiB</translation>
+    </message>
+    <message>
+      <source>Encrypted WireGuard traffic of this tunnel since it started (%1), including WireGuard and TCP/IP overhead. Only connections that use this profile are counted. Map tiles and terrain a map server downloads from the internet itself, and data served from caches, do not pass through the tunnel and are not counted. Stopping or restarting the tunnel resets the counters.</source>
+      <translation>Tráfico WireGuard cifrado de este túnel desde su inicio (%1), incluida la sobrecarga de WireGuard y TCP/IP. Solo se cuentan las conexiones que usan este perfil. Los mosaicos y el relieve que un servidor de mapas descarga por sí mismo de Internet, así como los datos servidos desde cachés, no pasan por el túnel y no se cuentan. Detener o reiniciar el túnel pone los contadores a cero.</translation>
+    </message>
+    <message>
       <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
       <translation>Permitir de nuevo que las conexiones inicien el túnel de este perfil; se vuelven a conectar de inmediato.</translation>
     </message>

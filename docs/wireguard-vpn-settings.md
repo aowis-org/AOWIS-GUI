@@ -67,6 +67,16 @@ text, including its private key. Files are private to the user account but
   first handshake (after 15 s), a handshake older than 3 minutes with
   keepalive on, an idle tunnel without keepalive, and failed in-tunnel
   connections. The most recent start error is shown without keys.
+- **Traffic** is wireguard-go's per-peer `rx_bytes`/`tx_bytes` for the
+  current tunnel instance: encrypted packets including WireGuard and IP/TCP
+  framing (about 6 % above payload at MTU 1420), reset when the tunnel
+  stops or restarts. Only connections using this profile are counted; tiles
+  and terrain a map server (also the embedded one in Standalone) downloads
+  from the internet directly, and cache hits, never pass the tunnel. Sizes
+  and rates scale to the largest fitting binary unit (B, KiB, MiB, GiB, …)
+  with three significant digits and no group separators. The NETWORK e2e
+  test `TestWireGuardE2ETrafficCountersMatchPayload` moves 8 MiB down and
+  4 MiB up and checks the counters against the payload.
 - **Stop tunnel / Start tunnel** (Status tab, builds with the embedded
   engine): Stop stops the profile's running tunnel and keeps it stopped for
   this session (not persisted; the next launch starts it on demand again).

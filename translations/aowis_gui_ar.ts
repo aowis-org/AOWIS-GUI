@@ -8749,6 +8749,38 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>%1 B</source>
+      <translation>%1 بايت</translation>
+    </message>
+    <message>
+      <source>%1 KiB</source>
+      <translation>%1 KiB</translation>
+    </message>
+    <message>
+      <source>%1 MiB</source>
+      <translation>%1 MiB</translation>
+    </message>
+    <message>
+      <source>%1 GiB</source>
+      <translation>%1 GiB</translation>
+    </message>
+    <message>
+      <source>%1 TiB</source>
+      <translation>%1 TiB</translation>
+    </message>
+    <message>
+      <source>%1 PiB</source>
+      <translation>%1 PiB</translation>
+    </message>
+    <message>
+      <source>%1 EiB</source>
+      <translation>%1 EiB</translation>
+    </message>
+    <message>
+      <source>Encrypted WireGuard traffic of this tunnel since it started (%1), including WireGuard and TCP/IP overhead. Only connections that use this profile are counted. Map tiles and terrain a map server downloads from the internet itself, and data served from caches, do not pass through the tunnel and are not counted. Stopping or restarting the tunnel resets the counters.</source>
+      <translation>حركة بيانات WireGuard المشفّرة لهذا النفق منذ بدئه (%1)، بما في ذلك الحمل الإضافي لـ WireGuard وTCP/IP. تُحتسب فقط الاتصالات التي تستخدم هذا الملف الشخصي. لا تمر مربعات الخريطة والتضاريس التي يُنزّلها خادم الخرائط بنفسه من الإنترنت، ولا البيانات المقدَّمة من ذاكرات التخزين المؤقت، عبر النفق ولا تُحتسب. يؤدي إيقاف النفق أو إعادة تشغيله إلى تصفير العدادات.</translation>
+    </message>
+    <message>
       <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
       <translation>السماح للاتصالات ببدء نفق ملف التعريف هذا مجددًا؛ وتُعيد الاتصال فورًا.</translation>
     </message>

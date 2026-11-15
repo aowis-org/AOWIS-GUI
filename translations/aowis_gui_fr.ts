@@ -8697,6 +8697,38 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>%1 B</source>
+      <translation>%1 o</translation>
+    </message>
+    <message>
+      <source>%1 KiB</source>
+      <translation>%1 Kio</translation>
+    </message>
+    <message>
+      <source>%1 MiB</source>
+      <translation>%1 Mio</translation>
+    </message>
+    <message>
+      <source>%1 GiB</source>
+      <translation>%1 Gio</translation>
+    </message>
+    <message>
+      <source>%1 TiB</source>
+      <translation>%1 Tio</translation>
+    </message>
+    <message>
+      <source>%1 PiB</source>
+      <translation>%1 Pio</translation>
+    </message>
+    <message>
+      <source>%1 EiB</source>
+      <translation>%1 Eio</translation>
+    </message>
+    <message>
+      <source>Encrypted WireGuard traffic of this tunnel since it started (%1), including WireGuard and TCP/IP overhead. Only connections that use this profile are counted. Map tiles and terrain a map server downloads from the internet itself, and data served from caches, do not pass through the tunnel and are not counted. Stopping or restarting the tunnel resets the counters.</source>
+      <translation>Trafic WireGuard chiffré de ce tunnel depuis son démarrage (%1), surcoût WireGuard et TCP/IP compris. Seules les connexions qui utilisent ce profil sont comptées. Les tuiles et le relief qu’un serveur de cartes télécharge lui-même depuis Internet, ainsi que les données servies depuis des caches, ne passent pas par le tunnel et ne sont pas comptés. Arrêter ou redémarrer le tunnel remet les compteurs à zéro.</translation>
+    </message>
+    <message>
       <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
       <translation>Autoriser à nouveau les connexions à démarrer le tunnel de ce profil ; elles se reconnectent immédiatement.</translation>
     </message>

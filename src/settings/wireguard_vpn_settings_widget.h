@@ -3,6 +3,7 @@
 #include <QElapsedTimer>
 #include <QHash>
 #include <QList>
+#include <QLocale>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
@@ -46,6 +47,11 @@ public:
     };
 
     explicit WireGuardVpnSettingsWidget(QWidget *parent = nullptr);
+
+    // Byte count in the largest binary unit (B, KiB, MiB, GiB, ...) that keeps
+    // the number below 1024, with three significant digits and no group
+    // separators, so "312 KiB" and "1.50 GiB" cannot be misread.
+    static QString dataSizeText(quint64 bytes, const QLocale &locale);
 
     // Reloads profiles and their connection references from storage; also
     // done whenever the page is shown. Unsaved drafts and edits are kept.
@@ -161,7 +167,6 @@ private:
     void refreshStatus();
     void refreshTelemetry(bool running);
     QString durationText(qint64 seconds) const;
-    QString bytesText(quint64 bytes) const;
     QString rateText(double bytes_per_second) const;
     void refreshControls();
     void retranslate();

@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPalette>
@@ -77,6 +78,39 @@ int main(int argc, char **argv)
     qputenv("XDG_CONFIG_HOME", configuration.path().toUtf8());
     qputenv("XDG_DATA_HOME", configuration.path().toUtf8());
     QApplication app(argc, argv);
+
+    // Traffic sizes scale to the largest fitting binary unit, three
+    // significant digits, never a group separator (no "312,456 KiB").
+    {
+        const QLocale c(QLocale::C);
+        const QLocale german(QLocale::German, QLocale::Germany);
+        struct SizeCase { quint64 bytes; const char *c_text; const char *german_text; };
+        const SizeCase sizes[] = {
+            {0, "0 B", "0 B"},
+            {1023, "1023 B", "1023 B"},
+            {1024, "1.00 KiB", "1,00 KiB"},
+            {1536, "1.50 KiB", "1,50 KiB"},
+            {320ull * 1024, "320 KiB", "320 KiB"},
+            {1023ull * 1024 + 900, "1.00 MiB", "1,00 MiB"},
+            {300000ull * 1024, "293 MiB", "293 MiB"},
+            {5ull * 1024 * 1024 * 1024 / 2, "2.50 GiB", "2,50 GiB"},
+            {1536ull * 1024 * 1024 * 1024, "1.50 TiB", "1,50 TiB"},
+            {18446744073709551615ull, "16.0 EiB", "16,0 EiB"},
+        };
+        for (const SizeCase &size : sizes)
+        {
+            const QString c_text = WireGuardVpnSettingsWidget::dataSizeText(size.bytes, c);
+            const QString german_text = WireGuardVpnSettingsWidget::dataSizeText(size.bytes, german);
+            if (!check(c_text == QLatin1String(size.c_text) && german_text == QString::fromUtf8(size.german_text),
+                       "data size text does not scale units as expected"))
+            {
+                std::fprintf(stderr, "%llu bytes: \"%s\" / \"%s\"\n", static_cast<unsigned long long>(size.bytes),
+                             qPrintable(c_text), qPrintable(german_text));
+                return 1;
+            }
+        }
+    }
+
     WireGuardVpnSettingsWidget page;
     QListWidget *list = page.findChild<QListWidget *>(QStringLiteral("wireguardVpnProfileList"));
     QLineEdit *name = page.findChild<QLineEdit *>(QStringLiteral("wireguardVpnName"));
