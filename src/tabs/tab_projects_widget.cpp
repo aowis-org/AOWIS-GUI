@@ -249,7 +249,12 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     });
     seedPreview();
     this->servers = loadProjectServerProfiles();
-    ensureDefaultLocalDvmdbProfile(this->servers);
+    BuiltinPersonalFallback startup_fallback = BuiltinPersonalFallback::NotNeeded;
+    // Startup adoption is silent (first start, or the designation vanished
+    // while the application was closed); in-session changes are announced.
+    ensureDefaultLocalDvmdbProfile(this->servers, &startup_fallback);
+    if (startup_fallback == BuiltinPersonalFallback::SharedRepository)
+        qWarning() << "No personal working database: the built-in DVMDB is configured shared";
     this->server_id.clear();
     this->project_id.clear();
     this->branch_id.clear();
@@ -1618,6 +1623,7 @@ void ProjectsWidget::updateConnectionStatus()
         ? tr("Unverified repository · %1").arg(status) : status);
     if (has_server && server->pending)
         this->database_connection->personal_server_checkbox->setEnabled(false);
+    refreshPersonalCheckboxLock();
     this->database_connection->source_status->setVisible(has_server);
     this->database_connection->source_refresh_button->setVisible(has_server && !isPreviewSource());
     this->database_connection->source_refresh_button->setEnabled(has_server && !this->source_writer->isBusy()
@@ -1977,6 +1983,70 @@ void ProjectsWidget::updateSourceFields()
         || this->selection_kind == SelectionKind::NewSource;
     this->database_connection->updateMode(source,
         this->selection_kind == SelectionKind::NewSource, this->source_writer->isBusy());
+    refreshPersonalCheckboxLock();
+}
+
+void ProjectsWidget::refreshPersonalCheckboxLock()
+{
+    QCheckBox *checkbox = this->database_connection->personal_server_checkbox;
+    if (checkbox == nullptr) return;
+    const ProjectServerProfile *server = this->selection_kind == SelectionKind::Server
+        ? currentServer() : nullptr;
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    const bool locked = server != nullptr && server->personal && isBuiltinLocalDvmdbProfile(*server);
+    if (locked)
+    {
+        checkbox->setEnabled(false);
+        checkbox->setToolTip(tr("The built-in local database stays your personal working database until you select another database as personal."));
+    }
+    else
+    {
+        checkbox->setToolTip(tr("Only one database can be personal. Its identity is discovered automatically; no UUID input is needed."));
+    }
+#else
+    Q_UNUSED(server); // tooltips are owned by DatabaseInspectorConnection
+#endif
+}
+
+void ProjectsWidget::applyBuiltinPersonalFallback()
+{
+    QString previous_builtin_id;
+    for (const ProjectServerProfile &profile : this->servers)
+        if (isBuiltinLocalDvmdbProfile(profile)) { previous_builtin_id = profile.id; break; }
+    BuiltinPersonalFallback fallback = BuiltinPersonalFallback::NotNeeded;
+    ensureDefaultLocalDvmdbProfile(this->servers, &fallback);
+    if (fallback == BuiltinPersonalFallback::Adopted)
+    {
+        for (const ProjectServerProfile &profile : this->servers)
+        {
+            if (!isBuiltinLocalDvmdbProfile(profile)) continue;
+            // A formerly unverified profile is now keyed by its repository UUIDv7.
+            if (!previous_builtin_id.isEmpty() && profile.id != previous_builtin_id)
+            {
+                if (this->server_id == previous_builtin_id) this->server_id = profile.id;
+                if (this->selected_id == previous_builtin_id) this->selected_id = profile.id;
+                resetSource(previous_builtin_id);
+                startSource(profile);
+            }
+            break;
+        }
+        populateProjectTree();
+        populateEditableHeads();
+        rebuildGraph();
+        if (this->selection_kind == SelectionKind::Server) updateInspector();
+        openSourceMessage(this, QMessageBox::Information, tr("Personal database"),
+            tr("The built-in local database is now your personal working database."));
+    }
+    else if (fallback == BuiltinPersonalFallback::SharedRepository)
+    {
+        openSourceMessage(this, QMessageBox::Warning, tr("No personal database"),
+            tr("The built-in local database is configured as shared and cannot be your personal working database. Select another database as personal."));
+    }
+    else if (fallback == BuiltinPersonalFallback::Unavailable)
+    {
+        openSourceMessage(this, QMessageBox::Warning, tr("No personal database"),
+            tr("The built-in local database could not be opened as your personal working database. It is tried again on the next start."));
+    }
 }
 
 ProjectPreviewData *ProjectsWidget::currentProject()
@@ -3577,6 +3647,8 @@ void ProjectsWidget::deleteConnection()
             }
             for (int i = this->projects.size() - 1; i >= 0; --i)
                 if (this->projects.at(i).server_id == removed) this->projects.removeAt(i);
+            // Removing the personal database hands the role to the built-in one.
+            applyBuiltinPersonalFallback();
             this->server_id.clear();
             this->project_id.clear();
             this->branch_id.clear();
@@ -4950,6 +5022,15 @@ void ProjectsWidget::setPersonalServer(bool enabled)
         this->database_connection->personal_server_checkbox->setChecked(false);
         return;
     }
+    if (!enabled && server->personal && isBuiltinLocalDvmdbProfile(*server))
+    {
+        // Standalone always keeps a personal working database; leaving the
+        // built-in one means designating another database instead.
+        const QSignalBlocker blocker(this->database_connection->personal_server_checkbox);
+        this->database_connection->personal_server_checkbox->setChecked(true);
+        refreshPersonalCheckboxLock();
+        return;
+    }
     const QString selected_id = server->id;
     const QString selected_endpoint = server->endpoint;
     const int request_id = ++this->personal_designation_request;
@@ -4977,6 +5058,7 @@ void ProjectsWidget::setPersonalServer(bool enabled)
     if (!enabled)
     {
         persistSelection(QString(), false);
+        applyBuiltinPersonalFallback();
         return;
     }
     if (server->connection_type == QStringLiteral("local"))

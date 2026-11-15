@@ -333,6 +333,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>The built-in local database stays your personal working database until you select another database as personal.</source>
+      <translation>تبقى قاعدة البيانات المحلية المدمجة قاعدة عملك الشخصية حتى تختار قاعدة بيانات أخرى كقاعدة شخصية.</translation>
+    </message>
+    <message>
+      <source>The built-in local database is now your personal working database.</source>
+      <translation>أصبحت قاعدة البيانات المحلية المدمجة الآن قاعدة عملك الشخصية.</translation>
+    </message>
+    <message>
+      <source>No personal database</source>
+      <translation>لا توجد قاعدة بيانات شخصية</translation>
+    </message>
+    <message>
+      <source>The built-in local database is configured as shared and cannot be your personal working database. Select another database as personal.</source>
+      <translation>قاعدة البيانات المحلية المدمجة مهيأة كمشتركة ولا يمكن أن تكون قاعدة عملك الشخصية. اختر قاعدة بيانات أخرى كقاعدة شخصية.</translation>
+    </message>
+    <message>
+      <source>The built-in local database could not be opened as your personal working database. It is tried again on the next start.</source>
+      <translation>تعذّر فتح قاعدة البيانات المحلية المدمجة كقاعدة عملك الشخصية. ستتم إعادة المحاولة عند التشغيل التالي.</translation>
+    </message>
+    <message>
       <source>
 
 In a browser, a reachable URL can still be blocked by cross-origin (CORS) rules. Check the browser console and configure DVMDB to allow requests from the AOWIS GUI origin.</source>

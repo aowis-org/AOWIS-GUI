@@ -232,6 +232,12 @@ private:
     void createEditingBranchFromRevision(const QString &name);
     void reportServerSaveFailure();
     void setPersonalServer(bool enabled);
+    // Standalone: designates the built-in database personal when none is
+    // (after the designation was removed in-session) and tells the user.
+    void applyBuiltinPersonalFallback();
+    // Standalone: the built-in database cannot be unticked while it is the
+    // personal fallback; another database is selected instead.
+    void refreshPersonalCheckboxLock();
     ProjectServerProfile *currentServer();
     ProjectPreviewData *currentProject();
     const ProjectPreviewData *currentProject() const;

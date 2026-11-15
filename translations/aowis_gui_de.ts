@@ -325,6 +325,26 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>The built-in local database stays your personal working database until you select another database as personal.</source>
+      <translation>Die integrierte lokale Datenbank bleibt Ihre persönliche Arbeitsdatenbank, bis Sie eine andere Datenbank als persönlich auswählen.</translation>
+    </message>
+    <message>
+      <source>The built-in local database is now your personal working database.</source>
+      <translation>Die integrierte lokale Datenbank ist jetzt Ihre persönliche Arbeitsdatenbank.</translation>
+    </message>
+    <message>
+      <source>No personal database</source>
+      <translation>Keine persönliche Datenbank</translation>
+    </message>
+    <message>
+      <source>The built-in local database is configured as shared and cannot be your personal working database. Select another database as personal.</source>
+      <translation>Die integrierte lokale Datenbank ist als gemeinsam genutzt konfiguriert und kann nicht Ihre persönliche Arbeitsdatenbank sein. Wählen Sie eine andere Datenbank als persönlich aus.</translation>
+    </message>
+    <message>
+      <source>The built-in local database could not be opened as your personal working database. It is tried again on the next start.</source>
+      <translation>Die integrierte lokale Datenbank konnte nicht als Ihre persönliche Arbeitsdatenbank geöffnet werden. Beim nächsten Start wird es erneut versucht.</translation>
+    </message>
+    <message>
       <source>
 
 In a browser, a reachable URL can still be blocked by cross-origin (CORS) rules. Check the browser console and configure DVMDB to allow requests from the AOWIS GUI origin.</source>

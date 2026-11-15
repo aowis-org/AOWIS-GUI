@@ -2,7 +2,6 @@
 #include "config/connection_wireguard_references.h"
 
 #include "config/gui_config_store.h"
-#include "config/gui_preferences.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/embedded_dvmdb_host.h"
 
@@ -374,64 +373,73 @@ QString defaultLocalDvmdbPath()
         .filePath(QStringLiteral("aowis-standalone-dvmdb"));
 }
 
+bool isBuiltinLocalDvmdbProfile(const ProjectServerProfile &profile)
+{
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+    return profile.connection_type == QStringLiteral("local")
+        && QDir::cleanPath(profile.local_path) == QDir::cleanPath(defaultLocalDvmdbPath());
+#else
+    Q_UNUSED(profile);
+    return false;
+#endif
+}
+
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
 namespace
 {
-// One-time marker in GuiPreferences group "dvmdb": the built-in database has
-// been offered as the personal working database. Recorded once the decision is
-// settled, so a user who later designates another database (or none) keeps
-// that choice across restarts.
-const QString builtin_personal_group = QStringLiteral("dvmdb");
-const QString builtin_personal_key = QStringLiteral("builtin_personal_default_applied");
-
-bool builtinPersonalDefaultApplied()
+// The fallback must never take over from an existing designation, including
+// one the loaded list cannot show: an unreadable record, or a record of
+// another version/invalid record that loadProjectServerProfiles() skips. Only
+// a fully readable store in which no record says "personal" qualifies.
+bool storeCertainlyHasNoPersonalDesignation()
 {
-    return GuiPreferences::value(builtin_personal_group, builtin_personal_key).toBool(false);
+    QString error;
+    const aowis::config::ObjectCollection *collection = connections(&error);
+    if (collection == nullptr) return false;
+    const aowis::config::Result<aowis::config::ObjectSnapshot> snapshot = collection->readAll();
+    if (!snapshot || !snapshot.value().unreadable.empty()) return false;
+    for (const aowis::config::StoredObject &stored : snapshot.value().objects)
+        if (payloadObject(stored).value(QStringLiteral("personal")).toBool(false)) return false;
+    return true;
 }
 
-void markBuiltinPersonalDefaultApplied()
-{
-    if (!GuiPreferences::update(builtin_personal_group,
-                                QJsonObject{{builtin_personal_key, true}}))
-        qWarning() << "Unable to record the built-in personal DVMDB default";
-}
-
-// Standalone's built-in database is the personal working database by
-// default on every platform. Opens it as personal (an unconfigured store is
-// configured private; a store already configured shared is left alone and
-// stays non-personal) and adopts its verified repository identity. Returns
-// true if profiles[index] was changed; false leaves the decision for a later
-// start (e.g. the data directory is temporarily unusable).
-bool adoptBuiltinPersonalDatabase(QList<ProjectServerProfile> &profiles, int index)
+// Opens the built-in database as personal (an unconfigured store is
+// configured private) and adopts its verified repository identity.
+BuiltinPersonalFallback adoptBuiltinPersonalDatabase(QList<ProjectServerProfile> &profiles, int index)
 {
     ProjectServerProfile &local = profiles[index];
     QString repository_id;
     QString error;
-    const QString endpoint = embeddedDvmdbEndpoint(local.local_path, true, &repository_id, &error);
-    if (endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id))
+    // Opening without the personal role first separates "the database cannot
+    // be opened" from "it opens, but is configured shared".
+    if (embeddedDvmdbEndpoint(local.local_path, false, &repository_id, &error).isEmpty()
+        || !DvmdbIdentity::isUuidV7(repository_id))
     {
-        qWarning() << "Built-in DVMDB not selected as personal database:" << error;
-        return false;
+        qWarning() << "Built-in DVMDB unavailable as personal database:" << error;
+        return BuiltinPersonalFallback::Unavailable;
     }
+    if (embeddedDvmdbEndpoint(local.local_path, true, &repository_id, &error).isEmpty())
+        return BuiltinPersonalFallback::SharedRepository;
     for (int other = 0; other < profiles.size(); ++other)
         if (other != index && profiles[other].id == repository_id)
-            return false; // the same repository is already configured elsewhere
+            return BuiltinPersonalFallback::Unavailable; // same repository configured twice
     local.id = repository_id;
     local.pending = false;
     local.personal = true;
-    return true;
+    return BuiltinPersonalFallback::Adopted;
 }
 }
 #endif
 
-bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles)
+bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles,
+                                    BuiltinPersonalFallback *fallback)
 {
+    if (fallback) *fallback = BuiltinPersonalFallback::NotNeeded;
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
     const QString data_root = QDir::cleanPath(defaultLocalDvmdbPath());
     int index = -1;
     for (int candidate = 0; candidate < profiles.size(); ++candidate)
-        if (profiles[candidate].connection_type == QStringLiteral("local")
-            && QDir::cleanPath(profiles[candidate].local_path) == data_root)
+        if (isBuiltinLocalDvmdbProfile(profiles[candidate]))
         {
             index = candidate;
             break;
@@ -470,29 +478,31 @@ bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles)
         changed = true;
     }
 
-    bool adopted = false;
+    // Standalone always has a personal working database: whenever none is
+    // designated, the built-in one becomes it (checked on every start and
+    // after the designation is removed in-session).
+    BuiltinPersonalFallback result = BuiltinPersonalFallback::NotNeeded;
     const QList<ProjectServerProfile> before_adoption = profiles;
-    if (!builtinPersonalDefaultApplied())
-    {
-        bool personal_exists = false;
-        for (const ProjectServerProfile &profile : profiles)
-            if (profile.personal) personal_exists = true;
-        // An explicitly designated personal database always wins.
-        if (personal_exists) markBuiltinPersonalDefaultApplied();
-        else adopted = adoptBuiltinPersonalDatabase(profiles, index);
-    }
+    bool personal_exists = false;
+    for (const ProjectServerProfile &profile : profiles)
+        if (profile.personal) personal_exists = true;
+    if (!personal_exists && storeCertainlyHasNoPersonalDesignation())
+        result = adoptBuiltinPersonalDatabase(profiles, index);
 
-    if (changed || adopted)
+    if (changed || result == BuiltinPersonalFallback::Adopted)
     {
         if (!saveProjectServerProfiles(profiles))
         {
             qWarning() << "Unable to persist default local DVMDB profile";
-            // Keep memory consistent with storage; adoption is retried next start.
-            if (adopted) profiles = before_adoption;
+            // Keep memory consistent with storage; the fallback runs again later.
+            if (result == BuiltinPersonalFallback::Adopted)
+            {
+                profiles = before_adoption;
+                result = BuiltinPersonalFallback::Unavailable;
+            }
         }
-        else if (adopted)
-            markBuiltinPersonalDefaultApplied();
     }
+    if (fallback) *fallback = result;
     return true;
 #else
     Q_UNUSED(profiles);

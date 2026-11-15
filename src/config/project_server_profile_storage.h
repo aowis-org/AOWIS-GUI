@@ -45,9 +45,24 @@ bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles);
 // (kept separate so this widely included header needs only Qt).
 
 QString defaultLocalDvmdbPath();
+// True for Standalone's built-in local database profile (defaultLocalDvmdbPath()).
+// Always false without the embedded DVMDB backend.
+bool isBuiltinLocalDvmdbProfile(const ProjectServerProfile &profile);
+
+enum class BuiltinPersonalFallback
+{
+    NotNeeded,         // a personal database is designated (or no embedded backend)
+    Adopted,           // the built-in database is now the personal working database
+    SharedRepository,  // none designated; the built-in store is configured shared
+    Unavailable,       // none designated; the built-in store cannot be opened/saved now
+};
+
 // The embedded source exists only in builds with the native DVMDB backend.
-// Adds the built-in local database profile if missing and, once per
-// configuration store, designates it the personal working database when no
-// other database is personal (on every platform). Opens the embedded
-// database to verify its identity; saves profiles when they change.
-bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles);
+// Adds the built-in local database profile if missing. Standalone always has a
+// personal working database: when no database is designated personal (and
+// the stored connections certainly contain no designation, readable or not),
+// the built-in database is opened as private and designated. Never replaces
+// an existing designation, even of an unreachable database. Saves profiles
+// when they change; reports the fallback outcome in *fallback.
+bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles,
+                                    BuiltinPersonalFallback *fallback = nullptr);
