@@ -1,5 +1,6 @@
 #include "settings/wireguard_vpn_settings_widget.h"
 #include "network/wireguard_runtime_status.h"
+#include "network/wireguard_tunnel_pool.h"
 #include "config/map_server_client_configuration.h"
 
 #include "config/project_server_profile_storage.h"
@@ -326,6 +327,39 @@ int main(int argc, char **argv)
     if (!check(state->text() == QStringLiteral("Error")
                && info->text().contains(QStringLiteral("failed")),
                "failed runtime attempt did not produce an error state")) return 1;
+
+    // Status -> Stop tunnel / Start tunnel: a stopped profile is refused with
+    // a "stopped" error (never started, never direct) and reported so the GUI
+    // can tell the user; consumers are told to drop and re-acquire.
+    QPushButton *toggle = page.findChild<QPushButton *>(QStringLiteral("wireguardVpnTunnelToggle"));
+    if (!check(toggle != nullptr && toggle->isEnabled() && toggle->text() == QStringLiteral("Stop tunnel"),
+               "Status tab has no Stop tunnel button")) return 1;
+    QStringList needed;
+    QObject::connect(&monitor, &WireGuardRuntimeStatus::suspendedProfileNeeded, &page,
+                     [&needed](const QString &profile_id) { needed.append(profile_id); });
+    QObject restart_observer;
+    QStringList restarted;
+    onWireGuardTunnelRestart(&restart_observer,
+                             [&restarted](const QString &profile_id) { restarted.append(profile_id); });
+    toggle->click();
+    if (!check(monitor.isSuspended(id) && state->text() == QStringLiteral("Stopped by you")
+                   && toggle->text() == QStringLiteral("Start tunnel") && restarted == QStringList{id},
+               "Stop tunnel did not stop the profile")) return 1;
+    WireGuardTunnelLease refused;
+    bool delivered = false;
+    acquireWireGuardTunnel(id, [&refused, &delivered](const WireGuardTunnelLease &lease)
+    {
+        refused = lease;
+        delivered = true;
+    });
+    for (int round = 0; round < 20 && !delivered; ++round) QApplication::processEvents();
+    if (!check(delivered && !refused.tunnel && refused.error.contains(QStringLiteral("is stopped"))
+                   && needed == QStringList{id},
+               "a stopped profile was not refused with a reported stopped error")) return 1;
+    toggle->click();
+    if (!check(!monitor.isSuspended(id) && toggle->text() == QStringLiteral("Stop tunnel")
+                   && restarted.size() == 2,
+               "Start tunnel did not resume the profile")) return 1;
     monitor.starting(id, &source);
     monitor.running(&source);
     if (!check(state->text() == QStringLiteral("Running")

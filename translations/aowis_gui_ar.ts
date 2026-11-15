@@ -378,7 +378,7 @@ Save it as an unverified pending connection anyway?</source>
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
-      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← WireGuard VPN</translation>
+      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← شبكة WireGuard الخاصة</translation>
     </message>
     <message>
       <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
@@ -2515,7 +2515,7 @@ Right-click: animate back to 1.0×</source>
     </message>
     <message>
       <source>Standalone only: each missing map or terrain tile is requested from these MAP servers in order. Local cache is checked first. Prefer HTTPS for API keys. Each upstream is reached directly or through a WireGuard profile of Settings → WireGuard VPN; a WireGuard upstream is never contacted directly. Changes apply immediately.</source>
-      <translation>في Standalone فقط: يُطلب كل بلاطة خريطة أو تضاريس مفقودة من خوادم MAP هذه بالترتيب. يُفحص التخزين المؤقت المحلي أولًا. يُفضَّل HTTPS لمفاتيح API. يُوصَل إلى كل خادم علوي مباشرةً أو عبر ملف تعريف WireGuard من الإعدادات ← WireGuard VPN؛ ولا يُتصل بخادم علوي عبر WireGuard مباشرةً أبدًا. تُطبَّق التغييرات فورًا.</translation>
+      <translation>في Standalone فقط: يُطلب كل بلاطة خريطة أو تضاريس مفقودة من خوادم MAP هذه بالترتيب. يُفحص التخزين المؤقت المحلي أولًا. يُفضَّل HTTPS لمفاتيح API. يُوصَل إلى كل خادم علوي مباشرةً أو عبر ملف تعريف WireGuard من الإعدادات ← شبكة WireGuard الخاصة؛ ولا يُتصل بخادم علوي عبر WireGuard مباشرةً أبدًا. تُطبَّق التغييرات فورًا.</translation>
     </message>
     <message>
       <source>Standalone providers are editable and saved locally. The cascading upstreams and low-bandwidth settings are just below this table.</source>
@@ -5506,6 +5506,24 @@ Merge commit: additional parent history is visible in Projects.</source>
   <context>
     <name>MainWindow</name>
     <message>
+      <source>Open WireGuard settings</source>
+      <translation>فتح إعدادات WireGuard</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>بدء النفق</translation>
+    </message>
+    <message>
+      <source>These connections could not connect (none fell back to a direct connection):
+%1</source>
+      <translation>تعذّر اتصال هذه الاتصالات (ولم يتحوّل أيٌّ منها إلى اتصال مباشر):
+%1</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel stopped</source>
+      <translation>نفق WireGuard متوقف</translation>
+    </message>
+    <message>
       <source>AOWIS Controller</source>
       <translation>وحدة تحكم AOWIS</translation>
     </message>
@@ -7647,7 +7665,7 @@ Right-click to reset.</source>
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
-      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← WireGuard VPN</translation>
+      <translation>تتم إدارة ملفات تعريف WireGuard في الإعدادات ← شبكة WireGuard الخاصة</translation>
     </message>
   </context>
   <context>
@@ -8731,6 +8749,36 @@ Valve settings have different physical units. Sorting groups compatible quantiti
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
+      <translation>السماح للاتصالات ببدء نفق ملف التعريف هذا مجددًا؛ وتُعيد الاتصال فورًا.</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>بدء النفق</translation>
+    </message>
+    <message>
+      <source>Stop this profile's tunnel and keep it stopped for this session. Connections that use it fail with a notice; none falls back to a direct connection.</source>
+      <translation>إيقاف نفق ملف التعريف هذا وإبقاؤه متوقفًا لهذه الجلسة. تفشل الاتصالات التي تستخدمه مع إشعار؛ ولا يتحوّل أيٌّ منها إلى اتصال مباشر.</translation>
+    </message>
+    <message>
+      <source>Stop tunnel</source>
+      <translation>إيقاف النفق</translation>
+    </message>
+    <message>
+      <source>Stopped by you</source>
+      <translation>أوقفته أنت</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. Connections that use this profile fail with a notice instead of starting it; none fell back to a direct connection.</source>
+      <translation>يبقى النفق متوقفًا حتى تبدأه مجددًا. تفشل الاتصالات التي تستخدم ملف التعريف هذا مع إشعار بدلًا من بدئه؛ ولم يتحوّل أيٌّ منها إلى اتصال مباشر.</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. These connections could not connect and did not fall back to a direct connection:
+%1</source>
+      <translation>يبقى النفق متوقفًا حتى تبدأه مجددًا. تعذّر اتصال هذه الاتصالات ولم تتحوّل إلى اتصال مباشر:
+%1</translation>
+    </message>
+    <message>
       <source>MAP upstream</source>
       <translation>خادم MAP علوي</translation>
     </message>
@@ -9282,6 +9330,13 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Choose a dedicated absolute local DVMDB data directory.</source>
       <translation>اختر دليل بيانات DVMDB محليًا مخصصًا ومطلقًا.</translation>
+    </message>
+  </context>
+  <context>
+    <name>WireGuardRuntimeStatus</name>
+    <message>
+      <source>The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.</source>
+      <translation>نفق WireGuard «%1» متوقف. ابدأه من الإعدادات ← شبكة WireGuard الخاصة ← الحالة.</translation>
     </message>
   </context>
 </TS>

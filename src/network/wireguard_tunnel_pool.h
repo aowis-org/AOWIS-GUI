@@ -46,7 +46,15 @@ WireGuardRuntimeStatus::TelemetrySampler wireGuardTelemetrySampler(
 // profile. Nothing happens while the profile has no running tunnel (the next
 // start reads the stored profile anyway). GUI thread only.
 void restartWireGuardTunnel(const QString &profile_id);
-// restarted(profile_id) after restartWireGuardTunnel() while context exists.
+// Status -> Stop tunnel / Start tunnel (session only). Stop stops the running
+// tunnel and refuses the profile (WireGuardRuntimeStatus::suspendedError,
+// never a direct fallback) until Start; consumers are told through
+// onWireGuardTunnelRestart() in both cases and acquire again.
+void stopWireGuardTunnel(const QString &profile_id);
+void startWireGuardTunnel(const QString &profile_id);
+// restarted(profile_id) after restartWireGuardTunnel(), stopWireGuardTunnel()
+// or startWireGuardTunnel() while context exists: drop the lease and acquire
+// again.
 void onWireGuardTunnelRestart(QObject *context, std::function<void(const QString &)> restarted);
 
 // The tunnel's authenticated local SOCKS5 proxy for one QNetworkAccessManager

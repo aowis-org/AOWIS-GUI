@@ -171,6 +171,9 @@ private:
     MainNavigationWidget *main_navigation = nullptr;
     SettingsWidget *settings;
     int settings_page_index = -1;
+    // Profiles whose "tunnel stopped" notice was shown during this stop.
+    QSet<QString> wireguard_stopped_notices;
+    void showStoppedWireGuardNotice(const QString &profile_id);
     QShortcut *shortcut_toggle_right_docks = nullptr;
     MapWorkspaceWidget *map_workspace = nullptr;
     int map_workspace_page_index = -1;

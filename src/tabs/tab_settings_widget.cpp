@@ -82,6 +82,17 @@ void SettingsWidget::focusUnits()
     this->table_of_contents->setCurrentRow(this->pages->indexOf(this->units_settings_page));
 }
 
+void SettingsWidget::focusWireGuardProfile(const QString &profile_id)
+{
+    this->table_of_contents->setCurrentRow(this->pages->indexOf(this->wireguard_vpn_page));
+    this->wireguard_vpn_page->showProfileStatus(profile_id);
+}
+
+bool SettingsWidget::showsWireGuardSettings() const
+{
+    return this->isVisible() && this->pages->currentWidget() == this->wireguard_vpn_page;
+}
+
 void SettingsWidget::changeEvent(QEvent *event)
 {
     QWidget::changeEvent(event);

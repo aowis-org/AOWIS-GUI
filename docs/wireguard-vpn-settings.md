@@ -67,6 +67,19 @@ text, including its private key. Files are private to the user account but
   first handshake (after 15 s), a handshake older than 3 minutes with
   keepalive on, an idle tunnel without keepalive, and failed in-tunnel
   connections. The most recent start error is shown without keys.
+- **Stop tunnel / Start tunnel** (Status tab, builds with the embedded
+  engine): Stop stops the profile's running tunnel and keeps it stopped for
+  this session (not persisted; the next launch starts it on demand again).
+  While stopped, every connection using the profile — DVMDB sources, the
+  MAP server, MAP upstreams — is refused with "The WireGuard tunnel “…” is
+  stopped. Start it in Settings → WireGuard VPN → Status." instead of
+  starting it, and never falls back to a direct connection. The state reads
+  **Stopped by you** and lists the refused connections. When something is
+  refused while this page is not on screen, a notice names the tunnel and
+  the refused connections, with **Start tunnel** and **Open WireGuard
+  settings** (once per stop). Start lets all of them reconnect at once
+  through one new tunnel. A start already in flight when Stop is pressed is
+  stopped on arrival, not handed out.
 - **Reconnect:** wireguard-go retries handshakes itself. A host-name
   endpoint is re-resolved after 135 s without a handshake (multi-address
   failover, or the new address if the name moved). A failed tunnel start is

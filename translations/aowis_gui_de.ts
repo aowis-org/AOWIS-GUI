@@ -5486,6 +5486,24 @@ Merge-Commit: Weitere Elternrevisionen sind unter Projekte sichtbar.</translatio
   <context>
     <name>MainWindow</name>
     <message>
+      <source>Open WireGuard settings</source>
+      <translation>WireGuard-Einstellungen öffnen</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>Tunnel starten</translation>
+    </message>
+    <message>
+      <source>These connections could not connect (none fell back to a direct connection):
+%1</source>
+      <translation>Diese Verbindungen konnten nicht verbinden (keine ist auf eine direkte Verbindung ausgewichen):
+%1</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel stopped</source>
+      <translation>WireGuard-Tunnel gestoppt</translation>
+    </message>
+    <message>
       <source>AOWIS Controller</source>
       <translation>AOWIS-Steuerung</translation>
     </message>
@@ -8679,6 +8697,36 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
+      <translation>Verbindungen dürfen den Tunnel dieses Profils wieder starten; sie verbinden sich sofort neu.</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>Tunnel starten</translation>
+    </message>
+    <message>
+      <source>Stop this profile's tunnel and keep it stopped for this session. Connections that use it fail with a notice; none falls back to a direct connection.</source>
+      <translation>Den Tunnel dieses Profils stoppen und für diese Sitzung gestoppt lassen. Verbindungen, die ihn verwenden, schlagen mit einem Hinweis fehl; keine weicht auf eine direkte Verbindung aus.</translation>
+    </message>
+    <message>
+      <source>Stop tunnel</source>
+      <translation>Tunnel stoppen</translation>
+    </message>
+    <message>
+      <source>Stopped by you</source>
+      <translation>Von Ihnen gestoppt</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. Connections that use this profile fail with a notice instead of starting it; none fell back to a direct connection.</source>
+      <translation>Der Tunnel bleibt gestoppt, bis Sie ihn wieder starten. Verbindungen, die dieses Profil verwenden, schlagen mit einem Hinweis fehl, statt ihn zu starten; keine ist auf eine direkte Verbindung ausgewichen.</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. These connections could not connect and did not fall back to a direct connection:
+%1</source>
+      <translation>Der Tunnel bleibt gestoppt, bis Sie ihn wieder starten. Diese Verbindungen konnten nicht verbinden und sind nicht auf eine direkte Verbindung ausgewichen:
+%1</translation>
+    </message>
+    <message>
       <source>MAP upstream</source>
       <translation>MAP-Upstream</translation>
     </message>
@@ -9222,6 +9270,13 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Choose a dedicated absolute local DVMDB data directory.</source>
       <translation>Wählen Sie ein eigenes, absolutes lokales DVMDB-Datenverzeichnis.</translation>
+    </message>
+  </context>
+  <context>
+    <name>WireGuardRuntimeStatus</name>
+    <message>
+      <source>The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.</source>
+      <translation>Der WireGuard-Tunnel „%1“ ist gestoppt. Starten Sie ihn unter Einstellungen → WireGuard VPN → Status.</translation>
     </message>
   </context>
 </TS>

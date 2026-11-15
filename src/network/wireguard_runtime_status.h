@@ -20,7 +20,8 @@ class WireGuardRuntimeStatus final : public QObject
     Q_OBJECT
 
 public:
-    enum class State { NotStarted, Stopped, Starting, Running, Error };
+    // Suspended: stopped by the user (Status -> Stop tunnel) for this session.
+    enum class State { NotStarted, Stopped, Starting, Running, Error, Suspended };
     struct Snapshot
     {
         State state = State::NotStarted;
@@ -62,8 +63,22 @@ public:
     // Service labels of the running connections, in the order they started.
     QStringList connections(const QString &profile_id) const;
 
+    // Stop/Start tunnel on the Status tab (session only, not persisted).
+    // While suspended the tunnel pool refuses the profile with
+    // suspendedError(), and suspendedProfileNeeded() reports every refused
+    // connection so the GUI can tell the user instead of failing silently.
+    void setSuspended(const QString &profile_id, bool suspended);
+    bool isSuspended(const QString &profile_id) const;
+    // Called by the tunnel pool for each connection refused while suspended.
+    void reportSuspendedRequest(const QString &profile_id);
+    // Services that failed while the profile was suspended (cleared on Start).
+    QStringList refusedConnections(const QString &profile_id) const;
+    // "The WireGuard tunnel “name” is stopped. Start it in Settings → ...".
+    static QString suspendedError(const QString &profile_name);
+
 signals:
     void statusChanged(const QString &profile_id);
+    void suspendedProfileNeeded(const QString &profile_id);
 
 private:
     WireGuardRuntimeStatus() = default;
@@ -79,5 +94,7 @@ private:
     QHash<const QObject *, Transport> transports;
     QSet<QString> attempted;
     QHash<QString, QString> errors;
+    QSet<QString> suspended;
+    QHash<QString, QStringList> refused; // Services refused while suspended
     quint64 next_sequence = 0;
 };

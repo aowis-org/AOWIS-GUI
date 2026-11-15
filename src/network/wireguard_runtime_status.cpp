@@ -1,5 +1,7 @@
 #include "network/wireguard_runtime_status.h"
 
+#include <QCoreApplication>
+
 #include <algorithm>
 #include <QPair>
 #include <utility>
@@ -43,9 +45,51 @@ void WireGuardRuntimeStatus::failed(const QObject *owner, const QString &error)
     QHash<const QObject *, Transport>::iterator it = this->transports.find(owner);
     if (it == this->transports.end()) return;
     const QString profile_id = it->profile_id;
+    if (this->suspended.contains(profile_id) && !it->service.isEmpty() &&
+        !this->refused.value(profile_id).contains(it->service))
+        this->refused[profile_id].append(it->service);
     this->transports.erase(it);
     this->errors.insert(profile_id, error);
     emit this->statusChanged(profile_id);
+}
+
+void WireGuardRuntimeStatus::setSuspended(const QString &profile_id, bool suspend)
+{
+    if (profile_id.isEmpty() || this->suspended.contains(profile_id) == suspend) return;
+    if (suspend)
+    {
+        this->suspended.insert(profile_id);
+        this->attempted.insert(profile_id);
+    }
+    else
+    {
+        this->suspended.remove(profile_id);
+        this->refused.remove(profile_id);
+        this->errors.remove(profile_id);
+    }
+    emit this->statusChanged(profile_id);
+}
+
+bool WireGuardRuntimeStatus::isSuspended(const QString &profile_id) const
+{
+    return this->suspended.contains(profile_id);
+}
+
+void WireGuardRuntimeStatus::reportSuspendedRequest(const QString &profile_id)
+{
+    if (this->suspended.contains(profile_id)) emit this->suspendedProfileNeeded(profile_id);
+}
+
+QStringList WireGuardRuntimeStatus::refusedConnections(const QString &profile_id) const
+{
+    return this->refused.value(profile_id);
+}
+
+QString WireGuardRuntimeStatus::suspendedError(const QString &profile_name)
+{
+    return QCoreApplication::translate("WireGuardRuntimeStatus",
+        "The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.")
+        .arg(profile_name);
 }
 
 void WireGuardRuntimeStatus::stopped(const QObject *owner)
@@ -73,7 +117,8 @@ WireGuardRuntimeStatus::Snapshot WireGuardRuntimeStatus::snapshot(const QString 
         }
         else if (it->state == State::Starting) ++result.starting_connections;
     }
-    if (result.active_connections > 0) result.state = State::Running;
+    if (this->suspended.contains(profile_id)) result.state = State::Suspended;
+    else if (result.active_connections > 0) result.state = State::Running;
     else if (result.starting_connections > 0) result.state = State::Starting;
     else if (this->errors.contains(profile_id)) result.state = State::Error;
     result.last_error = this->errors.value(profile_id);

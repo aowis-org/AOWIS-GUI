@@ -1,5 +1,11 @@
 #include "config/live_ui_text.h"
 #include "app/main_window.h"
+
+#include "config/wireguard_profile_storage.h"
+#include "network/wireguard_runtime_status.h"
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+#include "network/wireguard_tunnel_pool.h"
+#endif
 #include "app/history_dock.h"
 #include "tabs/tab_map_workspace.h"
 #include "tabs/tab_projects_widget.h"
@@ -603,6 +609,23 @@ MainWindow::MainWindow(QWidget *parent)
         this->settings->focusShortcut(id);
     });
 
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    // A connection was refused because its WireGuard tunnel is stopped: say
+    // so (once per stop) instead of failing silently.
+    connect(&WireGuardRuntimeStatus::instance(), &WireGuardRuntimeStatus::suspendedProfileNeeded,
+            this, [this](const QString &profile_id)
+    {
+        // After the consumer recorded its failure (the list of refused connections).
+        QTimer::singleShot(0, this, [this, profile_id]() { this->showStoppedWireGuardNotice(profile_id); });
+    });
+    connect(&WireGuardRuntimeStatus::instance(), &WireGuardRuntimeStatus::statusChanged,
+            this, [this](const QString &profile_id)
+    {
+        if (!WireGuardRuntimeStatus::instance().isSuspended(profile_id))
+            this->wireguard_stopped_notices.remove(profile_id);
+    });
+#endif
+
     connect(this->top_control_bar, &TopControlBar::signalManageUnitsRequested, this, [this]
     {
         if (this->settings_page_index < 0)
@@ -1026,6 +1049,43 @@ MainWindow::MainWindow(QWidget *parent)
     #endif
 }
 
+
+void MainWindow::showStoppedWireGuardNotice(const QString &profile_id)
+{
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    WireGuardRuntimeStatus &status = WireGuardRuntimeStatus::instance();
+    // The Status tab already shows it while the user looks at it (e.g. right
+    // after pressing Stop tunnel there).
+    if (!status.isSuspended(profile_id) || this->wireguard_stopped_notices.contains(profile_id) ||
+        this->settings->showsWireGuardSettings())
+        return;
+    this->wireguard_stopped_notices.insert(profile_id);
+    QString name = profile_id;
+    for (const WireGuardProfileEntry &profile : listWireGuardProfiles())
+        if (profile.id == profile_id) name = profile.name;
+    const QStringList refused = status.refusedConnections(profile_id);
+    QString text = WireGuardRuntimeStatus::suspendedError(name);
+    if (!refused.isEmpty())
+        text += QStringLiteral("\n\n") + tr("These connections could not connect (none fell back to a direct connection):\n%1")
+                                            .arg(refused.join(QStringLiteral("\n")));
+    QMessageBox *notice = new QMessageBox(QMessageBox::Warning, tr("WireGuard tunnel stopped"), text,
+                                          QMessageBox::Close, this);
+    notice->setAttribute(Qt::WA_DeleteOnClose);
+    notice->setObjectName(QStringLiteral("wireguardStoppedNotice"));
+    QPushButton *start = notice->addButton(tr("Start tunnel"), QMessageBox::AcceptRole);
+    QPushButton *open_settings = notice->addButton(tr("Open WireGuard settings"), QMessageBox::ActionRole);
+    connect(start, &QPushButton::clicked, this, [profile_id]() { startWireGuardTunnel(profile_id); });
+    connect(open_settings, &QPushButton::clicked, this, [this, profile_id]()
+    {
+        if (this->settings_page_index < 0) return;
+        this->main_navigation->setCurrentIndex(this->settings_page_index);
+        this->settings->focusWireGuardProfile(profile_id);
+    });
+    notice->open(); // Not modal for the event loop: tiles and catalogues keep working.
+#else
+    Q_UNUSED(profile_id)
+#endif
+}
 
 void MainWindow::checkServerMapInit()
 {

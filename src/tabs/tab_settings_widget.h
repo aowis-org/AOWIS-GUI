@@ -24,6 +24,10 @@ public:
 
     void focusShortcut(GuiShortcutId id);
     void focusUnits();
+    // Settings -> WireGuard VPN with the profile's Status tab.
+    void focusWireGuardProfile(const QString &profile_id);
+    // True while Settings -> WireGuard VPN is on screen.
+    bool showsWireGuardSettings() const;
 
 protected:
     void changeEvent(QEvent *event) override;

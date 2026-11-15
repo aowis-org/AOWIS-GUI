@@ -413,6 +413,25 @@ WireGuardVpnSettingsWidget::WireGuardVpnSettingsWidget(QWidget *parent)
     this->uptime = addStatusRow(QStringLiteral("wireguardVpnUptime"), QStringLiteral("wireguardVpnUptimeCaption"));
     this->relays = addStatusRow(QStringLiteral("wireguardVpnRelays"), QStringLiteral("wireguardVpnRelaysCaption"));
     status_layout->addLayout(status_fields);
+    this->tunnel_toggle = new QPushButton(status_tab);
+    this->tunnel_toggle->setObjectName(QStringLiteral("wireguardVpnTunnelToggle"));
+#ifdef AOWIS_GUI_WIREGUARD_PROBE
+    connect(this->tunnel_toggle, &QPushButton::clicked, this, [this]()
+    {
+        if (this->selected_id.isEmpty()) return;
+        if (WireGuardRuntimeStatus::instance().isSuspended(this->selected_id))
+            startWireGuardTunnel(this->selected_id);
+        else
+            stopWireGuardTunnel(this->selected_id);
+        this->refreshStatus();
+    });
+#else
+    this->tunnel_toggle->hide(); // No embedded engine: nothing to start or stop.
+#endif
+    QHBoxLayout *toggle_row = new QHBoxLayout();
+    toggle_row->addWidget(this->tunnel_toggle);
+    toggle_row->addStretch();
+    status_layout->addLayout(toggle_row);
     this->tunnel_error = wrappedLabel(status_tab);
     status_layout->addWidget(this->tunnel_error);
     status_layout->addStretch();
@@ -807,6 +826,17 @@ bool WireGuardVpnSettingsWidget::leaveCurrentProfile()
         this->references.remove(id);
     }
     return true;
+}
+
+void WireGuardVpnSettingsWidget::showProfileStatus(const QString &profile_id)
+{
+    for (int row = 0; row < this->profile_list->count(); ++row)
+    {
+        if (this->profile_list->item(row)->data(Qt::UserRole).toString() != profile_id) continue;
+        this->profile_list->setCurrentRow(row);
+        break;
+    }
+    if (this->selected_id == profile_id) this->detail_tabs->setCurrentIndex(0); // Status
 }
 
 void WireGuardVpnSettingsWidget::onSelectionChanged()
@@ -1219,7 +1249,27 @@ void WireGuardVpnSettingsWidget::refreshStatus()
             this->tunnel_state->setText(tr("Error"));
             this->status_info->setText(tr("The last WireGuard tunnel attempt failed."));
             break;
+        case WireGuardRuntimeStatus::State::Suspended:
+        {
+            this->tunnel_state->setText(tr("Stopped by you"));
+            const QStringList refused = WireGuardRuntimeStatus::instance().refusedConnections(this->selected_id);
+            this->status_info->setText(refused.isEmpty()
+                ? tr("The tunnel is stopped until you start it again. Connections that use this profile fail with a notice instead of starting it; none fell back to a direct connection.")
+                : tr("The tunnel is stopped until you start it again. These connections could not connect and did not fall back to a direct connection:\n%1")
+                      .arg(refused.join(QStringLiteral("\n"))));
+            // The "stopped" error is this state, not a failure to show twice.
+            this->tunnel_error->hide();
+            break;
+        }
     }
+    const Profile *selected = this->findProfile(this->selected_id);
+    const bool stored = selected != nullptr && !selected->draft;
+    this->tunnel_toggle->setEnabled(stored);
+    this->tunnel_toggle->setText(status.state == WireGuardRuntimeStatus::State::Suspended
+        ? tr("Start tunnel") : tr("Stop tunnel"));
+    this->tunnel_toggle->setToolTip(status.state == WireGuardRuntimeStatus::State::Suspended
+        ? tr("Allow connections to start this profile's tunnel again; they reconnect at once.")
+        : tr("Stop this profile's tunnel and keep it stopped for this session. Connections that use it fail with a notice; none falls back to a direct connection."));
     const bool running = status.state == WireGuardRuntimeStatus::State::Running;
     this->refreshTelemetry(running);
     if (running && this->isVisible())

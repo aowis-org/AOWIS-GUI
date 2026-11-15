@@ -54,6 +54,9 @@ public:
     QStringList profileIds() const;
     QString profileIdForName(const QString &name) const;
     QString profileConfig(const QString &profile_id) const;
+    // Selects the profile and shows its Status tab (e.g. from the
+    // "tunnel stopped" notice). Unsaved edits are handled as for a click.
+    void showProfileStatus(const QString &profile_id);
 
 signals:
     void serviceActivated(const QString &service_id);
@@ -121,6 +124,7 @@ private:
     QLabel *keepalive = nullptr;
     QLabel *uptime = nullptr;
     QLabel *relays = nullptr;
+    QPushButton *tunnel_toggle = nullptr; // Stop tunnel / Start tunnel (embedded engine only)
     QTimer *telemetry_timer = nullptr;
 
     // Throughput is derived from consecutive counter samples of one tunnel

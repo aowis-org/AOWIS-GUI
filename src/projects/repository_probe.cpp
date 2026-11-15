@@ -58,12 +58,13 @@ void DvmdbConnection::open(std::function<void(const QString &)> finished)
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
     if (!this->restart_observed && !this->direct)
     {
-        // An edited profile: drop the stopped tunnel and reopen through the
-        // restarted one (never direct).
+        // An edited, stopped or started profile: drop the old tunnel and
+        // reopen (through the new one, or refused while stopped; never
+        // direct). Only connections that were opened observe this.
         this->restart_observed = true;
         onWireGuardTunnelRestart(this, [this](const QString &profile_id)
         {
-            if (profile_id != this->profile || !this->http) return;
+            if (profile_id != this->profile || !this->opening.isEmpty()) return;
             this->http.reset();
             this->tunnel.reset();
             WireGuardRuntimeStatus::instance().stopped(this);

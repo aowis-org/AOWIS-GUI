@@ -370,7 +370,7 @@ L’enregistrer quand même comme connexion en attente non vérifiée ?</transla
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
-      <translation>Les profils WireGuard sont gérés dans Paramètres → VPN WireGuard</translation>
+      <translation>Les profils WireGuard sont gérés dans Paramètres → WireGuard VPN</translation>
     </message>
     <message>
       <source>This repository UUIDv7 is already configured as '%1'. Update its connection settings for %2?</source>
@@ -2495,7 +2495,7 @@ Clic droit : revenir à 1,0×</translation>
     </message>
     <message>
       <source>Standalone only: each missing map or terrain tile is requested from these MAP servers in order. Local cache is checked first. Prefer HTTPS for API keys. Each upstream is reached directly or through a WireGuard profile of Settings → WireGuard VPN; a WireGuard upstream is never contacted directly. Changes apply immediately.</source>
-      <translation>Standalone uniquement : chaque tuile de carte ou de terrain manquante est demandée à ces serveurs MAP dans l’ordre. Le cache local est consulté en premier. Préférez HTTPS pour les clés d’API. Chaque serveur amont est joint directement ou via un profil WireGuard de Paramètres → VPN WireGuard ; un serveur amont WireGuard n’est jamais contacté directement. Les modifications s’appliquent immédiatement.</translation>
+      <translation>Standalone uniquement : chaque tuile de carte ou de terrain manquante est demandée à ces serveurs MAP dans l’ordre. Le cache local est consulté en premier. Préférez HTTPS pour les clés d’API. Chaque serveur amont est joint directement ou via un profil WireGuard de Paramètres → WireGuard VPN ; un serveur amont WireGuard n’est jamais contacté directement. Les modifications s’appliquent immédiatement.</translation>
     </message>
     <message>
       <source>Standalone providers are editable and saved locally. The cascading upstreams and low-bandwidth settings are just below this table.</source>
@@ -5486,6 +5486,24 @@ Révision de fusion : les autres parents sont visibles dans Projets.</translatio
   <context>
     <name>MainWindow</name>
     <message>
+      <source>Open WireGuard settings</source>
+      <translation>Ouvrir les paramètres WireGuard</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>Démarrer le tunnel</translation>
+    </message>
+    <message>
+      <source>These connections could not connect (none fell back to a direct connection):
+%1</source>
+      <translation>Ces connexions n’ont pas pu se connecter (aucune n’est passée à une connexion directe) :
+%1</translation>
+    </message>
+    <message>
+      <source>WireGuard tunnel stopped</source>
+      <translation>Tunnel WireGuard arrêté</translation>
+    </message>
+    <message>
       <source>AOWIS Controller</source>
       <translation>Contrôleur AOWIS</translation>
     </message>
@@ -7615,7 +7633,7 @@ Clic droit pour réinitialiser.</translation>
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
-      <translation>Les profils WireGuard sont gérés dans Paramètres → VPN WireGuard</translation>
+      <translation>Les profils WireGuard sont gérés dans Paramètres → WireGuard VPN</translation>
     </message>
   </context>
   <context>
@@ -8679,6 +8697,36 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
   <context>
     <name>WireGuardVpnSettingsWidget</name>
     <message>
+      <source>Allow connections to start this profile's tunnel again; they reconnect at once.</source>
+      <translation>Autoriser à nouveau les connexions à démarrer le tunnel de ce profil ; elles se reconnectent immédiatement.</translation>
+    </message>
+    <message>
+      <source>Start tunnel</source>
+      <translation>Démarrer le tunnel</translation>
+    </message>
+    <message>
+      <source>Stop this profile's tunnel and keep it stopped for this session. Connections that use it fail with a notice; none falls back to a direct connection.</source>
+      <translation>Arrêter le tunnel de ce profil et le laisser arrêté pour cette session. Les connexions qui l’utilisent échouent avec un avertissement ; aucune ne passe à une connexion directe.</translation>
+    </message>
+    <message>
+      <source>Stop tunnel</source>
+      <translation>Arrêter le tunnel</translation>
+    </message>
+    <message>
+      <source>Stopped by you</source>
+      <translation>Arrêté par vous</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. Connections that use this profile fail with a notice instead of starting it; none fell back to a direct connection.</source>
+      <translation>Le tunnel reste arrêté jusqu’à ce que vous le redémarriez. Les connexions qui utilisent ce profil échouent avec un avertissement au lieu de le démarrer ; aucune n’est passée à une connexion directe.</translation>
+    </message>
+    <message>
+      <source>The tunnel is stopped until you start it again. These connections could not connect and did not fall back to a direct connection:
+%1</source>
+      <translation>Le tunnel reste arrêté jusqu’à ce que vous le redémarriez. Ces connexions n’ont pas pu se connecter et ne sont pas passées à une connexion directe :
+%1</translation>
+    </message>
+    <message>
       <source>MAP upstream</source>
       <translation>Serveur MAP amont</translation>
     </message>
@@ -8718,7 +8766,7 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     </message>
     <message>
       <source>No configured connection uses this profile. Choose it as the connection of a DVMDB source (Projects) or of a MAP connection (Settings → Map Settings).</source>
-      <translation>Aucune connexion configurée n’utilise ce profil. Choisissez-le comme connexion d’une source DVMDB (Projets) ou d’une connexion MAP (Paramètres → Paramètres de carte).</translation>
+      <translation>Aucune connexion configurée n’utilise ce profil. Choisissez-le comme connexion d’une source DVMDB (Projets) ou d’une connexion MAP (Paramètres → Paramètres de la carte).</translation>
     </message>
     <message>
       <source>Not saved yet</source>
@@ -9222,6 +9270,13 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Choose a dedicated absolute local DVMDB data directory.</source>
       <translation>Choisissez un répertoire de données DVMDB local dédié et absolu.</translation>
+    </message>
+  </context>
+  <context>
+    <name>WireGuardRuntimeStatus</name>
+    <message>
+      <source>The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.</source>
+      <translation>Le tunnel WireGuard « %1 » est arrêté. Démarrez-le dans Paramètres → WireGuard VPN → État.</translation>
     </message>
   </context>
 </TS>

@@ -2,6 +2,7 @@
 
 #ifdef AOWIS_GUI_WIREGUARD_PROBE
 #include "config/wireguard_profile_storage.h"
+#include "network/wireguard_runtime_status.h"
 
 #include <aowis/network/wireguard_client.h>
 #include <aowis/network/wireguard_conf.h>
@@ -93,8 +94,33 @@ QHash<QString, SharedTunnel> &sharedTunnels()
 
 }
 
+namespace
+{
+QString profileName(const QString &profile_id)
+{
+    for (const WireGuardProfileEntry &profile : listWireGuardProfiles())
+        if (profile.id == profile_id) return profile.name;
+    return profile_id;
+}
+
+// Fails a request for a profile the user stopped, and reports it.
+WireGuardTunnelLease suspendedLease(const QString &profile_id)
+{
+    WireGuardRuntimeStatus::instance().reportSuspendedRequest(profile_id);
+    return {nullptr, WireGuardRuntimeStatus::suspendedError(profileName(profile_id))};
+}
+}
+
 void acquireWireGuardTunnel(const QString &profile_id, std::function<void(const WireGuardTunnelLease &)> done)
 {
+    if (WireGuardRuntimeStatus::instance().isSuspended(profile_id))
+    {
+        // Never started while stopped by the user; never a direct fallback.
+        QTimer::singleShot(0, QCoreApplication::instance(), [profile_id, done]() {
+            done(suspendedLease(profile_id));
+        });
+        return;
+    }
     SharedTunnel &entry = sharedTunnels()[profile_id];
     const std::shared_ptr<aowis::network::WireGuardClient> live = entry.tunnel.lock();
     if (live && live->isRunning())
@@ -111,8 +137,14 @@ void acquireWireGuardTunnel(const QString &profile_id, std::function<void(const 
     entry.starting = true;
     QFutureWatcher<WireGuardTunnelLease> *watcher = new QFutureWatcher<WireGuardTunnelLease>();
     QObject::connect(watcher, &QFutureWatcher<WireGuardTunnelLease>::finished, watcher, [watcher, profile_id]() {
-        const WireGuardTunnelLease result = watcher->result();
+        WireGuardTunnelLease result = watcher->result();
         watcher->deleteLater();
+        if (WireGuardRuntimeStatus::instance().isSuspended(profile_id))
+        {
+            // Stopped while starting: do not hand the tunnel out.
+            if (result.tunnel) result.tunnel->stop();
+            result = suspendedLease(profile_id);
+        }
         QList<std::function<void(const WireGuardTunnelLease &)>> waiters;
         QHash<QString, SharedTunnel>::iterator it = sharedTunnels().find(profile_id);
         if (it != sharedTunnels().end())
@@ -145,19 +177,51 @@ void onWireGuardTunnelRestart(QObject *context, std::function<void(const QString
         QPointer<QObject>(context), std::move(restarted)));
 }
 
-void restartWireGuardTunnel(const QString &profile_id)
+namespace
+{
+// Stops the running tunnel (if any) before anyone acquires again: two tunnels
+// with the same key must never run at once (the peer would roam).
+bool stopRunningTunnel(const QString &profile_id)
 {
     QHash<QString, SharedTunnel>::iterator entry = sharedTunnels().find(profile_id);
-    if (entry == sharedTunnels().end()) return;
+    if (entry == sharedTunnels().end()) return false;
     const std::shared_ptr<aowis::network::WireGuardClient> live = entry->tunnel.lock();
-    if (!live || !live->isRunning()) return;
-    // Stop before anyone acquires again: two tunnels with the same key must
-    // never run at once (the peer would roam between them).
-    live->stop();
     entry->tunnel.reset();
+    if (!live || !live->isRunning()) return false;
+    live->stop();
+    return true;
+}
+
+void notifyRestartObservers(const QString &profile_id)
+{
     const QList<QPair<QPointer<QObject>, std::function<void(const QString &)>>> observers = restartObservers();
     for (const QPair<QPointer<QObject>, std::function<void(const QString &)>> &observer : observers)
         if (!observer.first.isNull()) observer.second(profile_id);
+}
+}
+
+void restartWireGuardTunnel(const QString &profile_id)
+{
+    if (WireGuardRuntimeStatus::instance().isSuspended(profile_id)) return;
+    if (stopRunningTunnel(profile_id)) notifyRestartObservers(profile_id);
+}
+
+void stopWireGuardTunnel(const QString &profile_id)
+{
+    if (WireGuardRuntimeStatus::instance().isSuspended(profile_id)) return;
+    WireGuardRuntimeStatus::instance().setSuspended(profile_id, true);
+    stopRunningTunnel(profile_id);
+    // Consumers drop the stopped tunnel; their next attempts are refused
+    // with the "stopped" error (never direct).
+    notifyRestartObservers(profile_id);
+}
+
+void startWireGuardTunnel(const QString &profile_id)
+{
+    if (!WireGuardRuntimeStatus::instance().isSuspended(profile_id)) return;
+    WireGuardRuntimeStatus::instance().setSuspended(profile_id, false);
+    // Consumers acquire again; the first starts the one shared tunnel.
+    notifyRestartObservers(profile_id);
 }
 
 QNetworkProxy wireGuardQtProxy(const aowis::network::WireGuardClient &tunnel)
