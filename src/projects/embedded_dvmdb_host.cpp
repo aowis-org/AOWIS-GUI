@@ -22,7 +22,10 @@ class LocalService final
 {
 public:
     explicit LocalService(const QString &path)
-        : service_(std::filesystem::path(path.toStdString()))
+        // UTF-16 -> std::filesystem::path is lossless on every platform. A
+        // narrow toStdString() would be reinterpreted in the ANSI code page
+        // by some Windows standard libraries (non-ASCII user profile paths).
+        : service_(std::filesystem::path(path.toStdU16String()))
     {
         aowis::dvmdb::http::registerRoutes(this->server_, this->service_);
         const int port = this->server_.bind_to_any_port("127.0.0.1");
@@ -94,7 +97,8 @@ QString embeddedDvmdbEndpoint(const QString &storage_path, bool personal,
     if (repository_id) repository_id->clear();
     if (error) error->clear();
     const QString path = QDir::cleanPath(storage_path);
-    if (!QDir::isAbsolutePath(path) || path.isEmpty() || path == QStringLiteral("/"))
+    // Refuse a filesystem root ("/" or a Windows drive root such as "C:/").
+    if (!QDir::isAbsolutePath(path) || path.isEmpty() || QDir(path).isRoot())
     {
         if (error) *error = QStringLiteral("Choose a dedicated absolute local DVMDB data directory.");
         return {};
