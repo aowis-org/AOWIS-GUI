@@ -46,5 +46,8 @@ bool saveProjectServerProfiles(const QList<ProjectServerProfile> &profiles);
 
 QString defaultLocalDvmdbPath();
 // The embedded source exists only in builds with the native DVMDB backend.
-// Does not open/create the database; that belongs to the repository adapter.
+// Adds the built-in local database profile if missing and, once per
+// configuration store, designates it the personal working database when no
+// other database is personal (on every platform). Opens the embedded
+// database to verify its identity; saves profiles when they change.
 bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles);

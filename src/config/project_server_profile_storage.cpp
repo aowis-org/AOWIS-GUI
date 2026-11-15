@@ -2,6 +2,7 @@
 #include "config/connection_wireguard_references.h"
 
 #include "config/gui_config_store.h"
+#include "config/gui_preferences.h"
 #include "projects/dvmdb_identity.h"
 #include "projects/embedded_dvmdb_host.h"
 
@@ -373,43 +374,125 @@ QString defaultLocalDvmdbPath()
         .filePath(QStringLiteral("aowis-standalone-dvmdb"));
 }
 
+#ifdef AOWIS_STANDALONE_DVMDB_ENABLED
+namespace
+{
+// One-time marker in GuiPreferences group "dvmdb": the built-in database has
+// been offered as the personal working database. Recorded once the decision is
+// settled, so a user who later designates another database (or none) keeps
+// that choice across restarts.
+const QString builtin_personal_group = QStringLiteral("dvmdb");
+const QString builtin_personal_key = QStringLiteral("builtin_personal_default_applied");
+
+bool builtinPersonalDefaultApplied()
+{
+    return GuiPreferences::value(builtin_personal_group, builtin_personal_key).toBool(false);
+}
+
+void markBuiltinPersonalDefaultApplied()
+{
+    if (!GuiPreferences::update(builtin_personal_group,
+                                QJsonObject{{builtin_personal_key, true}}))
+        qWarning() << "Unable to record the built-in personal DVMDB default";
+}
+
+// Standalone's built-in database is the personal working database by
+// default on every platform. Opens it as personal (an unconfigured store is
+// configured private; a store already configured shared is left alone and
+// stays non-personal) and adopts its verified repository identity. Returns
+// true if profiles[index] was changed; false leaves the decision for a later
+// start (e.g. the data directory is temporarily unusable).
+bool adoptBuiltinPersonalDatabase(QList<ProjectServerProfile> &profiles, int index)
+{
+    ProjectServerProfile &local = profiles[index];
+    QString repository_id;
+    QString error;
+    const QString endpoint = embeddedDvmdbEndpoint(local.local_path, true, &repository_id, &error);
+    if (endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id))
+    {
+        qWarning() << "Built-in DVMDB not selected as personal database:" << error;
+        return false;
+    }
+    for (int other = 0; other < profiles.size(); ++other)
+        if (other != index && profiles[other].id == repository_id)
+            return false; // the same repository is already configured elsewhere
+    local.id = repository_id;
+    local.pending = false;
+    local.personal = true;
+    return true;
+}
+}
+#endif
+
 bool ensureDefaultLocalDvmdbProfile(QList<ProjectServerProfile> &profiles)
 {
 #ifdef AOWIS_STANDALONE_DVMDB_ENABLED
     const QString data_root = QDir::cleanPath(defaultLocalDvmdbPath());
-    for (const ProjectServerProfile &profile : profiles)
-        if (profile.connection_type == QStringLiteral("local")
-            && QDir::cleanPath(profile.local_path) == data_root)
-            return true;
+    int index = -1;
+    for (int candidate = 0; candidate < profiles.size(); ++candidate)
+        if (profiles[candidate].connection_type == QStringLiteral("local")
+            && QDir::cleanPath(profiles[candidate].local_path) == data_root)
+        {
+            index = candidate;
+            break;
+        }
 
-    ProjectServerProfile local;
-    // Embedded repositories are verified in-process, without a separate daemon.
-    QString repository_id;
-    QString error;
-    const QString endpoint = embeddedDvmdbEndpoint(data_root, false, &repository_id, &error);
-    local.id = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id)
-        ? DvmdbIdentity::newUuidV7() : repository_id;
-    local.pending = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id);
-    local.name = QStringLiteral("Local database");
-    int suffix = 2;
-    bool name_used = true;
-    while (name_used)
+    bool changed = false;
+    if (index < 0)
     {
-        name_used = false;
-        for (const ProjectServerProfile &profile : profiles)
-            if (profile.name.compare(local.name, Qt::CaseInsensitive) == 0)
-            {
-                local.name = QStringLiteral("Local database (%1)").arg(suffix++);
-                name_used = true;
-                break;
-            }
+        ProjectServerProfile local;
+        // Embedded repositories are verified in-process, without a separate daemon.
+        QString repository_id;
+        QString error;
+        const QString endpoint = embeddedDvmdbEndpoint(data_root, false, &repository_id, &error);
+        local.id = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id)
+            ? DvmdbIdentity::newUuidV7() : repository_id;
+        local.pending = endpoint.isEmpty() || !DvmdbIdentity::isUuidV7(repository_id);
+        local.name = QStringLiteral("Local database");
+        int suffix = 2;
+        bool name_used = true;
+        while (name_used)
+        {
+            name_used = false;
+            for (const ProjectServerProfile &profile : profiles)
+                if (profile.name.compare(local.name, Qt::CaseInsensitive) == 0)
+                {
+                    local.name = QStringLiteral("Local database (%1)").arg(suffix++);
+                    name_used = true;
+                    break;
+                }
+        }
+        local.connection_type = QStringLiteral("local");
+        local.auth_mode = QStringLiteral("None");
+        local.local_path = data_root;
+        profiles.prepend(local);
+        index = 0;
+        changed = true;
     }
-    local.connection_type = QStringLiteral("local");
-    local.auth_mode = QStringLiteral("None");
-    local.local_path = data_root;
-    profiles.prepend(local);
-    if (!saveProjectServerProfiles(profiles))
-        qWarning() << "Unable to persist default local DVMDB profile";
+
+    bool adopted = false;
+    const QList<ProjectServerProfile> before_adoption = profiles;
+    if (!builtinPersonalDefaultApplied())
+    {
+        bool personal_exists = false;
+        for (const ProjectServerProfile &profile : profiles)
+            if (profile.personal) personal_exists = true;
+        // An explicitly designated personal database always wins.
+        if (personal_exists) markBuiltinPersonalDefaultApplied();
+        else adopted = adoptBuiltinPersonalDatabase(profiles, index);
+    }
+
+    if (changed || adopted)
+    {
+        if (!saveProjectServerProfiles(profiles))
+        {
+            qWarning() << "Unable to persist default local DVMDB profile";
+            // Keep memory consistent with storage; adoption is retried next start.
+            if (adopted) profiles = before_adoption;
+        }
+        else if (adopted)
+            markBuiltinPersonalDefaultApplied();
+    }
     return true;
 #else
     Q_UNUSED(profiles);
