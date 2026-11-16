@@ -306,6 +306,17 @@ void InterfaceServerMapStandalone::requestTile(const QString &endpoint, const QS
         qWarning() << "Map tile downloader is busy:" << key;
         emit signalTileFailed(key);
         return;
+
+    case MapTiles::TileRequestStatus::Unavailable:
+        // No source may be asked right now (e.g. the MAP upstream is in its
+        // cooldown after a timeout and direct downloads are disabled). This
+        // must be answered: the tile repository keeps a request in flight
+        // until it gets data or a failure, and on Windows only six may be in
+        // flight, so six unanswered tiles stopped all further downloads
+        // until the provider was changed or the GUI restarted. As a failure
+        // the repository retries the tile with its usual backoff.
+        emit signalTileFailed(key);
+        return;
     }
 #endif
 }
@@ -338,6 +349,17 @@ void InterfaceServerMapStandalone::finishTileRequest(
 
     case MapTiles::TileRequestStatus::ServerBusy:
         qWarning() << "Map tile downloader is busy:" << key;
+        emit signalTileFailed(key);
+        return;
+
+    case MapTiles::TileRequestStatus::Unavailable:
+        // No source may be asked right now (e.g. the MAP upstream is in its
+        // cooldown after a timeout and direct downloads are disabled). This
+        // must be answered: the tile repository keeps a request in flight
+        // until it gets data or a failure, and on Windows only six may be in
+        // flight, so six unanswered tiles stopped all further downloads
+        // until the provider was changed or the GUI restarted. As a failure
+        // the repository retries the tile with its usual backoff.
         emit signalTileFailed(key);
         return;
     }
