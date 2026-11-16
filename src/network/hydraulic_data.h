@@ -63,6 +63,10 @@ public:
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     bool setNetworkRootMetadata(const NetworkHydraulic &metadata);
+    // Project units (NetworkHydraulic::presentation_units): a root-metadata
+    // edit, so it lands in the private draft and the next Commit. An empty
+    // value removes the network's stored units. Only while edits are captured.
+    bool setNetworkPresentationUnits(const std::optional<NetworkPresentationUnits> &units);
     void setSimulationHeadlossFormula(HydraulicHeadlossFormula formula);
     QUuid sourceTraceOriginNodeUuid() const;
     bool setSourceTraceOriginNodeUuid(const QUuid &uuid);
@@ -512,6 +516,8 @@ private:
 
     std::optional<InfrastructureEntity> linkEntityType(const QUuid &uuid) const;
     void markNetworkChanged(NetworkChange change, const QUuid &edited_entity_uuid = QUuid());
+    // Single writer of logical_edit_capture_enabled; emits on changes.
+    void updateLogicalEditCapture(bool enabled);
     void markSimulationResultTimelineStale(const QUuid &edited_entity_uuid = QUuid());
     void markSimulationDiagnosticEntityStale(const QUuid &uuid);
     bool emitNodeChangedIfSuccessful(const QUuid &uuid, bool successful, NetworkChange change = NetworkChange::Visual);
@@ -621,6 +627,12 @@ signals:
     void signalLogicalEditRecorded(const QByteArray &encoded_transaction);
     void signalLogicalEditCaptureFailed(const QString &reason);
     void signalNetworkLoaded();
+    // Logical-edit capture switched on or off (a private draft became
+    // editable, or editing stopped).
+    void signalLogicalEditCaptureChanged(bool enabled);
+    // NetworkHydraulic::presentation_units may have changed (network loaded,
+    // replaced, or a root edit/undo touched it).
+    void signalPresentationUnitsChanged();
     void signalWaterQualityOptionsChanged();
     void signalSimulationResultTimelineChanged(bool available);
     void signalWaterQualitySimulationResultTimelineChanged(bool available);

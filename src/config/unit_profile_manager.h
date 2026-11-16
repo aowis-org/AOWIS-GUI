@@ -2,19 +2,45 @@
 
 #include "config/unit_profile_storage.h"
 #include "config/gui_configuration.h"
+#include "config/gui_preferences.h"
 #include "config/unit_profile_notifications.h"
 #include "config/unit_presentation_context.h"
 #include <aowis/model/units/unit_profile.h>
+#include <aowis/model/hydraulic/network_presentation_units.h>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
 #include <QVector>
 #include <QUuid>
+#include <algorithm>
+#include <functional>
+#include <optional>
 
 // Qt adapter: a single Model-owned collection shared by Settings and the toolbar.
 // Custom profiles and the selection persist in AOWIS-CONFIG
 // (config/unit_profile_storage.h).
+//
+// Project units: the open network may store its own presentation units
+// (NetworkHydraulic::presentation_units, committed with the network). The
+// display source preference (group "units", key "display_source":
+// "project" = default, "local") decides which apply. Effective units are the
+// project units when the source is "project" and the network stores units;
+// quantities the project does not list fall back to the active local profile.
+// Project units are copies: editing a local profile never changes them.
 class UnitProfileManager {
 public:
+    enum class DisplaySource { Project, Local };
+    struct ProjectUnits {
+        bool present = false;    // the open network stores units
+        bool editable = false;   // a private draft accepts a change now
+        QString name;
+        QString derived_from_profile;
+        QJsonObject units;       // as stored (may be partial)
+    };
+    // Registered by the main window: writes a root-metadata edit into the
+    // private draft (empty optional = remove). Returns false if not possible.
+    using ProjectUnitsWriter = std::function<bool(const std::optional<NetworkPresentationUnits> &)>;
+
     struct Profile {
         QString id;
         QString name;
@@ -26,6 +52,69 @@ public:
         return manager;
     }
     [[nodiscard]] const QVector<Profile> &profiles() const { return this->views_; }
+    [[nodiscard]] DisplaySource displaySource() const { return this->display_source_; }
+    [[nodiscard]] const ProjectUnits &projectUnits() const { return this->project_; }
+    // True when the views show the network's stored units.
+    [[nodiscard]] bool projectUnitsInEffect() const {
+        return this->display_source_ == DisplaySource::Project && this->project_.present;
+    }
+    // Display units actually used by every unit-aware view.
+    [[nodiscard]] QJsonObject effectiveUnits() const {
+        QJsonObject result = this->views_.at(this->activeIndex()).units;
+        if (!this->projectUnitsInEffect()) return result;
+        for (QJsonObject::const_iterator it = this->project_.units.constBegin();
+             it != this->project_.units.constEnd(); ++it)
+            if (result.contains(it.key())) result.insert(it.key(), it.value());
+        return result;
+    }
+    void setDisplaySource(DisplaySource source, QObject *origin = nullptr) {
+        if (this->display_source_ == source) return;
+        this->display_source_ = source;
+        (void)GuiPreferences::update(QStringLiteral("units"),
+            QJsonObject{{QStringLiteral("display_source"),
+                         source == DisplaySource::Local ? QStringLiteral("local") : QStringLiteral("project")}});
+        this->notify(origin);
+    }
+    // Called whenever the open network or its editability changes.
+    void setNetworkProjectUnits(const std::optional<NetworkPresentationUnits> &stored, bool editable,
+                                QObject *origin = nullptr) {
+        ProjectUnits next;
+        next.editable = editable;
+        if (stored) {
+            next.present = true;
+            next.name = stored->name;
+            next.derived_from_profile = stored->derived_from_profile;
+            for (const NetworkPresentationUnit &choice : stored->units)
+                if (aowis::units::isAllowedUnit(choice.quantity.toStdString(), choice.unit.toStdString()))
+                    next.units.insert(choice.quantity, choice.unit);
+        }
+        if (next.present == this->project_.present && next.editable == this->project_.editable
+            && next.name == this->project_.name && next.units == this->project_.units
+            && next.derived_from_profile == this->project_.derived_from_profile) return;
+        this->project_ = std::move(next);
+        this->notify(origin);
+    }
+    void setProjectUnitsWriter(ProjectUnitsWriter writer) { this->project_writer_ = std::move(writer); }
+    // Stores a complete copy of a local profile as the network's project units.
+    bool storeProfileInProject(int index) {
+        if (!this->valid(index) || !this->project_.editable || !this->project_writer_) return false;
+        const Profile &profile = this->views_.at(index);
+        NetworkPresentationUnits units;
+        units.name = profile.name;
+        units.derived_from_profile = profile.id;
+        for (QJsonObject::const_iterator it = profile.units.constBegin(); it != profile.units.constEnd(); ++it)
+            units.units.append(NetworkPresentationUnit{it.key(), it.value().toString()});
+        // Canonical order required by the Model (sorted, unique quantities).
+        std::sort(units.units.begin(), units.units.end(),
+                  [](const NetworkPresentationUnit &left, const NetworkPresentationUnit &right) {
+                      return QString::compare(left.quantity, right.quantity, Qt::CaseSensitive) < 0;
+                  });
+        return this->project_writer_(units);
+    }
+    bool removeProjectUnits() {
+        if (!this->project_.present || !this->project_.editable || !this->project_writer_) return false;
+        return this->project_writer_(std::nullopt);
+    }
     [[nodiscard]] UnitPresentationContext &presentation() { return this->presentation_; }
     [[nodiscard]] const UnitPresentationContext &presentation() const { return this->presentation_; }
     [[nodiscard]] int activeIndex() const {
@@ -106,11 +195,13 @@ private:
                 break;
             }
         }
-        this->presentation_.initialize(this->views_.at(this->activeIndex()).units);
+        this->display_source_ = GuiPreferences::value(QStringLiteral("units"), QStringLiteral("display_source"))
+                .toString() == QStringLiteral("local") ? DisplaySource::Local : DisplaySource::Project;
+        this->presentation_.initialize(this->effectiveUnits());
     }
     void notify(QObject *origin) {
         // Refresh active unit mappings before legacy profile-list notifications.
-        this->presentation_.update(this->views_.at(this->activeIndex()).units);
+        this->presentation_.update(this->effectiveUnits());
         UnitProfileNotifications::instance().publish(origin);
     }
     [[nodiscard]] bool valid(int index) const { return index >= 0 && index < this->views_.size(); }
@@ -148,4 +239,7 @@ private:
     aowis::units::UnitProfileCollection collection_;
     QVector<Profile> views_;
     UnitPresentationContext presentation_;
+    DisplaySource display_source_ = DisplaySource::Project;
+    ProjectUnits project_;
+    ProjectUnitsWriter project_writer_;
 };

@@ -858,26 +858,45 @@ void TopControlBar::addFlowUnitCombo()
     button->setMenu(menu);
 #endif
 
-    const std::function<void()> refresh = [this, button, menu] {
+    // While the open network's project units are shown, the button names
+    // them; choosing a local profile from the menu is an explicit override
+    // (display source "local"), reverted in Settings -> Units.
+    const std::function<void()> refresh_text = [button] {
+        UnitProfileManager &manager = UnitProfileManager::instance();
+        const QVector<UnitProfileManager::Profile> &profiles = manager.profiles();
+        const int index = manager.activeIndex();
+        if (manager.projectUnitsInEffect())
+        {
+            button->setText(tr("Project: %1").arg(manager.projectUnits().name) + QStringLiteral("  ▾"));
+            button->setToolTip(tr("Project units stored with this network. Choosing a profile here shows your local units instead; Settings > Units switches back."));
+        }
+        else if (index >= 0 && index < profiles.size())
+        {
+            button->setText(UnitProfileMenu::label(profiles.at(index)) + QStringLiteral("  ▾"));
+            button->setToolTip(QString());
+        }
+    };
+    const std::function<void()> refresh = [this, menu, refresh_text] {
         UnitProfileManager &manager = UnitProfileManager::instance();
         const QVector<UnitProfileManager::Profile> &profiles = manager.profiles();
         const int active = manager.activeIndex();
-        button->setText(UnitProfileMenu::label(profiles.at(active)) + QStringLiteral("  ▾"));
+        refresh_text();
         UnitProfileMenu::populate(menu, this, profiles, active,
-                                  [](int index) { (void)UnitProfileManager::instance().select(index); },
+                                  [](int index) {
+                                      UnitProfileManager &units = UnitProfileManager::instance();
+                                      if (units.projectUnitsInEffect())
+                                          units.setDisplaySource(UnitProfileManager::DisplaySource::Local);
+                                      (void)units.select(index);
+                                  },
                                   [this] { emit signalManageUnitsRequested(); });
     };
     UnitProfileNotifications::instance().subscribe(this, [this, refresh] {
         QTimer::singleShot(0, this, refresh);
     });
     refresh();
-    connect(this, &TopControlBar::languageChanged, button, [button, menu] {
-        UnitProfileManager &manager = UnitProfileManager::instance();
-        const QVector<UnitProfileManager::Profile> &profiles = manager.profiles();
-        const int index = manager.activeIndex();
-        if (index >= 0 && index < profiles.size())
-            button->setText(UnitProfileMenu::label(profiles.at(index)) + QStringLiteral("  ▾"));
-        UnitProfileMenu::retranslate(menu, profiles);
+    connect(this, &TopControlBar::languageChanged, button, [menu, refresh_text] {
+        refresh_text();
+        UnitProfileMenu::retranslate(menu, UnitProfileManager::instance().profiles());
     });
     QLabel *caption = createCaption(tr("Units"), this->content);
     connect(this, &TopControlBar::languageChanged, caption, [caption] { caption->setText(tr("Units")); });

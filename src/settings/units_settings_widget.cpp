@@ -77,6 +77,50 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
     QLabel *info = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Display-unit preferences only. Changes update unit-aware views and editors; canonical Model values remain unchanged."), this);
     info->setWordWrap(true);
     outer->addWidget(info);
+
+    // Display source and the open network's project units.
+    QHBoxLayout *source_row = new QHBoxLayout;
+    QLabel *source_caption = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Units shown"), this);
+    source_row->addWidget(source_caption);
+    this->display_source = new QComboBox(this);
+    this->display_source->setObjectName(QStringLiteral("unitsDisplaySourceCombo"));
+    this->display_source->addItem(QString(), static_cast<int>(UnitProfileManager::DisplaySource::Project));
+    this->display_source->addItem(QString(), static_cast<int>(UnitProfileManager::DisplaySource::Local));
+    LiveUiText::bind(this->display_source, [this] {
+        this->display_source->setItemText(0, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Project units when the network stores them")));
+        this->display_source->setItemText(1, LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "My local unit profile")));
+    });
+    source_row->addWidget(this->display_source, 1);
+    outer->addLayout(source_row);
+    this->project_status = new QLabel(this);
+    this->project_status->setObjectName(QStringLiteral("unitsProjectStatusLabel"));
+    this->project_status->setWordWrap(true);
+    outer->addWidget(this->project_status);
+    QHBoxLayout *project_row = new QHBoxLayout;
+    this->store_project_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Store selected profile in project"), this);
+    this->store_project_button->setObjectName(QStringLiteral("unitsStoreInProjectButton"));
+    project_row->addWidget(this->store_project_button);
+    this->remove_project_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Remove project units"), this);
+    this->remove_project_button->setObjectName(QStringLiteral("unitsRemoveFromProjectButton"));
+    project_row->addWidget(this->remove_project_button);
+    project_row->addStretch(1);
+    outer->addLayout(project_row);
+    this->project_hint = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Project units are stored and committed with the network. Open the network with Edit network to change them."), this);
+    this->project_hint->setWordWrap(true);
+    outer->addWidget(this->project_hint);
+    connect(this->display_source, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        UnitProfileManager::instance().setDisplaySource(
+            static_cast<UnitProfileManager::DisplaySource>(this->display_source->currentData().toInt()), this);
+        this->refreshProjectUnits();
+    });
+    connect(this->store_project_button, &QPushButton::clicked, this, [this] {
+        // A copy of the profile selected below; later edits of that local
+        // profile never change the project.
+        (void)UnitProfileManager::instance().storeProfileInProject(this->profile_selector->currentIndex());
+    });
+    connect(this->remove_project_button, &QPushButton::clicked, this, [] {
+        (void)UnitProfileManager::instance().removeProjectUnits();
+    });
     QHBoxLayout *controls = new QHBoxLayout;
     this->profile_selector = new QComboBox(this);
     this->profile_selector->hide();
@@ -165,7 +209,28 @@ UnitsSettingsWidget::UnitsSettingsWidget(QWidget *parent) : QWidget(parent)
         });
         confirmation->open();
     });
-    LiveUiText::bind(this, [this] { refreshLanguage(); });
+    LiveUiText::bind(this, [this] { refreshLanguage(); this->refreshProjectUnits(); });
+}
+
+void UnitsSettingsWidget::refreshProjectUnits()
+{
+    if (this->display_source == nullptr) return;
+    const UnitProfileManager &manager = UnitProfileManager::instance();
+    {
+        const QSignalBlocker blocker(this->display_source);
+        this->display_source->setCurrentIndex(
+            this->display_source->findData(static_cast<int>(manager.displaySource())));
+    }
+    const UnitProfileManager::ProjectUnits &project = manager.projectUnits();
+    if (!project.present)
+        this->project_status->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "This network stores no project units.")));
+    else if (manager.projectUnitsInEffect())
+        this->project_status->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Project units: %1 (shown)")).arg(project.name));
+    else
+        this->project_status->setText(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Project units: %1 (not shown, your local profile is used)")).arg(project.name));
+    this->store_project_button->setEnabled(project.editable);
+    this->remove_project_button->setEnabled(project.editable && project.present);
+    this->project_hint->setVisible(!project.editable);
 }
 
 void UnitsSettingsWidget::load()
@@ -193,6 +258,7 @@ void UnitsSettingsWidget::refreshSelector(int selected)
                               UnitProfileManager::instance().profiles(), selected,
                               [this](int index) { this->profile_selector->setCurrentIndex(index); });
     this->refreshFields();
+    this->refreshProjectUnits();
 }
 void UnitsSettingsWidget::refreshLanguage()
 {

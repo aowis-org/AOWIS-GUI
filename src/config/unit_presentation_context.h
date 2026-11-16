@@ -15,8 +15,9 @@
 #include <cmath>
 #include <utility>
 
-// Effective GUI display units, deliberately independent of project/model revisions.
-// This context never converts or writes model measurements.
+// Effective GUI display units: the local profile, or the open network's project
+// units (see UnitProfileManager). This context never converts or writes model
+// measurements.
 class UnitPresentationContext : public QObject
 {
 public:

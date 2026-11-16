@@ -10,6 +10,7 @@
 #include "network/network_symbology_values.h"
 
 #include <cmath>
+#include <functional>
 #include <utility>
 
 #include <QHash>
@@ -395,7 +396,15 @@ const NetworkHydraulic &HydraulicData::networkHydraulic() const
 
 void HydraulicData::setLogicalEditCaptureEnabled(bool enabled)
 {
+    updateLogicalEditCapture(enabled);
+}
+
+void HydraulicData::updateLogicalEditCapture(bool enabled)
+{
+    if (this->logical_edit_capture_enabled == enabled)
+        return;
     this->logical_edit_capture_enabled = enabled;
+    emit signalLogicalEditCaptureChanged(enabled);
 }
 
 bool HydraulicData::logicalEditCaptureEnabled() const
@@ -410,7 +419,7 @@ void HydraulicData::publishCapturedEdit(const HydraulicEditTransactionCapture &c
     if (!error.isEmpty())
     {
         // An editor must not regard this unsaved mutation as persisted.
-        this->logical_edit_capture_enabled = false;
+        updateLogicalEditCapture(false);
         emit signalLogicalEditCaptureFailed(error);
     }
     else if (transaction.has_value())
@@ -425,7 +434,7 @@ void HydraulicData::replaceNetworkHydraulic(
 {
     clearSimulationResultTimeline();
 
-    this->logical_edit_capture_enabled = false;
+    updateLogicalEditCapture(false);
     this->network_hydraulic = std::move(network);
     this->simulation_quality_run_options = std::move(quality_run_options);
     this->source_trace_origin_node_uuid = QUuid();
@@ -443,6 +452,7 @@ void HydraulicData::replaceNetworkHydraulic(
     markNetworkChanged(NetworkChange::Geometry);
     emit signalWaterQualityOptionsChanged();
     emit signalNetworkLoaded();
+    emit signalPresentationUnitsChanged();
 }
 
 const QList<WaterQualitySolverOptions> &HydraulicData::simulationQualityRunOptions() const
@@ -473,20 +483,42 @@ bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulic &metadata)
     if (this->logical_edit_capture_enabled &&
         !capture.watch(this->network_hydraulic, this->network_hydraulic.uuid))
     {
-        this->logical_edit_capture_enabled = false;
+        updateLogicalEditCapture(false);
         emit signalLogicalEditCaptureFailed(QStringLiteral("Cannot capture hydraulic network metadata"));
         return false;
     }
     const bool headloss_changed =
         this->network_hydraulic.options_hydraulic.headloss_formula !=
         updated.options_hydraulic.headloss_formula;
+    // Compared through the canonical codec (never operator== on Model
+    // structs): encode a network that holds nothing but the project units.
+    const std::function<QByteArray(const NetworkHydraulic &)> units_image =
+        [](const NetworkHydraulic &network)
+    {
+        NetworkHydraulic only_units;
+        only_units.presentation_units = network.presentation_units;
+        return aowis::model::ModelCodec<NetworkHydraulic>::encode(only_units);
+    };
+    const bool units_changed = units_image(this->network_hydraulic) != units_image(updated);
     this->network_hydraulic = std::move(updated);
     if (this->logical_edit_capture_enabled)
         publishCapturedEdit(capture);
     markNetworkChanged(NetworkChange::Visual);
     if (headloss_changed)
         emit signalSimulationHeadlossFormulaChanged();
+    if (units_changed)
+        emit signalPresentationUnitsChanged();
     return true;
+}
+
+bool HydraulicData::setNetworkPresentationUnits(const std::optional<NetworkPresentationUnits> &units)
+{
+    // Outside a private draft a change could be neither persisted nor undone.
+    if (!this->logical_edit_capture_enabled)
+        return false;
+    NetworkHydraulic metadata = aowis::model::hydraulicRootMetadata(this->network_hydraulic);
+    metadata.presentation_units = units;
+    return setNetworkRootMetadata(metadata);
 }
 
 void HydraulicData::setSimulationHeadlossFormula(HydraulicHeadlossFormula formula)

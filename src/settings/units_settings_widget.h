@@ -24,6 +24,13 @@ private:
     QMenu *profile_menu = nullptr;
 #endif
     QPushButton *rename_button = nullptr;
+    // Project units: which units the views show, and the open network's
+    // stored units (changed only inside a private draft).
+    QComboBox *display_source = nullptr;
+    QLabel *project_status = nullptr;
+    QLabel *project_hint = nullptr;
+    QPushButton *store_project_button = nullptr;
+    QPushButton *remove_project_button = nullptr;
     QPushButton *delete_button = nullptr;
     QTreeWidget *fields_tree = nullptr;
     QLineEdit *field_search = nullptr;
@@ -33,6 +40,7 @@ private:
     void refreshSelector(int selected);
     void refreshLanguage();
     void refreshFields();
+    void refreshProjectUnits();
     void filterFields();
     void createProfile();
     void renameProfile();

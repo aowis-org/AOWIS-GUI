@@ -3,6 +3,14 @@
   <context>
     <name>TopControlBar</name>
     <message>
+      <source>Project: %1</source>
+      <translation>Proyecto: %1</translation>
+    </message>
+    <message>
+      <source>Project units stored with this network. Choosing a profile here shows your local units instead; Settings &gt; Units switches back.</source>
+      <translation>Unidades del proyecto guardadas con esta red. Elegir un perfil aquí muestra sus unidades locales; Configuración &gt; Unidades permite volver.</translation>
+    </message>
+    <message>
       <source>Language</source>
       <translation>Idioma</translation>
     </message>
@@ -2373,6 +2381,42 @@ Clic derecho: volver a 1,0×</translation>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>Units shown</source>
+      <translation>Unidades mostradas</translation>
+    </message>
+    <message>
+      <source>Project units when the network stores them</source>
+      <translation>Unidades del proyecto cuando la red las almacena</translation>
+    </message>
+    <message>
+      <source>My local unit profile</source>
+      <translation>Mi perfil de unidades local</translation>
+    </message>
+    <message>
+      <source>Store selected profile in project</source>
+      <translation>Guardar el perfil seleccionado en el proyecto</translation>
+    </message>
+    <message>
+      <source>Remove project units</source>
+      <translation>Quitar las unidades del proyecto</translation>
+    </message>
+    <message>
+      <source>Project units are stored and committed with the network. Open the network with Edit network to change them.</source>
+      <translation>Las unidades del proyecto se guardan y confirman con la red. Abra la red con «Editar red» para cambiarlas.</translation>
+    </message>
+    <message>
+      <source>This network stores no project units.</source>
+      <translation>Esta red no almacena unidades de proyecto.</translation>
+    </message>
+    <message>
+      <source>Project units: %1 (shown)</source>
+      <translation>Unidades del proyecto: %1 (mostradas)</translation>
+    </message>
+    <message>
+      <source>Project units: %1 (not shown, your local profile is used)</source>
+      <translation>Unidades del proyecto: %1 (no mostradas, se usa su perfil local)</translation>
+    </message>
     <message>
       <source>All keyboard shortcuts were reset to their advertised defaults.</source>
       <translation>Todos los atajos de teclado se restablecieron a sus valores predeterminados.</translation>
@@ -5497,6 +5541,10 @@ Commit de fusión: los otros padres se muestran en Proyectos.</translation>
   </context>
   <context>
     <name>MainWindow</name>
+    <message>
+      <source>The project units could not be changed.</source>
+      <translation>No se pudieron cambiar las unidades del proyecto.</translation>
+    </message>
     <message>
       <source>Open WireGuard settings</source>
       <translation>Abrir la configuración de WireGuard</translation>

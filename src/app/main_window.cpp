@@ -41,6 +41,11 @@
 
 MainWindow::~MainWindow()
 {
+    // The unit manager is a process-wide singleton: detach the project-units
+    // bridge before this window's state goes away.
+    UnitProfileManager::instance().setProjectUnitsWriter({});
+    QObject::disconnect(this->hydraulic_data, &HydraulicData::signalLogicalEditCaptureChanged, this, nullptr);
+    QObject::disconnect(this->hydraulic_data, &HydraulicData::signalPresentationUnitsChanged, this, nullptr);
     this->hydraulic_data->setLogicalEditCaptureEnabled(false);
     if (this->personal_edit_guard != nullptr)
         this->personal_edit_guard->stop();
@@ -933,6 +938,39 @@ MainWindow::MainWindow(QWidget *parent)
         this->top_control_bar->setSelectedSimulationHeadlossFormula(
             this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
     });
+    // Project units: the open network's stored presentation units feed the
+    // shared unit manager; Settings -> Units writes changes back as an
+    // ordinary root-metadata edit of the private draft (undoable, committed).
+    const std::function<bool()> project_units_editable = [this]
+    {
+        return this->hydraulic_data->logicalEditCaptureEnabled()
+            && !(this->personal_edit_active && this->personal_edit_blocked);
+    };
+    const std::function<void()> publish_project_units = [this, project_units_editable]
+    {
+        UnitProfileManager::instance().setNetworkProjectUnits(
+            this->hydraulic_data->networkHydraulic().presentation_units,
+            project_units_editable(), this);
+    };
+    UnitProfileManager::instance().setProjectUnitsWriter(
+        [this, project_units_editable](const std::optional<NetworkPresentationUnits> &units)
+    {
+        if (!project_units_editable())
+        {
+            statusBar()->showMessage(tr("The private draft is not ready for editing."), 8000);
+            return false;
+        }
+        if (!this->hydraulic_data->setNetworkPresentationUnits(units))
+        {
+            statusBar()->showMessage(tr("The project units could not be changed."), 8000);
+            return false;
+        }
+        return true;
+    });
+    connect(this->hydraulic_data, &HydraulicData::signalPresentationUnitsChanged, this, publish_project_units);
+    connect(this->hydraulic_data, &HydraulicData::signalLogicalEditCaptureChanged, this,
+            [publish_project_units](bool) { publish_project_units(); });
+    publish_project_units();
     connect(this->top_control_bar, &TopControlBar::signalSimulationStart, this, [this]
     {
         this->simulation_manager->runOrStop(

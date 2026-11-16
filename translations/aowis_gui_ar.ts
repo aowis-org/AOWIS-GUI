@@ -3,6 +3,14 @@
   <context>
     <name>TopControlBar</name>
     <message>
+      <source>Project: %1</source>
+      <translation>المشروع: %1</translation>
+    </message>
+    <message>
+      <source>Project units stored with this network. Choosing a profile here shows your local units instead; Settings &gt; Units switches back.</source>
+      <translation>وحدات المشروع المخزنة مع هذه الشبكة. اختيار ملف هنا يعرض وحداتك المحلية بدلاً منها؛ الإعدادات &gt; الوحدات تعيدك إليها.</translation>
+    </message>
+    <message>
       <source>Language</source>
       <translation>اللغة</translation>
     </message>
@@ -2393,6 +2401,42 @@ Right-click: animate back to 1.0×</source>
   </context>
   <context>
     <name>LiveUiText</name>
+    <message>
+      <source>Units shown</source>
+      <translation>الوحدات المعروضة</translation>
+    </message>
+    <message>
+      <source>Project units when the network stores them</source>
+      <translation>وحدات المشروع عندما تخزنها الشبكة</translation>
+    </message>
+    <message>
+      <source>My local unit profile</source>
+      <translation>ملف الوحدات المحلي الخاص بي</translation>
+    </message>
+    <message>
+      <source>Store selected profile in project</source>
+      <translation>تخزين الملف المحدد في المشروع</translation>
+    </message>
+    <message>
+      <source>Remove project units</source>
+      <translation>إزالة وحدات المشروع</translation>
+    </message>
+    <message>
+      <source>Project units are stored and committed with the network. Open the network with Edit network to change them.</source>
+      <translation>تُخزَّن وحدات المشروع وتُعتمد مع الشبكة. افتح الشبكة باستخدام «تحرير الشبكة» لتغييرها.</translation>
+    </message>
+    <message>
+      <source>This network stores no project units.</source>
+      <translation>لا تخزن هذه الشبكة وحدات مشروع.</translation>
+    </message>
+    <message>
+      <source>Project units: %1 (shown)</source>
+      <translation>وحدات المشروع: %1 (معروضة)</translation>
+    </message>
+    <message>
+      <source>Project units: %1 (not shown, your local profile is used)</source>
+      <translation>وحدات المشروع: %1 (غير معروضة، يُستخدم ملفك المحلي)</translation>
+    </message>
     <message>
       <source>All keyboard shortcuts were reset to their advertised defaults.</source>
       <translation>تمت إعادة تعيين جميع اختصارات لوحة المفاتيح إلى قيمها الافتراضية.</translation>
@@ -5517,6 +5561,10 @@ Merge commit: additional parent history is visible in Projects.</source>
   </context>
   <context>
     <name>MainWindow</name>
+    <message>
+      <source>The project units could not be changed.</source>
+      <translation>تعذّر تغيير وحدات المشروع.</translation>
+    </message>
     <message>
       <source>Open WireGuard settings</source>
       <translation>فتح إعدادات WireGuard</translation>
