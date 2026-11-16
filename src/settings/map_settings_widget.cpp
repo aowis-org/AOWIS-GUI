@@ -66,6 +66,23 @@ constexpr double NavigationSensitivityMinimum = 0.1;
 constexpr double NavigationSensitivityMaximum = 1.5;
 constexpr double NavigationSensitivityStep = 0.05;
 
+// The one provider table: local providers (editable, saved as the local
+// catalog) followed by providers inherited from MAP upstreams (definition
+// read-only; availability, acquisition and upstream order editable).
+constexpr int ProviderColumnOn = 0;
+constexpr int ProviderColumnName = 1;
+constexpr int ProviderColumnSource = 2;
+constexpr int ProviderColumnUrl = 3;
+constexpr int ProviderColumnMinimum = 4;
+constexpr int ProviderColumnMaximum = 5;
+constexpr int ProviderColumnFallback = 6;
+constexpr int ProviderColumnAcquisition = 7;
+constexpr int ProviderColumnUpstreams = 8;
+constexpr int ProviderColumnCount = 9;
+// On the name item: the provider UUID, and whether the row is inherited.
+constexpr int ProviderIdRole = Qt::UserRole;
+constexpr int ProviderInheritedRole = Qt::UserRole + 2;
+
 
 QLabel *sectionTitle(const char *text, QWidget *parent)
 {
@@ -407,13 +424,30 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         "A → B → C, as long as each source offers more detail. "
         "Your fallback choices are personal; they don't change the server's providers. "
         "With no further fallback, the highest-resolution tiles are smoothly enlarged."), providers_group));
-    this->provider_table = new QTableWidget(0, 6, providers_group);
+    providers_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
+        "Providers marked “From upstream” are defined on an upstream MAP server: here you "
+        "can only switch them on or off and choose how their tiles are fetched. "
+        "Acquisition: Automatic asks the MAP upstreams first and then the provider itself "
+        "if permitted; Cascade only never contacts the provider directly; Direct only "
+        "skips the upstreams. MAP upstreams sets which upstream servers may be asked for "
+        "a provider, and in which order."), providers_group));
+    this->provider_table = new QTableWidget(0, ProviderColumnCount, providers_group);
     LiveUiText::bind(this->provider_table, [this] {
-        this->provider_table->setHorizontalHeaderLabels({LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "On")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display name")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile URL")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Min")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Max")), LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "My fallback"))});
+        this->provider_table->setHorizontalHeaderLabels({
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "On")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display name")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Source")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile URL")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Min")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Max")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "My fallback")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Acquisition")),
+            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "MAP upstreams"))});
     });
-    this->provider_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    this->provider_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    this->provider_table->setMinimumHeight(220);
+    this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnName, QHeaderView::ResizeToContents);
+    this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnSource, QHeaderView::ResizeToContents);
+    this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnUrl, QHeaderView::Stretch);
+    this->provider_table->setMinimumHeight(260);
     providers_layout->addWidget(this->provider_table);
     QHBoxLayout *buttons = new QHBoxLayout();
     QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Add provider"), providers_group);
@@ -426,30 +460,41 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->provider_status = new QLabel(providers_group);
     this->provider_status->setWordWrap(true);
     providers_layout->addWidget(this->provider_status);
+    // State of the upstream part (catalog loading, read-only, saving).
+    this->inherited_provider_status = new QLabel(providers_group);
+    this->inherited_provider_status->setWordWrap(true);
+    providers_layout->addWidget(this->inherited_provider_status);
     connect(add, &QPushButton::clicked, this, [this]
     {
         this->loading_provider_table = true;
         addProviderRow(QUuid::createUuid().toString(QUuid::WithoutBraces),
                        tr("New map provider"),
                        QString(), 0, 19, true);
-        const int added_row = this->provider_table->rowCount() - 1;
-        this->provider_table->item(added_row, 2)->setData(Qt::UserRole + 1, true);
-        this->provider_table->item(added_row, 2)->setToolTip(
+        // Local rows come first; the new one is the last local row.
+        const int added_row = localProviderRowCount() - 1;
+        this->provider_table->item(added_row, ProviderColumnUrl)->setData(Qt::UserRole + 1, true);
+        this->provider_table->item(added_row, ProviderColumnUrl)->setToolTip(
             tr("Enter an XYZ tile URL template such as "
                            "https://tiles.example.org/{z}/{x}/{y}.png"));
         this->loading_provider_table = false;
         refreshFallbackChoices();
-        this->provider_table->setCurrentCell(added_row, 2);
-        this->provider_table->editItem(this->provider_table->item(added_row, 2));
+        this->provider_table->setCurrentCell(added_row, ProviderColumnUrl);
+        this->provider_table->editItem(this->provider_table->item(added_row, ProviderColumnUrl));
         this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
             "Enter the new provider's tile URL. Changes save when the row is complete."));
     });
     connect(remove, &QPushButton::clicked, this, [this]
     {
         const int row = this->provider_table->currentRow();
+        if (row >= 0 && providerRowInherited(row))
+        {
+            this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget",
+                "Providers from an upstream MAP server cannot be removed here. Switch them off instead."));
+            return;
+        }
         if (row >= 0)
         {
-            const QString uuid = this->provider_table->item(row, 1)->data(Qt::UserRole).toString();
+            const QString uuid = this->provider_table->item(row, ProviderColumnName)->data(ProviderIdRole).toString();
             this->pending_fallback_choices.remove(uuid);
             this->loading_provider_table = true;
             this->provider_table->removeRow(row);
@@ -464,9 +509,20 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     connect(this->provider_save_debounce, &QTimer::timeout,
             this, &MapSettingsWidget::saveProviderEdits);
     connect(this->provider_table, &QTableWidget::itemChanged, this,
-            [this](QTableWidgetItem *)
+            [this](QTableWidgetItem *item)
     {
-        if (this->loading_provider_table) return;
+        if (this->loading_provider_table || item == nullptr) return;
+        if (providerRowInherited(item->row()))
+        {
+            // Only the On box is editable: availability on this MAP server.
+            if (item->column() != ProviderColumnOn || this->inherited_provider_client == nullptr ||
+                !this->inherited_provider_client->canEdit() ||
+                this->inherited_provider_client->updating()) return;
+            this->inherited_provider_client->setEnabled(
+                this->provider_table->item(item->row(), ProviderColumnName)->data(ProviderIdRole).toString(),
+                item->checkState() == Qt::Checked);
+            return;
+        }
         refreshFallbackChoices();
         scheduleProviderSave();
     });
@@ -476,6 +532,8 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         this->provider_save_debounce->stop();
         this->provider_edits_pending = false;
         mapProviderCatalog().refresh();
+        if (this->inherited_provider_client != nullptr)
+            this->inherited_provider_client->refresh();
     });
     connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged, this, [this, add, remove]
     {
@@ -529,62 +587,9 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", 
         "Provider edits affect the server; per-user fallback persistence is supported in native GUI builds."));
 #endif
-    // Inherited providers are shown separately from the editable local catalog:
-    // the PUT /providers payload must never contain upstream-owned definitions.
-    QGroupBox *inherited_group = new QGroupBox(parent_widget);
-    LiveUiText::bind(inherited_group, [inherited_group]
-    {
-        inherited_group->setTitle(LiveUiText::translate(
-            QT_TRANSLATE_NOOP("LiveUiText", "MAP provider acquisition and upstreams")));
-    });
-    QVBoxLayout *inherited_layout = new QVBoxLayout(inherited_group);
-    inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
-        "This section lists only additional providers inherited from upstream MAP servers. "
-        "Providers already defined locally appear in the editor above, even if an upstream "
-        "also offers them. Inherited definitions are read-only; an administrator key "
-        "is required to change their local availability."), inherited_group));
-    this->inherited_provider_table = new QTableWidget(0, 5, inherited_group);
-    LiveUiText::bind(this->inherited_provider_table, [this]
-    {
-        this->inherited_provider_table->setHorizontalHeaderLabels({
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "On")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Display name")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Tile URL")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Zoom")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Upstream servers"))});
-    });
-    this->inherited_provider_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    this->inherited_provider_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    this->inherited_provider_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    this->inherited_provider_table->setMinimumHeight(140);
-    inherited_layout->addWidget(this->inherited_provider_table);
-    this->inherited_provider_status = new QLabel(inherited_group);
-    this->inherited_provider_status->setWordWrap(true);
-    inherited_layout->addWidget(this->inherited_provider_status);
-
-    inherited_layout->addWidget(helpLabel(QT_TRANSLATE_NOOP("LiveUiText",
-        "Upstream routing is configured separately for each provider, including locally "
-        "defined providers also offered upstream. Select the permitted MAP servers and "
-        "their priority. Choose Automatic (MAP then permitted origin), Cascade only, "
-        "or Direct only for locally defined providers if permitted. Changes are "
-        "local and saved automatically."), inherited_group));
-    this->upstream_routing_table = new QTableWidget(0, 5, inherited_group);
-    LiveUiText::bind(this->upstream_routing_table, [this]
-    {
-        this->upstream_routing_table->setHorizontalHeaderLabels({
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Provider")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Advertised by")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Preferred order")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Acquisition")),
-            LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Routing"))});
-    });
-    this->upstream_routing_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    this->upstream_routing_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    this->upstream_routing_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    this->upstream_routing_table->setMinimumHeight(140);
-    inherited_layout->addWidget(this->upstream_routing_table);
+    // Inherited providers share the table with the local ones, but saving
+    // the local catalog (PUT /providers) only ever sends the local rows:
+    // upstream-owned definitions must never become local ones.
     this->inherited_provider_client = new MapInheritedProviderClient(this);
     connect(this->inherited_provider_client, &MapInheritedProviderClient::catalogChanged,
             this, &MapSettingsWidget::refreshInheritedProviderTable);
@@ -596,24 +601,13 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
     connect(this->inherited_provider_client, &MapInheritedProviderClient::updateFinished,
             this, [this](bool success, const QString &error)
     {
-        if (!success) this->inherited_provider_status->setText(error);
+        if (!success)
+        {
+            this->inherited_provider_status->setText(error);
+            // Undo the refused checkbox / combo change.
+            refreshInheritedProviderTable();
+        }
         else guiAvailableMapProviderDirectory().refresh();
-    });
-    connect(this->inherited_provider_table, &QTableWidget::itemChanged,
-            this, [this](QTableWidgetItem *item)
-    {
-        if (this->loading_provider_table || item == nullptr || item->column() != 0 ||
-            this->inherited_provider_client == nullptr ||
-            !this->inherited_provider_client->canEdit() ||
-            this->inherited_provider_client->updating()) return;
-        this->inherited_provider_table->setEnabled(false);
-        this->inherited_provider_client->setEnabled(item->data(Qt::UserRole).toString(),
-            item->checkState() == Qt::Checked);
-    });
-    connect(this->inherited_provider_client, &MapInheritedProviderClient::updateFinished,
-            this, [this](bool, const QString &)
-    {
-        this->inherited_provider_table->setEnabled(true);
     });
 #ifdef AOWIS_STANDALONE
     this->inherited_provider_client->setServer(
@@ -631,13 +625,8 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         this->inherited_provider_client->refresh();
     });
 #endif
-    connect(reload, &QPushButton::clicked, this, [this]
-    {
-        this->inherited_provider_client->refresh();
-    });
     refreshInheritedProviderTable();
     static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(providers_group);
-    static_cast<QVBoxLayout *>(parent_widget->layout())->addWidget(inherited_group);
 }
 
 #ifdef AOWIS_STANDALONE
@@ -930,30 +919,58 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
 }
 #endif
 
+int MapSettingsWidget::localProviderRowCount() const
+{
+    int count = 0;
+    while (count < this->provider_table->rowCount() && !providerRowInherited(count))
+        ++count;
+    return count;
+}
+
+bool MapSettingsWidget::providerRowInherited(int row) const
+{
+    const QTableWidgetItem *name = this->provider_table->item(row, ProviderColumnName);
+    return name != nullptr && name->data(ProviderInheritedRole).toBool();
+}
+
+QString MapSettingsWidget::providerSourceText(bool inherited, const QStringList &upstreams) const
+{
+    const QString names = upstreams.join(QStringLiteral(", "));
+    if (inherited)
+        return tr("From upstream: %1").arg(names);
+    return upstreams.isEmpty() ? tr("Local") : tr("Local, also offered by %1").arg(names);
+}
+
 void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
                                       const QString &url, int minimum_zoom,
                                       int maximum_zoom, bool enabled,
                                       const QString &fallback_id)
 {
-    const int row = this->provider_table->rowCount();
+    // Local rows stay together before the inherited ones (saving and the
+    // fallback choices rely on it), so a new local row goes after the last.
+    const int row = localProviderRowCount();
     this->provider_table->insertRow(row);
     QTableWidgetItem *enabled_item = new QTableWidgetItem();
     enabled_item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable);
     enabled_item->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
-    this->provider_table->setItem(row, 0, enabled_item);
+    this->provider_table->setItem(row, ProviderColumnOn, enabled_item);
     QTableWidgetItem *name_item = new QTableWidgetItem(name);
-    name_item->setData(Qt::UserRole, uuid);
+    name_item->setData(ProviderIdRole, uuid);
+    name_item->setData(ProviderInheritedRole, false);
     name_item->setToolTip(tr("Provider UUID: %1").arg(uuid));
-    this->provider_table->setItem(row, 1, name_item);
-    this->provider_table->setItem(row, 2, new QTableWidgetItem(url));
+    this->provider_table->setItem(row, ProviderColumnName, name_item);
+    QTableWidgetItem *source_item = new QTableWidgetItem(providerSourceText(false, {}));
+    source_item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+    this->provider_table->setItem(row, ProviderColumnSource, source_item);
+    this->provider_table->setItem(row, ProviderColumnUrl, new QTableWidgetItem(url));
     QSpinBox *minimum = new QSpinBox(this->provider_table);
     minimum->setRange(0, 30);
     minimum->setValue(minimum_zoom);
-    this->provider_table->setCellWidget(row, 3, minimum);
+    this->provider_table->setCellWidget(row, ProviderColumnMinimum, minimum);
     QSpinBox *maximum = new QSpinBox(this->provider_table);
     maximum->setRange(0, 30);
     maximum->setValue(maximum_zoom);
-    this->provider_table->setCellWidget(row, 4, maximum);
+    this->provider_table->setCellWidget(row, ProviderColumnMaximum, maximum);
     QComboBox *fallback = new QComboBox(this->provider_table);
     fallback->addItem(tr("None (enlarge available tiles)"), QString());
     for (const MapProviderEntry &entry : mapProviderCatalog().providers())
@@ -964,7 +981,13 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
     }
     const int chosen = fallback->findData(fallback_id);
     if (chosen >= 0) fallback->setCurrentIndex(chosen);
-    this->provider_table->setCellWidget(row, 5, fallback);
+    this->provider_table->setCellWidget(row, ProviderColumnFallback, fallback);
+    for (const int column : {ProviderColumnAcquisition, ProviderColumnUpstreams})
+    {
+        QTableWidgetItem *empty = new QTableWidgetItem();
+        empty->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        this->provider_table->setItem(row, column, empty);
+    }
     connect(maximum, &QSpinBox::valueChanged, this,
             [this](int)
     {
@@ -977,9 +1000,9 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
         if (this->loading_provider_table) return;
         for (int row_index = 0; row_index < this->provider_table->rowCount(); ++row_index)
         {
-            const QTableWidgetItem *item = this->provider_table->item(row_index, 1);
-            if (item != nullptr && item->data(Qt::UserRole).toString() == uuid &&
-                this->provider_table->cellWidget(row_index, 5) == fallback)
+            const QTableWidgetItem *item = this->provider_table->item(row_index, ProviderColumnName);
+            if (item != nullptr && item->data(ProviderIdRole).toString() == uuid &&
+                this->provider_table->cellWidget(row_index, ProviderColumnFallback) == fallback)
             {
                 rememberFallbackChange(row_index);
                 return;
@@ -995,96 +1018,155 @@ void MapSettingsWidget::addProviderRow(const QString &uuid, const QString &name,
     });
 }
 
-void MapSettingsWidget::refreshInheritedProviderTable()
+void MapSettingsWidget::addInheritedProviderRow(const MapInheritedProviderEntry &entry)
 {
-    if (this->inherited_provider_table == nullptr ||
-        this->inherited_provider_client == nullptr) return;
-    const QSignalBlocker blocker(this->inherited_provider_table);
-    const bool old_loading = this->loading_provider_table;
-    this->loading_provider_table = true;
-    this->inherited_provider_table->setRowCount(0);
-    for (const MapInheritedProviderEntry &entry : this->inherited_provider_client->providers())
+    const int row = this->provider_table->rowCount();
+    this->provider_table->insertRow(row);
+    const bool can_edit = this->inherited_provider_client->canEdit() &&
+                          !this->inherited_provider_client->updating();
+    QTableWidgetItem *enabled = new QTableWidgetItem();
+    enabled->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
+    Qt::ItemFlags enabled_flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+    if (can_edit) enabled_flags |= Qt::ItemIsUserCheckable;
+    enabled->setFlags(enabled_flags);
+    this->provider_table->setItem(row, ProviderColumnOn, enabled);
+    // The definition belongs to the upstream: shown, never editable here.
+    const QString read_only = tr("Defined on the upstream MAP server; read-only here.");
+    const std::function<QTableWidgetItem *(const QString &)> fixed =
+        [&read_only](const QString &text) -> QTableWidgetItem *
     {
-        const int row = this->inherited_provider_table->rowCount();
-        this->inherited_provider_table->insertRow(row);
-        QTableWidgetItem *enabled = new QTableWidgetItem();
-        enabled->setCheckState(entry.enabled ? Qt::Checked : Qt::Unchecked);
-        Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-        if (this->inherited_provider_client->canEdit()) flags |= Qt::ItemIsUserCheckable;
-        enabled->setFlags(flags);
-        enabled->setData(Qt::UserRole, entry.id);
-        this->inherited_provider_table->setItem(row, 0, enabled);
-        this->inherited_provider_table->setItem(row, 1, new QTableWidgetItem(entry.name));
-        this->inherited_provider_table->setItem(row, 2, new QTableWidgetItem(entry.url));
-        this->inherited_provider_table->setItem(row, 3,
-            new QTableWidgetItem(QStringLiteral("%1–%2")
-                .arg(entry.minimum_zoom).arg(entry.maximum_zoom)));
-        this->inherited_provider_table->setItem(row, 4,
-            new QTableWidgetItem(entry.upstreams.join(QStringLiteral(", "))));
-    }
-    this->loading_provider_table = old_loading;
-    this->inherited_provider_table->setEnabled(!this->inherited_provider_client->updating());
-    if (!this->inherited_provider_client->loaded())
-        this->inherited_provider_status->setText(tr("Waiting for MAP's available-provider catalog."));
-    else if (this->inherited_provider_client->providers().isEmpty())
-    {
-        const int local = this->inherited_provider_client->localProviderCount();
-        const int also_upstream = this->inherited_provider_client->locallyDefinedWithUpstreams();
-        if (also_upstream > 0)
-            this->inherited_provider_status->setText(
-                tr("MAP advertises %1 local providers; %2 are also offered upstream. "
-                   "No additional providers to inherit.").arg(local).arg(also_upstream));
-        else if (local > 0)
-            this->inherited_provider_status->setText(
-                tr("MAP advertises %1 local providers. No additional upstream providers "
-                   "are available.").arg(local));
-        else
-            this->inherited_provider_status->setText(
-                tr("MAP advertises no providers. Check its local catalog and upstream settings."));
-    }
-    else if (!this->inherited_provider_client->canEdit())
-        this->inherited_provider_status->setText(tr("Read-only: configure the MAP admin/delete key to change inherited provider availability."));
-    else
-        this->inherited_provider_status->setText(tr("Inherited availability changes are saved immediately on this MAP server."));
+        QTableWidgetItem *item = new QTableWidgetItem(text);
+        item->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+        item->setToolTip(read_only);
+        return item;
+    };
+    QTableWidgetItem *name = fixed(entry.name);
+    name->setData(ProviderIdRole, entry.id);
+    name->setData(ProviderInheritedRole, true);
+    this->provider_table->setItem(row, ProviderColumnName, name);
+    this->provider_table->setItem(row, ProviderColumnSource,
+                                  fixed(providerSourceText(true, entry.upstreams)));
+    this->provider_table->setItem(row, ProviderColumnUrl, fixed(entry.url));
+    this->provider_table->setItem(row, ProviderColumnMinimum,
+                                  fixed(QString::number(entry.minimum_zoom)));
+    this->provider_table->setItem(row, ProviderColumnMaximum,
+                                  fixed(QString::number(entry.maximum_zoom)));
+    for (const int column : {ProviderColumnFallback, ProviderColumnAcquisition,
+                             ProviderColumnUpstreams})
+        this->provider_table->setItem(row, column, fixed(QString()));
+}
 
-    // This is the read-only available catalog, never the editable provider
-    // definitions. Local and inherited providers may both have MAP upstreams.
-    this->upstream_routing_table->setRowCount(0);
-    for (const MapProviderRouteEntry &route : this->inherited_provider_client->routes())
+void MapSettingsWidget::applyProviderRouting()
+{
+    if (this->inherited_provider_client == nullptr) return;
+    const bool can_edit = this->inherited_provider_client->canEdit() &&
+                          !this->inherited_provider_client->updating();
+    for (int row = 0; row < this->provider_table->rowCount(); ++row)
     {
-        const int row = this->upstream_routing_table->rowCount();
-        this->upstream_routing_table->insertRow(row);
-        this->upstream_routing_table->setItem(row, 0, new QTableWidgetItem(route.name));
-        this->upstream_routing_table->setItem(row, 1,
-            new QTableWidgetItem(route.upstreams.join(QStringLiteral(", "))));
-        this->upstream_routing_table->setItem(row, 2,
-            new QTableWidgetItem(route.selected_upstreams.join(QStringLiteral(" → "))));
-        QComboBox *mode = new QComboBox(this->upstream_routing_table);
+        const QTableWidgetItem *name = this->provider_table->item(row, ProviderColumnName);
+        if (name == nullptr) continue;
+        const QString id = name->data(ProviderIdRole).toString();
+        const MapProviderRouteEntry *route = nullptr;
+        for (const MapProviderRouteEntry &candidate : this->inherited_provider_client->routes())
+            if (candidate.id == id) { route = &candidate; break; }
+        if (route == nullptr || route->upstreams.isEmpty())
+            continue; // A provider no MAP upstream offers: nothing to route.
+
+        if (!providerRowInherited(row))
+            this->provider_table->item(row, ProviderColumnSource)->setText(
+                providerSourceText(false, route->upstreams));
+
+        QComboBox *mode = new QComboBox(this->provider_table);
         mode->addItem(tr("Automatic"), QStringLiteral("automatic"));
         mode->addItem(tr("Cascade only"), QStringLiteral("cascade"));
-        if (route.direct_fetch_allowed)
+        if (route->direct_fetch_allowed)
             mode->addItem(tr("Direct only"), QStringLiteral("direct"));
-        const int current = mode->findData(route.acquisition_mode);
+        const int current = mode->findData(route->acquisition_mode);
         mode->setCurrentIndex(current < 0 ? 0 : current);
-        mode->setEnabled(this->inherited_provider_client->canEdit() &&
-                         !this->inherited_provider_client->updating());
-        this->upstream_routing_table->setCellWidget(row, 3, mode);
-        connect(mode, &QComboBox::currentIndexChanged, this, [this, mode, id = route.id](int index)
+        mode->setEnabled(can_edit);
+        this->provider_table->setCellWidget(row, ProviderColumnAcquisition, mode);
+        connect(mode, &QComboBox::currentIndexChanged, this, [this, mode, id](int index)
         {
-            if (index < 0 || this->inherited_provider_client == nullptr) return;
+            if (index < 0 || this->loading_provider_table ||
+                this->inherited_provider_client == nullptr) return;
             this->inherited_provider_client->setAcquisitionMode(
                 id, mode->itemData(index).toString());
         });
-        QPushButton *edit = new QPushButton(tr("Configure…"), this->upstream_routing_table);
-        edit->setEnabled(!route.upstreams.isEmpty() &&
-                         this->inherited_provider_client->canEdit() &&
-                         !this->inherited_provider_client->updating());
-        this->upstream_routing_table->setCellWidget(row, 4, edit);
-        connect(edit, &QPushButton::clicked, this, [this, id = route.id]
+
+        // The button shows the effective order; it opens the editor.
+        const QStringList order = route->selected_upstreams.isEmpty()
+            ? route->upstreams : route->selected_upstreams;
+        QPushButton *edit = new QPushButton(
+            order.join(QStringLiteral(" → ")) + QStringLiteral(" …"), this->provider_table);
+        edit->setToolTip(tr("Configure…"));
+        edit->setEnabled(can_edit);
+        this->provider_table->setCellWidget(row, ProviderColumnUpstreams, edit);
+        connect(edit, &QPushButton::clicked, this, [this, id]
         {
             editProviderUpstreamRoute(id);
         });
     }
+}
+
+void MapSettingsWidget::rebuildProviderTable()
+{
+    const bool old_loading = this->loading_provider_table;
+    this->loading_provider_table = true;
+    {
+        const QSignalBlocker blocker(this->provider_table);
+        this->provider_table->setRowCount(0);
+        for (const MapProviderEntry &entry : mapProviderCatalog().providers())
+            addProviderRow(entry.id, entry.name, entry.url,
+                           entry.minimum_zoom, entry.maximum_zoom,
+                           entry.enabled, mapProviderCatalog().fallback(entry.id));
+        if (this->inherited_provider_client != nullptr)
+            for (const MapInheritedProviderEntry &entry : this->inherited_provider_client->providers())
+                addInheritedProviderRow(entry);
+        applyProviderRouting();
+    }
+    refreshFallbackChoices();
+    this->loading_provider_table = old_loading;
+    updateInheritedProviderStatus();
+}
+
+void MapSettingsWidget::updateInheritedProviderStatus()
+{
+    if (this->inherited_provider_status == nullptr || this->inherited_provider_client == nullptr)
+        return;
+    if (!this->inherited_provider_client->loaded())
+        this->inherited_provider_status->setText(tr("Waiting for MAP's available-provider catalog."));
+    else if (this->inherited_provider_client->routes().isEmpty() &&
+             this->inherited_provider_client->providers().isEmpty())
+        this->inherited_provider_status->clear(); // No MAP upstream offers anything.
+    else if (!this->inherited_provider_client->canEdit())
+        this->inherited_provider_status->setText(tr("Read-only: configure the MAP admin/delete key to change inherited provider availability."));
+    else
+        this->inherited_provider_status->setText(tr("Inherited availability changes are saved immediately on this MAP server."));
+}
+
+void MapSettingsWidget::refreshInheritedProviderTable()
+{
+    if (this->provider_table == nullptr || this->inherited_provider_client == nullptr) return;
+    // Rebuilding the table would discard unsaved local edits and an open
+    // cell editor. Wait until they are saved (the local catalog's update
+    // rebuilds the table as well) or the editor is closed.
+    const QWidget *focused = QApplication::focusWidget();
+    const bool editing = focused != nullptr && this->provider_table->isAncestorOf(focused) &&
+                         qobject_cast<const QLineEdit *>(focused) != nullptr;
+    if (this->provider_edits_pending || this->provider_save_in_flight || editing)
+    {
+        if (!this->inherited_refresh_scheduled)
+        {
+            this->inherited_refresh_scheduled = true;
+            QTimer::singleShot(500, this, [this]
+            {
+                this->inherited_refresh_scheduled = false;
+                refreshInheritedProviderTable();
+            });
+        }
+        return;
+    }
+    rebuildProviderTable();
 }
 
 void MapSettingsWidget::editProviderUpstreamRoute(const QString &id)
@@ -1220,18 +1302,12 @@ void MapSettingsWidget::editProviderUpstreamRoute(const QString &id)
 
 void MapSettingsWidget::refreshProviderTable()
 {
-    this->loading_provider_table = true;
-    this->provider_table->setRowCount(0);
-    for (const MapProviderEntry &entry : mapProviderCatalog().providers())
-        addProviderRow(entry.id, entry.name, entry.url,
-                       entry.minimum_zoom, entry.maximum_zoom,
-                       entry.enabled, mapProviderCatalog().fallback(entry.id));
-    refreshFallbackChoices();
-    this->loading_provider_table = false;
+    rebuildProviderTable();
 }
 
 void MapSettingsWidget::refreshFallbackChoices()
 {
+    // Fallbacks are personal choices among the local providers only.
     struct AvailableProvider
     {
         QString id;
@@ -1240,29 +1316,35 @@ void MapSettingsWidget::refreshFallbackChoices()
         int maximum_zoom = 0;
         bool enabled = false;
     };
-    QVector<AvailableProvider> choices;
-    for (int row = 0; row < this->provider_table->rowCount(); ++row)
+    const int local_rows = localProviderRowCount();
+    QVector<AvailableProvider> choices(local_rows);
+    QVector<bool> valid(local_rows, false);
+    for (int row = 0; row < local_rows; ++row)
     {
-        QTableWidgetItem *name = this->provider_table->item(row, 1);
-        QTableWidgetItem *enabled = this->provider_table->item(row, 0);
-        QSpinBox *min = static_cast<QSpinBox *>(this->provider_table->cellWidget(row, 3));
-        QSpinBox *max = static_cast<QSpinBox *>(this->provider_table->cellWidget(row, 4));
+        QTableWidgetItem *name = this->provider_table->item(row, ProviderColumnName);
+        QTableWidgetItem *enabled = this->provider_table->item(row, ProviderColumnOn);
+        QSpinBox *min = qobject_cast<QSpinBox *>(this->provider_table->cellWidget(row, ProviderColumnMinimum));
+        QSpinBox *max = qobject_cast<QSpinBox *>(this->provider_table->cellWidget(row, ProviderColumnMaximum));
         if (name == nullptr || enabled == nullptr || min == nullptr || max == nullptr)
             continue;
-        choices.append({name->data(Qt::UserRole).toString(), name->text(),
-                        min->value(), max->value(), enabled->checkState() == Qt::Checked});
+        choices[row] = {name->data(ProviderIdRole).toString(), name->text(),
+                        min->value(), max->value(), enabled->checkState() == Qt::Checked};
+        valid[row] = true;
     }
-    for (int row = 0; row < this->provider_table->rowCount(); ++row)
+    for (int row = 0; row < local_rows; ++row)
     {
-        QComboBox *fallback = static_cast<QComboBox *>(this->provider_table->cellWidget(row, 5));
-        if (fallback == nullptr || row >= choices.size()) continue;
+        QComboBox *fallback = qobject_cast<QComboBox *>(
+            this->provider_table->cellWidget(row, ProviderColumnFallback));
+        if (fallback == nullptr || !valid.at(row)) continue;
         const AvailableProvider &selected = choices.at(row);
         const QString wanted = fallback->currentData().toString();
         const QSignalBlocker blocker(fallback);
         fallback->clear();
         fallback->addItem(tr("None (enlarge available tiles)"), QString());
-        for (const AvailableProvider &alternative : choices)
+        for (int other = 0; other < local_rows; ++other)
         {
+            if (!valid.at(other)) continue;
+            const AvailableProvider &alternative = choices.at(other);
             if (alternative.enabled && alternative.id != selected.id &&
                 alternative.maximum_zoom > selected.maximum_zoom &&
                 alternative.minimum_zoom <= selected.maximum_zoom + 1)
@@ -1277,9 +1359,9 @@ void MapSettingsWidget::refreshFallbackChoices()
 
 void MapSettingsWidget::rememberFallbackChange(int row)
 {
-    const QString uuid = this->provider_table->item(row, 1)->data(Qt::UserRole).toString();
-    const QString chosen = static_cast<QComboBox *>(
-        this->provider_table->cellWidget(row, 5))->currentData().toString();
+    const QString uuid = this->provider_table->item(row, ProviderColumnName)->data(ProviderIdRole).toString();
+    const QString chosen = qobject_cast<QComboBox *>(
+        this->provider_table->cellWidget(row, ProviderColumnFallback))->currentData().toString();
     // Personal preferences are immediate when the provider exists. If a row
     // was just added or its zoom limits are still awaiting confirmation, apply
     // the preference as soon as the updated catalog arrives.
@@ -1306,15 +1388,17 @@ void MapSettingsWidget::saveProviderEdits()
         return;
     }
     QVector<MapProviderEntry> proposed;
-    for (int row = 0; row < this->provider_table->rowCount(); ++row)
+    // Local rows only: inherited definitions belong to their upstream.
+    const int local_rows = localProviderRowCount();
+    for (int row = 0; row < local_rows; ++row)
     {
         MapProviderEntry entry;
-        entry.id = this->provider_table->item(row, 1)->data(Qt::UserRole).toString();
-        entry.name = this->provider_table->item(row, 1)->text().trimmed();
-        entry.url = this->provider_table->item(row, 2)->text().trimmed();
-        entry.enabled = this->provider_table->item(row, 0)->checkState() == Qt::Checked;
-        entry.minimum_zoom = static_cast<QSpinBox *>(this->provider_table->cellWidget(row, 3))->value();
-        entry.maximum_zoom = static_cast<QSpinBox *>(this->provider_table->cellWidget(row, 4))->value();
+        entry.id = this->provider_table->item(row, ProviderColumnName)->data(ProviderIdRole).toString();
+        entry.name = this->provider_table->item(row, ProviderColumnName)->text().trimmed();
+        entry.url = this->provider_table->item(row, ProviderColumnUrl)->text().trimmed();
+        entry.enabled = this->provider_table->item(row, ProviderColumnOn)->checkState() == Qt::Checked;
+        entry.minimum_zoom = qobject_cast<QSpinBox *>(this->provider_table->cellWidget(row, ProviderColumnMinimum))->value();
+        entry.maximum_zoom = qobject_cast<QSpinBox *>(this->provider_table->cellWidget(row, ProviderColumnMaximum))->value();
         const MapProviderEntry *previous = mapProviderCatalog().provider(entry.id);
         if (previous != nullptr)
         {
@@ -1501,22 +1585,27 @@ void MapSettingsWidget::changeEvent(QEvent *event)
     // Do not rebuild the table, change its model values, commit cell editors,
     // or restart a pending provider save. Only refresh presentation fields.
     const QSignalBlocker table_blocker(this->provider_table);
-    for (int row = 0; row < this->provider_table->rowCount(); ++row)
+    const int local_rows = localProviderRowCount();
+    for (int row = 0; row < local_rows; ++row)
     {
-        QTableWidgetItem *name = this->provider_table->item(row, 1);
+        QTableWidgetItem *name = this->provider_table->item(row, ProviderColumnName);
         if (name != nullptr)
-            name->setToolTip(tr("Provider UUID: %1").arg(name->data(Qt::UserRole).toString()));
-        QTableWidgetItem *url = this->provider_table->item(row, 2);
+            name->setToolTip(tr("Provider UUID: %1").arg(name->data(ProviderIdRole).toString()));
+        QTableWidgetItem *url = this->provider_table->item(row, ProviderColumnUrl);
         if (url != nullptr && url->data(Qt::UserRole + 1).toBool())
             url->setToolTip(tr("Enter an XYZ tile URL template such as "
                 "https://tiles.example.org/{z}/{x}/{y}.png"));
-        QComboBox *fallback = static_cast<QComboBox *>(this->provider_table->cellWidget(row, 5));
+        QComboBox *fallback = qobject_cast<QComboBox *>(
+            this->provider_table->cellWidget(row, ProviderColumnFallback));
         if (fallback != nullptr && fallback->count() > 0)
         {
             const QSignalBlocker blocker(fallback);
             fallback->setItemText(0, tr("None (enlarge available tiles)"));
         }
     }
+    // Source texts, acquisition choices and read-only tooltips of the
+    // upstream part: rebuilt (deferred while local edits are open).
+    refreshInheritedProviderTable();
 #ifdef AOWIS_STANDALONE
     if (this->cascade_status != nullptr)
     {

@@ -5,6 +5,7 @@
 #include <QEvent>
 #include <QHash>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 
@@ -22,6 +23,7 @@ class QSpinBox;
 class QNetworkAccessManager;
 class SliderNumberControl;
 class MapInheritedProviderClient;
+struct MapInheritedProviderEntry;
 
 // Settings > Map Settings: navigation sensitivity, terrain performance knobs
 // for the globe, and map server connection details.
@@ -82,9 +84,18 @@ private:
     void saveProviderEdits();
     void refreshInheritedProviderTable();
     void editProviderUpstreamRoute(const QString &id);
-    QTableWidget *inherited_provider_table = nullptr;
-    QTableWidget *upstream_routing_table = nullptr;
+    // One table for all providers: local rows first (editable, saved as the
+    // local catalog), then rows inherited from MAP upstreams (read-only
+    // definition; On, acquisition mode and upstream order editable).
+    void rebuildProviderTable();
+    void addInheritedProviderRow(const MapInheritedProviderEntry &entry);
+    void applyProviderRouting();
+    void updateInheritedProviderStatus();
+    int localProviderRowCount() const;
+    bool providerRowInherited(int row) const;
+    QString providerSourceText(bool inherited, const QStringList &upstreams) const;
     QLabel *inherited_provider_status = nullptr;
+    bool inherited_refresh_scheduled = false;
     MapInheritedProviderClient *inherited_provider_client = nullptr;
 
     void buildNavigationSection(QWidget *parent_widget);

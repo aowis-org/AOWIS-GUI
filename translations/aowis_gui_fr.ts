@@ -4561,6 +4561,18 @@ Cette action est irréversible.</translation>
       <source>WireGuard</source>
       <translation>WireGuard</translation>
     </message>
+    <message>
+      <source>Source</source>
+      <translation>Source</translation>
+    </message>
+    <message>
+      <source>MAP upstreams</source>
+      <translation>Serveurs MAP amont</translation>
+    </message>
+    <message>
+      <source>Providers marked “From upstream” are defined on an upstream MAP server: here you can only switch them on or off and choose how their tiles are fetched. Acquisition: Automatic asks the MAP upstreams first and then the provider itself if permitted; Cascade only never contacts the provider directly; Direct only skips the upstreams. MAP upstreams sets which upstream servers may be asked for a provider, and in which order.</source>
+      <translation>Les fournisseurs marqués « De l’amont » sont définis sur un serveur MAP amont : ici, vous pouvez seulement les activer ou les désactiver et choisir comment leurs tuiles sont obtenues. Acquisition : Automatique interroge d’abord les serveurs MAP amont, puis le fournisseur lui-même si c’est autorisé ; Cascade uniquement ne contacte jamais le fournisseur directement ; Direct uniquement ignore les serveurs amont. Serveurs MAP amont définit quels serveurs amont peuvent être interrogés pour un fournisseur, et dans quel ordre.</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -7634,6 +7646,26 @@ Clic droit pour réinitialiser.</translation>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>
       <translation>Les profils WireGuard sont gérés dans Paramètres → WireGuard VPN</translation>
+    </message>
+    <message>
+      <source>Local</source>
+      <translation>Local</translation>
+    </message>
+    <message>
+      <source>Local, also offered by %1</source>
+      <translation>Local, également proposé par %1</translation>
+    </message>
+    <message>
+      <source>From upstream: %1</source>
+      <translation>De l’amont : %1</translation>
+    </message>
+    <message>
+      <source>Defined on the upstream MAP server; read-only here.</source>
+      <translation>Défini sur le serveur MAP amont ; en lecture seule ici.</translation>
+    </message>
+    <message>
+      <source>Providers from an upstream MAP server cannot be removed here. Switch them off instead.</source>
+      <translation>Les fournisseurs d’un serveur MAP amont ne peuvent pas être supprimés ici. Désactivez-les plutôt.</translation>
     </message>
   </context>
   <context>
