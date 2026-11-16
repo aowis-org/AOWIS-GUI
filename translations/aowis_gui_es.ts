@@ -4621,6 +4621,16 @@ Esta acción no se puede deshacer.</translation>
   <context>
     <name>HistoryDock</name>
     <message>
+      <source>Project units changed</source>
+      <translation>Unidades del proyecto cambiadas</translation>
+    </message>
+    <message>
+      <source>%1
+Event %2</source>
+      <translation>%1
+Evento %2</translation>
+    </message>
+    <message>
       <source>History</source>
       <translation>Historial</translation>
     </message>
@@ -8086,6 +8096,14 @@ Pulse para desplegar</numerusform>
   </context>
   <context>
     <name>SimulationManager</name>
+    <message>
+      <source>Project units</source>
+      <translation>Unidades del proyecto</translation>
+    </message>
+    <message>
+      <source>Store the display units of the imported file ("%1") with the project? They are committed with the network and shown to everyone who opens it with project units. Values are not changed. You can change or remove them later in Settings → Units.</source>
+      <translation>¿Guardar las unidades de visualización del archivo importado («%1») con el proyecto? Se confirman con la red y se muestran a todos los que la abren con las unidades del proyecto. Los valores no cambian. Puede cambiarlas o quitarlas más tarde en Configuración → Unidades.</translation>
+    </message>
     <message>
       <source>%1 (EPANET-JS units)</source>
       <translation>%1 (unidades EPANET-JS)</translation>

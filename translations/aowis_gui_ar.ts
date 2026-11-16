@@ -4641,6 +4641,16 @@ This cannot be undone.</source>
   <context>
     <name>HistoryDock</name>
     <message>
+      <source>Project units changed</source>
+      <translation>تم تغيير وحدات المشروع</translation>
+    </message>
+    <message>
+      <source>%1
+Event %2</source>
+      <translation>%1
+الحدث %2</translation>
+    </message>
+    <message>
       <source>History</source>
       <translation>السجل</translation>
     </message>
@@ -8138,6 +8148,14 @@ Click to unfold</source>
   </context>
   <context>
     <name>SimulationManager</name>
+    <message>
+      <source>Project units</source>
+      <translation>وحدات المشروع</translation>
+    </message>
+    <message>
+      <source>Store the display units of the imported file ("%1") with the project? They are committed with the network and shown to everyone who opens it with project units. Values are not changed. You can change or remove them later in Settings → Units.</source>
+      <translation>هل تريد تخزين وحدات العرض للملف المستورد («%1») مع المشروع؟ تُعتمد مع الشبكة وتُعرض لكل من يفتحها بوحدات المشروع. لا تتغير القيم. يمكنك تغييرها أو إزالتها لاحقًا من الإعدادات ← الوحدات.</translation>
+    </message>
     <message>
       <source>%1 (EPANET-JS units)</source>
       <translation>%1 (وحدات EPANET-JS)</translation>

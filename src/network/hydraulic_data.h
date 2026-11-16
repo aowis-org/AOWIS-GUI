@@ -62,7 +62,10 @@ public:
     const QList<WaterQualitySolverOptions> &simulationQualityRunOptions() const;
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
-    bool setNetworkRootMetadata(const NetworkHydraulic &metadata);
+    // operation/description label the captured event (history dock).
+    bool setNetworkRootMetadata(const NetworkHydraulic &metadata,
+                                const QString &operation = QStringLiteral("hydraulic.network.root.update"),
+                                const QString &description = QString());
     // Project units (NetworkHydraulic::presentation_units): a root-metadata
     // edit, so it lands in the private draft and the next Commit. An empty
     // value removes the network's stored units. Only while edits are captured.

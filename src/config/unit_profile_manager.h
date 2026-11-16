@@ -95,21 +95,29 @@ public:
         this->notify(origin);
     }
     void setProjectUnitsWriter(ProjectUnitsWriter writer) { this->project_writer_ = std::move(writer); }
-    // Stores a complete copy of a local profile as the network's project units.
-    bool storeProfileInProject(int index) {
-        if (!this->valid(index) || !this->project_.editable || !this->project_writer_) return false;
-        const Profile &profile = this->views_.at(index);
+    // Canonical project units (allowed choices only, sorted by quantity, as
+    // the Model requires) from display selections.
+    [[nodiscard]] static NetworkPresentationUnits presentationUnitsFrom(
+            const QString &name, const QString &derived_from_profile, const QJsonObject &selections) {
         NetworkPresentationUnits units;
-        units.name = profile.name;
-        units.derived_from_profile = profile.id;
-        for (QJsonObject::const_iterator it = profile.units.constBegin(); it != profile.units.constEnd(); ++it)
-            units.units.append(NetworkPresentationUnit{it.key(), it.value().toString()});
-        // Canonical order required by the Model (sorted, unique quantities).
+        units.name = name.trimmed().left(128); // Model limit
+        units.derived_from_profile = derived_from_profile.left(128);
+        for (QJsonObject::const_iterator it = selections.constBegin(); it != selections.constEnd(); ++it) {
+            const QString unit = it.value().toString();
+            if (aowis::units::isAllowedUnit(it.key().toStdString(), unit.toStdString()))
+                units.units.append(NetworkPresentationUnit{it.key(), unit});
+        }
         std::sort(units.units.begin(), units.units.end(),
                   [](const NetworkPresentationUnit &left, const NetworkPresentationUnit &right) {
                       return QString::compare(left.quantity, right.quantity, Qt::CaseSensitive) < 0;
                   });
-        return this->project_writer_(units);
+        return units;
+    }
+    // Stores a complete copy of a local profile as the network's project units.
+    bool storeProfileInProject(int index) {
+        if (!this->valid(index) || !this->project_.editable || !this->project_writer_) return false;
+        const Profile &profile = this->views_.at(index);
+        return this->project_writer_(presentationUnitsFrom(profile.name, profile.id, profile.units));
     }
     bool removeProjectUnits() {
         if (!this->project_.present || !this->project_.editable || !this->project_writer_) return false;

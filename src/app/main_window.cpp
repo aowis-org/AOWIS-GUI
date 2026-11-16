@@ -1403,12 +1403,24 @@ void MainWindow::refreshHistoryDock()
                     entry.localized_details = [operation = transaction->operation, count = transaction->edits.size(), id = entry.identity] {
                         return HistoryDock::tr("%1\n%2 entity edit(s)\nEvent %3").arg(operation, QString::number(count), id);
                     };
+                    // Project-unit changes get a localized title; the stored
+                    // description (quantity: old -> new) becomes the details.
+                    if (transaction->operation == QStringLiteral("hydraulic.network.units.update"))
+                    {
+                        entry.localized_details = [description = transaction->description.trimmed(), id = entry.identity] {
+                            return HistoryDock::tr("%1\nEvent %2").arg(description, id);
+                        };
+                    }
                 }
                 else
                     entry.localized_details = [] { return HistoryDock::tr("This event could not be decoded for display."); };
-                entry.localized_title = [title = entry.title, valid = transaction.has_value(), kind] {
+                const bool units_change = transaction.has_value()
+                    && transaction->operation == QStringLiteral("hydraulic.network.units.update");
+                entry.localized_title = [title = entry.title, valid = transaction.has_value(), kind, units_change] {
                     QString text = title;
-                    if (text.isEmpty())
+                    if (units_change)
+                        text = HistoryDock::tr("Project units changed");
+                    else if (text.isEmpty())
                         text = valid ? HistoryDock::tr("Hydraulic edit") : HistoryDock::tr("Unrecognized stored edit");
                     if (kind == HistoryDockEntry::Kind::PendingAction)
                         text += HistoryDock::tr(" (pending Save)");

@@ -4621,6 +4621,16 @@ Cette action est irréversible.</translation>
   <context>
     <name>HistoryDock</name>
     <message>
+      <source>Project units changed</source>
+      <translation>Unités du projet modifiées</translation>
+    </message>
+    <message>
+      <source>%1
+Event %2</source>
+      <translation>%1
+Événement %2</translation>
+    </message>
+    <message>
       <source>History</source>
       <translation>Historique</translation>
     </message>
@@ -8086,6 +8096,14 @@ Cliquez pour déplier</numerusform>
   </context>
   <context>
     <name>SimulationManager</name>
+    <message>
+      <source>Project units</source>
+      <translation>Unités du projet</translation>
+    </message>
+    <message>
+      <source>Store the display units of the imported file ("%1") with the project? They are committed with the network and shown to everyone who opens it with project units. Values are not changed. You can change or remove them later in Settings → Units.</source>
+      <translation>Enregistrer les unités d’affichage du fichier importé (« %1 ») avec le projet ? Elles sont validées avec le réseau et affichées à tous ceux qui l’ouvrent avec les unités du projet. Les valeurs ne sont pas modifiées. Vous pourrez les changer ou les supprimer plus tard dans Paramètres → Unités.</translation>
+    </message>
     <message>
       <source>%1 (EPANET-JS units)</source>
       <translation>%1 (unités EPANET-JS)</translation>

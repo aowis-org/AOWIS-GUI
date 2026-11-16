@@ -14,6 +14,8 @@
 #include <utility>
 
 #include <QHash>
+#include <QMap>
+#include <QStringList>
 #include <QTimer>
 
 namespace
@@ -460,7 +462,9 @@ const QList<WaterQualitySolverOptions> &HydraulicData::simulationQualityRunOptio
     return this->simulation_quality_run_options;
 }
 
-bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulic &metadata)
+bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulic &metadata,
+                                           const QString &operation,
+                                           const QString &description)
 {
     const NetworkHydraulic old_metadata = aowis::model::hydraulicRootMetadata(this->network_hydraulic);
     const NetworkHydraulic new_metadata = aowis::model::hydraulicRootMetadata(metadata);
@@ -479,7 +483,7 @@ bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulic &metadata)
     if (!checked.report.valid())
         return false;
 
-    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.network.root.update"));
+    HydraulicEditTransactionCapture capture(operation, description);
     if (this->logical_edit_capture_enabled &&
         !capture.watch(this->network_hydraulic, this->network_hydraulic.uuid))
     {
@@ -517,8 +521,37 @@ bool HydraulicData::setNetworkPresentationUnits(const std::optional<NetworkPrese
     if (!this->logical_edit_capture_enabled)
         return false;
     NetworkHydraulic metadata = aowis::model::hydraulicRootMetadata(this->network_hydraulic);
+    const std::optional<NetworkPresentationUnits> &previous = this->network_hydraulic.presentation_units;
+    // Persisted with the event (shown as its details): stable, untranslated
+    // data, e.g. "volumetric_flow_rate: L/s -> m3/h". The title is localized
+    // from the operation in the history dock.
+    QStringList changes;
+    if (!previous && units)
+        changes.append(QStringLiteral("stored \"%1\"").arg(units->name));
+    else if (previous && !units)
+        changes.append(QStringLiteral("removed \"%1\"").arg(previous->name));
+    else if (previous && units)
+    {
+        if (previous->name != units->name)
+            changes.append(QStringLiteral("name: \"%1\" -> \"%2\"").arg(previous->name, units->name));
+        QMap<QString, QString> before;
+        QMap<QString, QString> after;
+        for (const NetworkPresentationUnit &choice : previous->units) before.insert(choice.quantity, choice.unit);
+        for (const NetworkPresentationUnit &choice : units->units) after.insert(choice.quantity, choice.unit);
+        QMap<QString, bool> quantities;
+        for (const QString &quantity : before.keys()) quantities.insert(quantity, true);
+        for (const QString &quantity : after.keys()) quantities.insert(quantity, true);
+        for (QMap<QString, bool>::const_iterator it = quantities.cbegin(); it != quantities.cend(); ++it)
+        {
+            const QString old_unit = before.value(it.key(), QStringLiteral("-"));
+            const QString new_unit = after.value(it.key(), QStringLiteral("-"));
+            if (old_unit != new_unit)
+                changes.append(QStringLiteral("%1: %2 -> %3").arg(it.key(), old_unit, new_unit));
+        }
+    }
     metadata.presentation_units = units;
-    return setNetworkRootMetadata(metadata);
+    return setNetworkRootMetadata(metadata, QStringLiteral("hydraulic.network.units.update"),
+                                  QStringLiteral("Project units: ") + changes.join(QStringLiteral("; ")));
 }
 
 void HydraulicData::setSimulationHeadlossFormula(HydraulicHeadlossFormula formula)

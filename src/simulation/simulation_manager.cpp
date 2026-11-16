@@ -709,8 +709,47 @@ void SimulationManager::importNetworkProjectContent(
 
                 if (manager->import_into_private_head) {
                     manager->import_into_private_head = false;
-                    emit manager->signalPrivateHeadNetworkImported(
-                        std::move(conversion_result.network));
+                    QStringList unrepresented_file_units;
+                    const QJsonObject file_units = EpanetJsUnitProfile::selections(
+                        conversion_result.source_display_units, &unrepresented_file_units);
+                    if (file_units.isEmpty()) {
+                        emit manager->signalPrivateHeadNetworkImported(
+                            std::move(conversion_result.network));
+                        return;
+                    }
+                    // Offer the file's display units as project units: stored
+                    // with the imported network and committed with it. Never
+                    // changes an imported value (the Model stays canonical).
+                    const QString matching_id = EpanetJsUnitProfile::matchingBuiltinId(file_units);
+                    QString units_name = conversion_result.network.id.trimmed().isEmpty()
+                        ? tr("Imported EPANET-JS units")
+                        : tr("%1 (EPANET-JS units)").arg(conversion_result.network.id.trimmed());
+                    for (const UnitProfileManager::Profile &profile : UnitProfileManager::instance().profiles()) {
+                        if (profile.builtin && profile.id == matching_id) {
+                            units_name = profile.name;
+                            break;
+                        }
+                    }
+                    const std::shared_ptr<NetworkHydraulic> pending =
+                        std::make_shared<NetworkHydraulic>(std::move(conversion_result.network));
+                    QMessageBox *question = new QMessageBox(
+                        QMessageBox::Question, tr("Project units"),
+                        tr("Store the display units of the imported file (\"%1\") with the project? "
+                           "They are committed with the network and shown to everyone who opens it "
+                           "with project units. Values are not changed. You can change or remove "
+                           "them later in Settings → Units.").arg(units_name),
+                        QMessageBox::Yes | QMessageBox::No, parent_widget);
+                    question->setAttribute(Qt::WA_DeleteOnClose);
+                    question->setDefaultButton(QMessageBox::Yes);
+                    QObject::connect(question, &QMessageBox::finished, manager,
+                                     [manager, pending, file_units, units_name, matching_id](int result) {
+                        if (!manager) return;
+                        if (result == QMessageBox::Yes)
+                            pending->presentation_units = UnitProfileManager::presentationUnitsFrom(
+                                units_name, matching_id, file_units);
+                        emit manager->signalPrivateHeadNetworkImported(std::move(*pending));
+                    });
+                    question->open(); // Nonblocking, including under Qt WebAssembly.
                     return;
                 }
 

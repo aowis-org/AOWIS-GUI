@@ -1630,6 +1630,23 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     target_link_libraries(aowis-unit-profile-storage-tests PRIVATE Qt6::Core aowis::config)
     add_test(NAME aowis-unit-profile-storage COMMAND aowis-unit-profile-storage-tests)
     set_tests_properties(aowis-unit-profile-storage PROPERTIES LABELS "aowis")
+    # Project units layered over the local profile (headless, test-double writer).
+    add_executable(aowis-unit-project-units-tests
+        tests/unit_project_units_test.cpp
+        src/config/unit_profile_storage.cpp
+        src/config/gui_config_store.cpp
+        src/config/gui_config_store.h
+        src/config/gui_preferences.cpp
+        src/config/gui_preferences.h
+    )
+    target_include_directories(aowis-unit-project-units-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include
+    )
+    target_link_libraries(aowis-unit-project-units-tests PRIVATE Qt6::Gui aowis::config)
+    add_test(NAME aowis-unit-project-units COMMAND aowis-unit-project-units-tests)
+    set_tests_properties(aowis-unit-project-units PROPERTIES LABELS "aowis")
     # Regular CTest regression: assert structural performance invariants without
     # imposing machine-dependent timing limits. Print measured timings as JSON.
     add_executable(aowis-unit-presentation-benchmark
