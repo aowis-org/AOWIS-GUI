@@ -444,9 +444,13 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Acquisition")),
             LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "MAP upstreams"))});
     });
-    this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnName, QHeaderView::ResizeToContents);
-    this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnSource, QHeaderView::ResizeToContents);
+    // Every column but the URL follows its contents automatically (names,
+    // source texts, combo boxes, the upstream-order buttons) whenever rows
+    // are rebuilt or edited; the URL takes the remaining width. Rows follow
+    // their cell widgets' height.
+    this->provider_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     this->provider_table->horizontalHeader()->setSectionResizeMode(ProviderColumnUrl, QHeaderView::Stretch);
+    this->provider_table->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     this->provider_table->setMinimumHeight(260);
     providers_layout->addWidget(this->provider_table);
     QHBoxLayout *buttons = new QHBoxLayout();
