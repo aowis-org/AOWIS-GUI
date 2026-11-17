@@ -283,7 +283,7 @@ void HydraulicLibrariesWidget::refresh(const QUuid &select_uuid)
 {
     const QUuid uuid = select_uuid.isNull() ? selectedUuid() : select_uuid;
     this->entries->clear();
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     switch (this->category->currentIndex())
     {
     case 0:
@@ -370,7 +370,7 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
     const QUuid uuid = creating ? QUuid() : selectedUuid();
     if (!creating && uuid.isNull())
         return;
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     QString id;
     QString comment;
     QString data;
@@ -512,7 +512,7 @@ void HydraulicLibrariesWidget::editEntry(bool creating)
                 QCoreApplication::translate("HydraulicLibrariesWidget", "The library item ID cannot be empty."));
             return;
         }
-        const NetworkHydraulic &current = this->hydraulic_data->networkHydraulic();
+        const NetworkHydraulicDistribution &current = this->hydraulic_data->networkHydraulicDistribution();
         const QString description = comment_edit->toPlainText();
         const QString content = data_edit->toPlainText();
         QString error;

@@ -21,7 +21,7 @@ have a **Delete network** button.
 First import is a narrowly defined, server-enforced operation. The GUI
 should enable it only when the selected private draft is eligible;
 a populated, previously edited or stale draft must not be overwritten.
-`HydraulicData::replaceNetworkHydraulic()` replaces **only the in-memory
+`HydraulicData::replaceNetworkHydraulicDistribution()` replaces **only the in-memory
 network** and must not be used to imply a persistent replacement operation.
 
 **Not implemented:** an atomic "Replace working network" operation, selected

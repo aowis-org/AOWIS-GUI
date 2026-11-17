@@ -24,7 +24,7 @@ using namespace EpanetJsUnits;
 using namespace EpanetJsGeometry;
 using namespace EpanetJsPipes;
 
-bool networkHasPump(const NetworkHydraulic &network, const QUuid &uuid)
+bool networkHasPump(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     for (const HydraulicLinkPump &pump : network.links_pumps)
     {
@@ -34,7 +34,7 @@ bool networkHasPump(const NetworkHydraulic &network, const QUuid &uuid)
     return false;
 }
 
-bool networkHasTank(const NetworkHydraulic &network, const QUuid &uuid)
+bool networkHasTank(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     for (const HydraulicNodeTank &tank : network.nodes_tanks)
     {
@@ -259,7 +259,7 @@ void importStructuredControls(
 }
 
 const HydraulicLinkValve *networkValveByUuid(
-    const NetworkHydraulic &network,
+    const NetworkHydraulicDistribution &network,
     const QUuid &uuid)
 {
     for (const HydraulicLinkValve &valve : network.links_valves)
@@ -1089,7 +1089,7 @@ bool rawRuleVariableAllowedForObject(
     HydraulicControlRuleObject object,
     HydraulicControlRuleVariable variable,
     const QUuid &object_uuid,
-    const NetworkHydraulic &network)
+    const NetworkHydraulicDistribution &network)
 {
     if (object == HydraulicControlRuleObject::System)
     {

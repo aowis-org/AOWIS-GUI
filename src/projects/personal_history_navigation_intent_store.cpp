@@ -101,13 +101,13 @@ bool valid(const PersonalHistoryNavigationIntent &intent)
             return false;
         journalBytes += event.size();
     }
-    const QByteArray network = aowis::model::ModelCodec<NetworkHydraulic>::encode(intent.source_network);
+    const QByteArray network = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(intent.source_network);
     return !network.isEmpty() && network.size() <= max_network_bytes;
 }
 
 QByteArray encode(const PersonalHistoryNavigationIntent &intent)
 {
-    const QByteArray network = aowis::model::ModelCodec<NetworkHydraulic>::encode(intent.source_network);
+    const QByteArray network = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(intent.source_network);
     QJsonArray events;
     for (const QByteArray &event : intent.journal_events)
         events.append(QString::fromLatin1(event.toBase64()));
@@ -157,9 +157,9 @@ bool decode(const QByteArray &bytes, PersonalHistoryNavigationIntent &intent, QS
         decoded.decoded.toBase64() != encoded.toLatin1())
         return fail(error, QStringLiteral("Invalid durable History source snapshot"));
     QString codecError;
-    const std::optional<NetworkHydraulic> network =
-        aowis::model::ModelCodec<NetworkHydraulic>::decode(decoded.decoded, &codecError);
-    if (!network || aowis::model::ModelCodec<NetworkHydraulic>::encode(*network) != decoded.decoded ||
+    const std::optional<NetworkHydraulicDistribution> network =
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::decode(decoded.decoded, &codecError);
+    if (!network || aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(*network) != decoded.decoded ||
         HydraulicHistoryDelta::digest(*network) != payload.value(QStringLiteral("sourceSha256")).toString())
         return fail(error, QStringLiteral("Invalid or noncanonical durable History MODEL snapshot"));
     if (!payload.value(QStringLiteral("journalEvents")).isArray())

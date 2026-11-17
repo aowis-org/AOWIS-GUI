@@ -154,7 +154,7 @@ MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraul
     {
         connect(this->hydraulic_data, &HydraulicData::signalNetworkLoaded, this, [this]()
         {
-            loadNetwork(this->hydraulic_data->networkHydraulic());
+            loadNetwork(this->hydraulic_data->networkHydraulicDistribution());
         });
         connect(this->hydraulic_data, &HydraulicData::signalNodeChanged,
                 this, &MapCanvasEntities::onNodeChanged);
@@ -211,7 +211,7 @@ MapCanvasEntities::MapCanvasEntities(MapModel *map_model, HydraulicData *hydraul
         {
             applyExternalSelection(InfrastructureEntity::DemandPoint, demand_point.uuid);
         });
-        loadNetwork(this->hydraulic_data->networkHydraulic());
+        loadNetwork(this->hydraulic_data->networkHydraulicDistribution());
     }
 }
 
@@ -401,7 +401,7 @@ void MapCanvasEntities::onEntityLocateRequested(InfrastructureEntity entity_type
                                this->map_canvas->size());
 }
 
-void MapCanvasEntities::loadNetwork(const NetworkHydraulic &network)
+void MapCanvasEntities::loadNetwork(const NetworkHydraulicDistribution &network)
 {
     cancelDemandPointAttachmentInteraction();
     setWrapReferenceLongitude(this->map_model->centerLon());
@@ -1507,7 +1507,7 @@ MapEditorVisualState MapCanvasEntities::visualState() const
 
     if (this->hydraulic_data)
     {
-        const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+        const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
         state.demand_point_attachments.reserve(network.demand_points.size());
         // Hashed once: a list lookup per demand point is quadratic when many
         // markers are selected (rectangle selection of a whole area).
@@ -1952,7 +1952,7 @@ bool MapCanvasEntities::demandPointAttachmentHandleAt(
         return delta_x * delta_x + delta_y * delta_y;
     };
 
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     const std::optional<QUuid> selected_uuid = selectedDemandPointUuid();
     if (selected_uuid.has_value())
     {

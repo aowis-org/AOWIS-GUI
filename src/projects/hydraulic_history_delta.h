@@ -2,7 +2,7 @@
 
 #include "projects/hydraulic_draft_entity_registry.h"
 
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QByteArray>
@@ -28,9 +28,9 @@ inline bool error(QString *message, const QString &detail)
     return false;
 }
 
-inline QString digest(const NetworkHydraulic &network)
+inline QString digest(const NetworkHydraulicDistribution &network)
 {
-    const QByteArray canonical = aowis::model::ModelCodec<NetworkHydraulic>::encode(network);
+    const QByteArray canonical = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(network);
     if (canonical.isEmpty()) return {};
     return QString::fromLatin1(QCryptographicHash::hash(
         canonical, QCryptographicHash::Sha256).toHex());
@@ -107,8 +107,8 @@ inline bool moveEntity(QList<T> &collection, const QUuid &id,
     return true;
 }
 
-inline bool apply(const QJsonObject &delta, const NetworkHydraulic &source,
-                  NetworkHydraulic &destination, QString *message = nullptr)
+inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &source,
+                  NetworkHydraulicDistribution &destination, QString *message = nullptr)
 {
     if (message) message->clear();
     if (delta.size() != 6 || delta.value(QStringLiteral("version")) != QJsonValue(1) ||
@@ -128,7 +128,7 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulic &source,
     if (edits.size() > 20000 || moves.size() > 20000)
         return error(message, QStringLiteral("History delta exceeds entity limit"));
 
-    NetworkHydraulic next = source;
+    NetworkHydraulicDistribution next = source;
     QSet<QString> seenEdits;
     for (const QJsonValue &value : edits)
     {
@@ -154,16 +154,16 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulic &source,
             !decodeImage(edit.value(QStringLiteral("afterBase64")), after, message) ||
             (!before && !after))
             return error(message, QStringLiteral("History entity images are invalid"));
-        if (type == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        if (type == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
         {
             if (id != next.uuid || !before || !after ||
-                aowis::model::hydraulicRootImage(next) != *before)
+                aowis::model::hydraulicDistributionRootImage(next) != *before)
                 return error(message, QStringLiteral("History root before-image mismatch"));
             QString rootError;
-            const std::optional<NetworkHydraulic> metadata =
-                aowis::model::decodeHydraulicRootImage(*after, &rootError);
-            if (!metadata || aowis::model::hydraulicRootImage(*metadata) != *after ||
-                !aowis::model::applyHydraulicRootMetadata(next, *metadata))
+            const std::optional<NetworkHydraulicDistribution> metadata =
+                aowis::model::decodeHydraulicDistributionRootImage(*after, &rootError);
+            if (!metadata || aowis::model::hydraulicDistributionRootImage(*metadata) != *after ||
+                !aowis::model::applyHydraulicDistributionRootMetadata(next, *metadata))
                 return error(message, QStringLiteral("Invalid History root after-image: ") + rootError);
             continue;
         }

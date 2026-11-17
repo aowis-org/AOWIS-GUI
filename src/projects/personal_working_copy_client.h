@@ -2,7 +2,7 @@
 
 #include "config/personal_repository_storage.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 #include <QByteArray>
 #include <QList>
@@ -190,7 +190,7 @@ public:
     // canonical entity codecs and references before returning MODEL bytes.
     // This operation does not acquire a lease or enable unsaved editor edits.
     using NetworkCompletion = std::function<void(
-        const NetworkHydraulic &, const QString &generation, const QString &error)>;
+        const NetworkHydraulicDistribution &, const QString &generation, const QString &error)>;
     // Lightweight summary of the exact SAVED candidate generation. Unlike
     // committed branch-tip counts, this includes unpublished unborn HEADs.
     using SummaryCompletion = std::function<void(const QJsonObject &, const QString &)>;
@@ -201,7 +201,7 @@ public:
     void importNetworkIntoEmptyDraft(const PersonalRepositoryTarget &target,
                                      const QString &draft_id, const QString &session_id,
                                      const QString &fencing_token, const QString &generation,
-                                     const NetworkHydraulic &network, DraftCompletion completion);
+                                     const NetworkHydraulicDistribution &network, DraftCompletion completion);
     void loadDraftNetwork(const PersonalRepositoryTarget &target,
                           const QString &draft_id, const QString &network_id,
                           NetworkCompletion completion);

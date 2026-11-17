@@ -2,7 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/serialization/model_codec.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/uuid.h>
 
 #include <utility>
@@ -32,13 +32,13 @@ HydraulicEditTransactionCapture::HydraulicEditTransactionCapture(QString operati
 {}
 
 HydraulicEditTransactionCapture::EntityImage HydraulicEditTransactionCapture::image(
-    const NetworkHydraulic &network, const QUuid &uuid)
+    const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     EntityImage result;
     if (!network.uuid.isNull() && uuid == network.uuid)
     {
-        result.type = QString::fromLatin1(aowis::model::hydraulicRootEditType);
-        result.data = aowis::model::hydraulicRootImage(network);
+        result.type = QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType);
+        result.data = aowis::model::hydraulicDistributionRootImage(network);
         return result;
     }
     int matches = 0;
@@ -50,7 +50,7 @@ HydraulicEditTransactionCapture::EntityImage HydraulicEditTransactionCapture::im
     return result;
 }
 
-bool HydraulicEditTransactionCapture::watch(const NetworkHydraulic &network, const QUuid &uuid)
+bool HydraulicEditTransactionCapture::watch(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     if (uuid.isNull())
     {
@@ -82,7 +82,7 @@ bool HydraulicEditTransactionCapture::watchCreated(const QUuid &uuid)
 }
 
 std::optional<QByteArray> HydraulicEditTransactionCapture::finish(
-    const NetworkHydraulic &network, QString *error) const
+    const NetworkHydraulicDistribution &network, QString *error) const
 {
     if (error)
         error->clear();

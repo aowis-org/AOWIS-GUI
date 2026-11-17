@@ -36,7 +36,7 @@ int runEntityInspectorLanguageAcceptance(QApplication &app)
 
     const QUuid tank_uuid(QStringLiteral("{019a6010-0001-7000-8000-000000000001}"));
     const QUuid curve_uuid(QStringLiteral("{019a6010-0001-7000-8000-000000000002}"));
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNodeTank tank;
     tank.uuid = tank_uuid;
     tank.id = QStringLiteral("Tank North");
@@ -50,7 +50,7 @@ int runEntityInspectorLanguageAcceptance(QApplication &app)
     network.curves_tank_volume.append(curve);
 
     HydraulicData model;
-    model.replaceNetworkHydraulic(network, {});
+    model.replaceNetworkHydraulicDistribution(network, {});
     EntityInspectorTank inspector(&model, tank_uuid);
     inspector.resize(460, 720);
     inspector.show();

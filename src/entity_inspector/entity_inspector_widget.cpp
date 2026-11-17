@@ -3252,7 +3252,7 @@ void EntityInspectorWidget::populateTimePatternCombo(
         return;
 
     const QList<HydraulicPatternTime> &patterns =
-        this->hydraulic_data->networkHydraulic().patterns_time;
+        this->hydraulic_data->networkHydraulicDistribution().patterns_time;
     QString pattern_signature = QString::number(static_cast<int>(pattern_mode));
     pattern_signature += QLatin1Char(':');
     pattern_signature += pattern_uuid.toString(QUuid::WithoutBraces);
@@ -3778,7 +3778,7 @@ void EntityInspectorWidget::populateQualitySourcePatternCombo(const QUuid &patte
     const QSignalBlocker blocker(this->combo_quality_source_pattern);
     this->combo_quality_source_pattern->clear();
     EntityInspectorText::addChoice(this->combo_quality_source_pattern, QT_TRANSLATE_NOOP("LiveUiText", "None"), QUuid());
-    for (const HydraulicPatternTime &pattern : this->hydraulic_data->networkHydraulic().patterns_time)
+    for (const HydraulicPatternTime &pattern : this->hydraulic_data->networkHydraulicDistribution().patterns_time)
     {
         const QString label = pattern.id.isEmpty()
             ? pattern.uuid.toString(QUuid::WithoutBraces)

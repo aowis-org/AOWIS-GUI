@@ -9,7 +9,7 @@
 #include <QUuid>
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 // Captures only explicitly affected entity UUIDs, not an entire network.
 // One instance corresponds to one logical user action (one future undo step).
@@ -20,11 +20,11 @@ public:
     HydraulicEditTransactionCapture(QString operation, QString description = QString());
 
     // Call before a mutation. A missing entity is remembered as a creation.
-    bool watch(const NetworkHydraulic &network, const QUuid &uuid);
+    bool watch(const NetworkHydraulicDistribution &network, const QUuid &uuid);
     // Call after an editor has allocated a new UUID during the mutation.
     bool watchCreated(const QUuid &uuid);
     // Returns nullopt for no effective changes OR invalid capture. Check error.
-    std::optional<QByteArray> finish(const NetworkHydraulic &network, QString *error = nullptr) const;
+    std::optional<QByteArray> finish(const NetworkHydraulicDistribution &network, QString *error = nullptr) const;
 
 private:
     struct EntityImage final
@@ -34,7 +34,7 @@ private:
         bool ambiguous = false; // Same UUID in multiple entity collections.
     };
 
-    static EntityImage image(const NetworkHydraulic &network, const QUuid &uuid);
+    static EntityImage image(const NetworkHydraulicDistribution &network, const QUuid &uuid);
 
     QUuid transaction_id_;
     QString operation_;

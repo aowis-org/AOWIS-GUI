@@ -1046,7 +1046,7 @@ void EntityMapLegendDock::updateLinkLegend()
     if (this->visual_link == VisualLink::None) return;
 
     const MapLegendMetrics::RoughnessStyle roughness = roughnessStyle(
-        this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
+        this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.headloss_formula);
     const LegendDescriptor &descriptor = MapLegendMetrics::link(this->visual_link, roughness);
     NetworkSymbologySettings settings;
     settings.visual_link = this->visual_link;

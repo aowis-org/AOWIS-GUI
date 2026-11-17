@@ -265,7 +265,7 @@ void EntityInspectorTank::refreshGeometry()
 void EntityInspectorTank::populateVolumeCurveCombo(const QUuid &volume_curve_uuid)
 {
     const QList<HydraulicCurveTankVolume> &curves =
-        this->hydraulic_data->networkHydraulic().curves_tank_volume;
+        this->hydraulic_data->networkHydraulicDistribution().curves_tank_volume;
 
     QString signature = volume_curve_uuid.toString(QUuid::WithoutBraces);
     signature += QLatin1Char('\n');
@@ -491,7 +491,7 @@ std::optional<double> EntityInspectorTank::volumeCurveVolumeAtLevel(
         return std::nullopt;
 
     const QList<HydraulicCurveTankVolume> &curves =
-        this->hydraulic_data->networkHydraulic().curves_tank_volume;
+        this->hydraulic_data->networkHydraulicDistribution().curves_tank_volume;
     const HydraulicCurveTankVolume *selected_curve = nullptr;
     for (const HydraulicCurveTankVolume &curve : curves)
     {

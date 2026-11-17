@@ -7,7 +7,7 @@
 #include <QtGlobal>
 #include <QUuid>
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_results.h>
 #include <aowis/model/hydraulic/water_quality_simulation_results.h>
 
@@ -62,27 +62,27 @@ inline double resolvedSymbologyElevationM(const HydraulicDemandPoint &)
 
 template <typename Visitor>
 void visitNetworkNodeSymbologyValues(
-    const NetworkHydraulic &network_hydraulic, VisualNode visual_node, Visitor &&visit)
+    const NetworkHydraulicDistribution &network_hydraulic_distribution, VisualNode visual_node, Visitor &&visit)
 {
     switch (visual_node)
     {
     case VisualNode::Elevation:
-        for (const HydraulicNodeJunction &junction : network_hydraulic.nodes_junctions)
+        for (const HydraulicNodeJunction &junction : network_hydraulic_distribution.nodes_junctions)
             visit(junction.uuid, resolvedSymbologyElevationM(junction));
-        for (const HydraulicNodeReservoir &reservoir : network_hydraulic.nodes_reservoirs)
+        for (const HydraulicNodeReservoir &reservoir : network_hydraulic_distribution.nodes_reservoirs)
             visit(reservoir.uuid, resolvedSymbologyElevationM(reservoir));
-        for (const HydraulicNodeTank &tank : network_hydraulic.nodes_tanks)
+        for (const HydraulicNodeTank &tank : network_hydraulic_distribution.nodes_tanks)
             visit(tank.uuid, resolvedSymbologyElevationM(tank));
         break;
     case VisualNode::BaseDemand:
-        for (const HydraulicNodeJunction &junction : network_hydraulic.nodes_junctions)
+        for (const HydraulicNodeJunction &junction : network_hydraulic_distribution.nodes_junctions)
         {
             double base_demand_m3_per_h = 0.0;
             for (const HydraulicDemand &demand : junction.demands)
                 base_demand_m3_per_h += demand.base_demand_m3_per_h;
             visit(junction.uuid, base_demand_m3_per_h);
         }
-        for (const HydraulicDemandPoint &demand_point : network_hydraulic.demand_points)
+        for (const HydraulicDemandPoint &demand_point : network_hydraulic_distribution.demand_points)
         {
             double base_demand_m3_per_h = 0.0;
             for (const HydraulicDemand &demand : demand_point.demands)
@@ -107,24 +107,24 @@ void visitNetworkNodeSymbologyValues(
 
 template <typename Visitor>
 void visitNetworkLinkSymbologyValues(
-    const NetworkHydraulic &network_hydraulic, VisualLink visual_link, Visitor &&visit)
+    const NetworkHydraulicDistribution &network_hydraulic_distribution, VisualLink visual_link, Visitor &&visit)
 {
     switch (visual_link)
     {
     case VisualLink::Diameter:
-        for (const HydraulicLinkPipe &pipe : network_hydraulic.links_pipes)
+        for (const HydraulicLinkPipe &pipe : network_hydraulic_distribution.links_pipes)
             visit(pipe.uuid, pipe.diameter_mm);
-        for (const HydraulicLinkValve &valve : network_hydraulic.links_valves)
+        for (const HydraulicLinkValve &valve : network_hydraulic_distribution.links_valves)
             visit(valve.uuid, valve.diameter_mm);
         break;
     case VisualLink::Length:
-        for (const HydraulicLinkPipe &pipe : network_hydraulic.links_pipes)
+        for (const HydraulicLinkPipe &pipe : network_hydraulic_distribution.links_pipes)
             visit(pipe.uuid, pipe.length_measured_m.value_or(pipe.length_calculated_m));
         break;
     case VisualLink::Roughness:
-        for (const HydraulicLinkPipe &pipe : network_hydraulic.links_pipes)
+        for (const HydraulicLinkPipe &pipe : network_hydraulic_distribution.links_pipes)
         {
-            switch (network_hydraulic.options_hydraulic.headloss_formula)
+            switch (network_hydraulic_distribution.options_hydraulic.headloss_formula)
             {
             case HydraulicHeadlossFormula::HazenWilliams:
                 visit(pipe.uuid, pipe.roughness_hazen_williams);

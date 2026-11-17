@@ -37,7 +37,7 @@ public:
     // Available only after a generation-checked canonical network load.
     // The caller opens the verified editor session, or previews the chosen
     // draft in Monitor when the conflict chooser requests read-only viewing.
-    const std::optional<NetworkHydraulic> &selectedPreviewNetwork() const;
+    const std::optional<NetworkHydraulicDistribution> &selectedPreviewNetwork() const;
     QString selectedPreviewDraftId() const;
     QString selectedPreviewGeneration() const;
     QString selectedEditNetworkId() const;
@@ -93,7 +93,7 @@ private:
     QPushButton *view_button = nullptr;
     QPushButton *edit_button = nullptr;
     std::optional<PersonalWorkingCopyInfo> active_draft;
-    std::optional<NetworkHydraulic> preview_network;
+    std::optional<NetworkHydraulicDistribution> preview_network;
     QString preview_generation;
     QString preview_draft_id;
     QString accepted_draft_id;

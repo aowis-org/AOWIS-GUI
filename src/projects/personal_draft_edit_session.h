@@ -39,7 +39,7 @@ public:
     bool isBlocked() const;
     int pendingCount() const;
     QString currentGeneration() const;
-    const NetworkHydraulic &visibleNetwork() const;
+    const NetworkHydraulicDistribution &visibleNetwork() const;
     QList<QByteArray> savedHistoryEvents() const;
     QList<QByteArray> pendingHistoryEvents() const;
     const QJsonObject &historyCursor() const;
@@ -71,7 +71,7 @@ signals:
     void historyCursorChanged();
     void historyNavigationStarted();
     void historyNavigationRecovering();
-    void historyNavigationCompleted(const NetworkHydraulic &network);
+    void historyNavigationCompleted(const NetworkHydraulicDistribution &network);
 
 private:
     enum class State {
@@ -84,7 +84,7 @@ private:
     void renew();
     void finishHistoryNavigation(const PersonalWorkingCopyInfo &result,
                                  const QString &error);
-    void completeHistoryNavigation(const NetworkHydraulic &network,
+    void completeHistoryNavigation(const NetworkHydraulicDistribution &network,
                                    const QString &generation, bool replace_network);
     void scheduleHistoryRecovery();
     void resumeHistoryAfterReconcile(bool already_published, bool model_matches,

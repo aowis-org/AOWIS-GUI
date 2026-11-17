@@ -165,7 +165,7 @@ int main(int argc, char **argv)
                      "failed to update library item via GUI")) return 1;
         if (!require(rows->count() == 1 && rows->item(0)->text() == changed_name
                      && events == before + 2, "update did not emit transaction")) return 1;
-        const NetworkHydraulic &network = data.networkHydraulic();
+        const NetworkHydraulicDistribution &network = data.networkHydraulicDistribution();
         bool payload_ok = false;
         switch (index)
         {

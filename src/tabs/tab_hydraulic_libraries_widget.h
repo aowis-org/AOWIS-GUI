@@ -8,7 +8,7 @@ class QComboBox;
 class QListWidget;
 class QPushButton;
 
-// Transaction-safe editing surface for the eight NetworkHydraulic libraries.
+// Transaction-safe editing surface for the eight NetworkHydraulicDistribution libraries.
 // Does not write MODEL collections directly: all changes go through HydraulicData.
 class HydraulicLibrariesWidget : public QWidget
 {

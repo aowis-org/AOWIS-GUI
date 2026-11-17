@@ -35,7 +35,7 @@ void importCustomerPoints(
     // These network collections are complete at this import stage. Build
     // per-stage indexes once instead of scanning them for every customer point.
     // Store positions rather than pointers so container storage remains owned
-    // by NetworkHydraulic.
+    // by NetworkHydraulicDistribution.
     const QHash<QUuid, qsizetype> pipe_positions = uuidPositionIndex(result.network.links_pipes);
 
     // Preserve the original junction -> reservoir -> tank lookup precedence,

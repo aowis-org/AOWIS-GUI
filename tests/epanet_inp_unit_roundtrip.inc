@@ -2,7 +2,7 @@
 // Exercise the real EPANET importer/exporter with both SI and US source formats.
 // Presentation changes must never become implicit export-unit conversions.
 
-const HydraulicNodeJunction *roundTripJunction(const NetworkHydraulic &network, const QString &id)
+const HydraulicNodeJunction *roundTripJunction(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicNodeJunction &junction : network.nodes_junctions)
     {
@@ -12,7 +12,7 @@ const HydraulicNodeJunction *roundTripJunction(const NetworkHydraulic &network, 
     return nullptr;
 }
 
-const HydraulicLinkPipe *roundTripPipe(const NetworkHydraulic &network, const QString &id)
+const HydraulicLinkPipe *roundTripPipe(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicLinkPipe &pipe : network.links_pipes)
     {
@@ -110,8 +110,8 @@ void testInpUnitRoundTrip(const QString &fixture_name, double expected_elevation
     if (!imported_again.status.success)
         return;
 
-    const NetworkHydraulic &before = original.request.network;
-    const NetworkHydraulic &after = imported_again.request.network;
+    const NetworkHydraulicDistribution &before = original.request.network;
+    const NetworkHydraulicDistribution &after = imported_again.request.network;
     expectTrue(before.nodes_junctions.size() == after.nodes_junctions.size(),
                "INP round trip retains junction count");
     expectTrue(before.links_pipes.size() == after.links_pipes.size(),

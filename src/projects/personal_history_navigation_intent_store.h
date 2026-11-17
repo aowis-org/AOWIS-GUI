@@ -1,6 +1,6 @@
 #pragma once
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 #include <QByteArray>
 #include <QJsonObject>
@@ -23,7 +23,7 @@ struct PersonalHistoryNavigationIntent final
     QString source_generation;
     QJsonObject source_cursor;
     QJsonObject target_coordinate;
-    NetworkHydraulic source_network;
+    NetworkHydraulicDistribution source_network;
     QList<QByteArray> journal_events;
 };
 

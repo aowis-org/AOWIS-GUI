@@ -15,7 +15,7 @@
 
 #include "widgets/group_box_collapsible.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 class UnitNumericSpinBox;
 class UnitEnergyPriceSpinBox;
 

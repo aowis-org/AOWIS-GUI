@@ -20,7 +20,7 @@ void expectNear(double actual, double expected, double tolerance, const char *me
 
 void testPipeMaterialLibraryModel()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNetworkEditor editor(network);
 
     HydraulicPipeMaterial ductile_iron;

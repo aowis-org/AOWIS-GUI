@@ -53,7 +53,7 @@ void testDemandPointPipeAllocationModel()
 
 void testDemandPointAttachmentRemappingOnPipeSplit()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNetworkEditor editor(network);
 
     CoordinateWGS84 from_coordinate;
@@ -153,7 +153,7 @@ void testDemandPointAttachmentRemappingOnPipeSplit()
 
 void testAssignedDemandPointAttachmentTopologyEdits()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNetworkEditor editor(network);
 
     CoordinateWGS84 from_coordinate;

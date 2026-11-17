@@ -8,7 +8,7 @@
 #include "config/gui_preferences.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QDateTime>
@@ -187,12 +187,12 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
     {
         for (const aowis::model::ModelEntityEdit &edit : event.edits)
         {
-            if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+            if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
             {
                 if (events.size() != 1 ||
                     !edit.before.has_value() || !edit.after.has_value() ||
-                    !aowis::model::decodeHydraulicRootImage(*edit.before) ||
-                    !aowis::model::decodeHydraulicRootImage(*edit.after))
+                    !aowis::model::decodeHydraulicDistributionRootImage(*edit.before) ||
+                    !aowis::model::decodeHydraulicDistributionRootImage(*edit.after))
                     return QStringLiteral("Invalid network-root edit in event batch.");
                 continue;
             }
@@ -1396,7 +1396,7 @@ void PersonalWorkingCopyClient::commitSavedDraft(
 void PersonalWorkingCopyClient::importNetworkIntoEmptyDraft(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &session_id, const QString &fencing_token,
-    const QString &generation, const NetworkHydraulic &network, DraftCompletion completion)
+    const QString &generation, const NetworkHydraulicDistribution &network, DraftCompletion completion)
 {
     if (!DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(session_id)
         || !DvmdbIdentity::isUuidV7(fencing_token) || !decimal(generation)
@@ -1404,7 +1404,7 @@ void PersonalWorkingCopyClient::importNetworkIntoEmptyDraft(
         completion({}, QStringLiteral("Invalid private draft, lease, generation or network UUIDv7."));
         return;
     }
-    const QByteArray encoded = aowis::model::ModelCodec<NetworkHydraulic>::encode(network);
+    const QByteArray encoded = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(network);
     if (encoded.isEmpty() || encoded.size() > 5 * 1024 * 1024) {
         completion({}, QStringLiteral("Imported network exceeds the supported canonical HTTP payload size."));
         return;
@@ -1501,10 +1501,10 @@ void PersonalWorkingCopyClient::loadDraftNetwork(
             return;
         }
         QString codec_error;
-        const std::optional<NetworkHydraulic> network =
-            aowis::model::ModelCodec<NetworkHydraulic>::decode(decoded.decoded, &codec_error);
+        const std::optional<NetworkHydraulicDistribution> network =
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::decode(decoded.decoded, &codec_error);
         if (!network || network->uuid.toString(QUuid::WithoutBraces) != network_id ||
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(*network) != decoded.decoded)
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(*network) != decoded.decoded)
         {
             completion({}, {}, QStringLiteral("Invalid canonical draft network: %1").arg(codec_error));
             return;
@@ -1850,7 +1850,7 @@ void PersonalWorkingCopyClient::flushOldestQueuedEvent(
     // from `membership`, which saveEventsRecovering checks against the event.
     for (const aowis::model::ModelEntityEdit &edit : event->edits)
     {
-        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
         {
             if (!edit.before.has_value() || !edit.after.has_value())
             {

@@ -8,7 +8,7 @@ class QComboBox;
 class QListWidget;
 class QPushButton;
 
-// GUI controls for the current NetworkHydraulic. All persistent edits are
+// GUI controls for the current NetworkHydraulicDistribution. All persistent edits are
 // routed through HydraulicData (HC-02.7), never through mutable list access.
 class HydraulicControlsWidget : public QWidget
 {

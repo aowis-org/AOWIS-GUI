@@ -263,7 +263,7 @@ void localizeReferences(QComboBox *combo)
     }
 }
 
-QComboBox *referenceSelector(QWidget *parent, const NetworkHydraulic &network,
+QComboBox *referenceSelector(QWidget *parent, const NetworkHydraulicDistribution &network,
                              bool links, const QUuid &selected)
 {
     QComboBox *combo = new QComboBox(parent);
@@ -316,7 +316,7 @@ void addDialogButtons(QDialog *dialog, QVBoxLayout *layout)
     QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
 }
 
-bool editPremise(QWidget *parent, const NetworkHydraulic &network,
+bool editPremise(QWidget *parent, const NetworkHydraulicDistribution &network,
                  HydraulicControlRulePremise *premise)
 {
     QDialog dialog(parent);
@@ -425,7 +425,7 @@ bool editPremise(QWidget *parent, const NetworkHydraulic &network,
     return dialog.exec() == QDialog::Accepted;
 }
 
-bool editAction(QWidget *parent, const NetworkHydraulic &network, HydraulicControlRuleAction *action)
+bool editAction(QWidget *parent, const NetworkHydraulicDistribution &network, HydraulicControlRuleAction *action)
 {
     QDialog dialog(parent);
     localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule action"));
@@ -479,7 +479,7 @@ QString actionSummary(const HydraulicControlRuleAction &action)
 }
 
 void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
-                  const NetworkHydraulic &network, QList<HydraulicControlRulePremise> *premises)
+                  const NetworkHydraulicDistribution &network, QList<HydraulicControlRulePremise> *premises)
 {
     QLabel *heading = new QLabel(dialog);
     LiveUiText::bind(heading, [heading, label]() { heading->setText(controlText(label)); });
@@ -532,7 +532,7 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
 }
 
 void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
-                  const NetworkHydraulic &network, QList<HydraulicControlRuleAction> *actions)
+                  const NetworkHydraulicDistribution &network, QList<HydraulicControlRuleAction> *actions)
 {
     QLabel *heading = new QLabel(dialog);
     LiveUiText::bind(heading, [heading, label]() { heading->setText(controlText(label)); });
@@ -584,7 +584,7 @@ void clauseEditor(QDialog *dialog, QVBoxLayout *layout, const char *label,
                      [edit](QListWidgetItem *) { edit->click(); });
 }
 
-bool editRule(QWidget *parent, const NetworkHydraulic &network, HydraulicControlRule *rule)
+bool editRule(QWidget *parent, const NetworkHydraulicDistribution &network, HydraulicControlRule *rule)
 {
     QDialog dialog(parent);
     localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic rule control"));
@@ -641,7 +641,7 @@ bool readFinite(QLineEdit *field, double *out, double minimum, double maximum)
     return true;
 }
 
-bool editLabel(QWidget *parent, const NetworkHydraulic &network, HydraulicMapLabel *label)
+bool editLabel(QWidget *parent, const NetworkHydraulicDistribution &network, HydraulicMapLabel *label)
 {
     QDialog dialog(parent);
     localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic map label"));
@@ -756,7 +756,7 @@ void HydraulicControlsWidget::updateButtons()
 void HydraulicControlsWidget::refresh(const QUuid &select_uuid)
 {
     this->entries->clear();
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     if (this->category->currentIndex() == 0)
     {
         for (const HydraulicControlRule &rule : network.controls_rules)
@@ -789,7 +789,7 @@ void HydraulicControlsWidget::editEntry(bool creating)
 {
     const QUuid uuid = creating ? QUuid() : selectedUuid();
     if (!creating && uuid.isNull()) return;
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     QUuid changed;
     if (this->category->currentIndex() == 0)
     {

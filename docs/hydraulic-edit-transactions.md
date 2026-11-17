@@ -13,7 +13,7 @@ outstanding. See [History](history-contract.md) and the
 
 ## Model scope
 
-`NetworkHydraulic` has 18 top-level typed collections, plus persistent root
+`NetworkHydraulicDistribution` has 18 top-level typed collections, plus persistent root
 metadata (network identity, titles, simulation options and timing,
 energy/quality/report settings, MSX configuration and map backdrop). The
 single registry `src/projects/hydraulic_draft_entity_registry.h` maps

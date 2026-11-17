@@ -52,7 +52,7 @@ immutable revisions or the committed branch HEAD.
 DVMDB verifies the selected model and returns a **sparse MODEL delta** with
 canonical SHA-256 digests. The GUI checks entity before-images, membership
 moves and the resulting digest before replacing its cached editor model. A
-normal navigation does **not** download a complete `NetworkHydraulic`.
+normal navigation does **not** download a complete `NetworkHydraulicDistribution`.
 
 If a navigation acknowledgement is lost, the GUI retries the **same**
 operation UUID, reconciles the precise generation/cursor and SHA-256, and can

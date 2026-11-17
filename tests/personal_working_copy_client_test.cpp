@@ -10,7 +10,7 @@
 #include "network/hydraulic_edit_transaction_capture.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QCoreApplication>
@@ -514,7 +514,7 @@ public:
                         const QString path = QString::fromLatin1(request_line.split(' ').value(1));
                         const QUrlQuery query(QUrl(QStringLiteral("http://localhost") + path));
                         const QString networkId = query.queryItemValue(QStringLiteral("networkId"));
-                        NetworkHydraulic network;
+                        NetworkHydraulicDistribution network;
                         network.uuid = QUuid(networkId);
                         network.id = QStringLiteral("loaded draft");
                         if (this->history_network_change &&
@@ -612,22 +612,22 @@ public:
                                 QStringLiteral("networkId")).toString();
                             if (!requested.isEmpty())
                             {
-                                NetworkHydraulic network;
+                                NetworkHydraulicDistribution network;
                                 network.uuid = QUuid(requested);
                                 network.id = QStringLiteral("loaded draft");
-                                NetworkHydraulic destination = network;
+                                NetworkHydraulicDistribution destination = network;
                                 QJsonArray edits;
                                 if (this->history_network_change)
                                 {
                                     destination.title_line_1 = QStringLiteral("navigated");
                                     edits.append(QJsonObject{
                                         {QStringLiteral("type"), QString::fromLatin1(
-                                            aowis::model::hydraulicRootEditType)},
+                                            aowis::model::hydraulicDistributionRootEditType)},
                                         {QStringLiteral("id"), requested},
                                         {QStringLiteral("beforeBase64"), QString::fromLatin1(
-                                            aowis::model::hydraulicRootImage(network).toBase64())},
+                                            aowis::model::hydraulicDistributionRootImage(network).toBase64())},
                                         {QStringLiteral("afterBase64"), QString::fromLatin1(
-                                            aowis::model::hydraulicRootImage(destination).toBase64())}});
+                                            aowis::model::hydraulicDistributionRootImage(destination).toBase64())}});
                                 }
                                 document.insert(QStringLiteral("historyDelta"), QJsonObject{
                                     {QStringLiteral("version"), 1},
@@ -662,7 +662,7 @@ public:
                         ++this->network_read_count;
                         const QByteArray path = request_line.split(' ').value(1);
                         const QString network_id = QString::fromLatin1(path.mid(path.lastIndexOf('/') + 1));
-                        NetworkHydraulic network;
+                        NetworkHydraulicDistribution network;
                         network.uuid = QUuid(network_id);
                         network.id = QStringLiteral("loaded draft");
                         if (this->corrupt_network_payload) network.uuid = QUuid(entity_id);
@@ -671,7 +671,7 @@ public:
                             {QStringLiteral("networkId"), network_id},
                             {QStringLiteral("generation"), QString::number(this->generation)},
                             {QStringLiteral("payloadBase64"), QString::fromLatin1(
-                                aowis::model::ModelCodec<NetworkHydraulic>::encode(network).toBase64())}};
+                                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(network).toBase64())}};
                     }
                     else if (request_line.startsWith("POST /dvmdb/v1/working-copies/") &&
                              request_line.contains("/initialize-network "))
@@ -706,8 +706,8 @@ public:
                         this->last_network_import = request_body;
                         const QByteArray payload = QByteArray::fromBase64(
                             request_body.value(QStringLiteral("payloadBase64")).toString().toLatin1());
-                        const std::optional<NetworkHydraulic> network =
-                            aowis::model::ModelCodec<NetworkHydraulic>::decode(payload);
+                        const std::optional<NetworkHydraulicDistribution> network =
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::decode(payload);
                         if (!network || this->generation != 0
                             || request_body.value(QStringLiteral("sessionId")).toString() != this->lease_session
                             || request_body.value(QStringLiteral("fencingToken")).toString() != lease_token
@@ -950,7 +950,7 @@ public:
 // positions without fetching or accepting a full replacement network.
 bool testVerifiedHistoryDelta()
 {
-    NetworkHydraulic source;
+    NetworkHydraulicDistribution source;
     source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
     source.id = QStringLiteral("History network");
     HydraulicNodeJunction original;
@@ -960,7 +960,7 @@ bool testVerifiedHistoryDelta()
     HydraulicNodeJunction added;
     added.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
     added.id = QStringLiteral("Inserted first");
-    NetworkHydraulic desired = source;
+    NetworkHydraulicDistribution desired = source;
     desired.title_line_1 = QStringLiteral("Changed root metadata");
     desired.nodes_junctions.prepend(added);
     const QJsonObject delta{
@@ -971,12 +971,12 @@ bool testVerifiedHistoryDelta()
         {QStringLiteral("edits"), QJsonArray{
             QJsonObject{
                 {QStringLiteral("type"),
-                 QString::fromLatin1(aowis::model::hydraulicRootEditType)},
+                 QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType)},
                 {QStringLiteral("id"), source.uuid.toString(QUuid::WithoutBraces)},
                 {QStringLiteral("beforeBase64"), QString::fromLatin1(
-                    aowis::model::hydraulicRootImage(source).toBase64())},
+                    aowis::model::hydraulicDistributionRootImage(source).toBase64())},
                 {QStringLiteral("afterBase64"), QString::fromLatin1(
-                    aowis::model::hydraulicRootImage(desired).toBase64())}},
+                    aowis::model::hydraulicDistributionRootImage(desired).toBase64())}},
             QJsonObject{
                 {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
                 {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
@@ -987,7 +987,7 @@ bool testVerifiedHistoryDelta()
             {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
             {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
             {QStringLiteral("position"), 0}}}}};
-    NetworkHydraulic actual;
+    NetworkHydraulicDistribution actual;
     QString error;
     if (!check(HydraulicHistoryDelta::apply(delta, source, actual, &error) &&
                HydraulicHistoryDelta::digest(actual) ==
@@ -1035,7 +1035,7 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
     QObject::connect(&session, &PersonalDraftEditSession::ready, &session,
                      [&] { opened = true; });
     QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
-                     &session, [&](const NetworkHydraulic &)
+                     &session, [&](const NetworkHydraulicDistribution &)
     {
         navigation_complete = true;
         writable_at_navigation_completion = session.canCaptureHistoryEdits();
@@ -1125,7 +1125,7 @@ bool testHistoryReconnectAfterLostReplies(QCoreApplication &application)
     QObject::connect(&session, &PersonalDraftEditSession::historyNavigationRecovering,
                      &session, [&] { ++recovered; });
     QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
-                     &session, [&](const NetworkHydraulic &) { ++completed; });
+                     &session, [&](const NetworkHydraulicDistribution &) { ++completed; });
     session.start(stub.target(), draft_id, network_id, root.path());
     if (!check(until(application, [&] {
             return session.canNavigateHistory() || !problem.isEmpty();
@@ -1205,7 +1205,7 @@ bool testHistoryReconciliationSourceAndDivergence(QCoreApplication &application)
         QObject::connect(&session, &PersonalDraftEditSession::blocked,
                          &session, [&](const QString &error) { problem = error; });
         QObject::connect(&session, &PersonalDraftEditSession::historyNavigationCompleted,
-                         &session, [&](const NetworkHydraulic &) { ++completed; });
+                         &session, [&](const NetworkHydraulicDistribution &) { ++completed; });
         session.start(stub.target(), draft_id, network_id, root.path());
         if (!check(until(application, [&] {
                 return session.canNavigateHistory() || !problem.isEmpty();
@@ -1251,7 +1251,7 @@ bool testHistoryReconciliationSourceAndDivergence(QCoreApplication &application)
 
 // Crash/restart must reuse the exact persisted UUID and canonical MODEL
 // source. Neither a published Undo nor a request lost before publication may
-// cause a NetworkHydraulic GET, even when the server was unavailable across
+// cause a NetworkHydraulicDistribution GET, even when the server was unavailable across
 // process termination. The intent is removed only after verified completion.
 bool testHistoryRestartAfterLostReply(QCoreApplication &application)
 {
@@ -1426,7 +1426,7 @@ bool testDraftEditSession(QCoreApplication &application)
                stub.history_cursor_reads >= 1,
                "session did not authorize edit capture from the live draft cursor")) return false;
 
-    NetworkHydraulic live = session.visibleNetwork();
+    NetworkHydraulicDistribution live = session.visibleNetwork();
     HydraulicNetworkEditor editor(live);
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.junction.create"));
     CoordinateWGS84 point;
@@ -1503,7 +1503,7 @@ bool testDraftEditSession(QCoreApplication &application)
                failed_open, "rejected Save fixture session did not start")) return false;
     if (!check(until(application, [&] { return first_attempt.canCaptureHistoryEdits(); }),
                "rejected Save fixture did not verify a writable draft cursor")) return false;
-    NetworkHydraulic retry_live = first_attempt.visibleNetwork();
+    NetworkHydraulicDistribution retry_live = first_attempt.visibleNetwork();
     HydraulicNetworkEditor retry_editor(retry_live);
     HydraulicEditTransactionCapture retry_capture(QStringLiteral("hydraulic.junction.create"));
     const QUuid retry_junction = retry_editor.addJunction(point);
@@ -1909,10 +1909,10 @@ int main(int argc, char **argv)
                initial_draft.events.isEmpty(),
                "GUI first hydraulic network initialization did not persist an empty root")) return 1;
     initialized = false;
-    NetworkHydraulic loaded_network;
+    NetworkHydraulicDistribution loaded_network;
     QString loaded_generation;
     client.loadDraftNetwork(bootstrap.target(), draft_id, network_id,
-        [&](const NetworkHydraulic &network, const QString &generation, const QString &failure)
+        [&](const NetworkHydraulicDistribution &network, const QString &generation, const QString &failure)
     {
         loaded_network = network;
         loaded_generation = generation;
@@ -1946,7 +1946,7 @@ int main(int argc, char **argv)
     bootstrap.corrupt_network_payload = true;
     initialized = false;
     client.loadDraftNetwork(bootstrap.target(), draft_id, network_id,
-        [&](const NetworkHydraulic &, const QString &, const QString &failure)
+        [&](const NetworkHydraulicDistribution &, const QString &, const QString &failure)
         { init_error = failure; initialized = true; });
     if (!check(until(application, [&] { return initialized; }) && !init_error.isEmpty() &&
                bootstrap.network_read_count == 2,
@@ -1954,7 +1954,7 @@ int main(int argc, char **argv)
     bootstrap.corrupt_network_payload = false;
     initialized = false;
     client.loadDraftNetwork(bootstrap.target(), draft_id, QStringLiteral("not-a-uuid"),
-        [&](const NetworkHydraulic &, const QString &, const QString &failure)
+        [&](const NetworkHydraulicDistribution &, const QString &, const QString &failure)
         { init_error = failure; initialized = true; });
     if (!check(initialized && !init_error.isEmpty() && bootstrap.network_read_count == 2,
                "invalid draft hydration UUID reached HTTP")) return 1;
@@ -1972,7 +1972,7 @@ int main(int argc, char **argv)
     Stub import_stub;
     if (!check(import_stub.listen(), "could not start full-network import fixture")) return 1;
     import_stub.lease_session = init_session;
-    NetworkHydraulic imported_network;
+    NetworkHydraulicDistribution imported_network;
     imported_network.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
     imported_network.id = QStringLiteral("Imported network");
     initialized = false;
@@ -2738,19 +2738,19 @@ int main(int argc, char **argv)
     // and a typed member. Neither the GUI nor DVMDB accepts native manifest
     // bytes from the client; the body carries only the member record and its
     // membership intent.
-    NetworkHydraulic rootBefore;
+    NetworkHydraulicDistribution rootBefore;
     rootBefore.uuid = network_uuid;
     rootBefore.id = QStringLiteral("Network");
-    NetworkHydraulic rootAfter = rootBefore;
+    NetworkHydraulicDistribution rootAfter = rootBefore;
     rootAfter.title_line_1 = QStringLiteral("Updated with member");
     const QUuid mixed_junction_uuid(PersonalWorkingCopyClient::newSessionUuidV7());
     aowis::model::ModelEditTransaction mixed = creation;
     mixed.transactionId = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
     mixed.edits.first().entityId = mixed_junction_uuid;
     mixed.edits.append(aowis::model::ModelEntityEdit{
-        network_uuid, QString::fromLatin1(aowis::model::hydraulicRootEditType),
-        aowis::model::hydraulicRootImage(rootBefore),
-        aowis::model::hydraulicRootImage(rootAfter)});
+        network_uuid, QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType),
+        aowis::model::hydraulicDistributionRootImage(rootBefore),
+        aowis::model::hydraulicDistributionRootImage(rootAfter)});
     const QByteArray mixed_bytes = aowis::model::ModelEditTransactionCodec::encode(mixed);
     if (!check(!mixed_bytes.isEmpty(), "could not encode mixed root/member event")) return 1;
     PersonalWorkingCopyChange mixed_record = created_record;

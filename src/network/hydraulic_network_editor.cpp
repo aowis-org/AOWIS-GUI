@@ -49,7 +49,7 @@ bool removeEntityByUuid(QList<Entity> &entities, const QUuid &uuid)
 // Removing a referenced node or link must not leave orphaned simple controls.
 // The corresponding GUI mutation watches these dependent control UUIDs before
 // invoking the editor, so all deletions belong to the same MODEL transaction.
-void removeSimpleControlsReferencing(NetworkHydraulic &network, const QUuid &entity_uuid)
+void removeSimpleControlsReferencing(NetworkHydraulicDistribution &network, const QUuid &entity_uuid)
 {
     for (int index = network.controls_simple.size() - 1; index >= 0; --index)
     {
@@ -61,7 +61,7 @@ void removeSimpleControlsReferencing(NetworkHydraulic &network, const QUuid &ent
 
 // A rule may reference a deleted node/link through its premises or actions.
 // Removing the rule atomically avoids dangling hydraulic dependencies.
-void removeRuleControlsReferencing(NetworkHydraulic &network, const QUuid &entity_uuid)
+void removeRuleControlsReferencing(NetworkHydraulicDistribution &network, const QUuid &entity_uuid)
 {
     for (int index = network.controls_rules.size() - 1; index >= 0; --index)
     {
@@ -72,7 +72,7 @@ void removeRuleControlsReferencing(NetworkHydraulic &network, const QUuid &entit
 }
 
 template<typename Mutation>
-bool mutateNode(NetworkHydraulic &network, const QUuid &uuid, Mutation mutation)
+bool mutateNode(NetworkHydraulicDistribution &network, const QUuid &uuid, Mutation mutation)
 {
     for (HydraulicNodeJunction &junction : network.nodes_junctions)
     {
@@ -105,7 +105,7 @@ bool mutateNode(NetworkHydraulic &network, const QUuid &uuid, Mutation mutation)
 }
 
 template<typename Mutation>
-bool mutateLink(NetworkHydraulic &network, const QUuid &uuid, Mutation mutation)
+bool mutateLink(NetworkHydraulicDistribution &network, const QUuid &uuid, Mutation mutation)
 {
     for (HydraulicLinkPipe &pipe : network.links_pipes)
     {
@@ -138,7 +138,7 @@ bool mutateLink(NetworkHydraulic &network, const QUuid &uuid, Mutation mutation)
 }
 }
 
-HydraulicNetworkEditor::HydraulicNetworkEditor(NetworkHydraulic &network)
+HydraulicNetworkEditor::HydraulicNetworkEditor(NetworkHydraulicDistribution &network)
     : network(network)
 {}
 

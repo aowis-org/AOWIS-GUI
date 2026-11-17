@@ -112,7 +112,7 @@ void PersonalDraftEditSession::start(
         this->history_target_coordinate_ = intent.target_coordinate;
         this->history_network_qualified_ = true;
         this->history_restarted_ = true;
-        // No HTTP GET of NetworkHydraulic, no speculative permission to edit,
+        // No HTTP GET of NetworkHydraulicDistribution, no speculative permission to edit,
         // and no need for the remote server to be online during startup.
         // The first available SHA/cursor receipt determines how to resume.
         scheduleHistoryRecovery();
@@ -140,7 +140,7 @@ void PersonalDraftEditSession::start(
         this->base_revision_ = draft.base_revision;
         this->selected_draft_position_ = draft.events.size();
         this->client_.loadDraftNetwork(this->target_, this->draft_id_, this->network_id_,
-            [this, journal_tail](const NetworkHydraulic &network,
+            [this, journal_tail](const NetworkHydraulicDistribution &network,
                                  const QString &generation, const QString &load_error)
         {
             if (this->stop_requested_) { finishStop(); return; }
@@ -256,7 +256,7 @@ void PersonalDraftEditSession::flush()
     }
     if (this->stage_.pendingCount() == 0)
         return;
-    NetworkHydraulic next;
+    NetworkHydraulicDistribution next;
     QList<PersonalWorkingCopyChange> changes;
     QList<HydraulicDraftMembershipEdit> membership;
     QString error;
@@ -631,7 +631,7 @@ void PersonalDraftEditSession::finishHistoryNavigation(
     // typed MODEL images and sparse membership moves. Nothing is applied
     // to the local stage until all source images and the final canonical
     // SHA-256 have been verified against our saved snapshot.
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     QString deltaError;
     if (!HydraulicHistoryDelta::apply(result.history_delta,
             this->stage_.persistedNetwork(), network, &deltaError) ||
@@ -650,7 +650,7 @@ void PersonalDraftEditSession::finishHistoryNavigation(
 }
 
 void PersonalDraftEditSession::completeHistoryNavigation(
-    const NetworkHydraulic &network, const QString &generation, bool replace_network)
+    const NetworkHydraulicDistribution &network, const QString &generation, bool replace_network)
 {
     // Both a successful sparse delta and a matching SHA reconciliation must
     // pass this final publication path. The latter never replaces the model.
@@ -988,7 +988,7 @@ QString PersonalDraftEditSession::currentGeneration() const
     return this->generation_;
 }
 
-const NetworkHydraulic &PersonalDraftEditSession::visibleNetwork() const
+const NetworkHydraulicDistribution &PersonalDraftEditSession::visibleNetwork() const
 {
     return this->stage_.visibleNetwork();
 }

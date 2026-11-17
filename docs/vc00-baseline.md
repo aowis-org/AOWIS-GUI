@@ -7,7 +7,7 @@ implementation-stage history or a claim that every scenario has passed.
    branch and no immutable revision. Its editable HEAD appears in Projects.
 2. Open a private network and edit every supported hydraulic collection,
    root metadata, controls, libraries and map labels. Check that the active
-   writer's staged state matches `ModelCodec<NetworkHydraulic>` exactly.
+   writer's staged state matches `ModelCodec<NetworkHydraulicDistribution>` exactly.
 3. Shut down and restart the GUI **and** DVMDB, reopen that same draft, and
    compare all canonical model bytes. Repeat against embedded Standalone.
 4. Lose an edit Save reply; verify authoritative journal and local pending

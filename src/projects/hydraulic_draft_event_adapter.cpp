@@ -2,7 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 #include <aowis/model/serialization/model_validation.h>
 
@@ -69,7 +69,7 @@ bool applyToCollection(QList<T> &collection,
     return true;
 }
 
-bool applyEdit(NetworkHydraulic &network, const aowis::model::ModelEntityEdit &edit,
+bool applyEdit(NetworkHydraulicDistribution &network, const aowis::model::ModelEntityEdit &edit,
                quint16 &kind, quint16 &collection_index,
                bool &membership_changed, QString *error)
 {
@@ -85,7 +85,7 @@ bool applyEdit(NetworkHydraulic &network, const aowis::model::ModelEntityEdit &e
     return fail(error, QStringLiteral("Unsupported hydraulic entity type: ") + edit.entityType);
 }
 
-bool collectMemberIds(const NetworkHydraulic &network, QSet<QUuid> &members,
+bool collectMemberIds(const NetworkHydraulicDistribution &network, QSet<QUuid> &members,
                       QString *error)
 {
 #define COLLECT(name, type, storage_kind, ordinal) \
@@ -104,7 +104,7 @@ bool collectMemberIds(const NetworkHydraulic &network, QSet<QUuid> &members,
 
 bool HydraulicDraftEventAdapter::prepareWithMembership(
                                          const QByteArray &encoded_event,
-                                         NetworkHydraulic &staged,
+                                         NetworkHydraulicDistribution &staged,
                                          QList<PersonalWorkingCopyChange> &records,
                                          QList<HydraulicDraftMembershipEdit> &membership,
                                          QString *error)
@@ -119,7 +119,7 @@ bool HydraulicDraftEventAdapter::prepareWithMembership(
 
     // Changes are staged independently and become visible only after every
     // before-image, membership delta and canonical reference has been checked.
-    NetworkHydraulic next = staged;
+    NetworkHydraulicDistribution next = staged;
     QList<PersonalWorkingCopyChange> proposed;
     QList<HydraulicDraftMembershipEdit> proposed_membership;
     QSet<QUuid> seen;
@@ -134,16 +134,16 @@ bool HydraulicDraftEventAdapter::prepareWithMembership(
         // DVMDB owns the manifest; a root edit can accompany ordinary entity
         // edits in one transaction, but must not create a client kind-100
         // record or membership intent.
-        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
         {
             if (edit.entityId != next.uuid ||
                 !edit.before.has_value() || !edit.after.has_value() ||
-                aowis::model::hydraulicRootImage(next) != *edit.before)
+                aowis::model::hydraulicDistributionRootImage(next) != *edit.before)
                 return fail(error, QStringLiteral("Stale or invalid hydraulic network-root event"));
             QString root_error;
-            const std::optional<NetworkHydraulic> after =
-                aowis::model::decodeHydraulicRootImage(*edit.after, &root_error);
-            if (!after || !aowis::model::applyHydraulicRootMetadata(next, *after))
+            const std::optional<NetworkHydraulicDistribution> after =
+                aowis::model::decodeHydraulicDistributionRootImage(*edit.after, &root_error);
+            if (!after || !aowis::model::applyHydraulicDistributionRootMetadata(next, *after))
                 return fail(error, QStringLiteral("Invalid network-root metadata: ") + root_error);
             continue;
         }
@@ -192,7 +192,7 @@ bool HydraulicDraftEventAdapter::prepareWithMembership(
         return fail(error, QStringLiteral("Unrepresented hydraulic membership mutation"));
 
     const aowis::model::HydraulicDependencyValidation checked =
-        aowis::model::validateHydraulicNetworkWithDependencies(next);
+        aowis::model::validateHydraulicDistributionNetworkWithDependencies(next);
     if (!checked.report.valid())
         return fail(error, QStringLiteral("Invalid staged hydraulic model: ") + checked.report.summary());
 
@@ -220,11 +220,11 @@ bool HydraulicDraftEventAdapter::prepareWithMembership(
 }
 
 bool HydraulicDraftEventAdapter::prepare(const QByteArray &encoded_event,
-                                         NetworkHydraulic &staged,
+                                         NetworkHydraulicDistribution &staged,
                                          QList<PersonalWorkingCopyChange> &records,
                                          QString *error)
 {
-    NetworkHydraulic next = staged;
+    NetworkHydraulicDistribution next = staged;
     QList<PersonalWorkingCopyChange> proposed;
     QList<HydraulicDraftMembershipEdit> membership;
     if (!prepareWithMembership(encoded_event, next, proposed, membership, error))

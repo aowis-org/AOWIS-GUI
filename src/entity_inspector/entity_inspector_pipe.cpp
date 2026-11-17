@@ -200,7 +200,7 @@ void EntityInspectorPipe::addGroupRoughness()
                 if (pipe->roughness_mode != HydraulicPipeRoughnessMode::Explicit)
                     return false;
                 const HydraulicHeadlossFormula formula =
-                    this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula;
+                    this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.headloss_formula;
                 if (field == 0 && formula == HydraulicHeadlossFormula::HazenWilliams)
                     return this->hydraulic_data->setPipeRoughnessHw(this->pipe_uuid, storage_value);
                 if (field == 1 && formula == HydraulicHeadlossFormula::DarcyWeisbach)
@@ -347,7 +347,7 @@ void EntityInspectorPipe::refreshPipe()
 
     this->combo_material->clear();
     EntityInspectorText::addChoice(this->combo_material, QT_TRANSLATE_NOOP("LiveUiText", "[Not set]"), QUuid());
-    for (const HydraulicPipeMaterial &material : this->hydraulic_data->networkHydraulic().pipe_materials)
+    for (const HydraulicPipeMaterial &material : this->hydraulic_data->networkHydraulicDistribution().pipe_materials)
         this->combo_material->addItem(material.id, material.uuid);
 
     const int material_index = this->combo_material->findData(pipe->material_uuid);
@@ -547,7 +547,7 @@ void EntityInspectorPipe::updateRoughnessUi(const HydraulicLinkPipe &pipe)
             pipe.metadata.date_installed.value(), QDate::currentDate());
         if (age_years.has_value())
         {
-            for (const HydraulicPipeMaterial &material : this->hydraulic_data->networkHydraulic().pipe_materials)
+            for (const HydraulicPipeMaterial &material : this->hydraulic_data->networkHydraulicDistribution().pipe_materials)
             {
                 if (material.uuid != pipe.material_uuid) continue;
                 derived_hw = resolveHydraulicPipeMaterialRoughness(
@@ -562,7 +562,7 @@ void EntityInspectorPipe::updateRoughnessUi(const HydraulicLinkPipe &pipe)
     }
 
     const HydraulicHeadlossFormula formula =
-        this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula;
+        this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.headloss_formula;
     const UnitPresentationContext &context = UnitProfileManager::instance().presentation();
     const auto refresh_roughness = [explicit_mode, &context](
         QDoubleSpinBox *spin, const std::optional<double> &derived, bool selected) {

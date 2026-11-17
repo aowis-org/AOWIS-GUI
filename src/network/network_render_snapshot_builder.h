@@ -3,9 +3,9 @@
 
 #include "network/network_render_snapshot.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
-NetworkRenderSnapshot buildNetworkRenderSnapshot(const NetworkHydraulic &network,
+NetworkRenderSnapshot buildNetworkRenderSnapshot(const NetworkHydraulicDistribution &network,
                                                  quint64 geometry_revision,
                                                  quint64 visual_revision);
 

@@ -21,7 +21,7 @@
 // (config/unit_profile_storage.h).
 //
 // Project units: the open network may store its own presentation units
-// (NetworkHydraulic::presentation_units, committed with the network). The
+// (NetworkHydraulicDistribution::presentation_units, committed with the network). The
 // display source preference (group "units", key "display_source":
 // "project" = default, "local") decides which apply. Effective units are the
 // project units when the source is "project" and the network stores units;

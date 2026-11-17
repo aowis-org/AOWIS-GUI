@@ -160,7 +160,7 @@ void PersonalWorkingCopyDialog::refreshDraftDetailsText()
     if (this->preview_network.has_value() && this->preview_draft_id == draft.id
         && this->preview_generation == draft.generation)
     {
-        const NetworkHydraulic &network = *this->preview_network;
+        const NetworkHydraulicDistribution &network = *this->preview_network;
         text += tr("\n\nVerified hydraulic network: %1\nNetwork UUIDv7: %2\n"
                    "Junctions: %3 · Pipes: %4 · Reservoirs: %5 · Tanks: %6")
             .arg(network.id, network.uuid.toString(QUuid::WithoutBraces),
@@ -464,7 +464,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
             return;
         }
         this->client.loadDraftNetwork(this->target, draft.id, network_id,
-            [this, draft](const NetworkHydraulic &network,
+            [this, draft](const NetworkHydraulicDistribution &network,
                           const QString &generation, const QString &error)
         {
             if (!this->active_draft.has_value() || this->active_draft->id != draft.id
@@ -494,7 +494,7 @@ void PersonalWorkingCopyDialog::showDraft(const PersonalWorkingCopyInfo &draft)
     });
 }
 
-const std::optional<NetworkHydraulic> &PersonalWorkingCopyDialog::selectedPreviewNetwork() const
+const std::optional<NetworkHydraulicDistribution> &PersonalWorkingCopyDialog::selectedPreviewNetwork() const
 {
     return this->preview_network;
 }

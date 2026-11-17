@@ -50,7 +50,7 @@ public:
     using TerrainElevationResolver =
         std::function<std::optional<double>(const CoordinateWGS84 &)>;
     void setTerrainElevationResolver(TerrainElevationResolver resolver);
-    void loadNetwork(const NetworkHydraulic &network);
+    void loadNetwork(const NetworkHydraulicDistribution &network);
     void startEntityPositioning(InfrastructureEntity entity);
     void stopEntityPositioning();
     bool cancelActiveMove();

@@ -115,7 +115,7 @@ void printRunFailureStatus(const char *label, const EpanetResultRun &run)
 }
 
 EpanetResultRun runConvertedNetwork(
-    const NetworkHydraulic &network,
+    const NetworkHydraulicDistribution &network,
     const QList<WaterQualitySolverOptions> &quality_runs)
 {
     EpanetRunRequest request;
@@ -529,7 +529,7 @@ void expectMetricPumpControlFires(const EpanetResultRun &run)
                "metric low-level control actually opens PU1 during the simulation");
 }
 
-void expectUsPipeControlFires(const NetworkHydraulic &network, const EpanetResultRun &run)
+void expectUsPipeControlFires(const NetworkHydraulicDistribution &network, const EpanetResultRun &run)
 {
     const HydraulicLinkPipe *model_pipe = nullptr;
     for (const HydraulicLinkPipe &pipe : network.links_pipes)
@@ -592,7 +592,7 @@ void expectUsRuleFires(const EpanetResultRun &run)
                "US-customary raw rule changes V1 to 4 GPM from 12 hours onward");
 }
 
-const HydraulicNodeJunction *modelJunctionById(const NetworkHydraulic &network, const QString &id)
+const HydraulicNodeJunction *modelJunctionById(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicNodeJunction &junction : network.nodes_junctions)
     {
@@ -602,7 +602,7 @@ const HydraulicNodeJunction *modelJunctionById(const NetworkHydraulic &network, 
     return nullptr;
 }
 
-const HydraulicNodeReservoir *modelReservoirById(const NetworkHydraulic &network, const QString &id)
+const HydraulicNodeReservoir *modelReservoirById(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicNodeReservoir &reservoir : network.nodes_reservoirs)
     {
@@ -612,7 +612,7 @@ const HydraulicNodeReservoir *modelReservoirById(const NetworkHydraulic &network
     return nullptr;
 }
 
-const HydraulicNodeTank *modelTankById(const NetworkHydraulic &network, const QString &id)
+const HydraulicNodeTank *modelTankById(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicNodeTank &tank : network.nodes_tanks)
     {
@@ -622,7 +622,7 @@ const HydraulicNodeTank *modelTankById(const NetworkHydraulic &network, const QS
     return nullptr;
 }
 
-const HydraulicLinkPipe *modelPipeById(const NetworkHydraulic &network, const QString &id)
+const HydraulicLinkPipe *modelPipeById(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicLinkPipe &pipe : network.links_pipes)
     {
@@ -893,8 +893,8 @@ void expectMetricQualityModelData(
     const EpanetJsProjectConversionResult &ejsdb_result,
     const EpanetResultImport &inp_result)
 {
-    const NetworkHydraulic &ejsdb_network = ejsdb_result.network;
-    const NetworkHydraulic &inp_network = inp_result.request.network;
+    const NetworkHydraulicDistribution &ejsdb_network = ejsdb_result.network;
+    const NetworkHydraulicDistribution &inp_network = inp_result.request.network;
 
     expectTrue(ejsdb_result.quality_runs.size() == 1,
                "metric epanet-js fixture imports one chemical quality run");
@@ -1025,7 +1025,7 @@ void expectMetricQualityModelData(
         "paired metric INP global wall reaction coefficient matches");
 }
 
-const HydraulicPipeMaterial *materialById(const NetworkHydraulic &network, const QString &id)
+const HydraulicPipeMaterial *materialById(const NetworkHydraulicDistribution &network, const QString &id)
 {
     for (const HydraulicPipeMaterial &material : network.pipe_materials)
     {
@@ -1035,7 +1035,7 @@ const HydraulicPipeMaterial *materialById(const NetworkHydraulic &network, const
     return nullptr;
 }
 
-double nativeJunctionDemandM3PerH(const NetworkHydraulic &network)
+double nativeJunctionDemandM3PerH(const NetworkHydraulicDistribution &network)
 {
     double total = 0.0;
     for (const HydraulicNodeJunction &junction : network.nodes_junctions)
@@ -1046,7 +1046,7 @@ double nativeJunctionDemandM3PerH(const NetworkHydraulic &network)
     return total;
 }
 
-double customerDemandM3PerH(const NetworkHydraulic &network)
+double customerDemandM3PerH(const NetworkHydraulicDistribution &network)
 {
     double total = 0.0;
     for (const HydraulicDemandPoint &demand_point : network.demand_points)
@@ -1058,8 +1058,8 @@ double customerDemandM3PerH(const NetworkHydraulic &network)
 }
 
 void expectPhysicalTopologyMatches(
-    const NetworkHydraulic &ejsdb_network,
-    const NetworkHydraulic &inp_network)
+    const NetworkHydraulicDistribution &ejsdb_network,
+    const NetworkHydraulicDistribution &inp_network)
 {
     expectTrue(ejsdb_network.nodes_junctions.size() == inp_network.nodes_junctions.size(),
                "paired fixtures contain the same junction count");
@@ -1086,7 +1086,7 @@ void expectPhysicalTopologyMatches(
 }
 
 void expectAllCustomerPointsUseAssignedJunctionMode(
-    const NetworkHydraulic &network,
+    const NetworkHydraulicDistribution &network,
     qsizetype expected_count)
 {
     qsizetype assigned_count = 0;
@@ -1119,7 +1119,7 @@ void testSyntheticMetricProject()
     if (!inp_result.status.success)
         return;
 
-    const NetworkHydraulic &network = result.network;
+    const NetworkHydraulicDistribution &network = result.network;
     expectTrue(network.id == QStringLiteral("synthetic-metric"),
                "synthetic metric project name is preserved");
     expectTrue(network.nodes_junctions.size() == 3, "metric fixture imports three junctions");
@@ -1183,7 +1183,7 @@ void testSyntheticUsCustomaryProject()
     if (!inp_result.status.success)
         return;
 
-    const NetworkHydraulic &network = result.network;
+    const NetworkHydraulicDistribution &network = result.network;
     expectTrue(network.id == QStringLiteral("synthetic-us-customary"),
                "synthetic US-customary project name is preserved");
     expectTrue(network.nodes_junctions.size() == 3,

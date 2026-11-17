@@ -116,6 +116,17 @@ if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/CMakeList
         "  git submodule update --init --recursive"
     )
 endif()
+# MODEL's hydraulic distribution rename is an API/codec contract change.
+# Diagnose an out-of-date submodule before compilation starts.
+if(NOT EXISTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include/aowis/model/hydraulic/network_hydraulic_distribution.h"
+        OR NOT EXISTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/AOWIS-SERVER-MODEL/include/aowis/model/edit/hydraulic_distribution_root_edit.h")
+    message(FATAL_ERROR
+        "AOWIS-GUI requires the current AOWIS-SERVER-MODEL with "
+        "NetworkHydraulicDistribution and hydraulic_distribution_root_edit.h. "
+        "Update external/AOWIS-SERVER-MODEL before building.")
+endif()
 add_subdirectory(external/AOWIS-SERVER-MODEL EXCLUDE_FROM_ALL)
 # Embed the checksum of the actual MODEL sources in every GUI target. Re-run
 # CMake automatically when a codec source or header changes, even if uncommitted.

@@ -19,7 +19,7 @@
 class QNetworkReply;
 class QNetworkRequest;
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 class GroupBoxCollapsible;
 struct BuiltinExampleRevision;
@@ -117,7 +117,7 @@ public slots:
     void prepareNetworkOpen(const QString &project_id, const QString &branch_id);
     void selectBranchByName(const QString &name);
     void showRevisionHistory();
-    void importNetworkIntoSelectedHead(NetworkHydraulic network);
+    void importNetworkIntoSelectedHead(NetworkHydraulicDistribution network);
 
 public:
     HistoryDockContext historyContext(const QString &project_id = QString(),
@@ -136,11 +136,11 @@ signals:
     void builtinExampleRequested(const QString &resource_path, const QString &file_name);
     void importProjectRequested();
     // Canonical generation-verified preview; autosave is not attached.
-    void draftNetworkPreviewRequested(NetworkHydraulic network, const QString &draft_id,
+    void draftNetworkPreviewRequested(NetworkHydraulicDistribution network, const QString &draft_id,
                                       const QString &generation);
     void draftNetworkEditRequested(const QString &draft_id, const QString &network_id);
-    void immutableNetworkPreviewRequested(NetworkHydraulic network, const QString &revision);
-    void selectedNetworkExportRequested(NetworkHydraulic network);
+    void immutableNetworkPreviewRequested(NetworkHydraulicDistribution network, const QString &revision);
+    void selectedNetworkExportRequested(NetworkHydraulicDistribution network);
     void selectedHeadImportFileRequested();
 
 protected:

@@ -87,7 +87,7 @@ MapNetworkRenderSymbology MapNetworkSymbologyResolver::resolve(
 {
     const NetworkSymbologySettings bounded_settings = settings.bounded();
     const NetworkRenderSnapshot &snapshot = hydraulic_data.networkRenderSnapshot();
-    const NetworkHydraulic &network_hydraulic = hydraulic_data.networkHydraulic();
+    const NetworkHydraulicDistribution &network_hydraulic_distribution = hydraulic_data.networkHydraulicDistribution();
     synchronizeSnapshot(snapshot);
 
     MapNetworkRenderSymbology result;
@@ -146,7 +146,7 @@ MapNetworkRenderSymbology MapNetworkSymbologyResolver::resolve(
         }
         else
         {
-            visitNetworkNodeSymbologyValues(network_hydraulic, visual, writer);
+            visitNetworkNodeSymbologyValues(network_hydraulic_distribution, visual, writer);
         }
         writer.finish();
     }
@@ -168,7 +168,7 @@ MapNetworkRenderSymbology MapNetworkSymbologyResolver::resolve(
         }
         else
         {
-            visitNetworkLinkSymbologyValues(network_hydraulic, visual, writer);
+            visitNetworkLinkSymbologyValues(network_hydraulic_distribution, visual, writer);
         }
         writer.finish();
     }
@@ -191,7 +191,7 @@ MapNetworkRenderSymbology MapNetworkSymbologyResolver::resolve(
         }
         else
         {
-            visitNetworkNodeSymbologyValues(network_hydraulic, node_visual, writer);
+            visitNetworkNodeSymbologyValues(network_hydraulic_distribution, node_visual, writer);
         }
         writer.finish();
     }

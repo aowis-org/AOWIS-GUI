@@ -12,7 +12,7 @@
 
 #include <aowis/model/entity.h>
 #include <aowis/model/gis.h>
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 
 struct HydraulicGeometryBatch
@@ -45,7 +45,7 @@ struct HydraulicGeometryBatchResult
 class HydraulicNetworkEditor
 {
 public:
-    explicit HydraulicNetworkEditor(NetworkHydraulic &network);
+    explicit HydraulicNetworkEditor(NetworkHydraulicDistribution &network);
 
     bool hasNode(const QUuid &uuid) const;
     std::optional<CoordinateWGS84> nodeCoordinate(const QUuid &uuid) const;
@@ -258,7 +258,7 @@ private:
                                              int vertex_index) const;
     void recalculateConnectedPipeLengths(const QUuid &node_uuid);
 
-    NetworkHydraulic &network;
+    NetworkHydraulicDistribution &network;
 };
 
 #endif // HYDRAULIC_NETWORK_EDITOR_H

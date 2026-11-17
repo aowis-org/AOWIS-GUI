@@ -2,7 +2,7 @@
 
 #include "projects/personal_working_copy_client.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 #include <QByteArray>
 #include <QList>
@@ -30,7 +30,7 @@ public:
     // DVMDB must atomically materialize the membership intents with records.
     static bool prepareWithMembership(
                         const QByteArray &encoded_event,
-                        NetworkHydraulic &staged,
+                        NetworkHydraulicDistribution &staged,
                         QList<PersonalWorkingCopyChange> &records,
                         QList<HydraulicDraftMembershipEdit> &membership,
                         QString *error = nullptr);
@@ -38,7 +38,7 @@ public:
     // Existing record-only API intentionally refuses membership mutations:
     // they cannot safely be submitted to /save-events as entity records alone.
     static bool prepare(const QByteArray &encoded_event,
-                        NetworkHydraulic &staged,
+                        NetworkHydraulicDistribution &staged,
                         QList<PersonalWorkingCopyChange> &records,
                         QString *error = nullptr);
 };

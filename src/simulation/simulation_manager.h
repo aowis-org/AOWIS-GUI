@@ -15,7 +15,7 @@
 
 #include <atomic>
 #include <memory>
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_results.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_status.h>
 #include <aowis/model/hydraulic/hydraulic_types.h>
@@ -42,7 +42,7 @@ public:
     void importNetworkProjectForHead();
     void importNetworkProjectResource(const QString &resource_path, const QString &file_name);
     void exportEpanetNetwork();
-    void exportSelectedEpanetNetwork(const NetworkHydraulic &network);
+    void exportSelectedEpanetNetwork(const NetworkHydraulicDistribution &network);
 
 private slots:
     void importNetworkProjectContent(const QString &file_name, const QByteArray &file_content);
@@ -72,6 +72,6 @@ signals:
     void signalSimulationFinished(bool cancelled);
     void signalEpanetLogAvailabilityChanged(bool available);
     void signalEpanetNetworkImported();
-    void signalPrivateHeadNetworkImported(NetworkHydraulic network);
+    void signalPrivateHeadNetworkImported(NetworkHydraulicDistribution network);
 };
 #endif // SIMULATION_MANAGER_H

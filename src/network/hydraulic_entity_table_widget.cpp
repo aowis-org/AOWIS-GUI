@@ -360,7 +360,7 @@ void appendNodeQualityInputColumns(QList<TableColumn> &columns)
     columns.append({QStringLiteral("Quality Source Pattern"), false, {}, ColumnFilterKind::Text});
 }
 
-QString pipeMaterialId(const NetworkHydraulic &network, const QUuid &uuid)
+QString pipeMaterialId(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     if (uuid.isNull())
         return QString();
@@ -373,10 +373,10 @@ QString pipeMaterialId(const NetworkHydraulic &network, const QUuid &uuid)
     return QString();
 }
 
-QString patternId(const NetworkHydraulic &network, const QUuid &uuid);
+QString patternId(const NetworkHydraulicDistribution &network, const QUuid &uuid);
 
 template<typename NodeType>
-void appendNodeQualityInputCells(QList<TableCell> &cells, const NetworkHydraulic &network,
+void appendNodeQualityInputCells(QList<TableCell> &cells, const NetworkHydraulicDistribution &network,
                                  const NodeType &node)
 {
     cells.append(numberCell(node.initial_chemical_concentration_mg_per_l, 6,
@@ -451,7 +451,7 @@ QString pumpInitialStatusText(HydraulicLinkPumpInitialStatus status)
         ? QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "On")) : QString::fromUtf8(QT_TRANSLATE_NOOP("HydraulicTableValues", "Off"));
 }
 
-QString pumpControlSummary(const NetworkHydraulic &network, const QUuid &pump_uuid)
+QString pumpControlSummary(const NetworkHydraulicDistribution &network, const QUuid &pump_uuid)
 {
     int level_count = 0;
     int timer_count = 0;
@@ -631,7 +631,7 @@ void appendEntityIds(QHash<QUuid, QString> &lookup, const QList<EntityType> &ent
     }
 }
 
-QHash<QUuid, QString> nodeIdLookup(const NetworkHydraulic &network)
+QHash<QUuid, QString> nodeIdLookup(const NetworkHydraulicDistribution &network)
 {
     QHash<QUuid, QString> lookup;
     lookup.reserve(network.nodes_junctions.size() + network.nodes_reservoirs.size()
@@ -653,22 +653,22 @@ QString nodeId(const QHash<QUuid, QString> &lookup, const QUuid &uuid)
     return uuid.toString(QUuid::WithoutBraces);
 }
 
-QString patternId(const NetworkHydraulic &network, const QUuid &uuid)
+QString patternId(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     return referencedEntityId(network.patterns_time, uuid);
 }
 
-QString tankVolumeCurveId(const NetworkHydraulic &network, const QUuid &uuid)
+QString tankVolumeCurveId(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     return referencedEntityId(network.curves_tank_volume, uuid);
 }
 
-QString pumpHeadCurveId(const NetworkHydraulic &network, const QUuid &uuid)
+QString pumpHeadCurveId(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     return referencedEntityId(network.curves_pump_head, uuid);
 }
 
-QString pumpEfficiencyCurveId(const NetworkHydraulic &network, const QUuid &uuid)
+QString pumpEfficiencyCurveId(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     return referencedEntityId(network.curves_pump_efficiency, uuid);
 }
@@ -715,7 +715,7 @@ TableCell valveResultSettingCell(const HydraulicSimulationResultLinkValve &valve
     return emptyCell();
 }
 
-QString valveSettingCurveId(const NetworkHydraulic &network, const HydraulicLinkValve &valve)
+QString valveSettingCurveId(const NetworkHydraulicDistribution &network, const HydraulicLinkValve &valve)
 {
     if (valve.type == HydraulicLinkValveType::GPV)
         return referencedEntityId(network.curves_valve_headloss, valve.head_loss_curve_uuid);
@@ -725,7 +725,7 @@ QString valveSettingCurveId(const NetworkHydraulic &network, const HydraulicLink
     return QString();
 }
 
-QList<DemandDetail> junctionDemandDetails(const NetworkHydraulic &network,
+QList<DemandDetail> junctionDemandDetails(const NetworkHydraulicDistribution &network,
                                          const QList<HydraulicDemand> &demands)
 {
     QList<DemandDetail> details;
@@ -1329,7 +1329,7 @@ public:
         this->columns.clear();
         this->rows.clear();
 
-        const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+        const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
         const HydraulicSimulationResult *simulation_result =
             this->hydraulic_data->currentSimulationResult();
         QHash<QUuid, InfrastructureEntity> error_entities =
@@ -1391,7 +1391,7 @@ private:
     }
 
     void buildDemandPoints(
-        const NetworkHydraulic &network,
+        const NetworkHydraulicDistribution &network,
         const QHash<QUuid, InfrastructureEntity> &error_entities,
         const QHash<QUuid, QString> &error_tooltips)
     {
@@ -1450,7 +1450,7 @@ private:
         }
     }
 
-    void buildJunctions(const NetworkHydraulic &network,
+    void buildJunctions(const NetworkHydraulicDistribution &network,
                         const HydraulicSimulationResult *simulation_result,
                         const QHash<QUuid, InfrastructureEntity> &error_entities,
                         const QHash<QUuid, QString> &error_tooltips)
@@ -1565,7 +1565,7 @@ private:
         cells.append(boolCell(result->appears_in_control));
     }
 
-    void buildReservoirs(const NetworkHydraulic &network,
+    void buildReservoirs(const NetworkHydraulicDistribution &network,
                          const HydraulicSimulationResult *simulation_result,
                          const QHash<QUuid, InfrastructureEntity> &error_entities,
                          const QHash<QUuid, QString> &error_tooltips)
@@ -1652,7 +1652,7 @@ private:
         }
     }
 
-    void buildTanks(const NetworkHydraulic &network,
+    void buildTanks(const NetworkHydraulicDistribution &network,
                     const HydraulicSimulationResult *simulation_result,
                     const QHash<QUuid, InfrastructureEntity> &error_entities,
                     const QHash<QUuid, QString> &error_tooltips)
@@ -1777,7 +1777,7 @@ private:
         }
     }
 
-    void buildPipes(const NetworkHydraulic &network,
+    void buildPipes(const NetworkHydraulicDistribution &network,
                     const HydraulicSimulationResult *simulation_result,
                     const QHash<QUuid, InfrastructureEntity> &error_entities,
                     const QHash<QUuid, QString> &error_tooltips)
@@ -1903,7 +1903,7 @@ private:
         }
     }
 
-    void buildPumps(const NetworkHydraulic &network,
+    void buildPumps(const NetworkHydraulicDistribution &network,
                     const HydraulicSimulationResult *simulation_result,
                     const QHash<QUuid, InfrastructureEntity> &error_entities,
                     const QHash<QUuid, QString> &error_tooltips)
@@ -2053,7 +2053,7 @@ private:
         }
     }
 
-    void buildValves(const NetworkHydraulic &network,
+    void buildValves(const NetworkHydraulicDistribution &network,
                      const HydraulicSimulationResult *simulation_result,
                      const QHash<QUuid, InfrastructureEntity> &error_entities,
                      const QHash<QUuid, QString> &error_tooltips)

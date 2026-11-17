@@ -8,7 +8,7 @@
 #include "test_harness.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <QCoreApplication>
@@ -328,7 +328,7 @@ void test3dSelectedGroupGeometryIsAtomic()
 
 void testCaptureOnlyTouchedEntities()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNetworkEditor editor(network);
     HydraulicEditTransactionCapture create(QStringLiteral("hydraulic.junction.create"));
     const QUuid junction = editor.addJunction(coordinate(50.1, 8.4));
@@ -393,14 +393,14 @@ void expectCollection(bool condition, const char *type, const char *detail)
 }
 
 template<typename T>
-void testCollectionCapture(QList<T> NetworkHydraulic::*collection,
+void testCollectionCapture(QList<T> NetworkHydraulicDistribution::*collection,
                            const char *type, quint16 kind, quint16 ordinal)
 {
-    NetworkHydraulic before;
+    NetworkHydraulicDistribution before;
     before.uuid = createUuidV7();
     before.id = QStringLiteral("HC-01 network");
-    NetworkHydraulic live = before;
-    NetworkHydraulic staged = before;
+    NetworkHydraulicDistribution live = before;
+    NetworkHydraulicDistribution staged = before;
     T entity;
     entity.uuid = createUuidV7();
     entity.id = QStringLiteral("HC01-original");
@@ -438,8 +438,8 @@ void testCollectionCapture(QList<T> NetworkHydraulic::*collection,
         membership.first().collection_index == ordinal && membership.first().inserted &&
         membership.first().entity_id == entity_id && membership.first().network_id == before.uuid,
         type, "create maps to the exact DVMDB record kind and collection ordinal");
-    expectCollection(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+    expectCollection(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                      type, "create replay equals the edited network");
 
     // No-op must produce neither a new event nor a changed membership.
@@ -471,17 +471,17 @@ void testCollectionCapture(QList<T> NetworkHydraulic::*collection,
         records.first().payload == updated_bytes,
         type, "update replays without a membership mutation");
     if (!updated) return;
-    const QByteArray staged_after_update = aowis::model::ModelCodec<NetworkHydraulic>::encode(staged);
+    const QByteArray staged_after_update = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged);
     const QList<PersonalWorkingCopyChange> old_records = records;
     const QList<HydraulicDraftMembershipEdit> old_membership = membership;
     error.clear();
     expectCollection(!HydraulicDraftEventAdapter::prepareWithMembership(
         *update_bytes, staged, records, membership, &error) && !error.isEmpty() &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) == staged_after_update &&
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) == staged_after_update &&
         records.size() == old_records.size() &&
         membership.size() == old_membership.size(),
         type, "stale repeat is rejected without modifying staged model or outputs");
-    expectCollection(staged_after_update == aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+    expectCollection(staged_after_update == aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                      type, "update replay equals the edited network");
 
     // Deletion: carries the typed before-image and a removal intent.
@@ -505,8 +505,8 @@ void testCollectionCapture(QList<T> NetworkHydraulic::*collection,
         !membership.first().inserted && membership.first().collection_index == ordinal,
         type, "delete replays with the exact membership removal");
     if (deleted)
-        expectCollection(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                         aowis::model::ModelCodec<NetworkHydraulic>::encode(before),
+        expectCollection(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                         aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(before),
                          type, "create/update/delete returns to the canonical base");
 }
 
@@ -519,14 +519,14 @@ void testAllHydraulicEntityCollectionCapture()
         ;
     static_assert(collection_count == 18, "Hydraulic capture must cover every MODEL entity collection");
 #define TEST_HYDRAULIC_COLLECTION(name, type, kind, ordinal) \
-    testCollectionCapture<type>(&NetworkHydraulic::name, #type, kind, ordinal);
+    testCollectionCapture<type>(&NetworkHydraulicDistribution::name, #type, kind, ordinal);
     AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(TEST_HYDRAULIC_COLLECTION)
 #undef TEST_HYDRAULIC_COLLECTION
 }
 
 void testAmbiguousAndNullHydraulicCapture()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     network.uuid = createUuidV7();
     network.id = QStringLiteral("HC01-ambiguous");
     const QUuid shared = createUuidV7();
@@ -626,7 +626,7 @@ void testHydraulicDataLogicalOperations()
                                 "deletion contains a reversible before image");
     }
     test_harness.expectTrue(capture_error.isEmpty(), "no encoding errors in covered operations");
-    data.replaceNetworkHydraulic(NetworkHydraulic{}, {});
+    data.replaceNetworkHydraulicDistribution(NetworkHydraulicDistribution{}, {});
     test_harness.expectTrue(!data.logicalEditCaptureEnabled(),
                             "switching model disables history capture until new working copy is bound");
 }
@@ -636,11 +636,11 @@ void testHydraulicDataLogicalOperations()
 // split of a pipe that is not the last one is the case that used to differ.
 void testPipeSplitKeepsCanonicalCollectionOrder()
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Split order");
     HydraulicData data;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     const QUuid first = data.addJunction(coordinate(50.1, 8.4));
     const QUuid middle = data.addJunction(coordinate(50.2, 8.5));
     const QUuid last = data.addJunction(coordinate(50.3, 8.6));
@@ -649,11 +649,11 @@ void testPipeSplitKeepsCanonicalCollectionOrder()
     const QUuid split_pipe = data.addPipe(first, middle, vertices);
     const QUuid trailing_pipe = data.addPipe(middle, last, {});
     test_harness.expectTrue(!split_pipe.isNull() && !trailing_pipe.isNull() &&
-                            data.networkHydraulic().links_pipes.size() == 2 &&
-                            data.networkHydraulic().links_pipes.first().uuid == split_pipe,
+                            data.networkHydraulicDistribution().links_pipes.size() == 2 &&
+                            data.networkHydraulicDistribution().links_pipes.first().uuid == split_pipe,
                             "split pipe is not the last pipe");
 
-    const NetworkHydraulic verified = data.networkHydraulic();
+    const NetworkHydraulicDistribution verified = data.networkHydraulicDistribution();
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
                      &data, [&events](const QByteArray &bytes) { events.append(bytes); });
@@ -662,11 +662,11 @@ void testPipeSplitKeepsCanonicalCollectionOrder()
     const QUuid created_pipe = data.splitPipeAtVertex(split_pipe, 0, inserted);
     test_harness.expectTrue(!created_pipe.isNull() && events.size() == 2,
                             "junction and split are two captured events");
-    test_harness.expectTrue(data.networkHydraulic().links_pipes.size() == 3 &&
-                            data.networkHydraulic().links_pipes.last().uuid == created_pipe,
+    test_harness.expectTrue(data.networkHydraulicDistribution().links_pipes.size() == 3 &&
+                            data.networkHydraulicDistribution().links_pipes.last().uuid == created_pipe,
                             "the pipe created by a split is appended");
 
-    NetworkHydraulic staged = verified;
+    NetworkHydraulicDistribution staged = verified;
     for (const QByteArray &event : events)
     {
         QList<PersonalWorkingCopyChange> records;
@@ -676,8 +676,8 @@ void testPipeSplitKeepsCanonicalCollectionOrder()
                                     event, staged, records, membership, &error),
                                 "captured split events replay on the verified candidate");
     }
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                             "replayed candidate equals the live model byte for byte after a split");
 }
 
@@ -689,10 +689,10 @@ void testDraftStageRefusesUnsaveableEvent()
     QTemporaryDir root;
     const QUuid repository = createUuidV7();
     const QUuid draft = createUuidV7();
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Bulk guard");
-    NetworkHydraulic live = base;
+    NetworkHydraulicDistribution live = base;
     HydraulicNetworkEditor editor(live);
     HydraulicEditTransactionCapture bulk(QStringLiteral("hydraulic.junction.bulk"));
     for (int index = 0; index < 130; ++index)
@@ -828,10 +828,10 @@ void testOrderedHydraulicDraftRecordMapping()
     // A checked-out hydraulic model always has a persistent network identity.
     // An empty HydraulicData instance is only an editor scratch model and is
     // intentionally rejected by MODEL's dependency validator.
-    NetworkHydraulic initial_network;
+    NetworkHydraulicDistribution initial_network;
     initial_network.uuid = createUuidV7();
     initial_network.id = QStringLiteral("draft-adapter-regression");
-    data.replaceNetworkHydraulic(std::move(initial_network), {});
+    data.replaceNetworkHydraulicDistribution(std::move(initial_network), {});
     const QUuid a = data.addJunction(coordinate(50.0, 8.0));
     const QUuid b = data.addJunction(coordinate(50.1, 8.1));
     const QUuid pipe = data.addPipe(a, b, {});
@@ -839,7 +839,7 @@ void testOrderedHydraulicDraftRecordMapping()
                             "initial hydraulic model exists without history capture");
     if (pipe.isNull())
         return;
-    NetworkHydraulic staged = data.networkHydraulic();
+    NetworkHydraulicDistribution staged = data.networkHydraulicDistribution();
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
                      [&events](const QByteArray &bytes) { events.append(bytes); });
@@ -879,19 +879,19 @@ void testOrderedHydraulicDraftRecordMapping()
                             records.at(0).uuid == pipe.toString(QUuid::WithoutBraces) &&
                             records.at(0).kind == 4 && records.at(0).references == endpoints,
                             "pipe's canonical references are sorted endpoint UUIDs");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                             "ordered event replay reaches the exact edited network");
 
     QByteArray corrupted = events.at(1);
     corrupted[corrupted.size() - 1] = static_cast<char>(
         corrupted.at(corrupted.size() - 1) ^ 1);
-    NetworkHydraulic corrupted_staged = staged;
+    NetworkHydraulicDistribution corrupted_staged = staged;
     test_harness.expectTrue(!HydraulicDraftEventAdapter::prepare(
                                 corrupted, corrupted_staged, records, &error) && !error.isEmpty(),
                             "corrupt event digest fails before any candidate update");
 
-    NetworkHydraulic stale = staged;
+    NetworkHydraulicDistribution stale = staged;
     const QList<PersonalWorkingCopyChange> old_records = records;
     test_harness.expectTrue(!HydraulicDraftEventAdapter::prepare(events.at(0), stale, records, &error) &&
                             !error.isEmpty(),
@@ -899,8 +899,8 @@ void testOrderedHydraulicDraftRecordMapping()
     test_harness.expectTrue(records.size() == old_records.size() &&
                             !records.isEmpty() && !old_records.isEmpty() &&
                             records.first().payload == old_records.first().payload &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(stale) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(staged),
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(stale) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged),
                             "failed replay leaves candidate model and caller records untouched");
 
     // A new member also needs a DVMDB membership-chunk update; the adapter
@@ -920,10 +920,10 @@ void testOrderedHydraulicDraftRecordMapping()
 void testHydraulicDraftMembershipIntents()
 {
     HydraulicData data;
-    NetworkHydraulic initial;
+    NetworkHydraulicDistribution initial;
     initial.uuid = createUuidV7();
     initial.id = QStringLiteral("membership-regression");
-    data.replaceNetworkHydraulic(std::move(initial), {});
+    data.replaceNetworkHydraulicDistribution(std::move(initial), {});
     const QUuid first = data.addJunction(coordinate(50.0, 8.0));
     const QUuid second = data.addJunction(coordinate(50.1, 8.1));
     const QUuid pipe = data.addPipe(first, second, {});
@@ -934,7 +934,7 @@ void testHydraulicDraftMembershipIntents()
         test_harness.expectTrue(false, "base hydraulic model for membership test is valid");
         return;
     }
-    NetworkHydraulic staged = data.networkHydraulic();
+    NetworkHydraulicDistribution staged = data.networkHydraulicDistribution();
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
                      [&events](const QByteArray &bytes) { events.append(bytes); });
@@ -966,23 +966,23 @@ void testHydraulicDraftMembershipIntents()
                             membership.first().kind == 1 &&
                             membership.first().collection_index == 9,
                             "insertion carries network ownership and canonical collection ordinal");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                             "prepared insertion advances exactly to the editor model");
 
     // Entity-only /save-events cannot materialize the membership chunks.
-    NetworkHydraulic incomplete = data.networkHydraulic();
+    NetworkHydraulicDistribution incomplete = data.networkHydraulicDistribution();
     incomplete.nodes_junctions.removeLast();
     QList<PersonalWorkingCopyChange> sentinel;
     PersonalWorkingCopyChange old;
     old.uuid = QStringLiteral("sentinel");
     sentinel.append(old);
-    const QByteArray before_incomplete = aowis::model::ModelCodec<NetworkHydraulic>::encode(incomplete);
+    const QByteArray before_incomplete = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(incomplete);
     test_harness.expectTrue(!HydraulicDraftEventAdapter::prepare(
                                 events.first(), incomplete, sentinel, &error) &&
                             error.contains(QStringLiteral("membership")),
                             "record-only API refuses to acknowledge insertion");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(incomplete) ==
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(incomplete) ==
                             before_incomplete && sentinel.size() == 1 &&
                             sentinel.first().uuid == QStringLiteral("sentinel"),
                             "refused insertion leaves staged state and records intact");
@@ -1029,8 +1029,8 @@ void testHydraulicDraftMembershipIntents()
     }
     test_harness.expectTrue(membership.size() == 2 && membership_junction && membership_pipe,
                             "only removed members have membership delete intents");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                             "cascading operation replays exactly against staged model");
 }
 
@@ -1038,7 +1038,7 @@ void testHydraulicDraftMembershipIntents()
 // Invalid attempts must leave canonical bytes unchanged and emit no edit.
 void testHydraulicLibraryReferenceValidation()
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("library-reference-guard");
     const QUuid missing = createUuidV7();
@@ -1106,7 +1106,7 @@ void testHydraulicLibraryReferenceValidation()
     base.links_valves.append(valve);
 
     HydraulicData data;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
@@ -1114,7 +1114,7 @@ void testHydraulicLibraryReferenceValidation()
     QObject::connect(&data, &HydraulicData::signalLogicalEditCaptureFailed, &data,
                      [&capture_error](const QString &message) { capture_error = message; });
     data.setLogicalEditCaptureEnabled(true);
-    const QByteArray before = aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic());
+    const QByteArray before = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution());
     const bool rejected =
         !data.setDemandPointDemandPatternUuid(demand_point.uuid, 0, missing) &&
         !data.setJunctionDemandPatternUuid(junction.uuid, 0, missing) &&
@@ -1128,7 +1128,7 @@ void testHydraulicLibraryReferenceValidation()
         !data.setValveHeadLossCurveUuid(valve.uuid, missing) &&
         !data.setValveCharacteristicCurveUuid(valve.uuid, missing);
     test_harness.expectTrue(rejected && events.isEmpty() && capture_error.isEmpty() &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) == before,
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) == before,
                             "all eleven missing library references are rejected without mutation or autosave");
 
     // A known UUID from the wrong library must not accidentally pass.
@@ -1148,7 +1148,7 @@ void testHydraulicLibraryReferenceValidation()
     if (!accepted || events.size() != 5)
         return;
 
-    NetworkHydraulic staged = base;
+    NetworkHydraulicDistribution staged = base;
     QString error;
     bool replayed = true;
     for (const QByteArray &event : events)
@@ -1163,8 +1163,8 @@ void testHydraulicLibraryReferenceValidation()
         }
     }
     test_harness.expectTrue(replayed && error.isEmpty() &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                             "valid library reference edits replay to exactly the live canonical network");
 }
 
@@ -1172,16 +1172,16 @@ void testHydraulicLibraryReferenceValidation()
 // constructing MODEL edits directly as the HC-01 registry tests do.
 template<typename Entity>
 void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
-                     QList<Entity> NetworkHydraulic::*collection,
+                     QList<Entity> NetworkHydraulicDistribution::*collection,
                      QUuid (HydraulicData::*create)(Entity),
                      bool (HydraulicData::*update)(const Entity &),
                      bool (HydraulicData::*remove)(const QUuid &))
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("HC025 library");
     HydraulicData data;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
@@ -1197,7 +1197,7 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
                      (created.toRfc4122().at(6) & 0xf0) == 0x70 && events.size() == 1 &&
                      capture_error.isEmpty(), name, "create assigns UUIDv7 and emits one event");
     if (events.size() != 1 || created.isNull()) return;
-    NetworkHydraulic staged = base;
+    NetworkHydraulicDistribution staged = base;
     QString error;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
@@ -1211,7 +1211,7 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
                      (staged.*collection).size() == 1,
                      name, "create replays with correct membership insertion");
     if (!inserted) return;
-    Entity changed = (data.networkHydraulic().*collection).first();
+    Entity changed = (data.networkHydraulicDistribution().*collection).first();
     changed.id = QStringLiteral("Library updated");
     const bool updated = (data.*update)(changed);
     expectCollection(updated && events.size() == 2 && capture_error.isEmpty(),
@@ -1221,8 +1221,8 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
         events.at(1), staged, records, membership, &error);
     expectCollection(replayed_update && records.size() == 1 && !records.first().deleted &&
                      records.first().kind == kind && membership.isEmpty() &&
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                      name, "update preserves membership and matches canonical live network");
     const int count_before_noop = events.size();
     const bool noop = (data.*update)(changed);
@@ -1241,10 +1241,10 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
     expectCollection(replayed_delete && records.size() == 1 && records.first().deleted &&
                      records.first().kind == kind && membership.size() == 1 &&
                      !membership.first().inserted && membership.first().collection_index == ordinal &&
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                     aowis::model::ModelCodec<NetworkHydraulic>::encode(base),
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                     aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(base),
                      name, "delete removes membership and reconstructs the original network");
     expectCollection(!(data.*remove)(created) && events.size() == 3,
                      name, "second delete is rejected without event");
@@ -1253,36 +1253,36 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
 void testHydraulicLibraryCrud()
 {
     testLibraryCrud<HydraulicPipeMaterial>("HydraulicPipeMaterial", 8, 0,
-        &NetworkHydraulic::pipe_materials, &HydraulicData::addPipeMaterial,
+        &NetworkHydraulicDistribution::pipe_materials, &HydraulicData::addPipeMaterial,
         &HydraulicData::updatePipeMaterial, &HydraulicData::removePipeMaterial);
     testLibraryCrud<HydraulicPatternTime>("HydraulicPatternTime", 9, 1,
-        &NetworkHydraulic::patterns_time, &HydraulicData::addPatternTime,
+        &NetworkHydraulicDistribution::patterns_time, &HydraulicData::addPatternTime,
         &HydraulicData::updatePatternTime, &HydraulicData::removePatternTime);
     testLibraryCrud<HydraulicCurveTankVolume>("HydraulicCurveTankVolume", 10, 2,
-        &NetworkHydraulic::curves_tank_volume, &HydraulicData::addCurveTankVolume,
+        &NetworkHydraulicDistribution::curves_tank_volume, &HydraulicData::addCurveTankVolume,
         &HydraulicData::updateCurveTankVolume, &HydraulicData::removeCurveTankVolume);
     testLibraryCrud<HydraulicCurvePumpHead>("HydraulicCurvePumpHead", 11, 3,
-        &NetworkHydraulic::curves_pump_head, &HydraulicData::addCurvePumpHead,
+        &NetworkHydraulicDistribution::curves_pump_head, &HydraulicData::addCurvePumpHead,
         &HydraulicData::updateCurvePumpHead, &HydraulicData::removeCurvePumpHead);
     testLibraryCrud<HydraulicCurvePumpEfficiency>("HydraulicCurvePumpEfficiency", 12, 4,
-        &NetworkHydraulic::curves_pump_efficiency, &HydraulicData::addCurvePumpEfficiency,
+        &NetworkHydraulicDistribution::curves_pump_efficiency, &HydraulicData::addCurvePumpEfficiency,
         &HydraulicData::updateCurvePumpEfficiency, &HydraulicData::removeCurvePumpEfficiency);
     testLibraryCrud<HydraulicCurveValveHeadloss>("HydraulicCurveValveHeadloss", 13, 5,
-        &NetworkHydraulic::curves_valve_headloss, &HydraulicData::addCurveValveHeadloss,
+        &NetworkHydraulicDistribution::curves_valve_headloss, &HydraulicData::addCurveValveHeadloss,
         &HydraulicData::updateCurveValveHeadloss, &HydraulicData::removeCurveValveHeadloss);
     testLibraryCrud<HydraulicCurveValveCharacteristic>("HydraulicCurveValveCharacteristic", 14, 6,
-        &NetworkHydraulic::curves_valve_characteristic, &HydraulicData::addCurveValveCharacteristic,
+        &NetworkHydraulicDistribution::curves_valve_characteristic, &HydraulicData::addCurveValveCharacteristic,
         &HydraulicData::updateCurveValveCharacteristic, &HydraulicData::removeCurveValveCharacteristic);
     testLibraryCrud<HydraulicCurveGeneric>("HydraulicCurveGeneric", 15, 7,
-        &NetworkHydraulic::curves_generic, &HydraulicData::addCurveGeneric,
+        &NetworkHydraulicDistribution::curves_generic, &HydraulicData::addCurveGeneric,
         &HydraulicData::updateCurveGeneric, &HydraulicData::removeCurveGeneric);
 }
 
 // A deletion must be refused if the library UUID is still used anywhere in
-// the NetworkHydraulic model (including the network-root options).
+// the NetworkHydraulicDistribution model (including the network-root options).
 void testHydraulicLibraryDeleteReferences()
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("HC025 references");
     HydraulicPipeMaterial material;
@@ -1326,12 +1326,12 @@ void testHydraulicLibraryDeleteReferences()
     valve.characteristic_curve_uuid = characteristic.uuid;
     base.links_valves.append(valve);
     HydraulicData data;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
                      &data, [&events](const QByteArray &bytes) { events.append(bytes); });
     data.setLogicalEditCaptureEnabled(true);
-    const QByteArray unchanged = aowis::model::ModelCodec<NetworkHydraulic>::encode(base);
+    const QByteArray unchanged = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(base);
     const bool refused =
         !data.removePipeMaterial(material.uuid) &&
         !data.removePatternTime(pattern.uuid) &&
@@ -1341,13 +1341,13 @@ void testHydraulicLibraryDeleteReferences()
         !data.removeCurveValveHeadloss(head_loss.uuid) &&
         !data.removeCurveValveCharacteristic(characteristic.uuid);
     test_harness.expectTrue(refused && events.isEmpty() &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) == unchanged,
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) == unchanged,
         "HC02.5 refuses all seven referenced library deletions without dirtying model");
     // Network-root references cannot yet be saved by HC-02, but they must
     // still prevent deletion of a pattern in HC-02.5.
     base.links_pumps.clear();
     base.options_hydraulic.default_demand_pattern_uuid = pattern.uuid;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     data.setLogicalEditCaptureEnabled(true);
     test_harness.expectTrue(!data.removePatternTime(pattern.uuid) && events.isEmpty(),
                             "HC02.5 network-root default-demand pattern blocks deletion");
@@ -1398,10 +1398,10 @@ void testVerifiedDraftStageReplayAndAck()
     QTemporaryDir root;
     const QUuid repository = createUuidV7();
     const QUuid draft = createUuidV7();
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Draft Network");
-    NetworkHydraulic live = base;
+    NetworkHydraulicDistribution live = base;
     HydraulicNetworkEditor editor(live);
     QString error;
 
@@ -1430,11 +1430,11 @@ void testVerifiedDraftStageReplayAndAck()
                             "two events durably queued before remote submission");
     test_harness.expectTrue(stage.pendingCount() == 2 && stage.persistedNetwork().nodes_junctions.isEmpty(),
                             "server candidate remains unchanged while live model has pending edits");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(stage.visibleNetwork()) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(stage.visibleNetwork()) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                             "local replay reaches the exact live edited network");
 
-    NetworkHydraulic first_candidate;
+    NetworkHydraulicDistribution first_candidate;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
     test_harness.expectTrue(stage.prepareOldest(first_candidate, records, membership, &error),
@@ -1455,10 +1455,10 @@ void testVerifiedDraftStageReplayAndAck()
                                             first_candidate, *created, &error),
                             "authoritative journal tail allows recovery of a lost Save acknowledgement");
     test_harness.expectTrue(recovered.pendingCount() == 1 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.visibleNetwork()) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.visibleNetwork()) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                             "recovery drops only saved event and replays later pending edits");
-    NetworkHydraulic second_candidate;
+    NetworkHydraulicDistribution second_candidate;
     test_harness.expectTrue(recovered.prepareOldest(second_candidate, records, membership, &error),
                             "prepare pending update from verified post-create candidate");
     test_harness.expectTrue(membership.isEmpty() && records.size() == 1 &&
@@ -1468,8 +1468,8 @@ void testVerifiedDraftStageReplayAndAck()
     test_harness.expectTrue(recovered.acknowledgeOldest(*updated, &error) &&
                             recovered.pendingCount() == 0,
                             "confirmed second journal event advances remote candidate and empties local queue");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.persistedNetwork()) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.persistedNetwork()) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                             "verified and live models converge after both acknowledgements");
 }
 
@@ -1482,11 +1482,11 @@ void testStructuralDraftRecoveryAcrossRestart()
 
     const QUuid repository = createUuidV7();
     const QUuid draft = createUuidV7();
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("structural-draft-restart");
     HydraulicData live;
-    live.replaceNetworkHydraulic(base, {});
+    live.replaceNetworkHydraulicDistribution(base, {});
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&live, &HydraulicData::signalLogicalEditRecorded, &live,
@@ -1520,15 +1520,15 @@ void testStructuralDraftRecoveryAcrossRestart()
             return;
         }
     }
-    const QByteArray expected = aowis::model::ModelCodec<NetworkHydraulic>::encode(
-        live.networkHydraulic());
+    const QByteArray expected = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
+        live.networkHydraulicDistribution());
     test_harness.expectTrue(stage.pendingCount() == 5 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
                                 stage.visibleNetwork()) == expected,
                             "offline replay reproduces final network including cascade deletion");
 
     // Simulate two successful server Saves, with later local events still pending.
-    NetworkHydraulic candidate;
+    NetworkHydraulicDistribution candidate;
     QList<PersonalWorkingCopyChange> changes;
     QList<HydraulicDraftMembershipEdit> membership;
     for (int index = 0; index < 2; ++index)
@@ -1550,7 +1550,7 @@ void testStructuralDraftRecoveryAcrossRestart()
     }
     test_harness.expectTrue(stage.pendingCount() == 3,
                             "only acknowledged events are removed before restart");
-    const NetworkHydraulic verified_after_two = stage.persistedNetwork();
+    const NetworkHydraulicDistribution verified_after_two = stage.persistedNetwork();
     stage.close();
 
     PersonalDraftEditStage restarted;
@@ -1560,7 +1560,7 @@ void testStructuralDraftRecoveryAcrossRestart()
     if (!restarted.isOpen())
         return;
     test_harness.expectTrue(restarted.pendingCount() == 3 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
                                 restarted.visibleNetwork()) == expected,
                             "restart reconstructs identical complete network from persisted candidate and queue");
     if (!restarted.prepareOldest(candidate, changes, membership, &error))
@@ -1587,7 +1587,7 @@ void testStructuralDraftRecoveryAcrossRestart()
     if (!recovered.isOpen())
         return;
     test_harness.expectTrue(recovered.pendingCount() == 2 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
                                 recovered.visibleNetwork()) == expected,
                             "recovery retires only confirmed pipe event and retains later edits");
     if (!recovered.prepareOldest(candidate, changes, membership, &error))
@@ -1611,27 +1611,27 @@ void testStructuralDraftRecoveryAcrossRestart()
                             "cascading junction/pipe deletion sends two atomic membership removals");
     test_harness.expectTrue(recovered.acknowledgeOldest(events.at(4), &error) &&
                             recovered.pendingCount() == 0 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
                                 recovered.persistedNetwork()) == expected,
                             "all five remote acknowledgements converge to exact live hydraulic model");
-    const NetworkHydraulic authoritative_final = recovered.persistedNetwork();
+    const NetworkHydraulicDistribution authoritative_final = recovered.persistedNetwork();
     recovered.close();
     PersonalDraftEditStage final_reopen;
     test_harness.expectTrue(final_reopen.open(root.path(), repository, draft,
                                               authoritative_final, events.at(4), &error) &&
                             final_reopen.pendingCount() == 0 &&
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
                                 final_reopen.visibleNetwork()) == expected,
                             "second restart leaves no duplicates, ghost links or unsaved transactions");
 }
 
 void testPumpSimpleControlCaptureAndCascades()
 {
-    NetworkHydraulic initial;
+    NetworkHydraulicDistribution initial;
     initial.uuid = createUuidV7();
     initial.id = QStringLiteral("HC02 controls");
     HydraulicData data;
-    data.replaceNetworkHydraulic(std::move(initial), {});
+    data.replaceNetworkHydraulicDistribution(std::move(initial), {});
     const QUuid trigger = data.addJunction(coordinate(50.0, 8.0));
     const QUuid other = data.addJunction(coordinate(50.1, 8.1));
     const QUuid pump = data.addPump(trigger, other, coordinate(50.05, 8.05));
@@ -1639,7 +1639,7 @@ void testPumpSimpleControlCaptureAndCascades()
                             "HC02 creates a valid pump and trigger node");
     if (pump.isNull())
         return;
-    NetworkHydraulic staged = data.networkHydraulic();
+    NetworkHydraulicDistribution staged = data.networkHydraulicDistribution();
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
@@ -1666,7 +1666,7 @@ void testPumpSimpleControlCaptureAndCascades()
                             added->edits.first().after.has_value(),
                             "HC02 control creation captures the control, not its pump");
 
-    HydraulicControlSimple changed = data.networkHydraulic().controls_simple.first();
+    HydraulicControlSimple changed = data.networkHydraulicDistribution().controls_simple.first();
     changed.id = QStringLiteral("C-modified");
     test_harness.expectTrue(data.setPumpSimpleControl(pump, changed) && events.size() == 2,
                             "HC02 control modification records a transaction");
@@ -1694,7 +1694,7 @@ void testPumpSimpleControlCaptureAndCascades()
     const int before_pump_delete = events.size();
     test_harness.expectTrue(!next_control.isNull() && data.deletePump(pump) &&
                             events.size() == before_pump_delete + 1 &&
-                            data.networkHydraulic().controls_simple.isEmpty(),
+                            data.networkHydraulicDistribution().controls_simple.isEmpty(),
                             "HC02 pump deletion cascades to its controls in one transaction");
     if (events.size() != before_pump_delete + 1) return;
     const std::optional<aowis::model::ModelEditTransaction> deleted_pump = decoded(events.last());
@@ -1721,8 +1721,8 @@ void testPumpSimpleControlCaptureAndCascades()
     test_harness.expectTrue(!second_pump.isNull() && !triggered_control.isNull() &&
                             data.deleteJunction(trigger) &&
                             events.size() == before_node_delete + 1 &&
-                            data.networkHydraulic().controls_simple.isEmpty() &&
-                            data.networkHydraulic().links_pumps.isEmpty(),
+                            data.networkHydraulicDistribution().controls_simple.isEmpty() &&
+                            data.networkHydraulicDistribution().links_pumps.isEmpty(),
                             "HC02 node deletion cascades pump and control together");
     if (events.size() != before_node_delete + 1) return;
     const std::optional<aowis::model::ModelEditTransaction> deleted_node = decoded(events.last());
@@ -1748,9 +1748,9 @@ void testPumpSimpleControlCaptureAndCascades()
         (QStringLiteral("HC02 replay of control edits succeeds: ") + replay_error).toUtf8();
     test_harness.expectTrue(replay_successful, replay_message.constData());
     if (replay_successful)
-        test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                                aowis::model::ModelCodec<NetworkHydraulic>::encode(
-                                    data.networkHydraulic()),
+        test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
+                                    data.networkHydraulicDistribution()),
                                 "HC02 control, pump and node cascades replay to exact MODEL bytes");
     test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
                             "HC02 controls never silently disable capture");
@@ -1763,7 +1763,7 @@ void testRuleControlDeletionCascades()
 {
     for (int scenario = 0; scenario < 6; ++scenario)
     {
-        NetworkHydraulic baseline;
+        NetworkHydraulicDistribution baseline;
         baseline.uuid = createUuidV7();
         baseline.id = QStringLiteral("HC02-rule-cascade");
         HydraulicNetworkEditor seed(baseline);
@@ -1850,8 +1850,8 @@ void testRuleControlDeletionCascades()
         baseline.map_labels = {target_label, stable_label};
 
         HydraulicData data;
-        data.replaceNetworkHydraulic(baseline, {});
-        NetworkHydraulic staged = baseline;
+        data.replaceNetworkHydraulicDistribution(baseline, {});
+        NetworkHydraulicDistribution staged = baseline;
         QList<QByteArray> events;
         QString capture_error;
         QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
@@ -1868,12 +1868,12 @@ void testRuleControlDeletionCascades()
             : data.deleteTank(first);
         const int expected_rule_count = is_node ? 1 : 2;
         test_harness.expectTrue(deleted && events.size() == 1 &&
-                                data.networkHydraulic().controls_rules.size() == expected_rule_count,
+                                data.networkHydraulicDistribution().controls_rules.size() == expected_rule_count,
                                 "HC02 rule cascade deletion emits exactly one transaction");
         if (!deleted || events.size() != 1) continue;
         bool unrelated_kept = false;
         bool node_rule_kept = false;
-        for (const HydraulicControlRule &rule : data.networkHydraulic().controls_rules)
+        for (const HydraulicControlRule &rule : data.networkHydraulicDistribution().controls_rules)
         {
             unrelated_kept = unrelated_kept || rule.uuid == unrelated_rule.uuid;
             node_rule_kept = node_rule_kept || rule.uuid == node_rule.uuid;
@@ -1882,7 +1882,7 @@ void testRuleControlDeletionCascades()
                                 "HC02 rule cascade retains only independent rules");
         bool target_label_preserved = false;
         bool stable_label_preserved = false;
-        for (const HydraulicMapLabel &label : data.networkHydraulic().map_labels)
+        for (const HydraulicMapLabel &label : data.networkHydraulicDistribution().map_labels)
         {
             if (label.uuid == target_label.uuid)
                 target_label_preserved = label.text == target_label.text &&
@@ -1893,7 +1893,7 @@ void testRuleControlDeletionCascades()
                     label.text == stable_label.text;
         }
         test_harness.expectTrue(target_label_preserved && stable_label_preserved &&
-                                data.networkHydraulic().map_labels.size() == 2,
+                                data.networkHydraulicDistribution().map_labels.size() == 2,
                                 "HC02 node deletion detaches only dependent map label anchors");
 
         const std::optional<aowis::model::ModelEditTransaction> transaction = decoded(events.first());
@@ -1933,8 +1933,8 @@ void testRuleControlDeletionCascades()
         test_harness.expectTrue(replayed, message.constData());
         if (replayed)
             test_harness.expectTrue(
-                aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
                 membership.size() == (is_node ? 6 : 4) &&
                 records.size() == (is_node ? 7 : 4),
                 "HC02 rule and map-label cascade replays with exact membership and canonical images");
@@ -1948,7 +1948,7 @@ void testRuleControlDeletionCascades()
 // without matching DVMDB draft events and/or retain dangling references.
 void testPipeRejoinCapturesControlCascades()
 {
-    NetworkHydraulic baseline;
+    NetworkHydraulicDistribution baseline;
     baseline.uuid = createUuidV7();
     baseline.id = QStringLiteral("HC02 pipe rejoin dependencies");
     HydraulicNetworkEditor seed(baseline);
@@ -2014,8 +2014,8 @@ void testPipeRejoinCapturesControlCascades()
     baseline.controls_rules = {then_rule, else_rule, premise_rule, independent_rule};
 
     HydraulicData data;
-    data.replaceNetworkHydraulic(baseline, {});
-    NetworkHydraulic staged = baseline;
+    data.replaceNetworkHydraulicDistribution(baseline, {});
+    NetworkHydraulicDistribution staged = baseline;
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
@@ -2028,11 +2028,11 @@ void testPipeRejoinCapturesControlCascades()
                             "HC02 rejected pipe rejoin does not produce a logical transaction");
     const bool joined = data.undoPipeSplit(first_pipe, second_pipe, joining_node);
     test_harness.expectTrue(joined && events.size() == 1 &&
-                            data.networkHydraulic().controls_simple.isEmpty() &&
-                            data.networkHydraulic().controls_rules.size() == 1 &&
-                            data.networkHydraulic().controls_rules.first().uuid == independent_rule.uuid &&
-                            data.networkHydraulic().links_pipes.size() == 1 &&
-                            data.networkHydraulic().demand_points.first().attachment.pipe_uuid == first_pipe,
+                            data.networkHydraulicDistribution().controls_simple.isEmpty() &&
+                            data.networkHydraulicDistribution().controls_rules.size() == 1 &&
+                            data.networkHydraulicDistribution().controls_rules.first().uuid == independent_rule.uuid &&
+                            data.networkHydraulicDistribution().links_pipes.size() == 1 &&
+                            data.networkHydraulicDistribution().demand_points.first().attachment.pipe_uuid == first_pipe,
                             "HC02 rejoin removes dependent controls and preserves independent rules and demand");
     if (!joined || events.size() != 1)
         return;
@@ -2081,9 +2081,9 @@ void testPipeRejoinCapturesControlCascades()
         }
         test_harness.expectTrue(records.size() == 7 && membership.size() == 5 &&
                                 deletions == 5 &&
-                                aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-                                aowis::model::ModelCodec<NetworkHydraulic>::encode(
-                                    data.networkHydraulic()),
+                                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+                                aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
+                                    data.networkHydraulicDistribution()),
                                 "HC02 rejoin reconstructs exact canonical network and membership removals");
     }
     test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
@@ -2092,7 +2092,7 @@ void testPipeRejoinCapturesControlCascades()
 
 void testRuleAndMapLabelCrud()
 {
-    NetworkHydraulic baseline;
+    NetworkHydraulicDistribution baseline;
     baseline.uuid = createUuidV7();
     baseline.id = QStringLiteral("HC02 rule/map-label editing");
     HydraulicNodeJunction node_from;
@@ -2112,8 +2112,8 @@ void testRuleAndMapLabelCrud()
     baseline.links_pipes = {pipe};
 
     HydraulicData data;
-    data.replaceNetworkHydraulic(baseline, {});
-    NetworkHydraulic staged = baseline;
+    data.replaceNetworkHydraulicDistribution(baseline, {});
+    NetworkHydraulicDistribution staged = baseline;
     QList<QByteArray> events;
     QString capture_error;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
@@ -2176,8 +2176,8 @@ void testRuleAndMapLabelCrud()
                             (rule_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
                             (label_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
                             rule_uuid != label_uuid && events.size() == 2 &&
-                            data.networkHydraulic().controls_rules.size() == 1 &&
-                            data.networkHydraulic().map_labels.size() == 1,
+                            data.networkHydraulicDistribution().controls_rules.size() == 1 &&
+                            data.networkHydraulicDistribution().map_labels.size() == 1,
                             "HC02 creates rule and label with captured, distinct UUIDv7 identities");
     if (rule_uuid.isNull() || label_uuid.isNull() || events.size() != 2)
         return;
@@ -2206,8 +2206,8 @@ void testRuleAndMapLabelCrud()
                             "HC02 refuse deleting entities of other collections");
     test_harness.expectTrue(data.removeRuleControl(rule_uuid) &&
                             data.removeMapLabel(label_uuid) && events.size() == 6 &&
-                            data.networkHydraulic().controls_rules.isEmpty() &&
-                            data.networkHydraulic().map_labels.isEmpty(),
+                            data.networkHydraulicDistribution().controls_rules.isEmpty() &&
+                            data.networkHydraulicDistribution().map_labels.isEmpty(),
                             "HC02 deletes rule and label with two durable events");
     if (events.size() != 6)
         return;
@@ -2237,8 +2237,8 @@ void testRuleAndMapLabelCrud()
         if (!replayed) return;
     }
     test_harness.expectTrue(
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged) ==
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
         capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
         "HC02 rule/map-label create/update/delete replays to exact canonical network");
 }
@@ -2250,7 +2250,7 @@ void testRuleAndMapLabelCrud()
 // canonical replay. Referential identity/canonical bytes remain strict.
 void testUnsolvableNetworkDraftSurvivesRestart()
 {
-    NetworkHydraulic baseline;
+    NetworkHydraulicDistribution baseline;
     baseline.uuid = createUuidV7();
     baseline.id = QStringLiteral("INT-04 unsupplied draft");
     HydraulicNetworkEditor seed(baseline);
@@ -2269,15 +2269,15 @@ void testUnsolvableNetworkDraftSurvivesRestart()
         return;
 
     HydraulicData data;
-    data.replaceNetworkHydraulic(baseline, {});
+    data.replaceNetworkHydraulicDistribution(baseline, {});
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
                      &data, [&events](const QByteArray &bytes) { events.append(bytes); });
     data.setLogicalEditCaptureEnabled(true);
     const bool renamed = data.setNodeId(isolated, QStringLiteral("Disconnected J"));
     const bool resized = data.setPipeDiameterMm(link, 235.0);
-    NetworkHydraulic metadata =
-        aowis::model::hydraulicRootMetadata(data.networkHydraulic());
+    NetworkHydraulicDistribution metadata =
+        aowis::model::hydraulicDistributionRootMetadata(data.networkHydraulicDistribution());
     metadata.title_line_1 = QStringLiteral("Unsupplied network metadata edit");
     const bool changed_root = data.setNetworkRootMetadata(metadata);
     test_harness.expectTrue(renamed && resized && changed_root && events.size() == 3 &&
@@ -2313,8 +2313,8 @@ void testUnsolvableNetworkDraftSurvivesRestart()
     const QByteArray resume_message =
         (QStringLiteral("INT-04 unsupplied draft reopens: ") + error).toUtf8();
     test_harness.expectTrue(resumed_ok && resumed.pendingCount() == 3 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(resumed.visibleNetwork()) ==
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(resumed.visibleNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
         resume_message.constData());
     if (!resumed_ok)
         return;
@@ -2322,7 +2322,7 @@ void testUnsolvableNetworkDraftSurvivesRestart()
     bool acknowledged = true;
     for (int index = 0; index < events.size(); ++index)
     {
-        NetworkHydraulic next;
+        NetworkHydraulicDistribution next;
         QList<PersonalWorkingCopyChange> records;
         QList<HydraulicDraftMembershipEdit> membership;
         if (!resumed.prepareOldest(next, records, membership, &error) ||
@@ -2336,20 +2336,20 @@ void testUnsolvableNetworkDraftSurvivesRestart()
     const QByteArray ack_message =
         (QStringLiteral("INT-04 canonical unsupplied edits replay and acknowledge: ") + error).toUtf8();
     test_harness.expectTrue(acknowledged && resumed.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(resumed.persistedNetwork()) ==
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(resumed.persistedNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
         ack_message.constData());
     if (!acknowledged)
         return;
-    const NetworkHydraulic persisted = resumed.persistedNetwork();
+    const NetworkHydraulicDistribution persisted = resumed.persistedNetwork();
     resumed.close();
 
     PersonalDraftEditStage final_restart;
     const bool final_open = final_restart.open(directory.path(), repository, draft,
                                                persisted, {}, &error);
     test_harness.expectTrue(final_open && final_restart.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(final_restart.visibleNetwork()) ==
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()) &&
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(final_restart.visibleNetwork()) ==
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
         final_restart.visibleNetwork().nodes_reservoirs.isEmpty() &&
         final_restart.visibleNetwork().nodes_tanks.isEmpty() &&
         final_restart.visibleNetwork().nodes_junctions.size() == 3 &&
@@ -2362,10 +2362,10 @@ void testDraftStageRejectsOutOfOrderReplay()
     QTemporaryDir root;
     const QUuid repository = createUuidV7();
     const QUuid draft = createUuidV7();
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Replay Guard");
-    NetworkHydraulic live = base;
+    NetworkHydraulicDistribution live = base;
     HydraulicNetworkEditor editor(live);
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.junction.create"));
     const QUuid junction = editor.addJunction(coordinate(50.1, 8.4));
@@ -2385,7 +2385,7 @@ void testDraftStageRejectsOutOfOrderReplay()
 
     // A candidate in which the junction exists with *different* content is
     // neither the event's before state nor its result: keep the event.
-    NetworkHydraulic diverged = live;
+    NetworkHydraulicDistribution diverged = live;
     HydraulicNetworkEditor diverged_editor(diverged);
     test_harness.expectTrue(diverged_editor.setNodeId(junction, QStringLiteral("J-elsewhere")),
                             "prepare a diverged candidate");
@@ -2406,8 +2406,8 @@ void testDraftStageRejectsOutOfOrderReplay()
     test_harness.expectTrue(recovered.open(root.path(), repository, draft, live, {}, &error) &&
                             recovered.pendingCount() == 0,
                             "an already applied oldest event is acknowledged on reopen");
-    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.visibleNetwork()) ==
-                            aowis::model::ModelCodec<NetworkHydraulic>::encode(live),
+    test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.visibleNetwork()) ==
+                            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(live),
                             "the recovered candidate is used unchanged");
 }
 
@@ -2416,8 +2416,8 @@ void testDraftStageRejectsOutOfOrderReplay()
 // isolated single-entity fixtures. The event queue must preserve exactly the
 // same canonical MODEL bytes across both pending and acknowledged restarts.
 template<typename Entity>
-bool captureInt05Insertion(NetworkHydraulic &network,
-                           QList<Entity> NetworkHydraulic::*collection,
+bool captureInt05Insertion(NetworkHydraulicDistribution &network,
+                           QList<Entity> NetworkHydraulicDistribution::*collection,
                            const QString &name, QList<QByteArray> &events)
 {
     Entity entity;
@@ -2437,15 +2437,15 @@ bool captureInt05Insertion(NetworkHydraulic &network,
 
 void testInt05CompleteNetworkQueueRoundTrip()
 {
-    NetworkHydraulic baseline;
+    NetworkHydraulicDistribution baseline;
     baseline.uuid = createUuidV7();
     baseline.id = QStringLiteral("INT-05 complete network");
-    NetworkHydraulic network = baseline;
+    NetworkHydraulicDistribution network = baseline;
     QList<QByteArray> events;
     bool captured = true;
 #define CAPTURE_INT05_COLLECTION(name, type, kind, ordinal) \
     if (captured) \
-        captured = captureInt05Insertion<type>(network, &NetworkHydraulic::name, \
+        captured = captureInt05Insertion<type>(network, &NetworkHydraulicDistribution::name, \
                       QStringLiteral("INT05-%1").arg(ordinal), events);
     AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(CAPTURE_INT05_COLLECTION)
 #undef CAPTURE_INT05_COLLECTION
@@ -2456,13 +2456,13 @@ void testInt05CompleteNetworkQueueRoundTrip()
     // Use the real HydraulicData metadata setter, which is how GUI settings
     // must reach the same canonical event/queue transport as entity edits.
     HydraulicData editor;
-    editor.replaceNetworkHydraulic(network, {});
+    editor.replaceNetworkHydraulicDistribution(network, {});
     QList<QByteArray> root_events;
     QObject::connect(&editor, &HydraulicData::signalLogicalEditRecorded,
                      &editor, [&root_events](const QByteArray &bytes)
                      { root_events.append(bytes); });
     editor.setLogicalEditCaptureEnabled(true);
-    NetworkHydraulic metadata = aowis::model::hydraulicRootMetadata(network);
+    NetworkHydraulicDistribution metadata = aowis::model::hydraulicDistributionRootMetadata(network);
     metadata.id = QStringLiteral("INT-05 renamed network");
     metadata.title_line_1 = QStringLiteral("All 18 collections");
     metadata.title_line_2 = QStringLiteral("Saved and reopened");
@@ -2491,7 +2491,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
     if (!root_captured) return;
     events.append(root_events.first());
     const QByteArray expected =
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(editor.networkHydraulic());
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(editor.networkHydraulicDistribution());
     test_harness.expectTrue(!expected.isEmpty(), "INT-05 complete canonical network encodes");
     if (expected.isEmpty()) return;
 
@@ -2508,7 +2508,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
         queued = staged.append(bytes, &error);
     }
     test_harness.expectTrue(queued && staged.pendingCount() == 19 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(staged.visibleNetwork()) == expected,
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged.visibleNetwork()) == expected,
         "INT-05 all collections and root enter the durable queue without data loss");
     if (!queued) return;
     staged.close();
@@ -2517,13 +2517,13 @@ void testInt05CompleteNetworkQueueRoundTrip()
     const bool opened = recovered.open(directory.path(), repository, draft,
                                        baseline, {}, &error);
     test_harness.expectTrue(opened && recovered.pendingCount() == 19 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.visibleNetwork()) == expected,
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.visibleNetwork()) == expected,
         "INT-05 queued mixed network survives a fresh editing session");
     if (!opened) return;
     bool acknowledged = true;
     for (int index = 0; index < events.size(); ++index)
     {
-        NetworkHydraulic next;
+        NetworkHydraulicDistribution next;
         QList<PersonalWorkingCopyChange> records;
         QList<HydraulicDraftMembershipEdit> membership;
         if (!recovered.prepareOldest(next, records, membership, &error) ||
@@ -2539,27 +2539,27 @@ void testInt05CompleteNetworkQueueRoundTrip()
         }
     }
     test_harness.expectTrue(acknowledged && recovered.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(recovered.persistedNetwork()) == expected,
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.persistedNetwork()) == expected,
         "INT-05 19 canonical saves preserve every collection and root field");
     if (!acknowledged) return;
-    const NetworkHydraulic persisted = recovered.persistedNetwork();
+    const NetworkHydraulicDistribution persisted = recovered.persistedNetwork();
     recovered.close();
 
     PersonalDraftEditStage reopened;
     test_harness.expectTrue(reopened.open(directory.path(), repository, draft,
                                           persisted, {}, &error) &&
         reopened.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.visibleNetwork()) == expected,
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(reopened.visibleNetwork()) == expected,
         "INT-05 final reopen has exact full-network canonical equality");
 }
 
 void testMixedNetworkRootAndEntityQueueRoundTrip()
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Mixed-Network");
     base.title_line_1 = QStringLiteral("Before");
-    NetworkHydraulic updated = base;
+    NetworkHydraulicDistribution updated = base;
     updated.title_line_1 = QStringLiteral("After");
     updated.duration_s = 7200;
 
@@ -2571,9 +2571,9 @@ void testMixedNetworkRootAndEntityQueueRoundTrip()
     transaction.transactionId = createUuidV7();
     transaction.operation = QStringLiteral("hydraulic.network.mixed");
     transaction.edits.append(aowis::model::ModelEntityEdit{
-        base.uuid, QString::fromLatin1(aowis::model::hydraulicRootEditType),
-        aowis::model::hydraulicRootImage(base),
-        aowis::model::hydraulicRootImage(updated)});
+        base.uuid, QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType),
+        aowis::model::hydraulicDistributionRootImage(base),
+        aowis::model::hydraulicDistributionRootImage(updated)});
     transaction.edits.append(aowis::model::ModelEntityEdit{
         junction.uuid, QStringLiteral("HydraulicNodeJunction"), std::nullopt,
         aowis::model::ModelCodec<HydraulicNodeJunction>::encode(junction)});
@@ -2582,15 +2582,15 @@ void testMixedNetworkRootAndEntityQueueRoundTrip()
     test_harness.expectTrue(!frame.isEmpty() && error.isEmpty(),
         "INT-05 mixed root/entity operation encodes as one MODEL event");
     if (frame.isEmpty()) return;
-    NetworkHydraulic expected = updated;
+    NetworkHydraulicDistribution expected = updated;
     expected.nodes_junctions.append(junction);
-    NetworkHydraulic next = base;
+    NetworkHydraulicDistribution next = base;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
     test_harness.expectTrue(HydraulicDraftEventAdapter::prepareWithMembership(
         frame, next, records, membership, &error) &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(next) ==
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected) &&
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(next) ==
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(expected) &&
         records.size() == 1 && membership.size() == 1 &&
         membership.first().network_id == base.uuid &&
         membership.first().entity_id == junction.uuid &&
@@ -2613,32 +2613,32 @@ void testMixedNetworkRootAndEntityQueueRoundTrip()
     PersonalDraftEditStage reopened;
     const bool replayed = reopened.open(directory.path(), repository, draft, base, {}, &error);
     test_harness.expectTrue(replayed && reopened.pendingCount() == 1 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.visibleNetwork()) ==
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(reopened.visibleNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(expected),
         "INT-05 mixed event is exactly replayed after queue restart");
     if (!replayed) return;
-    NetworkHydraulic prepared;
+    NetworkHydraulicDistribution prepared;
     QList<PersonalWorkingCopyChange> queuedRecords;
     QList<HydraulicDraftMembershipEdit> queuedMembership;
     test_harness.expectTrue(reopened.prepareOldest(prepared, queuedRecords,
         queuedMembership, &error) && queuedRecords.size() == 1 &&
         queuedMembership.size() == 1 && reopened.acknowledgeOldest(frame, &error) &&
         reopened.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(reopened.persistedNetwork()) ==
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(reopened.persistedNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(expected),
         "INT-05 mixed root/entity queue acknowledgement is atomic");
     reopened.close();
     PersonalDraftEditStage finalOpen;
     test_harness.expectTrue(finalOpen.open(directory.path(), repository, draft,
         expected, {}, &error) && finalOpen.pendingCount() == 0 &&
-        aowis::model::ModelCodec<NetworkHydraulic>::encode(finalOpen.visibleNetwork()) ==
-            aowis::model::ModelCodec<NetworkHydraulic>::encode(expected),
+        aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(finalOpen.visibleNetwork()) ==
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(expected),
         "INT-05 mixed root/entity event survives final reopen");
 }
 
 void testNetworkRootMetadataCaptureAndReplay()
 {
-    NetworkHydraulic base;
+    NetworkHydraulicDistribution base;
     base.uuid = createUuidV7();
     base.id = QStringLiteral("Root-Network");
     base.title_line_1 = QStringLiteral("Original");
@@ -2648,7 +2648,7 @@ void testNetworkRootMetadataCaptureAndReplay()
     node.id = QStringLiteral("J1");
     base.nodes_junctions.append(node);
     HydraulicData data;
-    data.replaceNetworkHydraulic(base, {});
+    data.replaceNetworkHydraulicDistribution(base, {});
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
                      &data, [&events](const QByteArray &bytes) { events.append(bytes); });
@@ -2661,19 +2661,19 @@ void testNetworkRootMetadataCaptureAndReplay()
     test_harness.expectTrue(event && event->edits.size() == 1 &&
         event->edits.first().entityId == base.uuid &&
         event->edits.first().entityType ==
-            QString::fromLatin1(aowis::model::hydraulicRootEditType),
+            QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType),
         "headloss event identifies only the network root");
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
     QString error;
-    NetworkHydraulic replayed = base;
+    NetworkHydraulicDistribution replayed = base;
     test_harness.expectTrue(HydraulicDraftEventAdapter::prepareWithMembership(
         events.first(), replayed, records, membership, &error) &&
         records.isEmpty() && membership.isEmpty() &&
         replayed.options_hydraulic.headloss_formula == HydraulicHeadlossFormula::DarcyWeisbach &&
         replayed.nodes_junctions.size() == 1,
         "replay updates metadata without creating client-owned manifest records");
-    NetworkHydraulic stale = base;
+    NetworkHydraulicDistribution stale = base;
     stale.title_line_1 = QStringLiteral("Other");
     test_harness.expectTrue(!HydraulicDraftEventAdapter::prepareWithMembership(
         events.first(), stale, records, membership, &error),
@@ -2701,20 +2701,20 @@ void testNetworkRootMetadataCaptureAndReplay()
         "root metadata event replays across private draft restart");
     QList<PersonalWorkingCopyChange> stagedRecords;
     QList<HydraulicDraftMembershipEdit> stagedMembership;
-    NetworkHydraulic stagedCandidate;
+    NetworkHydraulicDistribution stagedCandidate;
     test_harness.expectTrue(reopened.prepareOldest(stagedCandidate, stagedRecords,
         stagedMembership, &error) && stagedRecords.isEmpty() && stagedMembership.isEmpty() &&
         reopened.acknowledgeOldest(events.first(), &error) && reopened.pendingCount() == 0,
         "root event can be authoritatively acknowledged without a client manifest record");
     reopened.close();
 
-    NetworkHydraulic metadata =
-        aowis::model::hydraulicRootMetadata(data.networkHydraulic());
+    NetworkHydraulicDistribution metadata =
+        aowis::model::hydraulicDistributionRootMetadata(data.networkHydraulicDistribution());
     metadata.title_line_2 = QStringLiteral("Updated network-wide metadata");
     metadata.duration_s = 7200;
     test_harness.expectTrue(data.setNetworkRootMetadata(metadata) && events.size() == 2 &&
-        data.networkHydraulic().title_line_2 == metadata.title_line_2 &&
-        data.networkHydraulic().duration_s == 7200,
+        data.networkHydraulicDistribution().title_line_2 == metadata.title_line_2 &&
+        data.networkHydraulicDistribution().duration_s == 7200,
         "generic metadata edit captures title and simulation duration together");
 }
 

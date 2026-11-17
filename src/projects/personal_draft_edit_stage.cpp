@@ -2,7 +2,7 @@
 #include "projects/hydraulic_draft_entity_registry.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
-#include <aowis/model/edit/hydraulic_root_edit.h>
+#include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
 
 #include <optional>
@@ -37,7 +37,7 @@ bool currentImage(const QList<T> &collection, const QUuid &uuid,
 // lacks every entity it deletes). That is the state the event produces, so it
 // reached DVMDB before its local acknowledgement was lost, also when a later
 // Commit has since cleared the journal that would otherwise prove it.
-bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulic &candidate)
+bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulicDistribution &candidate)
 {
     const std::optional<aowis::model::ModelEditTransaction> event =
         aowis::model::ModelEditTransactionCodec::decode(encoded_event);
@@ -45,10 +45,10 @@ bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulic
         return false;
     for (const aowis::model::ModelEntityEdit &edit : event->edits)
     {
-        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicRootEditType))
+        if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
         {
             if (edit.entityId != candidate.uuid ||
-                edit.after != aowis::model::hydraulicRootImage(candidate))
+                edit.after != aowis::model::hydraulicDistributionRootImage(candidate))
                 return false;
             continue;
         }
@@ -100,7 +100,7 @@ QString unsaveableEvent(const QByteArray &encoded_event,
 
 bool PersonalDraftEditStage::open(
     const QString &queue_root, const QUuid &repository_id, const QUuid &draft_id,
-    const NetworkHydraulic &verified_candidate,
+    const NetworkHydraulicDistribution &verified_candidate,
     const QByteArray &last_journal_event, QString *error)
 {
     close();
@@ -162,7 +162,7 @@ bool PersonalDraftEditStage::open(
 }
 
 bool PersonalDraftEditStage::resetVerifiedNetwork(
-    const NetworkHydraulic &network, QString *error)
+    const NetworkHydraulicDistribution &network, QString *error)
 {
     if (error) error->clear();
     if (!isOpen() || this->blocked_ || !this->queue_.pending().isEmpty() ||
@@ -176,8 +176,8 @@ bool PersonalDraftEditStage::resetVerifiedNetwork(
 void PersonalDraftEditStage::close()
 {
     this->queue_.close();
-    this->persisted_ = NetworkHydraulic{};
-    this->visible_ = NetworkHydraulic{};
+    this->persisted_ = NetworkHydraulicDistribution{};
+    this->visible_ = NetworkHydraulicDistribution{};
     this->blocked_ = false;
 }
 
@@ -187,7 +187,7 @@ bool PersonalDraftEditStage::append(const QByteArray &encoded_event, QString *er
         error->clear();
     if (!isOpen() || this->blocked_)
         return fail(error, QStringLiteral("Personal draft edit stage is not writable"));
-    NetworkHydraulic next = this->visible_;
+    NetworkHydraulicDistribution next = this->visible_;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
     if (!HydraulicDraftEventAdapter::prepareWithMembership(
@@ -209,7 +209,7 @@ bool PersonalDraftEditStage::append(const QByteArray &encoded_event, QString *er
 }
 
 bool PersonalDraftEditStage::prepareOldest(
-    NetworkHydraulic &next_candidate,
+    NetworkHydraulicDistribution &next_candidate,
     QList<PersonalWorkingCopyChange> &records,
     QList<HydraulicDraftMembershipEdit> &membership,
     QString *error) const
@@ -218,7 +218,7 @@ bool PersonalDraftEditStage::prepareOldest(
         error->clear();
     if (!isOpen() || this->blocked_ || this->queue_.pending().isEmpty())
         return fail(error, QStringLiteral("No writable personal draft with a queued transaction"));
-    NetworkHydraulic next = this->persisted_;
+    NetworkHydraulicDistribution next = this->persisted_;
     QList<PersonalWorkingCopyChange> proposed;
     QList<HydraulicDraftMembershipEdit> intents;
     if (!HydraulicDraftEventAdapter::prepareWithMembership(
@@ -240,7 +240,7 @@ bool PersonalDraftEditStage::acknowledgeOldest(const QByteArray &confirmed_event
     const PersonalEditQueue::Entry first = this->queue_.pending().first();
     if (first.encoded_transaction != confirmed_event)
         return fail(error, QStringLiteral("Server confirmation does not match oldest local event"));
-    NetworkHydraulic next;
+    NetworkHydraulicDistribution next;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
     if (!prepareOldest(next, records, membership, error))
@@ -272,12 +272,12 @@ int PersonalDraftEditStage::pendingCount() const
     return this->queue_.pending().size();
 }
 
-const NetworkHydraulic &PersonalDraftEditStage::visibleNetwork() const
+const NetworkHydraulicDistribution &PersonalDraftEditStage::visibleNetwork() const
 {
     return this->visible_;
 }
 
-const NetworkHydraulic &PersonalDraftEditStage::persistedNetwork() const
+const NetworkHydraulicDistribution &PersonalDraftEditStage::persistedNetwork() const
 {
     return this->persisted_;
 }

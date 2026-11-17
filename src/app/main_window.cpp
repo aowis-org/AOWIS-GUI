@@ -411,7 +411,7 @@ MainWindow::MainWindow(QWidget *parent)
     {
         // Replay may include locally queued transactions not yet on the server.
         // Never load the raw HTTP snapshot into an editable workspace.
-        this->hydraulic_data->replaceNetworkHydraulic(
+        this->hydraulic_data->replaceNetworkHydraulicDistribution(
             this->personal_edit_session->visibleNetwork(), {});
         this->immutable_network_read_only = false;
         // Keep the Distribution Editor active while browsing History.
@@ -484,10 +484,10 @@ MainWindow::MainWindow(QWidget *parent)
         refreshHistoryDock();
     });
     connect(this->personal_edit_session, &PersonalDraftEditSession::historyNavigationCompleted,
-            this, [this](const NetworkHydraulic &network)
+            this, [this](const NetworkHydraulicDistribution &network)
     {
         if (!this->personal_edit_active || this->personal_edit_blocked) return;
-        this->hydraulic_data->replaceNetworkHydraulic(network, {});
+        this->hydraulic_data->replaceNetworkHydraulicDistribution(network, {});
         // Rehydration is not edit permission. Wait for the authoritative cursor
         // before restoring capture or the Distribution Editor.
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
@@ -651,7 +651,7 @@ MainWindow::MainWindow(QWidget *parent)
             this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
     });
     connect(this->projects_workspace, &ProjectsWidget::draftNetworkPreviewRequested,
-            this, [this](NetworkHydraulic network, const QString &draft_id,
+            this, [this](NetworkHydraulicDistribution network, const QString &draft_id,
                          const QString &generation)
     {
         if (this->personal_edit_active)
@@ -669,14 +669,14 @@ MainWindow::MainWindow(QWidget *parent)
                 .arg(draft_id, generation), QMessageBox::Yes | QMessageBox::Cancel,
             QMessageBox::Cancel);
         if (decision != QMessageBox::Yes) return;
-        this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
+        this->hydraulic_data->replaceNetworkHydraulicDistribution(std::move(network), {});
         this->immutable_network_read_only = true;
         this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Read-only"));
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
         this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
     });
     connect(this->projects_workspace, &ProjectsWidget::immutableNetworkPreviewRequested,
-            this, [this](NetworkHydraulic network, const QString &revision) {
+            this, [this](NetworkHydraulicDistribution network, const QString &revision) {
         if (this->personal_edit_active) {
             QMessageBox::warning(this, tr("Private draft editing active"),
                 tr("Stop your current editing session before opening a revision snapshot."));
@@ -694,7 +694,7 @@ MainWindow::MainWindow(QWidget *parent)
         connect(question, &QMessageBox::finished, this,
                 [this, question, network, revision](int result) mutable {
             if (result != QMessageBox::Yes || this->personal_edit_active) return;
-            this->hydraulic_data->replaceNetworkHydraulic(std::move(network), {});
+            this->hydraulic_data->replaceNetworkHydraulicDistribution(std::move(network), {});
             this->immutable_network_read_only = true;
             this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Read-only · Revision %1"), revision);
             this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionMonitor);
@@ -924,7 +924,7 @@ MainWindow::MainWindow(QWidget *parent)
             QTimer::singleShot(0, this, [this]
             {
                 this->top_control_bar->setSelectedSimulationHeadlossFormula(
-                    this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
+                    this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.headloss_formula);
             });
             statusBar()->showMessage(tr("The private draft is not ready for editing."), 8000);
             return;
@@ -934,9 +934,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->hydraulic_data, &HydraulicData::signalNetworkLoaded, this, [this]
     {
         UnitProfileManager::instance().presentation().setNetworkSpecificGravity(
-            this->hydraulic_data->networkHydraulic().options_hydraulic.specific_gravity);
+            this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.specific_gravity);
         this->top_control_bar->setSelectedSimulationHeadlossFormula(
-            this->hydraulic_data->networkHydraulic().options_hydraulic.headloss_formula);
+            this->hydraulic_data->networkHydraulicDistribution().options_hydraulic.headloss_formula);
     });
     // Project units: the open network's stored presentation units feed the
     // shared unit manager; Settings -> Units writes changes back as an
@@ -949,7 +949,7 @@ MainWindow::MainWindow(QWidget *parent)
     const std::function<void()> publish_project_units = [this, project_units_editable]
     {
         UnitProfileManager::instance().setNetworkProjectUnits(
-            this->hydraulic_data->networkHydraulic().presentation_units,
+            this->hydraulic_data->networkHydraulicDistribution().presentation_units,
             project_units_editable(), this);
     };
     UnitProfileManager::instance().setProjectUnitsWriter(
@@ -1824,9 +1824,9 @@ void MainWindow::checkPersonalDraftModel()
     const quint64 revision = this->hydraulic_data->visualRevision();
     if (revision == this->personal_edit_last_checked_revision)
         return;
-    const QByteArray live = aowis::model::ModelCodec<NetworkHydraulic>::encode(
-        this->hydraulic_data->networkHydraulic());
-    const QByteArray staged = aowis::model::ModelCodec<NetworkHydraulic>::encode(
+    const QByteArray live = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
+        this->hydraulic_data->networkHydraulicDistribution());
+    const QByteArray staged = aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(
         this->personal_edit_session->visibleNetwork());
     if (live.isEmpty() || staged.isEmpty() || live != staged)
         blockPersonalDraftEditing(tr("Live model differs from durably staged MODEL transactions."));

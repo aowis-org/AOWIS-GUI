@@ -155,7 +155,7 @@ static bool appendNetworkRenderLink(const LinkType &source, InfrastructureEntity
     return true;
 }
 
-NetworkRenderSnapshot buildNetworkRenderSnapshot(const NetworkHydraulic &network,
+NetworkRenderSnapshot buildNetworkRenderSnapshot(const NetworkHydraulicDistribution &network,
                                                  quint64 geometry_revision,
                                                  quint64 visual_revision)
 {

@@ -34,7 +34,7 @@ QString entityName(const QString &id, const QUuid &uuid)
     return id.isEmpty() ? uuid.toString(QUuid::WithoutBraces) : id;
 }
 
-bool isJunction(const NetworkHydraulic &network, const QUuid &uuid)
+bool isJunction(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     for (const HydraulicNodeJunction &junction : network.nodes_junctions)
     {
@@ -44,7 +44,7 @@ bool isJunction(const NetworkHydraulic &network, const QUuid &uuid)
     return false;
 }
 
-bool isTank(const NetworkHydraulic &network, const QUuid &uuid)
+bool isTank(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     for (const HydraulicNodeTank &tank : network.nodes_tanks)
     {
@@ -54,7 +54,7 @@ bool isTank(const NetworkHydraulic &network, const QUuid &uuid)
     return false;
 }
 
-bool isReservoir(const NetworkHydraulic &network, const QUuid &uuid)
+bool isReservoir(const NetworkHydraulicDistribution &network, const QUuid &uuid)
 {
     for (const HydraulicNodeReservoir &reservoir : network.nodes_reservoirs)
     {
@@ -70,7 +70,7 @@ bool isLevelControl(HydraulicControlSimpleType type)
         || type == HydraulicControlSimpleType::HighLevel;
 }
 
-int ruleCountForPump(const NetworkHydraulic &network, const QUuid &pump_uuid)
+int ruleCountForPump(const NetworkHydraulicDistribution &network, const QUuid &pump_uuid)
 {
     int count = 0;
     for (const HydraulicControlRule &rule : network.controls_rules)
@@ -417,7 +417,7 @@ void EntityInspectorPump::refreshPumpEnergyPrice()
     if (!this->hydraulic_data)
         return;
     const UnitPresentationContext &context = UnitProfileManager::instance().presentation();
-    const QString currency = this->hydraulic_data->networkHydraulic().options_energy.currency_iso4217;
+    const QString currency = this->hydraulic_data->networkHydraulicDistribution().options_energy.currency_iso4217;
     const bool refreshed = this->spin_energy_price->refreshUnits(context, currency);
     const std::optional<HydraulicLinkPump> pump = this->hydraulic_data->pump(this->pump_uuid);
     this->spin_energy_price->setEnabled(refreshed && pump &&
@@ -436,7 +436,7 @@ QUuid EntityInspectorPump::firstPumpControlTriggerNodeUuid() const
     if (this->hydraulic_data == nullptr)
         return QUuid();
 
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     for (const HydraulicNodeTank &tank : network.nodes_tanks)
     {
         if (tank.metadata.enabled)
@@ -463,7 +463,7 @@ bool EntityInspectorPump::updatePumpSimpleControl(
         return false;
 
     const QList<HydraulicControlSimple> &controls =
-        this->hydraulic_data->networkHydraulic().controls_simple;
+        this->hydraulic_data->networkHydraulicDistribution().controls_simple;
     for (const HydraulicControlSimple &control : controls)
     {
         if (control.uuid != control_uuid || control.link_uuid != this->pump_uuid)
@@ -497,7 +497,7 @@ void EntityInspectorPump::refreshPumpControls()
     if (this->hydraulic_data == nullptr || this->table_controls == nullptr)
         return;
 
-    const NetworkHydraulic &network = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     QList<HydraulicControlSimple> controls;
     for (const HydraulicControlSimple &control : network.controls_simple)
     {
@@ -549,8 +549,8 @@ void EntityInspectorPump::refreshPumpControls()
                 updated.type = type;
                 if (isLevelControl(type))
                 {
-                    const NetworkHydraulic &current_network =
-                        this->hydraulic_data->networkHydraulic();
+                    const NetworkHydraulicDistribution &current_network =
+                        this->hydraulic_data->networkHydraulicDistribution();
                     if (!isJunction(current_network, updated.trigger_node_uuid)
                         && !isTank(current_network, updated.trigger_node_uuid)
                         && !isReservoir(current_network, updated.trigger_node_uuid))
@@ -643,7 +643,7 @@ void EntityInspectorPump::refreshPumpControls()
                                          trigger_node_uuid, trigger_control_type,
                                          trigger_is_junction]() -> std::optional<double> {
                 if (!this->hydraulic_data) return std::nullopt;
-                const NetworkHydraulic &current = this->hydraulic_data->networkHydraulic();
+                const NetworkHydraulicDistribution &current = this->hydraulic_data->networkHydraulicDistribution();
                 if (trigger_is_junction != isJunction(current, trigger_node_uuid) ||
                     (!trigger_is_junction && !isTank(current, trigger_node_uuid) &&
                      !isReservoir(current, trigger_node_uuid))) return std::nullopt;
@@ -662,7 +662,7 @@ void EntityInspectorPump::refreshPumpControls()
                 [this, control_uuid = control.uuid, trigger_node_uuid,
                  trigger_control_type, trigger_is_junction](double value) {
                     if (!this->hydraulic_data) return false;
-                    const NetworkHydraulic &current = this->hydraulic_data->networkHydraulic();
+                    const NetworkHydraulicDistribution &current = this->hydraulic_data->networkHydraulicDistribution();
                     if (trigger_is_junction != isJunction(current, trigger_node_uuid) ||
                         (!trigger_is_junction && !isTank(current, trigger_node_uuid) &&
                          !isReservoir(current, trigger_node_uuid))) return false;
@@ -704,7 +704,7 @@ void EntityInspectorPump::refreshPumpControls()
                     [this, control_uuid = control.uuid]() -> std::optional<double> {
                         if (!this->hydraulic_data) return std::nullopt;
                         for (const HydraulicControlSimple &candidate :
-                             this->hydraulic_data->networkHydraulic().controls_simple)
+                             this->hydraulic_data->networkHydraulicDistribution().controls_simple)
                         {
                             if (candidate.uuid == control_uuid && candidate.link_uuid == this->pump_uuid &&
                                 candidate.type == HydraulicControlSimpleType::Timer)
@@ -716,7 +716,7 @@ void EntityInspectorPump::refreshPumpControls()
                         if (!this->hydraulic_data || !std::isfinite(seconds) ||
                             seconds < 0.0 || seconds > 596523.0 * 3600.0) return false;
                         for (const HydraulicControlSimple &candidate :
-                             this->hydraulic_data->networkHydraulic().controls_simple)
+                             this->hydraulic_data->networkHydraulicDistribution().controls_simple)
                         {
                             if (candidate.uuid != control_uuid || candidate.link_uuid != this->pump_uuid)
                                 continue;
@@ -782,7 +782,7 @@ void EntityInspectorPump::refreshPumpControls()
             [this, control_uuid = control.uuid]() -> std::optional<double> {
                 if (!this->hydraulic_data) return std::nullopt;
                 for (const HydraulicControlSimple &candidate :
-                     this->hydraulic_data->networkHydraulic().controls_simple)
+                     this->hydraulic_data->networkHydraulicDistribution().controls_simple)
                 {
                     if (candidate.uuid == control_uuid && candidate.link_uuid == this->pump_uuid &&
                         candidate.action == HydraulicControlActionType::Setting)
@@ -793,7 +793,7 @@ void EntityInspectorPump::refreshPumpControls()
             [this, control_uuid = control.uuid](double speed_ratio) {
                 if (!this->hydraulic_data) return false;
                 for (const HydraulicControlSimple &candidate :
-                     this->hydraulic_data->networkHydraulic().controls_simple)
+                     this->hydraulic_data->networkHydraulicDistribution().controls_simple)
                 {
                     if (candidate.uuid != control_uuid || candidate.link_uuid != this->pump_uuid)
                         continue;
@@ -828,7 +828,7 @@ void EntityInspectorPump::refreshPumpRuleSummary()
 {
     if (!this->hydraulic_data || !this->label_rule_controls)
         return;
-    const int count = ruleCountForPump(this->hydraulic_data->networkHydraulic(), this->pump_uuid);
+    const int count = ruleCountForPump(this->hydraulic_data->networkHydraulicDistribution(), this->pump_uuid);
     this->label_rule_controls->setVisible(count > 0);
     if (count > 0)
         this->label_rule_controls->setText(QCoreApplication::translate(
@@ -847,7 +847,7 @@ void EntityInspectorPump::populateSpeedPatternCombo(const QUuid &pattern_uuid)
 
     bool selected_pattern_exists = pattern_uuid.isNull();
     const QList<HydraulicPatternTime> &patterns =
-        this->hydraulic_data->networkHydraulic().patterns_time;
+        this->hydraulic_data->networkHydraulicDistribution().patterns_time;
     for (const HydraulicPatternTime &pattern : patterns)
     {
         this->combo_speed_pattern->addItem(entityName(pattern.id, pattern.uuid));
@@ -889,7 +889,7 @@ void EntityInspectorPump::populateEfficiencyInputCombo(const HydraulicLinkPump &
 
     bool selected_curve_exists = pump.efficiency_curve_uuid.isNull();
     const QList<HydraulicCurvePumpEfficiency> &curves =
-        this->hydraulic_data->networkHydraulic().curves_pump_efficiency;
+        this->hydraulic_data->networkHydraulicDistribution().curves_pump_efficiency;
     for (const HydraulicCurvePumpEfficiency &curve : curves)
     {
         this->combo_efficiency_curve->addItem(
@@ -940,7 +940,7 @@ void EntityInspectorPump::populatePricePatternCombo(const HydraulicLinkPump &pum
 
     bool selected_pattern_exists = pump.price_pattern_uuid.isNull();
     const QList<HydraulicPatternTime> &patterns =
-        this->hydraulic_data->networkHydraulic().patterns_time;
+        this->hydraulic_data->networkHydraulicDistribution().patterns_time;
     for (const HydraulicPatternTime &pattern : patterns)
     {
         this->combo_price_pattern->addItem(

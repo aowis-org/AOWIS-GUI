@@ -333,10 +333,10 @@ void SimulationManager::run(const QList<WaterQualityAnalysisType> &quality_analy
     if (this->simulation_running)
         return;
 
-    const NetworkHydraulic network_hydraulic = this->hydraulic_data->networkHydraulic();
+    const NetworkHydraulicDistribution network_hydraulic_distribution = this->hydraulic_data->networkHydraulicDistribution();
 
     EpanetRunRequest run_request;
-    run_request.network = network_hydraulic;
+    run_request.network = network_hydraulic_distribution;
 
     for (const WaterQualityAnalysisType analysis : quality_analyses)
     {
@@ -730,8 +730,8 @@ void SimulationManager::importNetworkProjectContent(
                             break;
                         }
                     }
-                    const std::shared_ptr<NetworkHydraulic> pending =
-                        std::make_shared<NetworkHydraulic>(std::move(conversion_result.network));
+                    const std::shared_ptr<NetworkHydraulicDistribution> pending =
+                        std::make_shared<NetworkHydraulicDistribution>(std::move(conversion_result.network));
                     QMessageBox *question = new QMessageBox(
                         QMessageBox::Question, tr("Project units"),
                         tr("Store the display units of the imported file (\"%1\") with the project? "
@@ -763,7 +763,7 @@ void SimulationManager::importNetworkProjectContent(
                 // A private session may have started while the file was chosen.
                 if (manager->refuseReplacementDuringPrivateEditing(parent_widget))
                     return;
-                manager->hydraulic_data->replaceNetworkHydraulic(
+                manager->hydraulic_data->replaceNetworkHydraulicDistribution(
                     std::move(conversion_result.network),
                     std::move(conversion_result.quality_runs));
                 emit manager->signalEpanetNetworkImported();
@@ -975,7 +975,7 @@ void SimulationManager::finishEpanetNetworkImport(
     // A private session may have started while the file was chosen.
     if (refuseReplacementDuringPrivateEditing(parent_widget))
         return;
-    this->hydraulic_data->replaceNetworkHydraulic(
+    this->hydraulic_data->replaceNetworkHydraulicDistribution(
         std::move(import_result.request.network),
         std::move(import_result.request.quality_runs));
     emit signalEpanetNetworkImported();
@@ -994,10 +994,10 @@ void SimulationManager::finishEpanetNetworkImport(
 
 void SimulationManager::exportEpanetNetwork()
 {
-    exportSelectedEpanetNetwork(this->hydraulic_data->networkHydraulic());
+    exportSelectedEpanetNetwork(this->hydraulic_data->networkHydraulicDistribution());
 }
 
-void SimulationManager::exportSelectedEpanetNetwork(const NetworkHydraulic &network_hydraulic)
+void SimulationManager::exportSelectedEpanetNetwork(const NetworkHydraulicDistribution &network_hydraulic_distribution)
 {
     QWidget *main_window = QApplication::activeWindow();
 
@@ -1031,7 +1031,7 @@ void SimulationManager::exportSelectedEpanetNetwork(const NetworkHydraulic &netw
 #endif
 
     EpanetRunRequest export_request;
-    export_request.network = network_hydraulic;
+    export_request.network = network_hydraulic_distribution;
     export_request.quality_runs = this->hydraulic_data->simulationQualityRunOptions();
 
     EpanetRunner runner;

@@ -4050,10 +4050,10 @@ void ProjectsWidget::fetchInspectedNetwork(bool export_requested)
         }
         const QByteArray data = decoded.decoded;
         QString codec_error;
-        const std::optional<NetworkHydraulic> network =
-            aowis::model::ModelCodec<NetworkHydraulic>::decode(data, &codec_error);
+        const std::optional<NetworkHydraulicDistribution> network =
+            aowis::model::ModelCodec<NetworkHydraulicDistribution>::decode(data, &codec_error);
         if (!network || network->uuid.toString(QUuid::WithoutBraces) != expected_id
-            || aowis::model::ModelCodec<NetworkHydraulic>::encode(*network) != data) {
+            || aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(*network) != data) {
             QMessageBox::warning(this, tr("Network validation failed"),
                 tr("The selected revision network could not be decoded: %1")
                     .arg(codec_error));
@@ -4074,7 +4074,7 @@ void ProjectsWidget::beginInspectedNetworkImport()
     emit selectedHeadImportFileRequested();
 }
 
-void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
+void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulicDistribution network)
 {
     const int epoch = this->pending_head_import_epoch;
     this->pending_head_import_epoch = -1;
@@ -4110,8 +4110,8 @@ void ProjectsWidget::importNetworkIntoSelectedHead(NetworkHydraulic network)
         {QT_TRANSLATE_NOOP("ProjectsWidget", "Importing hydraulic network into saved private HEAD…"), {}});
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
     client->setSourceTransport(checkoutSourceGet(source));
-    const std::shared_ptr<NetworkHydraulic> imported =
-        std::make_shared<NetworkHydraulic>(std::move(network));
+    const std::shared_ptr<NetworkHydraulicDistribution> imported =
+        std::make_shared<NetworkHydraulicDistribution>(std::move(network));
     const std::function<void(const QString &)> failed =
         [this, client, epoch](const QString &error) {
             client->deleteLater();
@@ -4228,7 +4228,7 @@ void ProjectsWidget::exportInspectedNetwork()
     const int epoch = this->network_read_epoch;
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
     client->loadDraftNetwork(target, draft_id, network_id,
-        [this, client, epoch, generation](const NetworkHydraulic &network,
+        [this, client, epoch, generation](const NetworkHydraulicDistribution &network,
                                           const QString &saved_generation,
                                           const QString &error) {
         client->deleteLater();

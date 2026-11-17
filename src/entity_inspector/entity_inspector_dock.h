@@ -17,7 +17,7 @@
 #include "widgets/group_box_collapsible.h"
 #include "network/hydraulic_data.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include "common/_enums_structs.h"
 #include "common/_sizes.h"
 #include "map/core/map_models.h"

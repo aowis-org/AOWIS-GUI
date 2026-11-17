@@ -3,7 +3,7 @@
 #include "projects/hydraulic_draft_event_adapter.h"
 #include "projects/personal_edit_queue.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 
 #include <QByteArray>
 #include <QList>
@@ -23,13 +23,13 @@ class PersonalDraftEditStage final
 {
 public:
     bool open(const QString &queue_root, const QUuid &repository_id,
-              const QUuid &draft_id, const NetworkHydraulic &verified_candidate,
+              const QUuid &draft_id, const NetworkHydraulicDistribution &verified_candidate,
               const QByteArray &last_journal_event = QByteArray(),
               QString *error = nullptr);
     void close();
     // After a verified server-side History navigation: the queue must be empty
     // and its lock remains held throughout the replacement.
-    bool resetVerifiedNetwork(const NetworkHydraulic &network, QString *error = nullptr);
+    bool resetVerifiedNetwork(const NetworkHydraulicDistribution &network, QString *error = nullptr);
 
     // Stage a newly captured MODEL event, then write it to the local durable
     // queue. The visible staged snapshot advances only after local durability.
@@ -41,7 +41,7 @@ public:
     // operation NEVER mutates either snapshot or the queue. The next snapshot
     // can be accepted only after DVMDB has confirmed the event and candidate
     // changes atomically, including recovery of an uncertain acknowledgement.
-    bool prepareOldest(NetworkHydraulic &next_candidate,
+    bool prepareOldest(NetworkHydraulicDistribution &next_candidate,
                        QList<PersonalWorkingCopyChange> &records,
                        QList<HydraulicDraftMembershipEdit> &membership,
                        QString *error = nullptr) const;
@@ -55,13 +55,13 @@ public:
     bool isOpen() const;
     bool isBlocked() const;
     int pendingCount() const;
-    const NetworkHydraulic &visibleNetwork() const;
-    const NetworkHydraulic &persistedNetwork() const;
+    const NetworkHydraulicDistribution &visibleNetwork() const;
+    const NetworkHydraulicDistribution &persistedNetwork() const;
     const PersonalEditQueue &queue() const;
 
 private:
     PersonalEditQueue queue_;
-    NetworkHydraulic persisted_;
-    NetworkHydraulic visible_;
+    NetworkHydraulicDistribution persisted_;
+    NetworkHydraulicDistribution visible_;
     bool blocked_ = false;
 };

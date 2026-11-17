@@ -20,7 +20,7 @@ void expectNear(double actual, double expected, double tolerance, const char *me
 
 void testDemandPointLifecycle()
 {
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     HydraulicNetworkEditor editor(network);
 
     CoordinateWGS84 first_coordinate;

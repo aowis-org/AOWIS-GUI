@@ -177,7 +177,7 @@ bool deleteSelected(HydraulicControlsWidget *widget)
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
-    NetworkHydraulic initial;
+    NetworkHydraulicDistribution initial;
     initial.uuid = createUuidV7();
     initial.id = QStringLiteral("HC-02.8 controls/labels");
     HydraulicNodeJunction from;
@@ -195,8 +195,8 @@ int main(int argc, char **argv)
     initial.links_pipes = {pipe};
 
     HydraulicData data;
-    data.replaceNetworkHydraulic(initial, {});
-    NetworkHydraulic staged = initial;
+    data.replaceNetworkHydraulicDistribution(initial, {});
+    NetworkHydraulicDistribution staged = initial;
     QList<QByteArray> events;
     QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
                      &data, [&events](const QByteArray &encoded)
@@ -215,12 +215,12 @@ int main(int argc, char **argv)
     category->setCurrentIndex(1);
     if (!require(labelDialog(&widget, true, QStringLiteral("L1"), QStringLiteral("First"))
                  && rows->count() == 1 && events.size() == 1
-                 && data.networkHydraulic().map_labels.first().text == QStringLiteral("First")
-                 && data.networkHydraulic().map_labels.first().anchor_node_uuid == from.uuid,
+                 && data.networkHydraulicDistribution().map_labels.first().text == QStringLiteral("First")
+                 && data.networkHydraulicDistribution().map_labels.first().anchor_node_uuid == from.uuid,
                  "create label must update network and emit transaction")) return 1;
     if (!require(labelDialog(&widget, false, QStringLiteral("L2"), QStringLiteral("Changed"))
                  && rows->count() == 1 && events.size() == 2
-                 && data.networkHydraulic().map_labels.first().text == QStringLiteral("Changed"),
+                 && data.networkHydraulicDistribution().map_labels.first().text == QStringLiteral("Changed"),
                  "edit label must update network and emit transaction")) return 1;
     if (!require(labelDialog(&widget, false, QStringLiteral("L2"), QStringLiteral("Changed"))
                  && events.size() == 2, "unchanged label must not emit transaction")) return 1;
@@ -230,13 +230,13 @@ int main(int argc, char **argv)
     category->setCurrentIndex(0);
     if (!require(ruleDialog(&widget, true, QStringLiteral("R1"))
                  && rows->count() == 1 && events.size() == 4
-                 && data.networkHydraulic().controls_rules.size() == 1
-                 && data.networkHydraulic().controls_rules.first().premises.size() == 1
-                 && data.networkHydraulic().controls_rules.first().actions_then.size() == 1,
+                 && data.networkHydraulicDistribution().controls_rules.size() == 1
+                 && data.networkHydraulicDistribution().controls_rules.first().premises.size() == 1
+                 && data.networkHydraulicDistribution().controls_rules.first().actions_then.size() == 1,
                  "create multi-clause rule must emit transaction")) return 1;
     if (!require(ruleDialog(&widget, false, QStringLiteral("R2"))
                  && rows->count() == 1 && events.size() == 5
-                 && data.networkHydraulic().controls_rules.first().id == QStringLiteral("R2"),
+                 && data.networkHydraulicDistribution().controls_rules.first().id == QStringLiteral("R2"),
                  "edit rule must emit transaction")) return 1;
     if (!require(ruleDialog(&widget, false, QStringLiteral("R2")) && events.size() == 5,
                  "unchanged rule must not emit transaction")) return 1;
@@ -394,8 +394,8 @@ int main(int argc, char **argv)
             return 1;
         }
     }
-    if (!require(aowis::model::ModelCodec<NetworkHydraulic>::encode(staged)
-                  == aowis::model::ModelCodec<NetworkHydraulic>::encode(data.networkHydraulic()),
+    if (!require(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged)
+                  == aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
                  "GUI edits must replay to canonical full hydraulic network")) return 1;
     return 0;
 }

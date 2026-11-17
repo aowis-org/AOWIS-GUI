@@ -16,7 +16,7 @@
 
 #include <aowis/model/entity.h>
 #include <aowis/model/gis.h>
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_results.h>
 #include <aowis/model/hydraulic/water_quality_simulation_results.h>
 
@@ -51,22 +51,22 @@ class HydraulicData : public QObject
 public:
     explicit HydraulicData(QObject *parent = nullptr);
 
-    const NetworkHydraulic &networkHydraulic() const;
+    const NetworkHydraulicDistribution &networkHydraulicDistribution() const;
     // Disabled until a personal working copy is bound. Captured events are not
     // durable until a future working-copy controller acknowledges persistence.
     void setLogicalEditCaptureEnabled(bool enabled);
     bool logicalEditCaptureEnabled() const;
-    void replaceNetworkHydraulic(
-        NetworkHydraulic network,
+    void replaceNetworkHydraulicDistribution(
+        NetworkHydraulicDistribution network,
         QList<WaterQualitySolverOptions> quality_run_options);
     const QList<WaterQualitySolverOptions> &simulationQualityRunOptions() const;
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     // operation/description label the captured event (history dock).
-    bool setNetworkRootMetadata(const NetworkHydraulic &metadata,
+    bool setNetworkRootMetadata(const NetworkHydraulicDistribution &metadata,
                                 const QString &operation = QStringLiteral("hydraulic.network.root.update"),
                                 const QString &description = QString());
-    // Project units (NetworkHydraulic::presentation_units): a root-metadata
+    // Project units (NetworkHydraulicDistribution::presentation_units): a root-metadata
     // edit, so it lands in the private draft and the next Commit. An empty
     // value removes the network's stored units. Only while edits are captured.
     bool setNetworkPresentationUnits(const std::optional<NetworkPresentationUnits> &units);
@@ -537,7 +537,7 @@ private:
     void publishCapturedEdit(const HydraulicEditTransactionCapture &capture);
 
     bool logical_edit_capture_enabled = false;
-    NetworkHydraulic network_hydraulic;
+    NetworkHydraulicDistribution network_hydraulic_distribution;
     QList<WaterQualitySolverOptions> simulation_quality_run_options;
     QUuid source_trace_origin_node_uuid;
     HydraulicNetworkEditor network_editor;
@@ -633,7 +633,7 @@ signals:
     // Logical-edit capture switched on or off (a private draft became
     // editable, or editing stopped).
     void signalLogicalEditCaptureChanged(bool enabled);
-    // NetworkHydraulic::presentation_units may have changed (network loaded,
+    // NetworkHydraulicDistribution::presentation_units may have changed (network loaded,
     // replaced, or a root edit/undo touched it).
     void signalPresentationUnitsChanged();
     void signalWaterQualityOptionsChanged();

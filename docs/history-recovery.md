@@ -16,7 +16,7 @@ see [private working-copy persistence](personal-working-copy-save.md).
 | Candidate overlay and navigation receipt | DVMDB working copy | Atomic destination, last operation UUID and pinned source for sparse replay |
 | Pending unsaved MODEL events | `PersonalEditQueue` on GUI client | Crash-safe Save submission, not the authoritative Undo timeline |
 | Pending History navigation intent | `PersonalHistoryNavigationIntentStore` on GUI client | Recovery of an uncertain Undo/Redo/jump after client termination |
-| Cached current `NetworkHydraulic` | GUI session | Rendering and before-image verification |
+| Cached current `NetworkHydraulicDistribution` | GUI session | Rendering and before-image verification |
 
 The personal working repository can be an **embedded server** or a **remote
 REST DVMDB**. “Personal” grants an editing role; it does not guarantee local
@@ -40,7 +40,7 @@ when the designated server is unreachable.
    publishing it to the editor.
 5. The GUI acknowledges/removes the local intent and fetches a fresh
    authoritative History cursor. It does **not** reopen the draft, reload the
-   original journal or GET a complete `NetworkHydraulic` for this operation.
+   original journal or GET a complete `NetworkHydraulicDistribution` for this operation.
 
 A bulk edit or distant jump may legitimately produce a large sparse delta;
 only changed data should travel. Replacing the GUI's current model after

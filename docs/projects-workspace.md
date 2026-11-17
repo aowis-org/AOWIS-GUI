@@ -189,7 +189,7 @@ blocked, the History cursor cannot be verified, the lease requires renewal,
 or DVMDB has no eligible action. Successful navigation applies a canonical
 **sparse change set**, verifies source/destination SHA-256 and restores edit
 capture only after the server cursor is refreshed. It does **not** reload
-`NetworkHydraulic` over HTTP for every Undo/Redo/jump.
+`NetworkHydraulicDistribution` over HTTP for every Undo/Redo/jump.
 
 If the acknowledgement is lost, the GUI retains the original operation UUID,
 source generation and cursor, pauses editing and performs SHA/cursor-based
@@ -212,7 +212,7 @@ gold card with the crown beside its server name.
 
 ## Known acceptance gaps
 
-The complete `NetworkHydraulic` model contains 18 persisted entity
+The complete `NetworkHydraulicDistribution` model contains 18 persisted entity
 collections. Generic entity capture does not prove that every GUI mutation
 path or root setting autosaves. The remaining work includes real end-to-end root-metadata
 and full mutation-path acceptance, import into an existing draft, Standalone

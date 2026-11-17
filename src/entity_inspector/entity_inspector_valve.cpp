@@ -305,7 +305,7 @@ void EntityInspectorValve::populateSettingCurveCombo(
     if (type == HydraulicLinkValveType::GPV)
     {
         const QList<HydraulicCurveValveHeadloss> &curves =
-            this->hydraulic_data->networkHydraulic().curves_valve_headloss;
+            this->hydraulic_data->networkHydraulicDistribution().curves_valve_headloss;
         for (const HydraulicCurveValveHeadloss &curve : curves)
         {
             this->combo_setting_curve->addItem(entityName(curve.id, curve.uuid));
@@ -318,7 +318,7 @@ void EntityInspectorValve::populateSettingCurveCombo(
     else if (type == HydraulicLinkValveType::PCV)
     {
         const QList<HydraulicCurveValveCharacteristic> &curves =
-            this->hydraulic_data->networkHydraulic().curves_valve_characteristic;
+            this->hydraulic_data->networkHydraulicDistribution().curves_valve_characteristic;
         for (const HydraulicCurveValveCharacteristic &curve : curves)
         {
             this->combo_setting_curve->addItem(entityName(curve.id, curve.uuid));

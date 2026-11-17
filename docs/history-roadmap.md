@@ -23,7 +23,7 @@ Run genuine **process termination** of the GUI before sending navigation,
 while the POST is in flight, after server publication but before response,
 and while the local intent is being written or cleared. Include independent
 DVMDB restart, powercut/ENOSPC and writer-lease rotation. On recovery, verify
-original operation UUID, generation, cursor, `NetworkHydraulic` SHA-256 and
+original operation UUID, generation, cursor, `NetworkHydraulicDistribution` SHA-256 and
 absence of a duplicate Undo. Assert no full-network GET when a valid pending
 intent allows sparse recovery. Corrupt, wrong-scope and expired/stale
 reconciliation must block rather than overwrite.

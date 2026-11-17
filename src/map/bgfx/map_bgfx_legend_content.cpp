@@ -164,7 +164,7 @@ MapBgfxHud::Legend mapBgfxLegendContent(const HydraulicData &hydraulic_data,
     {
         MapBgfxHud::LegendGroup &group = legend.groups[1];
         const MapLegendMetrics::RoughnessStyle roughness = roughnessStyle(
-            hydraulic_data.networkHydraulic().options_hydraulic.headloss_formula);
+            hydraulic_data.networkHydraulicDistribution().options_hydraulic.headloss_formula);
         const MapLegendMetrics::Descriptor &descriptor =
             MapLegendMetrics::link(settings.visual_link, roughness);
         const MapLegendUnitPresentation::Range displayed = MapLegendUnitPresentation::range(
@@ -234,7 +234,7 @@ MapBgfxLabelValueFormat mapBgfxLabelValueFormat(const HydraulicData &hydraulic_d
     const UnitPresentationContext &context = UnitProfileManager::instance().presentation();
     const MapLegendMetrics::Descriptor &descriptor = links
         ? MapLegendMetrics::link(settings.visual_link,
-              roughnessStyle(hydraulic_data.networkHydraulic().options_hydraulic.headloss_formula))
+              roughnessStyle(hydraulic_data.networkHydraulicDistribution().options_hydraulic.headloss_formula))
         : MapLegendMetrics::node(settings.visual_node);
     const double minimum = links ? ranges.link_minimum : ranges.node_minimum;
     const double maximum = links ? ranges.link_maximum : ranges.node_maximum;

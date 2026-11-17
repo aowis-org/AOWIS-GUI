@@ -3,7 +3,7 @@
 
 #include "import/epanet_js_project_reader.h"
 
-#include <aowis/model/hydraulic/network_hydraulic.h>
+#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_options.h>
 
 #include <QJsonObject>
@@ -55,7 +55,7 @@ private:
 struct EpanetJsProjectConversionResult
 {
     bool success = false;
-    NetworkHydraulic network;
+    NetworkHydraulicDistribution network;
     QList<WaterQualitySolverOptions> quality_runs;
     QJsonObject source_display_units; // Resolved epanet-js quantities; not canonical data.
     EpanetJsProjectIdMap id_map;
