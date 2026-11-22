@@ -346,6 +346,67 @@ void testMapManagementOverlay()
         "distribution editor restores retained entity icons after management");
 }
 
+void testReadOnlyMonitorAnnotations()
+{
+    Harness harness;
+    QList<MapAnnotation> annotations;
+    MapAnnotation label;
+    label.uuid = QUuid::createUuid();
+    label.text = QStringLiteral("Pump station overview");
+    label.position_wgs84 = coordinate(9.0, 47.0);
+    annotations.append(label);
+    const MapBgfx2d::Camera view = camera();
+    const QSizeF viewport(ViewportWidth, ViewportHeight);
+
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations);
+    const MapBgfxHudPoint center = project(view, 9.0, 47.0);
+    req(spriteVerticesNear(harness.canvas, harness.cache, center.x, center.y, 80.0) > 0,
+        "distribution 2D Monitor renders an annotation without an editor scene");
+    req(harness.probe.calls.isEmpty(),
+        "2D Monitor annotation overlay never draws editor entity icons");
+
+    annotations[0].style.visible = false;
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations);
+    req(harness.canvas.vertices().isEmpty(),
+        "hidden annotations do not appear on the Monitor");
+
+    annotations[0].style.visible = true;
+    annotations[0].anchor = MapAnnotationAnchor();
+    annotations[0].anchor->entity_uuid = QUuid::createUuid();
+    annotations[0].anchor->entity_type = QStringLiteral("HydraulicJunction");
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations);
+    req(harness.canvas.vertices().isEmpty(),
+        "unresolved anchored annotations cannot render at stale saved coordinates");
+    annotations[0].anchor.reset();
+
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, nullptr);
+    req(harness.canvas.vertices().isEmpty(),
+        "Drainage/Management 2D modes clear the Distribution overlay");
+
+    const MapBgfxEditorOverlay::GlobeProjector projector = [](
+        double longitude, double latitude, QPointF *screen, double *distance_m)
+    {
+        *screen = QPointF(400.0 + (longitude - 9.0) * 100000.0,
+                          300.0 - (latitude - 47.0) * 100000.0);
+        if (distance_m != nullptr)
+            *distance_m = 1000.0;
+        return true;
+    };
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
+        MapEditorViewportRenderState(), projector, nullptr, 0, viewport, {},
+        nullptr, nullptr, {}, &annotations);
+    req(!harness.canvas.vertices().isEmpty(),
+        "distribution 3D Monitor renders annotations without a network snapshot");
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
+        MapEditorViewportRenderState(), projector, nullptr, 0, viewport);
+    req(harness.canvas.vertices().isEmpty(),
+        "Drainage/Management 3D modes do not inherit Distribution annotations");
+}
+
 void testStaticDetails()
 {
     Harness harness;
@@ -1311,6 +1372,7 @@ int main(int argc, char **argv)
     QGuiApplication application(argc, argv);
 
     testMapManagementOverlay();
+    testReadOnlyMonitorAnnotations();
     testStaticDetails();
     testSelection();
     testPlacement();

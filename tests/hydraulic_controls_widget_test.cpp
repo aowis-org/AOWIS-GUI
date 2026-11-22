@@ -68,34 +68,6 @@ bool clickSave(QDialog *dialog)
     return true;
 }
 
-bool labelDialog(HydraulicControlsWidget *widget, bool creating,
-                 const QString &id, const QString &text)
-{
-    QPushButton *button = buttonWithText(widget, creating ? QStringLiteral("+ Add")
-                                                         : QStringLiteral("Edit"));
-    if (!button || !button->isEnabled()) return false;
-    bool completed = false;
-    QTimer::singleShot(0, widget, [&]()
-    {
-        QDialog *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
-        if (!dialog) return;
-        QLineEdit *name = dialog->findChild<QLineEdit *>(QStringLiteral("labelId"));
-        QLineEdit *caption = dialog->findChild<QLineEdit *>(QStringLiteral("labelText"));
-        QLineEdit *latitude = dialog->findChild<QLineEdit *>(QStringLiteral("labelLatitude"));
-        QLineEdit *longitude = dialog->findChild<QLineEdit *>(QStringLiteral("labelLongitude"));
-        QComboBox *anchor = dialog->findChild<QComboBox *>(QStringLiteral("labelAnchor"));
-        if (!name || !caption || !latitude || !longitude || !anchor) return;
-        anchor->setCurrentIndex(1); // existing junction
-        name->setText(id);
-        caption->setText(text);
-        latitude->setText(QStringLiteral("50.1234"));
-        longitude->setText(QStringLiteral("8.6789"));
-        completed = clickSave(dialog);
-    });
-    button->click();
-    return completed;
-}
-
 bool ruleDialog(HydraulicControlsWidget *widget, bool creating, const QString &id)
 {
     QPushButton *button = buttonWithText(widget, creating ? QStringLiteral("+ Add")
@@ -179,7 +151,7 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     NetworkHydraulicDistribution initial;
     initial.uuid = createUuidV7();
-    initial.id = QStringLiteral("HC-02.8 controls/labels");
+    initial.id = QStringLiteral("HC-02.8 rule controls");
     HydraulicNodeJunction from;
     from.uuid = createUuidV7();
     from.id = QStringLiteral("J1");
@@ -208,115 +180,33 @@ int main(int argc, char **argv)
     HydraulicControlsWidget widget(&data);
     widget.show();
     app.processEvents();
-    QComboBox *category = widget.findChild<QComboBox *>();
     QListWidget *rows = widget.findChild<QListWidget *>();
-    if (!require(category != nullptr && rows != nullptr, "controls/labels selector absent")) return 1;
+    if (!require(rows != nullptr, "rule controls list absent")) return 1;
+    // MODEL A3: map labels are map annotations in their own layer, not a
+    // hydraulic collection, so this widget offers rule controls only.
+    if (!require(widget.findChild<QComboBox *>() == nullptr,
+                 "rule controls widget still offers a collection selector")) return 1;
 
-    category->setCurrentIndex(1);
-    if (!require(labelDialog(&widget, true, QStringLiteral("L1"), QStringLiteral("First"))
-                 && rows->count() == 1 && events.size() == 1
-                 && data.networkHydraulicDistribution().map_labels.first().text == QStringLiteral("First")
-                 && data.networkHydraulicDistribution().map_labels.first().anchor_node_uuid == from.uuid,
-                 "create label must update network and emit transaction")) return 1;
-    if (!require(labelDialog(&widget, false, QStringLiteral("L2"), QStringLiteral("Changed"))
-                 && rows->count() == 1 && events.size() == 2
-                 && data.networkHydraulicDistribution().map_labels.first().text == QStringLiteral("Changed"),
-                 "edit label must update network and emit transaction")) return 1;
-    if (!require(labelDialog(&widget, false, QStringLiteral("L2"), QStringLiteral("Changed"))
-                 && events.size() == 2, "unchanged label must not emit transaction")) return 1;
-    if (!require(deleteSelected(&widget) && rows->count() == 0 && events.size() == 3,
-                 "delete label must emit transaction")) return 1;
-
-    category->setCurrentIndex(0);
     if (!require(ruleDialog(&widget, true, QStringLiteral("R1"))
-                 && rows->count() == 1 && events.size() == 4
+                 && rows->count() == 1 && events.size() == 1
                  && data.networkHydraulicDistribution().controls_rules.size() == 1
                  && data.networkHydraulicDistribution().controls_rules.first().premises.size() == 1
                  && data.networkHydraulicDistribution().controls_rules.first().actions_then.size() == 1,
                  "create multi-clause rule must emit transaction")) return 1;
     if (!require(ruleDialog(&widget, false, QStringLiteral("R2"))
-                 && rows->count() == 1 && events.size() == 5
+                 && rows->count() == 1 && events.size() == 2
                  && data.networkHydraulicDistribution().controls_rules.first().id == QStringLiteral("R2"),
                  "edit rule must emit transaction")) return 1;
-    if (!require(ruleDialog(&widget, false, QStringLiteral("R2")) && events.size() == 5,
+    if (!require(ruleDialog(&widget, false, QStringLiteral("R2")) && events.size() == 2,
                  "unchanged rule must not emit transaction")) return 1;
-    if (!require(deleteSelected(&widget) && rows->count() == 0 && events.size() == 6,
+    if (!require(deleteSelected(&widget) && rows->count() == 0 && events.size() == 3,
                  "delete rule must emit transaction")) return 1;
 
-    // Live switching on an already-open screen must never change the enum
-    // identity (index), trigger selection handlers, or create autosave edits.
     ControlTestTranslator translator;
-    category->setCurrentIndex(1);
-    int changed_indices = 0;
-    QObject::connect(category, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                     &widget, [&changed_indices](int) { ++changed_indices; });
     const int edits_before_language = events.size();
-    if (!require(QCoreApplication::installTranslator(&translator),
-                 "could not install controls translator")) return 1;
-    app.processEvents();
-    if (!require(category->itemText(1) == QStringLiteral("TEST: Map labels"),
-                 "existing controls category did not retranslate")
-        || !require(category->currentIndex() == 1 && changed_indices == 0,
-                    "language change altered controls selection")
-        || !require(events.size() == edits_before_language,
-                    "language change emitted an autosave transaction")) return 1;
-    QCoreApplication::removeTranslator(&translator);
-    app.processEvents();
-    if (!require(category->itemText(1) == QStringLiteral("Map labels")
-                 && category->currentIndex() == 1,
-                 "controls category did not revert to English")) return 1;
-
-    // Change languages inside a *running modal event loop*: all presentation
-    // text must update without discarding a partially typed label or UUID.
-    bool label_checked = false;
-    QPushButton *add_label = buttonWithText(&widget, QStringLiteral("+ Add"));
-    if (!require(add_label != nullptr, "missing controls Add button")) return 1;
-    QTimer::singleShot(0, &widget, [&]()
-    {
-        QDialog *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
-        if (dialog == nullptr) return;
-        QLineEdit *draft = dialog->findChild<QLineEdit *>(QStringLiteral("labelText"));
-        QComboBox *anchor = dialog->findChild<QComboBox *>(QStringLiteral("labelAnchor"));
-        QDialogButtonBox *buttons = dialog->findChild<QDialogButtonBox *>();
-        if (draft == nullptr || anchor == nullptr || buttons == nullptr)
-        {
-            dialog->reject();
-            return;
-        }
-        draft->setText(QStringLiteral("unfinished draft text"));
-        draft->setCursorPosition(5);
-        anchor->setCurrentIndex(1);
-        const QUuid selected = anchor->currentData().toUuid();
-        const bool installed = QCoreApplication::installTranslator(&translator);
-        app.processEvents();
-        bool okay = installed
-            && dialog->windowTitle() == QStringLiteral("TEST: Hydraulic map label")
-            && hasLabel(dialog, QStringLiteral("TEST: Latitude (°)"))
-            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("TEST: Save")
-            && buttons->button(QDialogButtonBox::Cancel)->text() == QStringLiteral("TEST: Cancel")
-            && anchor->itemText(1) == QStringLiteral("TEST: Junction: J1")
-            && anchor->currentData().toUuid() == selected
-            && draft->text() == QStringLiteral("unfinished draft text")
-            && draft->cursorPosition() == 5;
-        QCoreApplication::removeTranslator(&translator);
-        app.processEvents();
-        okay = okay
-            && dialog->windowTitle() == QStringLiteral("Hydraulic map label")
-            && anchor->itemText(1) == QStringLiteral("Junction: J1")
-            && buttons->button(QDialogButtonBox::Save)->text() == QStringLiteral("Save")
-            && draft->text() == QStringLiteral("unfinished draft text")
-            && draft->cursorPosition() == 5;
-        label_checked = okay;
-        dialog->reject();
-    });
-    add_label->click();
-    if (!require(label_checked, "open map-label dialog failed live retranslation/draft preservation")
-        || !require(events.size() == edits_before_language,
-                    "cancelled localized label dialog generated an edit")) return 1;
 
     // A rule dialog has nested premise and action dialogs. Switching the
     // language with two modal loops running must also preserve the rule draft.
-    category->setCurrentIndex(0);
     bool rule_checked = false;
     bool premise_checked = false;
     QPushButton *add_rule = buttonWithText(&widget, QStringLiteral("+ Add"));

@@ -236,8 +236,8 @@
       <translation>المكتبات الهيدروليكية</translation>
     </message>
     <message>
-      <source>Controls &amp; Map Labels</source>
-      <translation>قواعد التحكم وتسميات الخريطة</translation>
+      <source>Controls</source>
+      <translation>قواعد التحكم</translation>
     </message>
     <message>
       <source>Reservoirs</source>
@@ -3162,6 +3162,10 @@ Right-click: animate back to 1.0×</source>
       <translation>لا شيء</translation>
     </message>
     <message>
+      <source>Annotation</source>
+      <translation>تعليق توضيحي</translation>
+    </message>
+    <message>
       <source>Note</source>
       <translation>ملاحظة</translation>
     </message>
@@ -3214,8 +3218,8 @@ Right-click: animate back to 1.0×</source>
       <translation>الخشونة</translation>
     </message>
     <message>
-      <source>Rule controls and map labels belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
-      <translation>تخص قواعد التحكم وتسميات الخريطة الشبكة المحمّلة، وتُحفظ التغييرات تلقائيًا في نسخة عملها.</translation>
+      <source>Rule controls belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
+      <translation>تخص قواعد التحكم الشبكة المحمّلة، وتُحفظ التغييرات تلقائيًا في نسخة عملها.</translation>
     </message>
     <message>
       <source>Select</source>
@@ -5565,12 +5569,16 @@ Merge commit: additional parent history is visible in Projects.</source>
       <translation>إضافة خزان ثابت المنسوب</translation>
     </message>
     <message>
-      <source>Add note</source>
-      <translation>إضافة ملاحظة</translation>
+      <source>Add annotation</source>
+      <translation>إضافة تعليق توضيحي</translation>
     </message>
   </context>
   <context>
     <name>MainWindow</name>
+    <message>
+      <source>Live annotations differ from durably staged MODEL transactions.</source>
+      <translation>تختلف التعليقات الحالية عن معاملات MODEL المسجلة بشكل دائم.</translation>
+    </message>
     <message>
       <source>The project units could not be changed.</source>
       <translation>تعذّر تغيير وحدات المشروع.</translation>
@@ -6976,8 +6984,8 @@ Right-click to reset.</source>
       <translation>تعذر حفظ التعديل الهيدروليكي</translation>
     </message>
     <message>
-      <source>The edit was rejected. Check entity references, coordinates and the active network.</source>
-      <translation>رُفض التعديل. تحقق من مراجع العناصر والإحداثيات والشبكة النشطة.</translation>
+      <source>The edit was rejected. Check entity references and the active network.</source>
+      <translation>رُفض التعديل. تحقق من مراجع العناصر والشبكة النشطة.</translation>
     </message>
     <message>
       <source>Delete hydraulic entity</source>
@@ -9471,6 +9479,105 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.</source>
       <translation>نفق WireGuard «%1» متوقف. ابدأه من الإعدادات ← شبكة WireGuard الخاصة ← الحالة.</translation>
+    </message>
+  </context>
+  <context>
+    <name>EntityInspectorAnnotation</name>
+    <message>
+      <source>Map annotation</source>
+      <translation>تعليق توضيحي على الخريطة</translation>
+    </message>
+    <message>
+      <source>Find another annotation in this distribution network</source>
+      <translation>البحث عن تعليق آخر في شبكة التوزيع هذه</translation>
+    </message>
+    <message>
+      <source>Enter annotation text</source>
+      <translation>أدخل نص التعليق</translation>
+    </message>
+    <message>
+      <source>Text</source>
+      <translation>النص</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>خط العرض</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>خط الطول</translation>
+    </message>
+    <message>
+      <source>Small</source>
+      <translation>صغير</translation>
+    </message>
+    <message>
+      <source>Normal</source>
+      <translation>عادي</translation>
+    </message>
+    <message>
+      <source>Large</source>
+      <translation>كبير</translation>
+    </message>
+    <message>
+      <source>Text size</source>
+      <translation>حجم النص</translation>
+    </message>
+    <message>
+      <source>Show background</source>
+      <translation>إظهار الخلفية</translation>
+    </message>
+    <message>
+      <source>Visible on map</source>
+      <translation>مرئي على الخريطة</translation>
+    </message>
+    <message>
+      <source>Attached to</source>
+      <translation>مرتبط بـ</translation>
+    </message>
+    <message>
+      <source>Create annotation</source>
+      <translation>إنشاء تعليق</translation>
+    </message>
+    <message>
+      <source>Delete annotation</source>
+      <translation>حذف التعليق</translation>
+    </message>
+    <message>
+      <source>Annotation could not be recorded in the working copy.</source>
+      <translation>تعذّر حفظ التعليق في نسخة العمل.</translation>
+    </message>
+    <message>
+      <source>Annotation could not be deleted.</source>
+      <translation>تعذّر حذف التعليق.</translation>
+    </message>
+    <message>
+      <source>New annotation</source>
+      <translation>تعليق جديد</translation>
+    </message>
+    <message>
+      <source>Untitled annotation</source>
+      <translation>تعليق بلا عنوان</translation>
+    </message>
+    <message>
+      <source>Read-only: open a writable private working copy to edit.</source>
+      <translation>للقراءة فقط: افتح نسخة عمل خاصة قابلة للتحرير.</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>لا شيء</translation>
+    </message>
+    <message>
+      <source>Annotation no longer exists at this History position.</source>
+      <translation>لم يعد التعليق موجودًا في هذا الموضع من السجل.</translation>
+    </message>
+    <message>
+      <source>%1 (%2)</source>
+      <translation>%1 (%2)</translation>
+    </message>
+    <message>
+      <source>Invalid annotation or failed working-copy transaction.</source>
+      <translation>تعليق غير صالح أو فشلت معاملة نسخة العمل.</translation>
     </message>
   </context>
 </TS>

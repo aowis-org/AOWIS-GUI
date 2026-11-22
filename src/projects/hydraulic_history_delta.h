@@ -9,17 +9,27 @@
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QHash>
+#include <QList>
 #include <QSet>
 #include <QString>
+#include <QStringList>
+#include <QUuid>
 
+#include <functional>
 #include <optional>
 #include <utility>
+#include <vector>
 
 // A transport-only delta, not another MODEL journal transaction. DVMDB has
 // already published and verified the destination before sending it. Apply it
 // to a COPY of the currently verified snapshot; neither the stage nor the
 // live editor is mutated until every before-image, membership move, and final
 // canonical digest has been checked.
+//
+// `digest()` is the complete-network SHA-256 (reconcile receipt, navigation
+// intents). The delta itself (version 2) uses `orderDigest()`, which needs
+// no whole-network encoding.
 namespace HydraulicHistoryDelta
 {
 inline bool error(QString *message, const QString &detail)
@@ -53,37 +63,123 @@ inline bool decodeImage(const QJsonValue &value, std::optional<QByteArray> &deco
     return true;
 }
 
-template<typename T>
-inline bool applyEntity(QList<T> &collection, const QUuid &id,
-                        const std::optional<QByteArray> &before,
-                        const std::optional<QByteArray> &after, QString *message)
+// Canonical position of a collection type (AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES
+// order, which is also the DVMDB collection order); nullopt when unknown.
+inline std::optional<int> typeOrdinal(const QString &type)
 {
-    qsizetype found = -1;
-    for (qsizetype index = 0; index < collection.size(); ++index)
+#define HISTORY_TYPE_ORDINAL(name, entity_type, storage_kind, ordinal) \
+    if (type == QStringLiteral(#entity_type)) return ordinal;
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(HISTORY_TYPE_ORDINAL)
+#undef HISTORY_TYPE_ORDINAL
+    return std::nullopt;
+}
+
+// Member UUIDs of one collection, in collection order.
+inline std::optional<QList<QUuid>> collectionOrder(const NetworkHydraulicDistribution &network,
+                                                   const QString &type)
+{
+#define HISTORY_COLLECTION_ORDER(name, entity_type, storage_kind, ordinal) \
+    if (type == QStringLiteral(#entity_type)) \
+    { \
+        QList<QUuid> members; \
+        members.reserve(network.name.size()); \
+        for (qsizetype index = 0; index < network.name.size(); ++index) \
+            members.append(network.name.at(index).uuid); \
+        return members; \
+    }
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(HISTORY_COLLECTION_ORDER)
+#undef HISTORY_COLLECTION_ORDER
+    return std::nullopt;
+}
+
+// historyDelta version 2 digest (docs/history-transport.md in DVMDB):
+// SHA-256 of "AOWIS-HISTORY-DELTA-2" + u32be-length root settings image +
+// for each listed type: u32be-length UTF-8 name, u32be count, 16-byte RFC
+// 4122 UUIDs in collection order. Empty for an unknown type. It covers only
+// settings and member order; changed content is checked via before-images.
+inline QString orderDigest(const NetworkHydraulicDistribution &network,
+                           const QStringList &ordered_types)
+{
+    QByteArray bytes("AOWIS-HISTORY-DELTA-2");
+    const std::function<void(quint32)> u32 = [&bytes](quint32 value)
     {
-        if (collection.at(index).uuid != id) continue;
-        if (found != -1)
+        for (int shift = 24; shift >= 0; shift -= 8)
+            bytes.append(static_cast<char>((value >> shift) & 0xffU));
+    };
+    const QByteArray settings = aowis::model::hydraulicDistributionRootImage(network);
+    u32(static_cast<quint32>(settings.size()));
+    bytes.append(settings);
+    for (const QString &type : ordered_types)
+    {
+        const std::optional<QList<QUuid>> members = collectionOrder(network, type);
+        if (!members) return {};
+        const QByteArray name = type.toUtf8();
+        u32(static_cast<quint32>(name.size()));
+        bytes.append(name);
+        u32(static_cast<quint32>(members->size()));
+        for (const QUuid &member : *members) bytes.append(member.toRfc4122());
+    }
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+struct EntityEdit
+{
+    QString type;
+    QUuid id;
+    std::optional<QByteArray> before;
+    std::optional<QByteArray> after;
+};
+
+// Applies all edits of ONE collection with a UUID lookup table: updates in
+// place, then deletions, then insertions appended in edit order. Same result
+// as applying them one by one, without a linear search per edit.
+template<typename T>
+inline bool applyEntities(QList<T> &collection, const std::vector<const EntityEdit *> &edits,
+                          QString *message)
+{
+    if (edits.empty()) return true;
+    QHash<QUuid, qsizetype> index;
+    QSet<QUuid> duplicated;
+    index.reserve(collection.size());
+    for (qsizetype position = 0; position < collection.size(); ++position)
+    {
+        const QUuid &id = collection.at(position).uuid;
+        if (index.contains(id)) duplicated.insert(id);
+        else index.insert(id, position);
+    }
+    QSet<qsizetype> removed;
+    QList<T> inserted;
+    for (const EntityEdit *edit : edits)
+    {
+        if (duplicated.contains(edit->id))
             return error(message, QStringLiteral("Duplicate History entity UUID"));
-        found = index;
+        const qsizetype found = index.value(edit->id, -1);
+        if ((found < 0) != !edit->before.has_value())
+            return error(message, QStringLiteral("History membership before-image mismatch"));
+        if (found >= 0 && aowis::model::ModelCodec<T>::encode(collection.at(found)) != *edit->before)
+            return error(message, QStringLiteral("Stale History entity before-image"));
+        if (!edit->after)
+        {
+            removed.insert(found);
+            continue;
+        }
+        QString codecError;
+        const std::optional<T> value = aowis::model::ModelCodec<T>::decode(*edit->after, &codecError);
+        if (!value || value->uuid != edit->id ||
+            aowis::model::ModelCodec<T>::encode(*value) != *edit->after)
+            return error(message, QStringLiteral("Noncanonical History entity after-image: ") + codecError);
+        if (found < 0) inserted.append(*value);
+        else collection[found] = *value;
     }
-    if ((found < 0) != !before.has_value())
-        return error(message, QStringLiteral("History membership before-image mismatch"));
-    if (found >= 0 && aowis::model::ModelCodec<T>::encode(collection.at(found)) != *before)
-        return error(message, QStringLiteral("Stale History entity before-image"));
-    if (!after)
+    if (!removed.isEmpty())
     {
-        if (found < 0)
-            return error(message, QStringLiteral("History cannot remove missing entity"));
-        collection.removeAt(found);
-        return true;
+        QList<T> kept;
+        kept.reserve(collection.size() - removed.size());
+        for (qsizetype position = 0; position < collection.size(); ++position)
+            if (!removed.contains(position)) kept.append(std::move(collection[position]));
+        collection = std::move(kept);
     }
-    QString codecError;
-    const std::optional<T> value = aowis::model::ModelCodec<T>::decode(*after, &codecError);
-    if (!value || value->uuid != id ||
-        aowis::model::ModelCodec<T>::encode(*value) != *after)
-        return error(message, QStringLiteral("Noncanonical History entity after-image: ") + codecError);
-    if (found < 0) collection.append(*value);
-    else collection[found] = *value;
+    collection.append(inserted);
     return true;
 }
 
@@ -111,25 +207,47 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
                   NetworkHydraulicDistribution &destination, QString *message = nullptr)
 {
     if (message) message->clear();
-    if (delta.size() != 6 || delta.value(QStringLiteral("version")) != QJsonValue(1) ||
+    if (delta.size() != 7 || delta.value(QStringLiteral("version")) != QJsonValue(2) ||
         delta.value(QStringLiteral("networkId")).toString() !=
             source.uuid.toString(QUuid::WithoutBraces) ||
         !delta.value(QStringLiteral("fromSha256")).isString() ||
         !delta.value(QStringLiteral("toSha256")).isString() ||
+        !delta.value(QStringLiteral("orderedTypes")).isArray() ||
         !delta.value(QStringLiteral("edits")).isArray() ||
         !delta.value(QStringLiteral("moves")).isArray())
         return error(message, QStringLiteral("Invalid History delta envelope"));
+
+    // Collections whose membership changed: known types, canonical order,
+    // no duplicates. Only these may gain, lose or reorder members.
+    QStringList orderedTypes;
+    int lastOrdinal = -1;
+    for (const QJsonValue &value : delta.value(QStringLiteral("orderedTypes")).toArray())
+    {
+        const std::optional<int> ordinal = value.isString()
+            ? typeOrdinal(value.toString()) : std::optional<int>();
+        if (!ordinal || *ordinal <= lastOrdinal)
+            return error(message, QStringLiteral("Invalid History orderedTypes"));
+        lastOrdinal = *ordinal;
+        orderedTypes.append(value.toString());
+    }
+    const QSet<QString> membershipTypes(orderedTypes.cbegin(), orderedTypes.cend());
+
     const QString from = delta.value(QStringLiteral("fromSha256")).toString();
     const QString to = delta.value(QStringLiteral("toSha256")).toString();
-    if (from.size() != 64 || to.size() != 64 || digest(source) != from)
+    if (from.size() != 64 || to.size() != 64 || orderDigest(source, orderedTypes) != from)
         return error(message, QStringLiteral("History delta source digest mismatch"));
     const QJsonArray edits = delta.value(QStringLiteral("edits")).toArray();
     const QJsonArray moves = delta.value(QStringLiteral("moves")).toArray();
-    if (edits.size() > 20000 || moves.size() > 20000)
+    // DVMDB holds at most 20,000 changes per draft, so a delta between two
+    // drafts has at most 40,000 entity edits plus the root edit. A move
+    // targets a final index, which is bounded below.
+    if (edits.size() > 40001 || moves.size() > 2000000)
         return error(message, QStringLiteral("History delta exceeds entity limit"));
 
     NetworkHydraulicDistribution next = source;
     QSet<QString> seenEdits;
+    std::vector<EntityEdit> parsed;
+    parsed.reserve(static_cast<std::size_t>(edits.size()));
     for (const QJsonValue &value : edits)
     {
         if (!value.isObject())
@@ -167,17 +285,21 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
                 return error(message, QStringLiteral("Invalid History root after-image: ") + rootError);
             continue;
         }
-        bool recognized = false;
-#define APPLY_HISTORY_ENTITY(name, entity_type, storage_kind, ordinal) \
-        if (!recognized && type == QStringLiteral(#entity_type)) { \
-            recognized = true; \
-            if (!applyEntity(next.name, id, before, after, message)) return false; \
-        }
-        AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(APPLY_HISTORY_ENTITY)
-#undef APPLY_HISTORY_ENTITY
-        if (!recognized)
+        if (!typeOrdinal(type))
             return error(message, QStringLiteral("Unknown History entity type: ") + type);
+        if ((!before || !after) && !membershipTypes.contains(type))
+            return error(message, QStringLiteral("History membership change outside orderedTypes"));
+        parsed.push_back(EntityEdit{type, id, std::move(before), std::move(after)});
     }
+#define APPLY_HISTORY_ENTITIES(name, entity_type, storage_kind, ordinal) \
+    { \
+        std::vector<const EntityEdit *> collectionEdits; \
+        for (const EntityEdit &edit : parsed) \
+            if (edit.type == QStringLiteral(#entity_type)) collectionEdits.push_back(&edit); \
+        if (!applyEntities(next.name, collectionEdits, message)) return false; \
+    }
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(APPLY_HISTORY_ENTITIES)
+#undef APPLY_HISTORY_ENTITIES
     for (const QJsonValue &value : moves)
     {
         if (!value.isObject())
@@ -192,6 +314,8 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
         const QUuid id(idText);
         if (id.isNull() || id.toString(QUuid::WithoutBraces) != idText)
             return error(message, QStringLiteral("Invalid History membership UUID"));
+        if (!membershipTypes.contains(type))
+            return error(message, QStringLiteral("History move outside orderedTypes"));
         const double requested = move.value(QStringLiteral("position")).toDouble(-1);
         if (requested < 0 || requested > 2000000 ||
             requested != static_cast<int>(requested))
@@ -207,7 +331,7 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
         if (!recognized)
             return error(message, QStringLiteral("Unknown History membership kind"));
     }
-    if (digest(next) != to)
+    if (orderDigest(next, orderedTypes) != to)
         return error(message, QStringLiteral("History destination digest mismatch"));
     destination = std::move(next);
     return true;

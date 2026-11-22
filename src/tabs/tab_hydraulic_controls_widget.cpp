@@ -632,85 +632,18 @@ bool editRule(QWidget *parent, const NetworkHydraulicDistribution &network, Hydr
     return dialog.exec() == QDialog::Accepted;
 }
 
-bool readFinite(QLineEdit *field, double *out, double minimum, double maximum)
-{
-    bool ok = false;
-    const double value = field->text().trimmed().toDouble(&ok);
-    if (!ok || !std::isfinite(value) || value < minimum || value > maximum) return false;
-    *out = value;
-    return true;
-}
-
-bool editLabel(QWidget *parent, const NetworkHydraulicDistribution &network, HydraulicMapLabel *label)
-{
-    QDialog dialog(parent);
-    localizeTitle(&dialog, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Hydraulic map label"));
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    QFormLayout *form = new QFormLayout();
-    QLineEdit *id = new QLineEdit(label->id, &dialog);
-    id->setObjectName(QStringLiteral("labelId"));
-    QLineEdit *text = new QLineEdit(label->text, &dialog);
-    text->setObjectName(QStringLiteral("labelText"));
-    QLineEdit *latitude = new QLineEdit(QString::number(label->coordinate_wgs84.latitude_deg, 'g', 17), &dialog);
-    latitude->setObjectName(QStringLiteral("labelLatitude"));
-    QLineEdit *longitude = new QLineEdit(QString::number(label->coordinate_wgs84.longitude_deg, 'g', 17), &dialog);
-    longitude->setObjectName(QStringLiteral("labelLongitude"));
-    QLineEdit *altitude = numberField(&dialog, label->coordinate_wgs84.altitude_m);
-    altitude->setObjectName(QStringLiteral("labelAltitude"));
-    QComboBox *anchor = referenceSelector(&dialog, network, false, label->anchor_node_uuid);
-    anchor->setObjectName(QStringLiteral("labelAnchor"));
-    localizeRow(form, id, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "ID"), &dialog);
-    localizeRow(form, text, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Text"), &dialog);
-    localizeRow(form, latitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Latitude (°)"), &dialog);
-    localizeRow(form, longitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Longitude (°)"), &dialog);
-    localizeRow(form, altitude, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Altitude (m; optional)"), &dialog);
-    localizeRow(form, anchor, QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Anchor node (optional)"), &dialog);
-    layout->addLayout(form);
-    addDialogButtons(&dialog, layout);
-    QDialogButtonBox *buttons = dialog.findChild<QDialogButtonBox *>();
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]()
-    {
-        HydraulicMapLabel edited = *label;
-        if (!readFinite(latitude, &edited.coordinate_wgs84.latitude_deg, -90.0, 90.0)
-            || !readFinite(longitude, &edited.coordinate_wgs84.longitude_deg, -180.0, 180.0)
-            || !readNumber(altitude, &edited.coordinate_wgs84.altitude_m))
-        {
-            QMessageBox::warning(&dialog, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Invalid coordinates")),
-                controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Provide finite latitude [-90,90], longitude [-180,180], and optional altitude.")));
-            return;
-        }
-        edited.id = id->text().trimmed();
-        edited.text = text->text();
-        edited.anchor_node_uuid = anchor->currentData().toUuid();
-        *label = edited;
-        dialog.accept();
-    });
-    return dialog.exec() == QDialog::Accepted;
-}
 }
 
 HydraulicControlsWidget::HydraulicControlsWidget(HydraulicData *hydraulic_data, QWidget *parent)
     : QWidget(parent), hydraulic_data(hydraulic_data)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Rule controls and map labels belong to the currently loaded hydraulic network. "
+    QLabel *description = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Rule controls belong to the currently loaded hydraulic network. "
         "Changes use its durable working-copy autosave transactions."), this);
     description->setWordWrap(true);
     layout->addWidget(description);
     QHBoxLayout *toolbar = new QHBoxLayout();
-    this->category = new QComboBox(this);
-    const char *const names[] = {
-        QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule controls"),
-        QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Map labels")
-    };
-    this->category->addItems({controlText(names[0]), controlText(names[1])});
-    LiveUiText::bind(this->category, [this]() {
-        const QSignalBlocker blocker(this->category);
-        this->category->setItemText(0, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Rule controls")));
-        this->category->setItemText(1, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Map labels")));
-    });
-    toolbar->addWidget(LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Collection:"), this));
-    toolbar->addWidget(this->category, 1);
+    toolbar->addStretch(1);
     QPushButton *add = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "+ Add"), this);
     this->edit_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Edit"), this);
     this->delete_button = LiveUiText::caption<QPushButton>(QT_TRANSLATE_NOOP("LiveUiText", "Delete"), this);
@@ -720,8 +653,6 @@ HydraulicControlsWidget::HydraulicControlsWidget(HydraulicData *hydraulic_data, 
     layout->addLayout(toolbar);
     this->entries = new QListWidget(this);
     layout->addWidget(this->entries, 1);
-    connect(this->category, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int) { refresh(); });
     connect(this->entries, &QListWidget::itemSelectionChanged,
             this, [this]() { updateButtons(); });
     connect(this->entries, &QListWidget::itemDoubleClicked,
@@ -757,24 +688,11 @@ void HydraulicControlsWidget::refresh(const QUuid &select_uuid)
 {
     this->entries->clear();
     const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
-    if (this->category->currentIndex() == 0)
+    for (const HydraulicControlRule &rule : network.controls_rules)
     {
-        for (const HydraulicControlRule &rule : network.controls_rules)
-        {
-            QListWidgetItem *item = new QListWidgetItem(rule.id, this->entries);
-            item->setData(Qt::UserRole, rule.uuid);
-            item->setToolTip(rule.uuid.toString(QUuid::WithoutBraces));
-        }
-    }
-    else
-    {
-        for (const HydraulicMapLabel &label : network.map_labels)
-        {
-            QListWidgetItem *item = new QListWidgetItem(label.id, this->entries);
-            item->setData(Qt::UserRole, label.uuid);
-            item->setToolTip(label.text + QStringLiteral("\n")
-                + label.uuid.toString(QUuid::WithoutBraces));
-        }
+        QListWidgetItem *item = new QListWidgetItem(rule.id, this->entries);
+        item->setData(Qt::UserRole, rule.uuid);
+        item->setToolTip(rule.uuid.toString(QUuid::WithoutBraces));
     }
     for (int index = 0; index < this->entries->count(); ++index)
     {
@@ -791,36 +709,20 @@ void HydraulicControlsWidget::editEntry(bool creating)
     if (!creating && uuid.isNull()) return;
     const NetworkHydraulicDistribution &network = this->hydraulic_data->networkHydraulicDistribution();
     QUuid changed;
-    if (this->category->currentIndex() == 0)
+    HydraulicControlRule rule;
+    if (!creating)
     {
-        HydraulicControlRule rule;
-        if (!creating)
-        {
-            const HydraulicControlRule *existing = lookup(network.controls_rules, uuid);
-            if (!existing) return;
-            rule = *existing;
-        }
-        if (!editRule(this, network, &rule)) return;
-        if (creating) changed = this->hydraulic_data->addRuleControl(rule);
-        else if (this->hydraulic_data->updateRuleControl(rule)) changed = rule.uuid;
+        const HydraulicControlRule *existing = lookup(network.controls_rules, uuid);
+        if (!existing) return;
+        rule = *existing;
     }
-    else
-    {
-        HydraulicMapLabel label;
-        if (!creating)
-        {
-            const HydraulicMapLabel *existing = lookup(network.map_labels, uuid);
-            if (!existing) return;
-            label = *existing;
-        }
-        if (!editLabel(this, network, &label)) return;
-        if (creating) changed = this->hydraulic_data->addMapLabel(label);
-        else if (this->hydraulic_data->updateMapLabel(label)) changed = label.uuid;
-    }
+    if (!editRule(this, network, &rule)) return;
+    if (creating) changed = this->hydraulic_data->addRuleControl(rule);
+    else if (this->hydraulic_data->updateRuleControl(rule)) changed = rule.uuid;
     if (changed.isNull())
     {
         QMessageBox::warning(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Cannot save hydraulic edit")),
-            controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "The edit was rejected. Check entity references, coordinates and the active network.")));
+            controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "The edit was rejected. Check entity references and the active network.")));
         return;
     }
     refresh(changed);
@@ -833,9 +735,7 @@ void HydraulicControlsWidget::deleteEntry()
     if (QMessageBox::question(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Delete hydraulic entity")),
         controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Delete the selected entry from this network?"))) != QMessageBox::Yes)
         return;
-    const bool removed = this->category->currentIndex() == 0
-        ? this->hydraulic_data->removeRuleControl(uuid)
-        : this->hydraulic_data->removeMapLabel(uuid);
+    const bool removed = this->hydraulic_data->removeRuleControl(uuid);
     if (!removed)
     {
         QMessageBox::warning(this, controlText(QT_TRANSLATE_NOOP("HydraulicControlsWidget", "Cannot delete")),

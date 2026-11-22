@@ -19,6 +19,7 @@
 #include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/hydraulic/hydraulic_simulation_results.h>
 #include <aowis/model/hydraulic/water_quality_simulation_results.h>
+#include <aowis/model/map/map_annotation.h>
 
 
 #include <aowis/epanet/dummy/dummy_networks.h>
@@ -56,10 +57,22 @@ public:
     // durable until a future working-copy controller acknowledges persistence.
     void setLogicalEditCaptureEnabled(bool enabled);
     bool logicalEditCaptureEnabled() const;
+    // map_annotations: the network's map annotations when they come with it
+    // (EPANET [LABELS] import). Replacing the network always replaces them.
     void replaceNetworkHydraulicDistribution(
         NetworkHydraulicDistribution network,
-        QList<WaterQualitySolverOptions> quality_run_options);
+        QList<WaterQualitySolverOptions> quality_run_options,
+        QList<MapAnnotation> map_annotations = {});
     const QList<WaterQualitySolverOptions> &simulationQualityRunOptions() const;
+    // Versioned presentation objects, NOT hydraulic solver entities. All
+    // mutations are fail-closed and produce a canonical map.annotation event.
+    const QList<MapAnnotation> &mapAnnotations() const;
+    std::optional<MapAnnotation> mapAnnotation(const QUuid &uuid) const;
+    bool createMapAnnotation(const QString &text, const CoordinateWGS84 &position,
+                             QUuid *created_uuid = nullptr,
+                             const MapAnnotationStyle &style = MapAnnotationStyle());
+    bool updateMapAnnotation(const MapAnnotation &annotation);
+    bool deleteMapAnnotation(const QUuid &uuid);
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     // operation/description label the captured event (history dock).
@@ -290,15 +303,13 @@ public:
     // Transaction-safe hydraulic libraries. Add assigns UUIDv7 and returns the
     // new identity; updates retain that identity. Removing a referenced item
     // is refused rather than leaving dangling model references.
-    // HC-02.7: Rule controls and map labels use the same durable MODEL edit
-    // pipeline as the 18 hydraulic collections. Reference checks reject
-    // dangling node/link/anchor IDs before any mutation.
+    // HC-02.7: Rule controls use the same durable MODEL edit pipeline as the
+    // 17 hydraulic collections. Reference checks reject dangling node/link
+    // IDs before any mutation. (Map labels are MODEL map annotations in their
+    // own layer since MODEL A3, not part of the hydraulic network.)
     QUuid addRuleControl(HydraulicControlRule entity);
     bool updateRuleControl(const HydraulicControlRule &entity);
     bool removeRuleControl(const QUuid &uuid);
-    QUuid addMapLabel(HydraulicMapLabel entity);
-    bool updateMapLabel(const HydraulicMapLabel &entity);
-    bool removeMapLabel(const QUuid &uuid);
 
     QUuid addPipeMaterial(HydraulicPipeMaterial entity);
     bool updatePipeMaterial(const HydraulicPipeMaterial &entity);
@@ -539,6 +550,7 @@ private:
     bool logical_edit_capture_enabled = false;
     NetworkHydraulicDistribution network_hydraulic_distribution;
     QList<WaterQualitySolverOptions> simulation_quality_run_options;
+    QList<MapAnnotation> map_annotations;
     QUuid source_trace_origin_node_uuid;
     HydraulicNetworkEditor network_editor;
     std::optional<HydraulicSimulationResultTimeline> simulation_result_timeline;
@@ -630,6 +642,7 @@ signals:
     void signalLogicalEditRecorded(const QByteArray &encoded_transaction);
     void signalLogicalEditCaptureFailed(const QString &reason);
     void signalNetworkLoaded();
+    void signalMapAnnotationsChanged();
     // Logical-edit capture switched on or off (a private draft became
     // editable, or editing stopped).
     void signalLogicalEditCaptureChanged(bool enabled);

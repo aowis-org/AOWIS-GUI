@@ -3,6 +3,7 @@
 #include "config/personal_repository_storage.h"
 
 #include <aowis/model/hydraulic/network_hydraulic_distribution.h>
+#include <aowis/model/map/map_annotation.h>
 
 #include <QByteArray>
 #include <QList>
@@ -205,6 +206,15 @@ public:
     void loadDraftNetwork(const PersonalRepositoryTarget &target,
                           const QString &draft_id, const QString &network_id,
                           NetworkCompletion completion);
+    // Read the versioned annotation layer from the exact same DVMDB draft.
+    // The layer ID and generation must be checked against the hydrated
+    // network before allowing the session to capture any edits.
+    using AnnotationLayerCompletion = std::function<void(
+        const QList<MapAnnotation> &, const QUuid &layer_id,
+        const QString &generation, const QString &error)>;
+    void loadDraftAnnotationLayer(const PersonalRepositoryTarget &target,
+                                  const QString &draft_id, const QUuid &layer_id,
+                                  const QUuid &network_id, AnnotationLayerCompletion completion);
     void initializeEmptyNetwork(const PersonalRepositoryTarget &target,
                                 const QString &draft_id, const QString &session_id,
                                 const QString &fencing_token,
@@ -245,7 +255,8 @@ public:
                              const QList<PersonalWorkingCopyChange> &changes,
                              const QList<QByteArray> &encoded_events,
                              const QList<HydraulicDraftMembershipEdit> &membership,
-                             EventSaveCompletion completion);
+                             EventSaveCompletion completion,
+                             const QUuid &annotation_layer_id = QUuid());
 
     // Drain precisely the oldest durable local event. The caller supplies the
     // matching typed candidate records and membership intents, both as

@@ -48,6 +48,7 @@ KNOWN_DIRECT = {
     'src/tabs/tab_projects_widget.cpp': 'ProjectsWidget',  # ProjectsWidget declares Q_OBJECT.
     'src/simulation/simulation_manager.cpp': 'SimulationManager',
     'src/settings/personal_repository_settings_widget.cpp': 'PersonalRepositorySettingsWidget',
+    'src/entity_inspector/entity_inspector_annotation.cpp': 'EntityInspectorAnnotation',
     'src/entity_inspector/entity_inspector_tank.cpp': 'EntityInspectorTank',
     'src/simulation/simulation_statistics_dialog.cpp': 'SimulationStatisticsDialog',
     'src/tabs/personal_working_copy_dialog.cpp': 'PersonalWorkingCopyDialog',

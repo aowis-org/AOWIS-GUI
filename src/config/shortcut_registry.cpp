@@ -43,6 +43,8 @@ QString configuredShortcut(const GuiShortcutConfiguration &configuration, GuiSho
             return configuration.map_pan_left;
         case GuiShortcutId::MapPanRight:
             return configuration.map_pan_right;
+        case GuiShortcutId::MapProviderGoogleSatellite:
+            return configuration.map_provider_google_satellite;
         case GuiShortcutId::MapProviderArcGisSat:
             return configuration.map_provider_arcgis_sat;
         case GuiShortcutId::MapProviderOpenStreetMap:
@@ -71,8 +73,8 @@ QString configuredShortcut(const GuiShortcutConfiguration &configuration, GuiSho
             return configuration.map_editor_add_power_source;
         case GuiShortcutId::MapEditorAddReservoir:
             return configuration.map_editor_add_reservoir;
-        case GuiShortcutId::MapEditorAddNote:
-            return configuration.map_editor_add_note;
+        case GuiShortcutId::MapEditorAddAnnotation:
+            return configuration.map_editor_add_annotation;
     }
 
     return QString();
@@ -130,7 +132,7 @@ QVector<GuiShortcutDefinition> createDefinitions()
 {
     const GuiShortcutConfiguration defaults;
     QVector<GuiShortcutDefinition> definitions;
-    definitions.reserve(26);
+    definitions.reserve(27);
 
     definitions.append({GuiShortcutId::SidebarToggle, QStringLiteral("sidebar_toggle"),
                         QStringLiteral("Toggle right sidebar"), QStringLiteral("Application"),
@@ -166,6 +168,9 @@ QVector<GuiShortcutDefinition> createDefinitions()
     definitions.append({GuiShortcutId::MapPanRight, QStringLiteral("map_pan_right"),
                         QStringLiteral("Pan right"), QStringLiteral("Map Navigation"),
                         QStringLiteral("Map"), defaults.map_pan_right});
+    definitions.append({GuiShortcutId::MapProviderGoogleSatellite, QStringLiteral("map_provider_google_satellite"),
+                        QStringLiteral("Google Satellite"), QStringLiteral("Map Providers"),
+                        QStringLiteral("Map"), defaults.map_provider_google_satellite});
     definitions.append({GuiShortcutId::MapProviderArcGisSat, QStringLiteral("map_provider_arcgis_sat"),
                         QStringLiteral("ArcGIS SAT"), QStringLiteral("Map Providers"),
                         QStringLiteral("Map"), defaults.map_provider_arcgis_sat});
@@ -209,9 +214,9 @@ QVector<GuiShortcutDefinition> createDefinitions()
     definitions.append({GuiShortcutId::MapEditorAddReservoir, QStringLiteral("map_editor_add_reservoir"),
                         QStringLiteral("Add reservoir"), QStringLiteral("Map Editor"),
                         QStringLiteral("Map Editor"), defaults.map_editor_add_reservoir});
-    definitions.append({GuiShortcutId::MapEditorAddNote, QStringLiteral("map_editor_add_note"),
-                        QStringLiteral("Add note"), QStringLiteral("Map Editor"),
-                        QStringLiteral("Map Editor"), defaults.map_editor_add_note});
+    definitions.append({GuiShortcutId::MapEditorAddAnnotation, QStringLiteral("map_editor_add_annotation"),
+                        QStringLiteral("Add annotation"), QStringLiteral("Map Editor"),
+                        QStringLiteral("Map Editor"), defaults.map_editor_add_annotation});
 
     return definitions;
 }

@@ -33,11 +33,15 @@ when the designated server is unreachable.
    generation, base revision, writer fencing, network identity and exact
    destination coordinate. DVMDB reconstructs and verifies the destination,
    then atomically changes its private candidate and cursor.
-4. The response contains a sparse `historyDelta`: canonical changed MODEL
-   images, collection membership/order moves, and `fromSha256`/`toSha256`.
-   The GUI verifies the current model hash and before-images, applies the
-   changes to a temporary model, then checks the destination hash before
-   publishing it to the editor.
+4. The response contains a sparse `historyDelta` (version 2): canonical
+   changed MODEL images, collection membership/order moves, `orderedTypes`
+   (collections whose membership changed) and `fromSha256`/`toSha256`. The
+   digests cover the network settings image and the member order of the
+   listed collections only, so neither side encodes the whole network. The
+   GUI verifies the source digest and every before-image, applies the changes
+   to a temporary model, then checks the destination digest before publishing
+   it to the editor. Membership changes and moves outside `orderedTypes` are
+   refused.
 5. The GUI acknowledges/removes the local intent and fetches a fresh
    authoritative History cursor. It does **not** reopen the draft, reload the
    original journal or GET a complete `NetworkHydraulicDistribution` for this operation.

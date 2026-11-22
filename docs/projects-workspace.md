@@ -212,7 +212,7 @@ gold card with the crown beside its server name.
 
 ## Known acceptance gaps
 
-The complete `NetworkHydraulicDistribution` model contains 18 persisted entity
+The complete `NetworkHydraulicDistribution` model contains 17 persisted entity
 collections. Generic entity capture does not prove that every GUI mutation
 path or root setting autosaves. The remaining work includes real end-to-end root-metadata
 and full mutation-path acceptance, import into an existing draft, Standalone

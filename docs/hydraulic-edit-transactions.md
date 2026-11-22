@@ -38,7 +38,10 @@ collection ordinal to MODEL type and DVMDB native record kind:
 | 14 | `links_valves` | `HydraulicLinkValve` | 6 |
 | 15 | `controls_simple` | `HydraulicControlSimple` | 16 |
 | 16 | `controls_rules` | `HydraulicControlRule` | 17 |
-| 17 | `map_labels` | `HydraulicMapLabel` | 18 |
+
+Map labels are no longer a hydraulic collection: MODEL A3 replaced
+`HydraulicMapLabel` with map annotations (`MapAnnotation`) in a separate
+per-network annotation layer. Editing annotations in the GUI is phase C.
 
 MODEL owns canonical `ModelCodec<T>`, `ModelEditTransaction`, and reversible
 entity/root images. The GUI's `HydraulicEditTransactionCapture` watches model
@@ -58,10 +61,9 @@ HTTP/Standalone acceptance tests before it is considered finished.
 ## Current editor mutation paths
 
 `HydraulicData` owns changes to the in-memory network. Node/pipe placement,
-movement, split/rejoin and dependency cascades, simple/rule controls,
-anchored map labels, and eight library collections have logical capture
-paths. **Hydraulic Libraries** and **Controls & Map Labels** pages edit their
-corresponding model collections with guarded references and canonical
+movement, split/rejoin and dependency cascades, simple/rule controls and
+eight library collections have logical capture paths. **Hydraulic
+Libraries** and **Controls** pages edit their corresponding model collections with guarded references and canonical
 transactions. Root settings use `setNetworkRootMetadata()` and emit a root
 MODEL event; mixed root/entity events are accepted by the current adapter.
 
@@ -98,7 +100,7 @@ checksummed restart intent, documented separately in
 ## What the current tests actually establish
 
 `aowis-hydraulic-edit-transaction` tests canonical capture/replay for the
-18 collections, root metadata, durable local queue operations and mixed
+17 collections, root metadata, durable local queue operations and mixed
 transaction staging. Related widget tests cover libraries and controls.
 DVMDB native and HTTP tests exercise server-owned manifests, leases,
 generations, commit/reopen and mixed root/member events. The newest changes

@@ -10,6 +10,7 @@
 #include "config/unit_profile_manager.h"
 
 #include <QEvent>
+#include <functional>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMenu>
@@ -25,10 +26,20 @@
 namespace
 {
 constexpr GuiShortcutId ProviderShortcutIds[] = {
-    GuiShortcutId::MapProviderArcGisSat,
+    GuiShortcutId::MapProviderGoogleSatellite,
     GuiShortcutId::MapProviderOpenStreetMap,
     GuiShortcutId::MapProviderOpenTopoMap,
-    GuiShortcutId::MapProviderCycloOsm
+    GuiShortcutId::MapProviderCycloOsm,
+    GuiShortcutId::MapProviderArcGisSat
+};
+// Shortcut slot and dropdown order use provider UUIDs, not Render's legacy
+// four-element MapProvider enum. Custom provider identities stay unaffected.
+constexpr const char *ProviderShortcutUuids[] = {
+    "c84ccc10-ff57-54d7-babf-e2e68a4dc7d2",
+    "0381bc44-67e9-5af9-aeb0-023ccba36658",
+    "178a60e6-178a-507b-af86-f45427150986",
+    "49bda1b9-15aa-55e6-8933-2172c785e775",
+    "a0d790c2-f231-55fd-b95e-23c9bd6cb3fc"
 };
 constexpr int ProviderShortcutCount = sizeof(ProviderShortcutIds) / sizeof(ProviderShortcutIds[0]);
 }
@@ -46,12 +57,12 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
     // below handles them when the sidebar is hidden.
     for (int index = 0; index < ProviderShortcutCount; ++index)
     {
-        const MapProvider provider = static_cast<MapProvider>(index + 1);
+        const QString provider_id = QString::fromLatin1(ProviderShortcutUuids[index]);
         QShortcut *shortcut = new QShortcut(this);
         shortcut->setContext(Qt::WindowShortcut);
-        connect(shortcut, &QShortcut::activated, this, [this, provider]
+        connect(shortcut, &QShortcut::activated, this, [this, provider_id]
         {
-            activateMapProvider(provider);
+            activateMapProvider(provider_id);
         });
         this->provider_shortcuts[index] = shortcut;
     }
@@ -157,10 +168,10 @@ MapNavigationWidget::MapNavigationWidget(MapWidget *map, CanvasMode mode, QWidge
         for (int index = 0; index < ProviderShortcutCount; ++index)
         {
             const GuiShortcutId shortcut_id = ProviderShortcutIds[index];
-            const QString provider_name = guiAvailableMapProviderDirectory().provider(
-                MapProviderCatalog::builtinId(index + 1)) == nullptr
-                ? tr("Map provider %1").arg(index + 1)
-                : guiAvailableMapProviderDirectory().provider(MapProviderCatalog::builtinId(index + 1))->name;
+            const QString provider_id = QString::fromLatin1(ProviderShortcutUuids[index]);
+            const MapProviderEntry *provider = guiAvailableMapProviderDirectory().provider(provider_id);
+            const QString provider_name = provider == nullptr
+                ? tr("Map provider %1").arg(index + 1) : provider->name;
             const QString action_text = tr("Edit %1 shortcut (%2)…").arg(
                 provider_name, guiShortcutPresentation(shortcut_id));
 #ifdef Q_OS_WASM
@@ -466,9 +477,9 @@ void MapNavigationWidget::syncIconSizeSliderForViewMode(MapViewMode view_mode)
     emit signalIconSizeChanged(bounded_value);
 }
 
-void MapNavigationWidget::activateMapProvider(MapProvider provider)
+void MapNavigationWidget::activateMapProvider(const QString &provider_id)
 {
-    this->map->changeMapProvider(provider);
+    this->map->model()->setProviderId(provider_id);
 
     QWidget *focus_target = this->keyboard_focus_target;
     QTimer::singleShot(0, focus_target, [focus_target]
@@ -488,7 +499,7 @@ void MapNavigationWidget::refreshShortcutPresentation()
         QShortcut *shortcut = this->provider_shortcuts[shortcut_index];
         shortcut->setKey(guiShortcutRegistry().keySequence(shortcut_id));
 
-        const QString provider_id = MapProviderCatalog::builtinId(provider_number);
+        const QString provider_id = QString::fromLatin1(ProviderShortcutUuids[shortcut_index]);
         const int combo_index = this->combo_provider->findData(provider_id);
         shortcut->setEnabled(combo_index >= 0 && !shortcut->key().isEmpty());
         if (combo_index < 0)
@@ -511,18 +522,36 @@ void MapNavigationWidget::refreshProviderChoices()
     const QString active_id = this->map->model()->providerId();
     const QSignalBlocker blocker(this->combo_provider);
     this->combo_provider->clear();
-    for (const MapProviderEntry &entry : guiAvailableMapProviderDirectory().providers())
+    const QVector<MapProviderEntry> providers = guiAvailableMapProviderDirectory().providers();
+    const std::function<void(const MapProviderEntry &)> addProvider = [this](const MapProviderEntry &entry)
     {
-        if (entry.enabled)
-        {
-            this->combo_provider->addItem(entry.name, entry.id);
-            const QString tooltip = guiAvailableMapProviderDirectory().isInherited(entry.id)
-                ? tr("Inherited from MAP upstream: %1").arg(
-                    guiAvailableMapProviderDirectory().upstreams(entry.id).join(", "))
-                : entry.name;
-            this->combo_provider->setItemData(this->combo_provider->count() - 1,
-                tooltip, Qt::ToolTipRole);
-        }
+        this->combo_provider->addItem(entry.name, entry.id);
+        const QString tooltip = guiAvailableMapProviderDirectory().isInherited(entry.id)
+            ? tr("Inherited from MAP upstream: %1").arg(
+                guiAvailableMapProviderDirectory().upstreams(entry.id).join(", "))
+            : entry.name;
+        this->combo_provider->setItemData(this->combo_provider->count() - 1,
+            tooltip, Qt::ToolTipRole);
+    };
+    // Keep the five presets in F1-F5 order regardless of a previously saved
+    // MAP catalog's order. Preserve all additional providers afterwards.
+    for (int index = 0; index < ProviderShortcutCount; ++index)
+    {
+        const QString id = QString::fromLatin1(ProviderShortcutUuids[index]);
+        for (const MapProviderEntry &entry : providers)
+            if (entry.enabled && entry.id == id)
+                addProvider(entry);
+    }
+    for (const MapProviderEntry &entry : providers)
+    {
+        if (!entry.enabled)
+            continue;
+        bool is_preset = false;
+        for (int index = 0; index < ProviderShortcutCount; ++index)
+            if (entry.id == QString::fromLatin1(ProviderShortcutUuids[index]))
+                is_preset = true;
+        if (!is_preset)
+            addProvider(entry);
     }
     this->combo_provider->setCurrentIndex(this->combo_provider->findData(active_id));
     refreshShortcutPresentation();
@@ -544,7 +573,7 @@ bool MapNavigationWidget::triggerProviderShortcut(const QKeySequence &pressed)
         const QShortcut *shortcut = this->provider_shortcuts[index];
         if (!shortcut->isEnabled() || shortcut->key().matches(pressed) != QKeySequence::ExactMatch)
             continue;
-        activateMapProvider(static_cast<MapProvider>(index + 1));
+        activateMapProvider(QString::fromLatin1(ProviderShortcutUuids[index]));
         return true;
     }
     return false;

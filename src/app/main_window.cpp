@@ -412,7 +412,8 @@ MainWindow::MainWindow(QWidget *parent)
         // Replay may include locally queued transactions not yet on the server.
         // Never load the raw HTTP snapshot into an editable workspace.
         this->hydraulic_data->replaceNetworkHydraulicDistribution(
-            this->personal_edit_session->visibleNetwork(), {});
+            this->personal_edit_session->visibleNetwork(), {},
+            this->personal_edit_session->visibleAnnotations());
         this->immutable_network_read_only = false;
         // Keep the Distribution Editor active while browsing History.
         // Logical edit capture is enabled only after cursor verification.
@@ -487,7 +488,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, [this](const NetworkHydraulicDistribution &network)
     {
         if (!this->personal_edit_active || this->personal_edit_blocked) return;
-        this->hydraulic_data->replaceNetworkHydraulicDistribution(network, {});
+        this->hydraulic_data->replaceNetworkHydraulicDistribution(
+            network, {}, this->personal_edit_session->visibleAnnotations());
         // Rehydration is not edit permission. Wait for the authoritative cursor
         // before restoring capture or the Distribution Editor.
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
@@ -564,7 +566,7 @@ MainWindow::MainWindow(QWidget *parent)
                                   QT_TRANSLATE_NOOP("MainNavigationWidget", "Hydraulic Libraries"));
     this->main_navigation->addPage(this->hydraulic_controls,
                                   QIcon(":/icon/inspector_quality.png"),
-                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Controls & Map Labels"));
+                                  QT_TRANSLATE_NOOP("MainNavigationWidget", "Controls"));
     this->main_navigation->addPage(this->reservoirs,
                                   QIcon(":/icon/reservoir.png"),
                                   QT_TRANSLATE_NOOP("MainNavigationWidget", "Reservoirs"));
@@ -1820,6 +1822,28 @@ void MainWindow::checkPersonalDraftModel()
     {
         blockPersonalDraftEditing(tr("Private draft writer is no longer ready."));
         return;
+    }
+    // Annotations live outside the hydraulic network and deliberately do
+    // not change its geometry/visual revision. Verify them on every guard
+    // pass, including when the hydraulic revision itself is unchanged.
+    const QList<MapAnnotation> &live_annotations = this->hydraulic_data->mapAnnotations();
+    const QList<MapAnnotation> &staged_annotations = this->personal_edit_session->visibleAnnotations();
+    if (live_annotations.size() != staged_annotations.size())
+    {
+        blockPersonalDraftEditing(tr("Live annotations differ from durably staged MODEL transactions."));
+        return;
+    }
+    for (qsizetype index = 0; index < live_annotations.size(); ++index)
+    {
+        const QByteArray live_image =
+            aowis::model::ModelCodec<MapAnnotation>::encode(live_annotations.at(index));
+        const QByteArray staged_image =
+            aowis::model::ModelCodec<MapAnnotation>::encode(staged_annotations.at(index));
+        if (live_image.isEmpty() || staged_image.isEmpty() || live_image != staged_image)
+        {
+            blockPersonalDraftEditing(tr("Live annotations differ from durably staged MODEL transactions."));
+            return;
+        }
     }
     const quint64 revision = this->hydraulic_data->visualRevision();
     if (revision == this->personal_edit_last_checked_revision)

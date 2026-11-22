@@ -5,6 +5,7 @@
 #include "import/epanet_js_project_importer.h"
 #include "import/epanet_js_unit_profile.h"
 #include "config/unit_profile_manager.h"
+#include "network/map_annotation_export.h"
 
 #include <aowis/epanet/epanet_runner.h>
 #include <aowis/epanet/epanet_result_import.h>
@@ -975,9 +976,11 @@ void SimulationManager::finishEpanetNetworkImport(
     // A private session may have started while the file was chosen.
     if (refuseReplacementDuringPrivateEditing(parent_widget))
         return;
+    // [LABELS] arrive as map annotations next to the network (MODEL A3).
     this->hydraulic_data->replaceNetworkHydraulicDistribution(
         std::move(import_result.request.network),
-        std::move(import_result.request.quality_runs));
+        std::move(import_result.request.quality_runs),
+        std::move(import_result.request.map_annotations));
     emit signalEpanetNetworkImported();
 
     if (!complete)
@@ -1033,6 +1036,10 @@ void SimulationManager::exportSelectedEpanetNetwork(const NetworkHydraulicDistri
     EpanetRunRequest export_request;
     export_request.network = network_hydraulic_distribution;
     export_request.quality_runs = this->hydraulic_data->simulationQualityRunOptions();
+    // The loaded network's map annotations become [LABELS].
+    if (network_hydraulic_distribution.uuid == this->hydraulic_data->networkHydraulicDistribution().uuid)
+        export_request.map_annotations = exportableMapAnnotations(
+            network_hydraulic_distribution, this->hydraulic_data->mapAnnotations());
 
     EpanetRunner runner;
     const EpanetResultInp export_result = runner.retrieveInp(export_request);

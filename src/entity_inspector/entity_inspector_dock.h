@@ -6,6 +6,7 @@
 
 #include <QVBoxLayout>
 
+#include "entity_inspector/entity_inspector_annotation.h"
 #include "entity_inspector/entity_inspector_tank.h"
 #include "entity_inspector/entity_inspector_junction.h"
 #include "entity_inspector/entity_inspector_pipe.h"
@@ -32,11 +33,15 @@ public:
     
     void clearEntity();
     
+signals:
+    void mapAnnotationSelected(const QUuid &uuid);
+
 private:
     HydraulicData *hydraulic_data = nullptr;
     void setInspector(EntityInspectorWidget *inspector);
     
     EntityInspectorWidget *widget_current = nullptr;
+    EntityInspectorAnnotation *widget_annotation = nullptr;
     int tab_index_current = 0;
     
     HeadlossFormulas headloss_formulas_current =
@@ -46,6 +51,8 @@ public slots:
     virtual void onHeadlossFormulaChanged(HeadlossFormulas formulas);
     
 public slots:
+    void beginMapAnnotation(const CoordinateWGS84 &coordinate);
+    void showMapAnnotation(const QUuid &uuid);
     void showEntityTank(const HydraulicNodeTank &tank);
     void showEntityJunction(const HydraulicNodeJunction &junction);
     void showEntityPipe(HydraulicLinkPipe pipe);

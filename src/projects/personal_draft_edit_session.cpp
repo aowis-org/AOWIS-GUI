@@ -2,6 +2,7 @@
 
 #include "projects/dvmdb_identity.h"
 #include "projects/hydraulic_history_delta.h"
+#include "network/map_annotation_layer_id.h"
 
 #include <QDateTime>
 #include <QJsonArray>
@@ -155,31 +156,47 @@ void PersonalDraftEditSession::start(
             // the fencing token: a second window that acquired first would
             // fence out the running session and only then fail on the lock.
             // The queue lock is per machine, so it refuses here instead.
-            QString stage_error;
-            if (!this->stage_.open(this->queue_root_, QUuid(this->target_.repository_id),
-                                   QUuid(this->draft_id_), network, journal_tail,
-                                   &stage_error))
+            const QUuid annotation_layer_id = distributionMapAnnotationLayerId(network.uuid);
+            this->client_.loadDraftAnnotationLayer(this->target_, this->draft_id_,
+                annotation_layer_id, network.uuid,
+                [this, network, journal_tail, annotation_layer_id](
+                    const QList<MapAnnotation> &annotations, const QUuid &loaded_layer,
+                    const QString &annotation_generation, const QString &annotation_error)
             {
-                fail(QStringLiteral("Unable to recover local draft event queue: %1").arg(stage_error));
-                return;
-            }
-            // The acquisition checks the generation once more.
-            this->client_.acquireLease(this->target_, this->draft_id_, this->session_id_, 90,
-                [this](const PersonalWorkingCopyLease &lease, const QString &lease_error)
-            {
-                if (!lease_error.isEmpty())
+                if (this->stop_requested_) { finishStop(); return; }
+                if (!annotation_error.isEmpty() || loaded_layer != annotation_layer_id ||
+                    annotation_generation != this->generation_)
                 {
-                    if (this->stop_requested_) { finishStop(); return; }
-                    fail(QStringLiteral("Cannot acquire private draft writer lease: %1").arg(lease_error));
+                    fail(QStringLiteral("Draft changed during annotation hydration: %1")
+                         .arg(annotation_error));
                     return;
                 }
-                this->fencing_token_ = lease.token;
-                this->lease_expiry_ = lease.expires_at_ms;
-                if (this->stop_requested_)
+                QString stage_error;
+                if (!this->stage_.open(this->queue_root_, QUuid(this->target_.repository_id),
+                                       QUuid(this->draft_id_), network, journal_tail,
+                                       &stage_error, annotations, annotation_layer_id))
                 {
-                    releaseAndClose();
+                    fail(QStringLiteral("Unable to recover local draft event queue: %1").arg(stage_error));
                     return;
                 }
+                // Take the local queue lock before the writer lease; neither
+                // the network nor the layer is taken from an unverified cache.
+                this->client_.acquireLease(this->target_, this->draft_id_, this->session_id_, 90,
+                    [this](const PersonalWorkingCopyLease &lease, const QString &lease_error)
+                {
+                    if (!lease_error.isEmpty())
+                    {
+                        if (this->stop_requested_) { finishStop(); return; }
+                        fail(QStringLiteral("Cannot acquire private draft writer lease: %1").arg(lease_error));
+                        return;
+                    }
+                    this->fencing_token_ = lease.token;
+                    this->lease_expiry_ = lease.expires_at_ms;
+                    if (this->stop_requested_)
+                    {
+                        releaseAndClose();
+                        return;
+                    }
                 if (lease.generation != this->generation_ || leaseIsExpiring())
                 {
                     fail(QStringLiteral("Draft generation changed or lease expired during checkout."));
@@ -191,6 +208,7 @@ void PersonalDraftEditSession::start(
                 emit pendingCountChanged(this->stage_.pendingCount());
                 refreshHistoryCursor();
                 scheduleFlush();
+                });
             });
         });
     });
@@ -260,7 +278,9 @@ void PersonalDraftEditSession::flush()
     QList<PersonalWorkingCopyChange> changes;
     QList<HydraulicDraftMembershipEdit> membership;
     QString error;
-    if (!this->stage_.prepareOldest(next, changes, membership, &error))
+    QUuid annotation_layer_id;
+    if (!this->stage_.prepareOldest(next, changes, membership, &error,
+                                    &annotation_layer_id))
     {
         fail(QStringLiteral("Cannot stage next durable Save: %1").arg(error));
         return;
@@ -311,7 +331,7 @@ void PersonalDraftEditSession::flush()
         else
             scheduleFlush();
         refreshHistoryCursor();
-    });
+    }, annotation_layer_id);
 }
 
 void PersonalDraftEditSession::renew()
@@ -627,10 +647,10 @@ void PersonalDraftEditSession::finishHistoryNavigation(
         fail(QStringLiteral("History navigation was not authoritatively confirmed: %1").arg(error));
         return;
     }
-    // The server reconstructs the full network, but sends only changed
-    // typed MODEL images and sparse membership moves. Nothing is applied
-    // to the local stage until all source images and the final canonical
-    // SHA-256 have been verified against our saved snapshot.
+    // The server sends only changed typed MODEL images and sparse
+    // membership moves (historyDelta version 2). Nothing is applied to the
+    // local stage until every before-image and both settings/order digests
+    // have been verified against our saved snapshot.
     NetworkHydraulicDistribution network;
     QString deltaError;
     if (!HydraulicHistoryDelta::apply(result.history_delta,
@@ -652,17 +672,36 @@ void PersonalDraftEditSession::finishHistoryNavigation(
 void PersonalDraftEditSession::completeHistoryNavigation(
     const NetworkHydraulicDistribution &network, const QString &generation, bool replace_network)
 {
-    // Both a successful sparse delta and a matching SHA reconciliation must
-    // pass this final publication path. The latter never replaces the model.
-    if (replace_network)
+    // History's sparse hydraulic delta does not include the independent
+    // annotation root. Rehydrate it at the exact published generation BEFORE
+    // unlocking the editor. A second GET is fenced by generation equality.
+    Q_UNUSED(replace_network);
+    const QUuid layer_id = distributionMapAnnotationLayerId(network.uuid);
+    this->client_.loadDraftAnnotationLayer(this->target_, this->draft_id_, layer_id,
+        network.uuid, [this, network, generation, layer_id](
+            const QList<MapAnnotation> &annotations, const QUuid &verified_layer,
+            const QString &verified_generation, const QString &error)
     {
-        QString stageError;
-        if (!this->stage_.resetVerifiedNetwork(network, &stageError))
+        if (this->stop_requested_) { releaseAndClose(); return; }
+        if (!error.isEmpty() || verified_layer != layer_id ||
+            verified_generation != generation)
         {
-            fail(QStringLiteral("Cannot publish navigated editor state: %1").arg(stageError));
+            fail(QStringLiteral("Cannot verify annotation History state: %1").arg(error));
             return;
         }
-    }
+        QString stage_error;
+        if (!this->stage_.resetVerifiedNetwork(network, &stage_error, annotations))
+        {
+            fail(QStringLiteral("Cannot publish navigated annotation state: %1").arg(stage_error));
+            return;
+        }
+        finalizeHistoryNavigation(network, generation);
+    });
+}
+
+void PersonalDraftEditSession::finalizeHistoryNavigation(
+    const NetworkHydraulicDistribution &network, const QString &generation)
+{
     this->generation_ = generation;
     this->history_network_qualified_ = true;
     const QJsonObject coordinate = this->history_target_coordinate_;
@@ -992,6 +1031,12 @@ const NetworkHydraulicDistribution &PersonalDraftEditSession::visibleNetwork() c
 {
     return this->stage_.visibleNetwork();
 }
+
+const QList<MapAnnotation> &PersonalDraftEditSession::visibleAnnotations() const
+{
+    return this->stage_.visibleAnnotations();
+}
+
 
 QList<QByteArray> PersonalDraftEditSession::savedHistoryEvents() const
 {

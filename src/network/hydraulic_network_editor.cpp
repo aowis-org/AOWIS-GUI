@@ -2225,7 +2225,6 @@ bool HydraulicNetworkEditor::deleteJunction(const QUuid &uuid)
 
     removeSimpleControlsReferencing(this->network, uuid);
     removeRuleControlsReferencing(this->network, uuid);
-    clearMapLabelAnchorsToNode(uuid);
     clearDemandPointAttachmentsToJunction(uuid);
     deleteConnectedLinks(uuid);
     return true;
@@ -2238,7 +2237,6 @@ bool HydraulicNetworkEditor::deleteReservoir(const QUuid &uuid)
 
     removeSimpleControlsReferencing(this->network, uuid);
     removeRuleControlsReferencing(this->network, uuid);
-    clearMapLabelAnchorsToNode(uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2250,7 +2248,6 @@ bool HydraulicNetworkEditor::deleteTank(const QUuid &uuid)
 
     removeSimpleControlsReferencing(this->network, uuid);
     removeRuleControlsReferencing(this->network, uuid);
-    clearMapLabelAnchorsToNode(uuid);
     deleteConnectedLinks(uuid);
     return true;
 }
@@ -2358,16 +2355,6 @@ void HydraulicNetworkEditor::clearDemandPointAttachmentsToJunction(const QUuid &
             continue;
 
         demand_point.attachment = HydraulicDemandPointAttachment();
-    }
-}
-
-void HydraulicNetworkEditor::clearMapLabelAnchorsToNode(const QUuid &node_uuid)
-{
-    // Labels retain their text and map position when their anchor is deleted.
-    for (HydraulicMapLabel &label : this->network.map_labels)
-    {
-        if (label.anchor_node_uuid == node_uuid)
-            label.anchor_node_uuid = QUuid();
     }
 }
 

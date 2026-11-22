@@ -1,6 +1,7 @@
 #include "network/hydraulic_data.h"
 #include "network/hydraulic_edit_transaction_capture.h"
 #include "network/hydraulic_network_editor.h"
+#include "network/map_annotation_export.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/hydraulic_draft_event_adapter.h"
 #include "projects/hydraulic_draft_entity_registry.h"
@@ -17,6 +18,8 @@
 #include <aowis/model/uuid.h>
 
 #include <limits>
+#include <optional>
+#include <functional>
 #include <utility>
 
 namespace
@@ -517,7 +520,7 @@ void testAllHydraulicEntityCollectionCapture()
         AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(COUNT_HYDRAULIC_COLLECTION)
 #undef COUNT_HYDRAULIC_COLLECTION
         ;
-    static_assert(collection_count == 18, "Hydraulic capture must cover every MODEL entity collection");
+    static_assert(collection_count == 17, "Hydraulic capture must cover every MODEL entity collection");
 #define TEST_HYDRAULIC_COLLECTION(name, type, kind, ordinal) \
     testCollectionCapture<type>(&NetworkHydraulicDistribution::name, #type, kind, ordinal);
     AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(TEST_HYDRAULIC_COLLECTION)
@@ -1835,19 +1838,6 @@ void testRuleControlDeletionCascades()
         unrelated_rule.premises.append(stable_premise);
         unrelated_rule.actions_then.append(stable_action);
         baseline.controls_rules = {then_rule, else_rule, link_rule, node_rule, unrelated_rule};
-        HydraulicMapLabel target_label;
-        target_label.id = QStringLiteral("label-of-target-node");
-        target_label.uuid = createUuidV7();
-        target_label.text = QStringLiteral("Anchor survives detachment");
-        target_label.coordinate_wgs84 = coordinate(50.0, 8.0);
-        target_label.anchor_node_uuid = first;
-        HydraulicMapLabel stable_label;
-        stable_label.id = QStringLiteral("independent-label");
-        stable_label.uuid = createUuidV7();
-        stable_label.text = QStringLiteral("Unchanged");
-        stable_label.coordinate_wgs84 = coordinate(50.2, 8.2);
-        stable_label.anchor_node_uuid = stable_a;
-        baseline.map_labels = {target_label, stable_label};
 
         HydraulicData data;
         data.replaceNetworkHydraulicDistribution(baseline, {});
@@ -1880,28 +1870,11 @@ void testRuleControlDeletionCascades()
         }
         test_harness.expectTrue(unrelated_kept && node_rule_kept == !is_node,
                                 "HC02 rule cascade retains only independent rules");
-        bool target_label_preserved = false;
-        bool stable_label_preserved = false;
-        for (const HydraulicMapLabel &label : data.networkHydraulicDistribution().map_labels)
-        {
-            if (label.uuid == target_label.uuid)
-                target_label_preserved = label.text == target_label.text &&
-                    label.coordinate_wgs84.latitude_deg == target_label.coordinate_wgs84.latitude_deg &&
-                    label.anchor_node_uuid == (is_node ? QUuid() : first);
-            if (label.uuid == stable_label.uuid)
-                stable_label_preserved = label.anchor_node_uuid == stable_a &&
-                    label.text == stable_label.text;
-        }
-        test_harness.expectTrue(target_label_preserved && stable_label_preserved &&
-                                data.networkHydraulicDistribution().map_labels.size() == 2,
-                                "HC02 node deletion detaches only dependent map label anchors");
-
         const std::optional<aowis::model::ModelEditTransaction> transaction = decoded(events.first());
         bool removed_then = false;
         bool removed_else = false;
         bool removed_premise = false;
         bool removed_node_premise = false;
-        bool updated_label = false;
         if (transaction.has_value())
         {
             for (const aowis::model::ModelEntityEdit &edit : transaction->edits)
@@ -1914,15 +1887,12 @@ void testRuleControlDeletionCascades()
                     removed_premise = edit.before.has_value() && !edit.after.has_value();
                 if (edit.entityId == node_rule.uuid)
                     removed_node_premise = edit.before.has_value() && !edit.after.has_value();
-                if (edit.entityId == target_label.uuid)
-                    updated_label = edit.before.has_value() && edit.after.has_value() &&
-                        edit.before != edit.after;
             }
         }
         test_harness.expectTrue(transaction.has_value() &&
-                                transaction->edits.size() == (is_node ? 7 : 4) &&
+                                transaction->edits.size() == (is_node ? 6 : 4) &&
                                 removed_then && removed_else && removed_premise &&
-                                removed_node_premise == is_node && updated_label == is_node,
+                                removed_node_premise == is_node,
                                 "HC02 rule dependencies and their owner are removed atomically");
         QList<PersonalWorkingCopyChange> records;
         QList<HydraulicDraftMembershipEdit> membership;
@@ -1936,8 +1906,8 @@ void testRuleControlDeletionCascades()
                 aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
                 aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
                 membership.size() == (is_node ? 6 : 4) &&
-                records.size() == (is_node ? 7 : 4),
-                "HC02 rule and map-label cascade replays with exact membership and canonical images");
+                records.size() == (is_node ? 6 : 4),
+                "HC02 rule cascade replays with exact membership and canonical images");
         test_harness.expectTrue(capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
                                 "HC02 dependent rule removal does not disable edit capture");
     }
@@ -2090,11 +2060,11 @@ void testPipeRejoinCapturesControlCascades()
                             "HC02 pipe rejoin retains an active, error-free edit capture");
 }
 
-void testRuleAndMapLabelCrud()
+void testRuleControlCrud()
 {
     NetworkHydraulicDistribution baseline;
     baseline.uuid = createUuidV7();
-    baseline.id = QStringLiteral("HC02 rule/map-label editing");
+    baseline.id = QStringLiteral("HC02 rule editing");
     HydraulicNodeJunction node_from;
     node_from.uuid = createUuidV7();
     node_from.id = QStringLiteral("J1");
@@ -2135,11 +2105,6 @@ void testRuleAndMapLabelCrud()
     rule.id = QStringLiteral("R1");
     rule.premises.append(premise);
     rule.actions_then.append(action);
-    HydraulicMapLabel label;
-    label.id = QStringLiteral("L1");
-    label.text = QStringLiteral("Label one");
-    label.coordinate_wgs84 = coordinate(50.01, 8.02);
-    label.anchor_node_uuid = node_from.uuid;
 
     HydraulicControlRule invalid_rule = rule;
     invalid_rule.premises[0].object_uuid = pipe.uuid;
@@ -2161,59 +2126,33 @@ void testRuleAndMapLabelCrud()
     invalid_rule.actions_then.clear();
     test_harness.expectTrue(data.addRuleControl(invalid_rule).isNull() && events.isEmpty(),
                             "HC02 rules reject missing THEN actions");
-    HydraulicMapLabel invalid_label = label;
-    invalid_label.anchor_node_uuid = pipe.uuid;
-    test_harness.expectTrue(data.addMapLabel(invalid_label).isNull() && events.isEmpty(),
-                            "HC02 labels reject a link UUID as a node anchor");
-    invalid_label = label;
-    invalid_label.coordinate_wgs84.latitude_deg = 1000.0;
-    test_harness.expectTrue(data.addMapLabel(invalid_label).isNull() && events.isEmpty(),
-                            "HC02 labels reject coordinates outside WGS84 bounds");
-
     const QUuid rule_uuid = data.addRuleControl(rule);
-    const QUuid label_uuid = data.addMapLabel(label);
-    test_harness.expectTrue(!rule_uuid.isNull() && !label_uuid.isNull() &&
-                            (rule_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
-                            (label_uuid.toRfc4122().at(6) & 0xf0) == 0x70 &&
-                            rule_uuid != label_uuid && events.size() == 2 &&
-                            data.networkHydraulicDistribution().controls_rules.size() == 1 &&
-                            data.networkHydraulicDistribution().map_labels.size() == 1,
-                            "HC02 creates rule and label with captured, distinct UUIDv7 identities");
-    if (rule_uuid.isNull() || label_uuid.isNull() || events.size() != 2)
+    test_harness.expectTrue(!rule_uuid.isNull() &&
+                            (rule_uuid.toRfc4122().at(6) & 0xf0) == 0x70 && events.size() == 1 &&
+                            data.networkHydraulicDistribution().controls_rules.size() == 1,
+                            "HC02 creates a rule with a captured UUIDv7 identity");
+    if (rule_uuid.isNull() || events.size() != 1)
         return;
     rule.uuid = rule_uuid;
-    label.uuid = label_uuid;
-    test_harness.expectTrue(data.updateRuleControl(rule) && data.updateMapLabel(label) &&
-                            events.size() == 2,
-                            "HC02 unchanged rule and label produce no events");
+    test_harness.expectTrue(data.updateRuleControl(rule) && events.size() == 1,
+                            "HC02 unchanged rule produces no event");
     rule.priority = 2.5;
     rule.actions_else.append(action);
-    label.text = QStringLiteral("Edited label");
-    label.anchor_node_uuid = QUuid();
-    label.coordinate_wgs84.longitude_deg = 8.25;
-    test_harness.expectTrue(data.updateRuleControl(rule) && data.updateMapLabel(label) &&
-                            events.size() == 4,
-                            "HC02 updates rule branches and label text, anchor, coordinates");
+    test_harness.expectTrue(data.updateRuleControl(rule) && events.size() == 2,
+                            "HC02 updates rule priority and branches");
     invalid_rule = rule;
     invalid_rule.premises[0].object_uuid = createUuidV7();
-    invalid_label = label;
-    invalid_label.anchor_node_uuid = createUuidV7();
-    test_harness.expectTrue(!data.updateRuleControl(invalid_rule) &&
-                            !data.updateMapLabel(invalid_label) && events.size() == 4,
-                            "HC02 rejected updates do not produce events");
-    test_harness.expectTrue(!data.removeRuleControl(node_from.uuid) &&
-                            !data.removeMapLabel(pipe.uuid) && events.size() == 4,
-                            "HC02 refuse deleting entities of other collections");
-    test_harness.expectTrue(data.removeRuleControl(rule_uuid) &&
-                            data.removeMapLabel(label_uuid) && events.size() == 6 &&
-                            data.networkHydraulicDistribution().controls_rules.isEmpty() &&
-                            data.networkHydraulicDistribution().map_labels.isEmpty(),
-                            "HC02 deletes rule and label with two durable events");
-    if (events.size() != 6)
+    test_harness.expectTrue(!data.updateRuleControl(invalid_rule) && events.size() == 2,
+                            "HC02 rejected rule update does not produce an event");
+    test_harness.expectTrue(!data.removeRuleControl(node_from.uuid) && events.size() == 2,
+                            "HC02 refuses deleting an entity of another collection");
+    test_harness.expectTrue(data.removeRuleControl(rule_uuid) && events.size() == 3 &&
+                            data.networkHydraulicDistribution().controls_rules.isEmpty(),
+                            "HC02 deletes a rule with one durable event");
+    if (events.size() != 3)
         return;
 
-    const quint16 expected_kinds[] = {17, 18, 17, 18, 17, 18};
-    const bool expected_inserted[] = {true, true, false, false, false, false};
+    const bool expected_inserted[] = {true, false, false};
     for (int index = 0; index < events.size(); ++index)
     {
         QString error;
@@ -2223,14 +2162,14 @@ void testRuleAndMapLabelCrud()
             events.at(index), staged, records, membership, &error);
         const std::optional<aowis::model::ModelEditTransaction> tx = decoded(events.at(index));
         const bool correct_images = tx.has_value() && tx->edits.size() == 1 &&
-            tx->edits.first().entityId == ((index % 2 == 0) ? rule_uuid : label_uuid) &&
-            tx->edits.first().before.has_value() == (index >= 2) &&
-            tx->edits.first().after.has_value() == (index < 4);
-        const bool membership_expected = (index < 2 || index >= 4);
+            tx->edits.first().entityId == rule_uuid &&
+            tx->edits.first().before.has_value() == (index >= 1) &&
+            tx->edits.first().after.has_value() == (index < 2);
+        const bool membership_expected = index != 1;
         const bool correct_membership = membership_expected ?
-            (membership.size() == 1 && membership.first().kind == expected_kinds[index] &&
+            (membership.size() == 1 && membership.first().kind == 17 &&
              membership.first().inserted == expected_inserted[index]) : membership.isEmpty();
-        const QByteArray message = QStringLiteral("HC02 rule/map replay event %1: %2")
+        const QByteArray message = QStringLiteral("HC02 rule replay event %1: %2")
             .arg(index).arg(error).toUtf8();
         test_harness.expectTrue(replayed && correct_images && correct_membership &&
                                 records.size() == 1, message.constData());
@@ -2240,9 +2179,80 @@ void testRuleAndMapLabelCrud()
         aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
             aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()) &&
         capture_error.isEmpty() && data.logicalEditCaptureEnabled(),
-        "HC02 rule/map-label create/update/delete replays to exact canonical network");
+        "HC02 rule create/update/delete replays to exact canonical network");
 }
 
+
+// MODEL A3: EPANET [LABELS] arrive as map annotations next to the network.
+// HydraulicData keeps them with that network only, and INP export frees an
+// annotation whose anchor node was deleted (at its stored position) while
+// every other anchor keeps following its node.
+void testMapAnnotationsTravelWithTheNetwork()
+{
+    NetworkHydraulicDistribution baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("A3 annotations");
+    HydraulicNodeJunction kept;
+    kept.uuid = createUuidV7();
+    kept.id = QStringLiteral("J1");
+    kept.coordinate_wgs84 = coordinate(50.0, 8.0);
+    HydraulicNodeJunction removed;
+    removed.uuid = createUuidV7();
+    removed.id = QStringLiteral("J2");
+    removed.coordinate_wgs84 = coordinate(50.1, 8.1);
+    baseline.nodes_junctions = {kept, removed};
+
+    const std::function<MapAnnotation(const QString &, const std::optional<QUuid> &)> annotation =
+        [](const QString &text, const std::optional<QUuid> &anchor_uuid)
+    {
+        MapAnnotation value;
+        value.uuid = createUuidV7();
+        value.text = text;
+        value.position_wgs84 = coordinate(50.05, 8.05);
+        if (anchor_uuid)
+        {
+            MapAnnotationAnchor anchor;
+            anchor.entity_uuid = *anchor_uuid;
+            anchor.entity_type = QStringLiteral("HydraulicNodeJunction");
+            anchor.offset_east_m = 15.0;
+            anchor.offset_north_m = -5.0;
+            value.anchor = anchor;
+        }
+        return value;
+    };
+    const MapAnnotation on_kept = annotation(QStringLiteral("on J1"), kept.uuid);
+    const MapAnnotation on_removed = annotation(QStringLiteral("on J2"), removed.uuid);
+    const MapAnnotation free_standing = annotation(QStringLiteral("free"), std::nullopt);
+
+    HydraulicData data;
+    data.replaceNetworkHydraulicDistribution(baseline, {}, {on_kept, on_removed, free_standing});
+    test_harness.expectTrue(data.mapAnnotations().size() == 3,
+                            "A3 imported annotations are kept with the network");
+
+    QList<MapAnnotation> exported = exportableMapAnnotations(data.networkHydraulicDistribution(), data.mapAnnotations());
+    test_harness.expectTrue(exported.size() == 3 && exported.at(0).anchor && exported.at(1).anchor &&
+                            !exported.at(2).anchor,
+                            "A3 export keeps every resolvable anchor");
+
+    test_harness.expectTrue(data.deleteJunction(removed.uuid), "A3 fixture junction can be deleted");
+    exported = exportableMapAnnotations(data.networkHydraulicDistribution(), data.mapAnnotations());
+    test_harness.expectTrue(exported.size() == 3 &&
+                            exported.at(0).anchor && exported.at(0).anchor->entity_uuid == kept.uuid &&
+                            exported.at(0).anchor->offset_east_m == 15.0 &&
+                            !exported.at(1).anchor &&
+                            exported.at(1).position_wgs84.latitude_deg == 50.05 &&
+                            exported.at(1).text == QStringLiteral("on J2") &&
+                            !exported.at(2).anchor,
+                            "A3 export frees only the annotation whose anchor node was deleted");
+    test_harness.expectTrue(data.mapAnnotations().at(1).anchor.has_value(),
+                            "A3 export does not change the stored annotations");
+
+    NetworkHydraulicDistribution other = baseline;
+    other.uuid = createUuidV7();
+    data.replaceNetworkHydraulicDistribution(other, {});
+    test_harness.expectTrue(data.mapAnnotations().isEmpty(),
+                            "A3 annotations never carry over to another network");
+}
 
 // INT-04: A disconnected, unsupplied (non-simulatable) engineering network is
 // still a legitimate private working-copy candidate. No hydraulic solver
@@ -2412,7 +2422,7 @@ void testDraftStageRejectsOutOfOrderReplay()
 }
 
 
-// INT-05: capture all 18 collections in one actual network, not only as
+// INT-05: capture all 17 collections in one actual network, not only as
 // isolated single-entity fixtures. The event queue must preserve exactly the
 // same canonical MODEL bytes across both pending and acknowledged restarts.
 template<typename Entity>
@@ -2449,9 +2459,9 @@ void testInt05CompleteNetworkQueueRoundTrip()
                       QStringLiteral("INT05-%1").arg(ordinal), events);
     AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(CAPTURE_INT05_COLLECTION)
 #undef CAPTURE_INT05_COLLECTION
-    test_harness.expectTrue(captured && events.size() == 18,
-        "INT-05 all 18 collections capture into one complete network");
-    if (!captured || events.size() != 18) return;
+    test_harness.expectTrue(captured && events.size() == 17,
+        "INT-05 all 17 collections capture into one complete network");
+    if (!captured || events.size() != 17) return;
 
     // Use the real HydraulicData metadata setter, which is how GUI settings
     // must reach the same canonical event/queue transport as entity edits.
@@ -2464,7 +2474,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
     editor.setLogicalEditCaptureEnabled(true);
     NetworkHydraulicDistribution metadata = aowis::model::hydraulicDistributionRootMetadata(network);
     metadata.id = QStringLiteral("INT-05 renamed network");
-    metadata.title_line_1 = QStringLiteral("All 18 collections");
+    metadata.title_line_1 = QStringLiteral("All 17 collections");
     metadata.title_line_2 = QStringLiteral("Saved and reopened");
     metadata.title_line_3 = QStringLiteral("Canonical model equality");
     metadata.duration_s = 86400;
@@ -2507,7 +2517,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
         if (!queued) break;
         queued = staged.append(bytes, &error);
     }
-    test_harness.expectTrue(queued && staged.pendingCount() == 19 &&
+    test_harness.expectTrue(queued && staged.pendingCount() == 18 &&
         aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged.visibleNetwork()) == expected,
         "INT-05 all collections and root enter the durable queue without data loss");
     if (!queued) return;
@@ -2516,7 +2526,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
     PersonalDraftEditStage recovered;
     const bool opened = recovered.open(directory.path(), repository, draft,
                                        baseline, {}, &error);
-    test_harness.expectTrue(opened && recovered.pendingCount() == 19 &&
+    test_harness.expectTrue(opened && recovered.pendingCount() == 18 &&
         aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.visibleNetwork()) == expected,
         "INT-05 queued mixed network survives a fresh editing session");
     if (!opened) return;
@@ -2527,7 +2537,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
         QList<PersonalWorkingCopyChange> records;
         QList<HydraulicDraftMembershipEdit> membership;
         if (!recovered.prepareOldest(next, records, membership, &error) ||
-            (index < 18
+            (index < 17
                 ? records.size() != 1 || membership.size() != 1 ||
                   !membership.first().inserted ||
                   membership.first().collection_index != static_cast<quint16>(index)
@@ -2540,7 +2550,7 @@ void testInt05CompleteNetworkQueueRoundTrip()
     }
     test_harness.expectTrue(acknowledged && recovered.pendingCount() == 0 &&
         aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(recovered.persistedNetwork()) == expected,
-        "INT-05 19 canonical saves preserve every collection and root field");
+        "INT-05 18 canonical saves preserve every collection and root field");
     if (!acknowledged) return;
     const NetworkHydraulicDistribution persisted = recovered.persistedNetwork();
     recovered.close();
@@ -2720,6 +2730,101 @@ void testNetworkRootMetadataCaptureAndReplay()
 
 }
 
+
+void testRevisionedMapAnnotationDraftEditing()
+{
+    QTemporaryDir directory;
+    test_harness.expectTrue(directory.isValid(), "annotation draft queue directory exists");
+    if (!directory.isValid())
+        return;
+    NetworkHydraulicDistribution network;
+    network.uuid = createUuidV7();
+    network.id = QStringLiteral("Annotations");
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    HydraulicData live;
+    live.replaceNetworkHydraulicDistribution(network, {});
+    QList<QByteArray> events;
+    QObject::connect(&live, &HydraulicData::signalLogicalEditRecorded,
+        &live, [&events](const QByteArray &event) { events.append(event); });
+    QUuid created;
+    test_harness.expectTrue(!live.createMapAnnotation(QStringLiteral("Read-only"),
+        coordinate(50.0, 8.0), &created) && created.isNull(),
+        "read-only working copy rejects annotation creation");
+    live.setLogicalEditCaptureEnabled(true);
+    test_harness.expectTrue(live.createMapAnnotation(QStringLiteral("Pump station"),
+        coordinate(50.0, 8.0), &created) && !created.isNull() && events.size() == 1,
+        "annotation creation produces exactly one canonical MODEL transaction");
+    if (events.size() != 1)
+        return;
+    const std::optional<aowis::model::ModelEditTransaction> event = decoded(events.first());
+    test_harness.expectTrue(event && event->edits.size() == 1 &&
+        event->edits.first().entityType == QStringLiteral("map.annotation") &&
+        event->edits.first().ownerLayerId.has_value() &&
+        !event->edits.first().before && event->edits.first().after.has_value(),
+        "annotation event uses a distinct native layer, without hydraulic changes");
+    if (!event || event->edits.isEmpty() || !event->edits.first().after)
+        return;
+
+    PersonalDraftEditStage stage;
+    QString error;
+    test_harness.expectTrue(stage.open(directory.path(), repository, draft,
+        network, {}, &error), "annotation stage opens against a verified network");
+    test_harness.expectTrue(stage.append(events.first(), &error) &&
+        stage.pendingCount() == 1 && stage.visibleAnnotations().size() == 1 &&
+        stage.persistedAnnotations().isEmpty(),
+        "annotation is durable in the local queue before server acknowledgement");
+    NetworkHydraulicDistribution proposed;
+    QList<PersonalWorkingCopyChange> changes;
+    QList<HydraulicDraftMembershipEdit> membership;
+    QUuid layer_id;
+    test_harness.expectTrue(stage.prepareOldest(proposed, changes, membership,
+        &error, &layer_id) && !layer_id.isNull() && changes.isEmpty()
+        && membership.isEmpty(),
+        "DVMDB materializes annotation records itself, not through hydraulic membership");
+    test_harness.expectTrue(stage.acknowledgeOldest(events.first(), &error) &&
+        stage.persistedAnnotations().size() == 1 && stage.pendingCount() == 0,
+        "authoritative DVMDB confirmation advances the annotation candidate");
+
+    MapAnnotation changed = *live.mapAnnotation(created);
+    changed.text = QStringLiteral("Pump station phase two");
+    changed.position_wgs84 = coordinate(50.2, 8.3);
+    changed.style.show_background = true;
+    test_harness.expectTrue(live.updateMapAnnotation(changed) && events.size() == 2 &&
+        stage.append(events.last(), &error),
+        "annotation text, position and style use one reversible update");
+    stage.close();
+    PersonalDraftEditStage resumed;
+    // The pending update was queued locally, but not yet confirmed by DVMDB.
+    // Reopen against the actually persisted image, not the live GUI image.
+    const std::optional<MapAnnotation> before =
+        aowis::model::ModelCodec<MapAnnotation>::decode(*event->edits.first().after);
+    test_harness.expectTrue(before && resumed.open(directory.path(), repository, draft,
+        network, {}, &error, {*before}, layer_id) &&
+        resumed.pendingCount() == 1 && resumed.visibleAnnotations().size() == 1 &&
+        resumed.visibleAnnotations().first().text == changed.text &&
+        resumed.persistedAnnotations().first().text == QStringLiteral("Pump station"),
+        "restart replays an unacknowledged annotation update against the server snapshot");
+    if (!resumed.isOpen())
+        return;
+    test_harness.expectTrue(resumed.prepareOldest(proposed, changes, membership,
+        &error, &layer_id) && changes.isEmpty() && membership.isEmpty() &&
+        resumed.acknowledgeOldest(events.last(), &error),
+        "replayed update is confirmed once without hydraulic entity records");
+    const QList<MapAnnotation> confirmed = resumed.persistedAnnotations();
+    resumed.close();
+    test_harness.expectTrue(live.deleteMapAnnotation(created) && events.size() == 3,
+        "deleting an annotation creates a separate reversible event");
+    PersonalDraftEditStage deletion;
+    test_harness.expectTrue(deletion.open(directory.path(), repository, draft,
+        network, {}, &error, confirmed, layer_id) &&
+        deletion.append(events.last(), &error) &&
+        deletion.visibleAnnotations().isEmpty() &&
+        deletion.acknowledgeOldest(events.last(), &error) &&
+        deletion.persistedAnnotations().isEmpty(),
+        "annotation deletion is staged, replayed and acknowledged independently");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
@@ -2736,7 +2841,7 @@ int main(int argc, char **argv)
     test_harness.runCase("3D link creation preserves hydraulic heights",
                          test3dSharedLinkCreationKeepsHydraulicElevations);
     test_harness.runCase("Only watched entities", testCaptureOnlyTouchedEntities);
-    test_harness.runCase("All 18 hydraulic collections", testAllHydraulicEntityCollectionCapture);
+    test_harness.runCase("All 17 hydraulic collections", testAllHydraulicEntityCollectionCapture);
     test_harness.runCase("Hydraulic collection UUID ambiguity", testAmbiguousAndNullHydraulicCapture);
     test_harness.runCase("HydraulicData logical operations", testHydraulicDataLogicalOperations);
     test_harness.runCase("Pipe split keeps canonical collection order",
@@ -2745,7 +2850,10 @@ int main(int argc, char **argv)
     test_harness.runCase("Pump simple control capture and cascades", testPumpSimpleControlCaptureAndCascades);
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
-    test_harness.runCase("Rule and map-label CRUD", testRuleAndMapLabelCrud);
+    test_harness.runCase("Rule control CRUD", testRuleControlCrud);
+    test_harness.runCase("Map annotations travel with the network", testMapAnnotationsTravelWithTheNetwork);
+    test_harness.runCase("Revisioned map annotations: stage, acknowledgement and restart",
+                         testRevisionedMapAnnotationDraftEditing);
     test_harness.runCase("Hydraulic library reference guards", testHydraulicLibraryReferenceValidation);
     test_harness.runCase("Hydraulic library CRUD and draft replay", testHydraulicLibraryCrud);
     test_harness.runCase("Hydraulic library deletion dependency guards", testHydraulicLibraryDeleteReferences);

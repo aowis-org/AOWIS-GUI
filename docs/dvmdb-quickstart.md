@@ -131,7 +131,7 @@ is forbidden; making a branch does not rewrite the original snapshot.
 
 ## 6. Limits and recovery
 
-- Generic capture includes all **18 hydraulic entity collections** and
+- Generic capture includes all **17 hydraulic entity collections** and
   network-root metadata, including mixed root/entity events. Complete
   cross-process HTTP/Standalone and every UI mutation-path acceptance remain open.
 - Unsupported/uncaptured changes must block rather than appear saved.

@@ -44,6 +44,7 @@
 #include "common/_enums_structs.h"
 
 #include <QDebug>
+#include <optional>
 
 // The map editor draws with bgfx only (roadmap Phase 2; the QPainter editor
 // and the QRhi editor path are gone): imagery, the network, every editor
@@ -73,6 +74,8 @@ public:
     
     MapNavigationWidget *mapNavigationWidget();
     bool isEditNetworkSectionActive() const;
+    bool isAnnotationToolActive() const;
+    bool isSelectToolActive() const;
     // Map fullscreen: the left menu is not visible, so its buttons' window
     // shortcuts (tools, map providers) cannot fire. The map forwards key
     // presses here instead; true when a button's shortcut matched (the
@@ -237,6 +240,16 @@ private:
     void handleBgfxHudAction(int action, int value);
     void setBgfxFullscreen(bool fullscreen);
     void applyEditorCursor();
+    bool handleAnnotationInput(QEvent *event);
+    std::optional<CoordinateWGS84> annotationCoordinateAt(const QPointF &screen) const;
+    std::optional<QUuid> annotationAt(const QPointF &screen) const;
+    void refreshAnnotationOverlay();
+    QUuid selected_annotation_uuid;
+    QUuid pressed_annotation_uuid;
+    QPointF annotation_press_point;
+    bool annotation_mouse_pressed = false;
+    bool annotation_drag_started = false;
+    std::optional<CoordinateWGS84> annotation_drag_preview;
     // HUD first for pointer, wheel and Escape on the canvas (desktop: the
     // events forwarded from the native window; WASM: the canvas' own).
     bool routeBgfxHudEvent(QEvent *event);

@@ -177,7 +177,7 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
     {
         if (intent.network_id.isNull() || intent.entity_id.isNull() ||
             intent.entity_id == intent.network_id || intent.kind == 0 ||
-            intent.collection_index >= 18 || intents.contains(intent.entity_id))
+            intent.collection_index >= 17 || intents.contains(intent.entity_id))
             return QStringLiteral("Invalid or duplicate hydraulic membership intent.");
         intents.insert(intent.entity_id, &intent);
     }
@@ -187,6 +187,12 @@ QString validateMembership(const QList<aowis::model::ModelEditTransaction> &even
     {
         for (const aowis::model::ModelEntityEdit &edit : event.edits)
         {
+            if (edit.entityType == QString::fromLatin1(aowis::model::mapAnnotationEditType))
+            {
+                if (!edit.ownerLayerId || edit.entityId.isNull())
+                    return QStringLiteral("Invalid annotation event layer or member identity.");
+                continue; // server materializes the native record and membership
+            }
             if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
             {
                 if (events.size() != 1 ||
@@ -1513,6 +1519,73 @@ void PersonalWorkingCopyClient::loadDraftNetwork(
     });
 }
 
+void PersonalWorkingCopyClient::loadDraftAnnotationLayer(
+    const PersonalRepositoryTarget &target, const QString &draft_id,
+    const QUuid &layer_id, const QUuid &network_id, AnnotationLayerCompletion completion)
+{
+    const QString network = network_id.toString(QUuid::WithoutBraces);
+    if (!DvmdbIdentity::isUuidV7(draft_id) || layer_id.isNull() ||
+        !DvmdbIdentity::isUuidV7(network))
+    {
+        completion({}, {}, {}, QStringLiteral("Invalid draft annotation-layer identity"));
+        return;
+    }
+    const QString layer = layer_id.toString(QUuid::WithoutBraces);
+    request(target, "GET", QStringLiteral("/working-copies/") + draft_id +
+                QStringLiteral("/annotation-layers/") + layer, {},
+            [completion = std::move(completion), draft_id, layer_id, layer, network]
+            (const QJsonObject &response, const QString &error)
+    {
+        if (!error.isEmpty()) { completion({}, {}, {}, error); return; }
+        const QString generation = response.value(QStringLiteral("generation")).toString();
+        const QJsonValue members = response.value(QStringLiteral("annotations"));
+        if (response.value(QStringLiteral("draftId")).toString() != draft_id ||
+            response.value(QStringLiteral("id")).toString() != layer ||
+            response.value(QStringLiteral("ownerNetworkId")).toString() != network ||
+            response.value(QStringLiteral("domain")).toString() != QStringLiteral("distribution") ||
+            !decimal(generation) || !members.isArray() ||
+            members.toArray().size() > 50000 ||
+            response.value(QStringLiteral("count")).toInt(-1) != members.toArray().size())
+        {
+            completion({}, {}, {}, QStringLiteral("Invalid annotation layer scope or generation"));
+            return;
+        }
+        QList<MapAnnotation> annotations;
+        QSet<QUuid> identities;
+        for (const QJsonValue &entry : members.toArray())
+        {
+            if (!entry.isObject())
+            {
+                completion({}, {}, {}, QStringLiteral("Invalid annotation member"));
+                return;
+            }
+            const QJsonObject object = entry.toObject();
+            const QUuid uuid(object.value(QStringLiteral("uuid")).toString());
+            const QByteArray encoded = object.value(QStringLiteral("payloadBase64")).toString().toLatin1();
+            const QByteArray::FromBase64Result binary = QByteArray::fromBase64Encoding(
+                encoded, QByteArray::AbortOnBase64DecodingErrors);
+            if (uuid.isNull() || identities.contains(uuid) || !binary ||
+                binary.decoded.toBase64() != encoded)
+            {
+                completion({}, {}, {}, QStringLiteral("Duplicate or invalid annotation member"));
+                return;
+            }
+            QString codec_error;
+            const std::optional<MapAnnotation> value =
+                aowis::model::ModelCodec<MapAnnotation>::decode(binary.decoded, &codec_error);
+            if (!value || value->uuid != uuid ||
+                aowis::model::ModelCodec<MapAnnotation>::encode(*value) != binary.decoded)
+            {
+                completion({}, {}, {}, QStringLiteral("Invalid canonical annotation: %1").arg(codec_error));
+                return;
+            }
+            identities.insert(uuid);
+            annotations.append(*value);
+        }
+        completion(annotations, layer_id, generation, {});
+    });
+}
+
 void PersonalWorkingCopyClient::initializeEmptyNetwork(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &session_id, const QString &fencing_token,
@@ -1706,7 +1779,8 @@ void PersonalWorkingCopyClient::saveEventsRecovering(
     const QString &expected_generation,
     const QList<PersonalWorkingCopyChange> &changes,
     const QList<QByteArray> &encoded_events,
-    const QList<HydraulicDraftMembershipEdit> &membership, EventSaveCompletion completion)
+    const QList<HydraulicDraftMembershipEdit> &membership, EventSaveCompletion completion,
+    const QUuid &annotation_layer_id)
 {
     const QString invalid = validateSaveRequest(draft_id, session_id, fencing_token,
                                                 expected_generation, changes, true);
@@ -1744,6 +1818,25 @@ void PersonalWorkingCopyClient::saveEventsRecovering(
         events.append(QString::fromLatin1(encoded.toBase64()));
         decoded_events.append(event.value());
     }
+    int annotation_count = 0;
+    for (const aowis::model::ModelEditTransaction &event : decoded_events)
+        for (const aowis::model::ModelEntityEdit &edit : event.edits)
+        {
+            if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType))
+                continue;
+            ++annotation_count;
+            if (annotation_layer_id.isNull() || !edit.ownerLayerId ||
+                *edit.ownerLayerId != annotation_layer_id)
+            {
+                completion({}, false, QStringLiteral("Annotation event has no verified owning layer"));
+                return;
+            }
+        }
+    if ((!annotation_layer_id.isNull()) != (annotation_count > 0))
+    {
+        completion({}, false, QStringLiteral("Annotation layer scope does not match event batch"));
+        return;
+    }
     const QString membership_error = validateMembership(decoded_events, changes, membership);
     if (!membership_error.isEmpty())
     {
@@ -1760,6 +1853,9 @@ void PersonalWorkingCopyClient::saveEventsRecovering(
     // so recovery below compares only the records sent here.
     if (!membership.isEmpty())
         body.insert(QStringLiteral("membership"), encodeMembership(membership));
+    if (!annotation_layer_id.isNull())
+        body.insert(QStringLiteral("annotationLayerId"),
+                    annotation_layer_id.toString(QUuid::WithoutBraces));
     request(target, "POST", QStringLiteral("/working-copies/") + draft_id
                 + QStringLiteral("/save-events"),
             body,

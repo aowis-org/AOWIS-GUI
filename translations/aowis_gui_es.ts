@@ -228,8 +228,8 @@
       <translation>Bibliotecas hidráulicas</translation>
     </message>
     <message>
-      <source>Controls &amp; Map Labels</source>
-      <translation>Controles y etiquetas del mapa</translation>
+      <source>Controls</source>
+      <translation>Controles</translation>
     </message>
     <message>
       <source>Reservoirs</source>
@@ -3142,6 +3142,10 @@ Clic derecho: volver a 1,0×</translation>
       <translation>Ninguna</translation>
     </message>
     <message>
+      <source>Annotation</source>
+      <translation>Anotación</translation>
+    </message>
+    <message>
       <source>Note</source>
       <translation>Nota</translation>
     </message>
@@ -3194,8 +3198,8 @@ Clic derecho: volver a 1,0×</translation>
       <translation>Rugosidad</translation>
     </message>
     <message>
-      <source>Rule controls and map labels belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
-      <translation>Las reglas de control y las etiquetas pertenecen a la red cargada. Los cambios se guardan automáticamente en su copia de trabajo.</translation>
+      <source>Rule controls belong to the currently loaded hydraulic network. Changes use its durable working-copy autosave transactions.</source>
+      <translation>Las reglas de control pertenecen a la red cargada. Los cambios se guardan automáticamente en su copia de trabajo.</translation>
     </message>
     <message>
       <source>Select</source>
@@ -5545,12 +5549,16 @@ Commit de fusión: los otros padres se muestran en Proyectos.</translation>
       <translation>Añadir embalse</translation>
     </message>
     <message>
-      <source>Add note</source>
-      <translation>Añadir nota</translation>
+      <source>Add annotation</source>
+      <translation>Añadir anotación</translation>
     </message>
   </context>
   <context>
     <name>MainWindow</name>
+    <message>
+      <source>Live annotations differ from durably staged MODEL transactions.</source>
+      <translation>Las anotaciones activas difieren de las transacciones MODEL registradas de forma duradera.</translation>
+    </message>
     <message>
       <source>The project units could not be changed.</source>
       <translation>No se pudieron cambiar las unidades del proyecto.</translation>
@@ -6956,8 +6964,8 @@ Clic derecho para restablecer.</translation>
       <translation>No se puede guardar la modificación hidráulica</translation>
     </message>
     <message>
-      <source>The edit was rejected. Check entity references, coordinates and the active network.</source>
-      <translation>Se rechazó la modificación. Revise las referencias, coordenadas y la red activa.</translation>
+      <source>The edit was rejected. Check entity references and the active network.</source>
+      <translation>Se rechazó la modificación. Revise las referencias y la red activa.</translation>
     </message>
     <message>
       <source>Delete hydraulic entity</source>
@@ -9411,6 +9419,105 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>The WireGuard tunnel “%1” is stopped. Start it in Settings → WireGuard VPN → Status.</source>
       <translation>El túnel de WireGuard «%1» está detenido. Inícielo en Configuración → WireGuard VPN → Estado.</translation>
+    </message>
+  </context>
+  <context>
+    <name>EntityInspectorAnnotation</name>
+    <message>
+      <source>Map annotation</source>
+      <translation>Anotación del mapa</translation>
+    </message>
+    <message>
+      <source>Find another annotation in this distribution network</source>
+      <translation>Buscar otra anotación en esta red de distribución</translation>
+    </message>
+    <message>
+      <source>Enter annotation text</source>
+      <translation>Introducir texto de la anotación</translation>
+    </message>
+    <message>
+      <source>Text</source>
+      <translation>Texto</translation>
+    </message>
+    <message>
+      <source>Latitude</source>
+      <translation>Latitud</translation>
+    </message>
+    <message>
+      <source>Longitude</source>
+      <translation>Longitud</translation>
+    </message>
+    <message>
+      <source>Small</source>
+      <translation>Pequeño</translation>
+    </message>
+    <message>
+      <source>Normal</source>
+      <translation>Normal</translation>
+    </message>
+    <message>
+      <source>Large</source>
+      <translation>Grande</translation>
+    </message>
+    <message>
+      <source>Text size</source>
+      <translation>Tamaño del texto</translation>
+    </message>
+    <message>
+      <source>Show background</source>
+      <translation>Mostrar fondo</translation>
+    </message>
+    <message>
+      <source>Visible on map</source>
+      <translation>Visible en el mapa</translation>
+    </message>
+    <message>
+      <source>Attached to</source>
+      <translation>Vinculada a</translation>
+    </message>
+    <message>
+      <source>Create annotation</source>
+      <translation>Crear anotación</translation>
+    </message>
+    <message>
+      <source>Delete annotation</source>
+      <translation>Eliminar anotación</translation>
+    </message>
+    <message>
+      <source>Annotation could not be recorded in the working copy.</source>
+      <translation>No se pudo guardar la anotación en la copia de trabajo.</translation>
+    </message>
+    <message>
+      <source>Annotation could not be deleted.</source>
+      <translation>No se pudo eliminar la anotación.</translation>
+    </message>
+    <message>
+      <source>New annotation</source>
+      <translation>Nueva anotación</translation>
+    </message>
+    <message>
+      <source>Untitled annotation</source>
+      <translation>Anotación sin título</translation>
+    </message>
+    <message>
+      <source>Read-only: open a writable private working copy to edit.</source>
+      <translation>Solo lectura: abra una copia de trabajo privada editable.</translation>
+    </message>
+    <message>
+      <source>None</source>
+      <translation>Ninguna</translation>
+    </message>
+    <message>
+      <source>Annotation no longer exists at this History position.</source>
+      <translation>La anotación ya no existe en esta posición del historial.</translation>
+    </message>
+    <message>
+      <source>%1 (%2)</source>
+      <translation>%1 (%2)</translation>
+    </message>
+    <message>
+      <source>Invalid annotation or failed working-copy transaction.</source>
+      <translation>Anotación no válida o error de transacción de la copia de trabajo.</translation>
     </message>
   </context>
 </TS>

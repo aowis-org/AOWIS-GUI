@@ -8,6 +8,7 @@
 #include "projects/hydraulic_history_delta.h"
 #include "network/hydraulic_network_editor.h"
 #include "network/hydraulic_edit_transaction_capture.h"
+#include "network/map_annotation_layer_id.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
 #include <aowis/model/edit/hydraulic_distribution_root_edit.h>
@@ -31,11 +32,13 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QThread>
+#include <QtEndian>
 #include <QTemporaryDir>
 #include <QUuid>
 
 #include <cstdio>
 #include <functional>
+#include <optional>
 
 namespace
 {
@@ -119,6 +122,7 @@ public:
     bool corrupt_network_payload = false;
     int network_read_count = 0;
     int network_summary_count = 0;
+    int annotation_layer_read_count = 0;
     QString saved_network_id;
     int archive_page_reads = 0;
     int branch_history_reads = 0;
@@ -630,15 +634,50 @@ public:
                                             aowis::model::hydraulicDistributionRootImage(destination).toBase64())}});
                                 }
                                 document.insert(QStringLiteral("historyDelta"), QJsonObject{
-                                    {QStringLiteral("version"), 1},
+                                    {QStringLiteral("version"), 2},
                                     {QStringLiteral("networkId"), requested},
-                                    {QStringLiteral("fromSha256"), HydraulicHistoryDelta::digest(network)},
-                                    {QStringLiteral("toSha256"), HydraulicHistoryDelta::digest(destination)},
+                                    {QStringLiteral("fromSha256"),
+                                     HydraulicHistoryDelta::orderDigest(network, {})},
+                                    {QStringLiteral("toSha256"),
+                                     HydraulicHistoryDelta::orderDigest(destination, {})},
+                                    {QStringLiteral("orderedTypes"), QJsonArray{}},
                                     {QStringLiteral("edits"), edits},
                                     {QStringLiteral("moves"), QJsonArray{}}});
                             }
                             this->acknowledged_history_request = request_body;
                             this->acknowledged_history_reply = document;
+                        }
+                    }
+                    else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
+                             request_line.contains("/annotation-layers/"))
+                    {
+                        ++this->annotation_layer_read_count;
+                        const QByteArray path = request_line.split(' ').value(1);
+                        const QString requested_layer = QString::fromLatin1(
+                            path.mid(path.lastIndexOf('/') + 1));
+                        const QString expected_layer = distributionMapAnnotationLayerId(
+                            QUuid(this->saved_network_id)).toString(QUuid::WithoutBraces);
+                        if (this->saved_network_id.isEmpty() ||
+                            requested_layer != expected_layer)
+                        {
+                            status = 404;
+                            document.insert(QStringLiteral("error"), dvmdbError(
+                                QStringLiteral("not_found"),
+                                QStringLiteral("annotation layer not found in working copy")));
+                        }
+                        else
+                        {
+                            // Model DVMDB's independent, generation-pinned
+                            // annotation layer. Every verified History change
+                            // must rehydrate it before edit capture resumes.
+                            document = QJsonObject{
+                                {QStringLiteral("draftId"), draft_id},
+                                {QStringLiteral("generation"), QString::number(this->generation)},
+                                {QStringLiteral("id"), expected_layer},
+                                {QStringLiteral("domain"), QStringLiteral("distribution")},
+                                {QStringLiteral("ownerNetworkId"), this->saved_network_id},
+                                {QStringLiteral("count"), 0},
+                                {QStringLiteral("annotations"), QJsonArray{}}};
                         }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
@@ -948,45 +987,109 @@ public:
 
 // Sparse History transport must apply all changed images and exact membership
 // positions without fetching or accepting a full replacement network.
+namespace
+{
+QString historyUuid(const QUuid &id) { return id.toString(QUuid::WithoutBraces); }
+
+QJsonValue historyImage(const std::optional<QByteArray> &image)
+{
+    return image ? QJsonValue(QString::fromLatin1(image->toBase64())) : QJsonValue(QJsonValue::Null);
+}
+
+QJsonObject historyEdit(const QString &type, const QUuid &id,
+                        const std::optional<QByteArray> &before,
+                        const std::optional<QByteArray> &after)
+{
+    return QJsonObject{{QStringLiteral("type"), type}, {QStringLiteral("id"), historyUuid(id)},
+                       {QStringLiteral("beforeBase64"), historyImage(before)},
+                       {QStringLiteral("afterBase64"), historyImage(after)}};
+}
+
+QJsonObject historyJunctionEdit(const std::optional<HydraulicNodeJunction> &before,
+                                const std::optional<HydraulicNodeJunction> &after)
+{
+    const QUuid id = before ? before->uuid : after->uuid;
+    return historyEdit(QStringLiteral("HydraulicNodeJunction"), id,
+        before ? std::optional<QByteArray>(
+                     aowis::model::ModelCodec<HydraulicNodeJunction>::encode(*before))
+               : std::nullopt,
+        after ? std::optional<QByteArray>(
+                    aowis::model::ModelCodec<HydraulicNodeJunction>::encode(*after))
+              : std::nullopt);
+}
+
+// Independent byte-for-byte rendering of the version 2 digest from
+// docs/history-transport.md, so a wrong orderDigest() cannot test itself.
+QString historyDigestReference(const NetworkHydraulicDistribution &network, bool with_junctions)
+{
+    QByteArray bytes("AOWIS-HISTORY-DELTA-2");
+    const QByteArray settings = aowis::model::hydraulicDistributionRootImage(network);
+    QByteArray length(4, '\0');
+    qToBigEndian<quint32>(static_cast<quint32>(settings.size()), length.data());
+    bytes.append(length).append(settings);
+    if (with_junctions)
+    {
+        const QByteArray name("HydraulicNodeJunction");
+        qToBigEndian<quint32>(static_cast<quint32>(name.size()), length.data());
+        bytes.append(length).append(name);
+        qToBigEndian<quint32>(static_cast<quint32>(network.nodes_junctions.size()), length.data());
+        bytes.append(length);
+        for (const HydraulicNodeJunction &junction : network.nodes_junctions)
+            bytes.append(junction.uuid.toRfc4122());
+    }
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+HydraulicNodeJunction historyJunction(const QString &name)
+{
+    HydraulicNodeJunction junction;
+    junction.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    junction.id = name;
+    return junction;
+}
+
+QJsonObject historyDeltaV2(const NetworkHydraulicDistribution &source,
+                           const NetworkHydraulicDistribution &desired,
+                           const QStringList &ordered_types,
+                           const QJsonArray &edits, const QJsonArray &moves)
+{
+    return QJsonObject{
+        {QStringLiteral("version"), 2},
+        {QStringLiteral("networkId"), historyUuid(source.uuid)},
+        {QStringLiteral("fromSha256"), HydraulicHistoryDelta::orderDigest(source, ordered_types)},
+        {QStringLiteral("toSha256"), HydraulicHistoryDelta::orderDigest(desired, ordered_types)},
+        {QStringLiteral("orderedTypes"), QJsonArray::fromStringList(ordered_types)},
+        {QStringLiteral("edits"), edits},
+        {QStringLiteral("moves"), moves}};
+}
+}
+
 bool testVerifiedHistoryDelta()
 {
     NetworkHydraulicDistribution source;
     source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
     source.id = QStringLiteral("History network");
-    HydraulicNodeJunction original;
-    original.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
-    original.id = QStringLiteral("Original");
+    const HydraulicNodeJunction original = historyJunction(QStringLiteral("Original"));
     source.nodes_junctions.append(original);
-    HydraulicNodeJunction added;
-    added.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
-    added.id = QStringLiteral("Inserted first");
+    const HydraulicNodeJunction added = historyJunction(QStringLiteral("Inserted first"));
     NetworkHydraulicDistribution desired = source;
     desired.title_line_1 = QStringLiteral("Changed root metadata");
     desired.nodes_junctions.prepend(added);
-    const QJsonObject delta{
-        {QStringLiteral("version"), 1},
-        {QStringLiteral("networkId"), source.uuid.toString(QUuid::WithoutBraces)},
-        {QStringLiteral("fromSha256"), HydraulicHistoryDelta::digest(source)},
-        {QStringLiteral("toSha256"), HydraulicHistoryDelta::digest(desired)},
-        {QStringLiteral("edits"), QJsonArray{
-            QJsonObject{
-                {QStringLiteral("type"),
-                 QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType)},
-                {QStringLiteral("id"), source.uuid.toString(QUuid::WithoutBraces)},
-                {QStringLiteral("beforeBase64"), QString::fromLatin1(
-                    aowis::model::hydraulicDistributionRootImage(source).toBase64())},
-                {QStringLiteral("afterBase64"), QString::fromLatin1(
-                    aowis::model::hydraulicDistributionRootImage(desired).toBase64())}},
-            QJsonObject{
-                {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
-                {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
-                {QStringLiteral("beforeBase64"), QJsonValue(QJsonValue::Null)},
-                {QStringLiteral("afterBase64"), QString::fromLatin1(
-                    aowis::model::ModelCodec<HydraulicNodeJunction>::encode(added).toBase64())}}}},
-        {QStringLiteral("moves"), QJsonArray{QJsonObject{
+    const QStringList junctions{QStringLiteral("HydraulicNodeJunction")};
+    if (!check(HydraulicHistoryDelta::orderDigest(source, junctions) ==
+                   historyDigestReference(source, true) &&
+               HydraulicHistoryDelta::orderDigest(desired, {}) ==
+                   historyDigestReference(desired, false),
+               "History v2 digest differs from the documented byte layout")) return false;
+    const QJsonObject delta = historyDeltaV2(source, desired, junctions, QJsonArray{
+            historyEdit(QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType),
+                        source.uuid, aowis::model::hydraulicDistributionRootImage(source),
+                        aowis::model::hydraulicDistributionRootImage(desired)),
+            historyJunctionEdit(std::nullopt, added)},
+        QJsonArray{QJsonObject{
             {QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
-            {QStringLiteral("id"), added.uuid.toString(QUuid::WithoutBraces)},
-            {QStringLiteral("position"), 0}}}}};
+            {QStringLiteral("id"), historyUuid(added.uuid)},
+            {QStringLiteral("position"), 0}}});
     NetworkHydraulicDistribution actual;
     QString error;
     if (!check(HydraulicHistoryDelta::apply(delta, source, actual, &error) &&
@@ -1008,10 +1111,138 @@ bool testVerifiedHistoryDelta()
     insertion.insert(QStringLiteral("afterBase64"), QStringLiteral("AQID"));
     edits.replace(edits.size() - 1, insertion);
     wrongImage.insert(QStringLiteral("edits"), edits);
-    return check(!HydraulicHistoryDelta::apply(wrongImage, source, actual, &error) &&
-                 HydraulicHistoryDelta::digest(actual) ==
-                     HydraulicHistoryDelta::digest(source),
-                 "History delta accepted a malformed entity after-image");
+    if (!check(!HydraulicHistoryDelta::apply(wrongImage, source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) ==
+                   HydraulicHistoryDelta::digest(source),
+               "History delta accepted a malformed entity after-image")) return false;
+
+    // Version 1 (whole-network digest) is no longer accepted.
+    QJsonObject version1 = delta;
+    version1.remove(QStringLiteral("orderedTypes"));
+    version1.insert(QStringLiteral("version"), 1);
+    version1.insert(QStringLiteral("fromSha256"), HydraulicHistoryDelta::digest(source));
+    version1.insert(QStringLiteral("toSha256"), HydraulicHistoryDelta::digest(desired));
+    if (!check(!HydraulicHistoryDelta::apply(version1, source, actual, &error),
+               "History delta accepted version 1")) return false;
+
+    // A membership change must be listed in orderedTypes (otherwise its
+    // final order would be unchecked), and so must a move.
+    QJsonObject unlisted = historyDeltaV2(source, desired, {}, QJsonArray{
+        historyJunctionEdit(std::nullopt, added)}, QJsonArray{});
+    if (!check(!HydraulicHistoryDelta::apply(unlisted, source, actual, &error),
+               "History delta accepted an insertion outside orderedTypes")) return false;
+    QJsonObject unlistedMove = historyDeltaV2(source, source, {}, QJsonArray{}, QJsonArray{
+        QJsonObject{{QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+                    {QStringLiteral("id"), historyUuid(original.uuid)},
+                    {QStringLiteral("position"), 0}}});
+    if (!check(!HydraulicHistoryDelta::apply(unlistedMove, source, actual, &error),
+               "History delta accepted a move outside orderedTypes")) return false;
+
+    // orderedTypes: known names in canonical order, each once.
+    const QList<QJsonArray> badTypes{
+        QJsonArray{QStringLiteral("NoSuchCollection")},
+        QJsonArray{QStringLiteral("HydraulicNodeJunction"), QStringLiteral("HydraulicNodeJunction")},
+        QJsonArray{QStringLiteral("HydraulicLinkPipe"), QStringLiteral("HydraulicNodeJunction")},
+        QJsonArray{1}};
+    for (const QJsonArray &types : badTypes)
+    {
+        QJsonObject bad = delta;
+        bad.insert(QStringLiteral("orderedTypes"), types);
+        if (!check(!HydraulicHistoryDelta::apply(bad, source, actual, &error),
+                   "History delta accepted invalid orderedTypes")) return false;
+    }
+
+    // A wrong final order is caught by the destination digest.
+    QJsonObject wrongOrder = delta;
+    wrongOrder.insert(QStringLiteral("moves"), QJsonArray{});
+    if (!check(!HydraulicHistoryDelta::apply(wrongOrder, source, actual, &error) &&
+               error.contains(QStringLiteral("destination digest")),
+               "History delta accepted a wrong final member order")) return false;
+    return true;
+}
+
+// The shapes DVMDB sends: updates only (collection not listed), and a listed
+// collection with deletion + update + insertion + reorder in one delta.
+bool testVerifiedHistoryDeltaCollections()
+{
+    NetworkHydraulicDistribution source;
+    source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    source.id = QStringLiteral("History collections");
+    QList<HydraulicNodeJunction> members;
+    for (int index = 0; index < 6; ++index)
+        members.append(historyJunction(QStringLiteral("J%1").arg(index)));
+    source.nodes_junctions = members;
+    QString error;
+    NetworkHydraulicDistribution actual;
+
+    // Update without membership change: no orderedTypes, no moves.
+    NetworkHydraulicDistribution renamed = source;
+    renamed.nodes_junctions[2].id = QStringLiteral("J2 renamed");
+    const QJsonObject update = historyDeltaV2(source, renamed, {}, QJsonArray{
+        historyJunctionEdit(source.nodes_junctions.at(2), renamed.nodes_junctions.at(2))},
+        QJsonArray{});
+    if (!check(HydraulicHistoryDelta::apply(update, source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) == HydraulicHistoryDelta::digest(renamed),
+               "History delta did not apply an update-only change")) return false;
+    // The before-image still protects content outside the digest.
+    NetworkHydraulicDistribution drifted = source;
+    drifted.nodes_junctions[2].id = QStringLiteral("local drift");
+    if (!check(!HydraulicHistoryDelta::apply(update, drifted, actual, &error) &&
+               error.contains(QStringLiteral("before-image")),
+               "History delta ignored a stale before-image")) return false;
+
+    // Delete J1, update J3, insert N at the front, swap J4/J5.
+    const HydraulicNodeJunction inserted = historyJunction(QStringLiteral("N"));
+    NetworkHydraulicDistribution desired = source;
+    desired.nodes_junctions.removeAt(1);
+    desired.nodes_junctions[2].id = QStringLiteral("J3 changed"); // was index 3
+    desired.nodes_junctions.prepend(inserted);
+    desired.nodes_junctions.move(4, 5);                          // J4 <-> J5
+    // Server order: deletions/updates in source order, insertions in
+    // destination order; moves after appending, in final index order.
+    const QJsonArray edits{
+        historyJunctionEdit(source.nodes_junctions.at(1), std::nullopt),
+        historyJunctionEdit(source.nodes_junctions.at(3), desired.nodes_junctions.at(3)),
+        historyJunctionEdit(std::nullopt, inserted)};
+    QList<QUuid> projected;
+    for (const HydraulicNodeJunction &junction : source.nodes_junctions)
+        if (junction.uuid != members.at(1).uuid) projected.append(junction.uuid);
+    projected.append(inserted.uuid);
+    QJsonArray moves;
+    for (qsizetype index = 0; index < desired.nodes_junctions.size(); ++index)
+    {
+        const QUuid wanted = desired.nodes_junctions.at(index).uuid;
+        if (projected.at(index) == wanted) continue;
+        projected.move(projected.indexOf(wanted, index + 1), index);
+        moves.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+                                 {QStringLiteral("id"), historyUuid(wanted)},
+                                 {QStringLiteral("position"), static_cast<int>(index)}});
+    }
+    const QStringList junctions{QStringLiteral("HydraulicNodeJunction")};
+    const QJsonObject mixed = historyDeltaV2(source, desired, junctions, edits, moves);
+    if (!check(HydraulicHistoryDelta::apply(mixed, source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) == HydraulicHistoryDelta::digest(desired),
+               "History delta did not apply delete + update + insert + reorder")) return false;
+
+    // Removing a missing member, or inserting an existing one, is refused.
+    if (!check(!HydraulicHistoryDelta::apply(historyDeltaV2(desired, desired, junctions,
+                   QJsonArray{historyJunctionEdit(members.at(1), std::nullopt)}, QJsonArray{}),
+                   desired, actual, &error),
+               "History delta removed a missing member")) return false;
+    if (!check(!HydraulicHistoryDelta::apply(historyDeltaV2(source, source, junctions,
+                   QJsonArray{historyJunctionEdit(std::nullopt, members.at(0))}, QJsonArray{}),
+                   source, actual, &error),
+               "History delta inserted an existing member")) return false;
+
+    // Duplicate UUIDs in the local collection are refused when touched.
+    NetworkHydraulicDistribution duplicate = source;
+    duplicate.nodes_junctions.append(duplicate.nodes_junctions.at(2));
+    const QJsonObject touchDuplicate = historyDeltaV2(duplicate, duplicate, {}, QJsonArray{
+        historyJunctionEdit(duplicate.nodes_junctions.at(2), renamed.nodes_junctions.at(2))},
+        QJsonArray{});
+    return check(!HydraulicHistoryDelta::apply(touchDuplicate, duplicate, actual, &error) &&
+                 error.contains(QStringLiteral("Duplicate")),
+                 "History delta updated a duplicated local member");
 }
 
 // An archived selection is writable only after the server verifies that a
@@ -1047,7 +1278,8 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                     return session.historyCursor().value(QStringLiteral("selectionKind")).toString()
                         == QStringLiteral("archived") || !problem.isEmpty();
                }) && opened && problem.isEmpty() && session.isReady() &&
-               !session.canCaptureHistoryEdits() && session.canNavigateHistory(),
+               !session.canCaptureHistoryEdits() && session.canNavigateHistory() &&
+               stub.annotation_layer_read_count == 1,
                "archived History allowed editing without a verified fork coordinate")) return false;
     // A newly verified archived coordinate is reached through the same
     // public, fenced History navigation used by the editor. Do not bypass the
@@ -1073,6 +1305,7 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                    stub.last_history_navigation.value(QStringLiteral("operationId")) &&
                stub.network_read_count == initialNetworkReads &&
                stub.network_summary_count == initialSummaryReads &&
+               stub.annotation_layer_read_count == 2 &&
                stub.last_history_navigation.value(QStringLiteral("networkId")) == network_id,
                "archived History attempted a full-network or summary reload")) return false;
 
@@ -1090,7 +1323,8 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                    == QStringLiteral("draft") && !writable_at_navigation_completion &&
                stub.history_navigation_requests == 3 && stub.saved_events.isEmpty() &&
                stub.network_read_count == initialNetworkReads &&
-               stub.network_summary_count == initialSummaryReads,
+               stub.network_summary_count == initialSummaryReads &&
+               stub.annotation_layer_read_count == 3,
                "return from archived History reloaded the entire network")) return false;
     bool stopped = false;
     QObject::connect(&session, &PersonalDraftEditSession::stopped, &session,
@@ -1669,6 +1903,7 @@ int main(int argc, char **argv)
     qputenv("XDG_DATA_HOME", configuration_root.path().toUtf8());
     QCoreApplication application(argc, argv);
     if (!testVerifiedHistoryDelta()) return 1;
+    if (!testVerifiedHistoryDeltaCollections()) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;
     if (!testHistoryReconnectAfterLostReplies(application)) return 1;
     if (!testHistoryReconciliationSourceAndDivergence(application)) return 1;

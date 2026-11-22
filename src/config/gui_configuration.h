@@ -22,7 +22,8 @@ struct GuiShortcutConfiguration
     QString map_pan_down = QStringLiteral("S");
     QString map_pan_left = QStringLiteral("A");
     QString map_pan_right = QStringLiteral("D");
-    QString map_provider_arcgis_sat = QStringLiteral("F1");
+    QString map_provider_google_satellite = QStringLiteral("F1");
+    QString map_provider_arcgis_sat = QStringLiteral("F5");
     QString map_provider_openstreetmap = QStringLiteral("F2");
     QString map_provider_opentopomap = QStringLiteral("F3");
     QString map_provider_cycloosm = QStringLiteral("F4");
@@ -37,7 +38,7 @@ struct GuiShortcutConfiguration
     QString map_editor_add_tank = QStringLiteral("6");
     QString map_editor_add_power_source = QStringLiteral("7");
     QString map_editor_add_reservoir = QStringLiteral("8");
-    QString map_editor_add_note = QStringLiteral("9");
+    QString map_editor_add_annotation = QStringLiteral("9");
 };
 
 struct GuiSymbologyPaletteConfiguration

@@ -532,6 +532,8 @@ qt_add_executable(aowis-server-gui
     # Entity inspectors
     src/entity_inspector/entity_inspector_demand_point.cpp
     src/entity_inspector/entity_inspector_demand_point.h
+    src/entity_inspector/entity_inspector_annotation.cpp
+    src/entity_inspector/entity_inspector_annotation.h
     src/entity_inspector/entity_inspector_dock.cpp
     src/entity_inspector/entity_inspector_dock.h
     src/entity_inspector/entity_inspector_junction.cpp

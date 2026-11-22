@@ -157,6 +157,7 @@ const ShortcutField shortcut_fields[] = {
     {"map_pan_down", &GuiShortcutConfiguration::map_pan_down},
     {"map_pan_left", &GuiShortcutConfiguration::map_pan_left},
     {"map_pan_right", &GuiShortcutConfiguration::map_pan_right},
+    {"map_provider_google_satellite", &GuiShortcutConfiguration::map_provider_google_satellite},
     {"map_provider_arcgis_sat", &GuiShortcutConfiguration::map_provider_arcgis_sat},
     {"map_provider_openstreetmap", &GuiShortcutConfiguration::map_provider_openstreetmap},
     {"map_provider_opentopomap", &GuiShortcutConfiguration::map_provider_opentopomap},
@@ -171,7 +172,7 @@ const ShortcutField shortcut_fields[] = {
     {"map_editor_add_tank", &GuiShortcutConfiguration::map_editor_add_tank},
     {"map_editor_add_power_source", &GuiShortcutConfiguration::map_editor_add_power_source},
     {"map_editor_add_reservoir", &GuiShortcutConfiguration::map_editor_add_reservoir},
-    {"map_editor_add_note", &GuiShortcutConfiguration::map_editor_add_note},
+    {"map_editor_add_annotation", &GuiShortcutConfiguration::map_editor_add_annotation},
 };
 
 // A stored "" deliberately unassigns the shortcut; anything unparsable falls

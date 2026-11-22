@@ -131,9 +131,11 @@ are informational until a separate metadata-history contract is designed.
 ## Integration with the live editor
 
 After an accepted History navigation, `PersonalDraftEditSession` applies a
-verified sparse `historyDelta` to a temporary canonical network. It checks
-entity before-images, collection membership and final SHA-256 before
-publishing that network to the existing editor. Routine Undo/Redo or eligible
+verified sparse `historyDelta` (version 2) to a temporary canonical network.
+It checks entity before-images, collection membership and the settings/order
+digests `fromSha256`/`toSha256` (DVMDB `docs/history-transport.md`) before
+publishing that network to the existing editor. Version 1 (whole-network
+digest) is refused. Routine Undo/Redo or eligible
 direct jumps do **not** reopen the draft or issue a full-model GET. New
 logical capture is enabled only after the authoritative cursor is refreshed
 and its position is writable.

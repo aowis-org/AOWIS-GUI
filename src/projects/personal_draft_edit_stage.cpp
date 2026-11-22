@@ -1,9 +1,11 @@
 #include "projects/personal_draft_edit_stage.h"
 #include "projects/hydraulic_draft_entity_registry.h"
+#include "network/map_annotation_layer_id.h"
 
 #include <aowis/model/edit/model_edit_transaction.h>
 #include <aowis/model/edit/hydraulic_distribution_root_edit.h>
 #include <aowis/model/serialization/model_codec.h>
+#include <aowis/model/serialization/model_validation.h>
 
 #include <optional>
 
@@ -33,11 +35,84 @@ bool currentImage(const QList<T> &collection, const QUuid &uuid,
     return matches <= 1;
 }
 
+// Annotation membership is materialized by DVMDB, never by the hydraulic
+// registry. One MODEL event contains one annotation edit; both client and
+// server verify the exact before-image and immutable layer ownership.
+bool prepareAnnotationEvent(const QByteArray &encoded_event,
+                            const QUuid &layer_id, QList<MapAnnotation> &annotations,
+                            QString *error)
+{
+    const std::optional<aowis::model::ModelEditTransaction> transaction =
+        aowis::model::ModelEditTransactionCodec::decode(encoded_event, error);
+    if (!transaction || transaction->edits.size() != 1 || layer_id.isNull())
+        return fail(error, QStringLiteral("Invalid annotation transaction or owner layer"));
+    const aowis::model::ModelEntityEdit &edit = transaction->edits.first();
+    if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType) ||
+        !edit.ownerLayerId || *edit.ownerLayerId != layer_id || edit.entityId.isNull())
+        return fail(error, QStringLiteral("Annotation owner or identity mismatch"));
+    qsizetype index = -1;
+    for (qsizetype at = 0; at < annotations.size(); ++at)
+        if (annotations.at(at).uuid == edit.entityId)
+        {
+            if (index >= 0)
+                return fail(error, QStringLiteral("Duplicate annotation UUID"));
+            index = at;
+        }
+    const bool exists = index >= 0;
+    if (edit.before.has_value() != exists ||
+        (exists && aowis::model::ModelCodec<MapAnnotation>::encode(annotations.at(index)) !=
+                       *edit.before))
+        return fail(error, QStringLiteral("Stale annotation before-image"));
+    if (!edit.after)
+    {
+        if (!exists)
+            return fail(error, QStringLiteral("Cannot delete missing annotation"));
+        annotations.removeAt(index);
+        return true;
+    }
+    QString codec_error;
+    const std::optional<MapAnnotation> decoded =
+        aowis::model::ModelCodec<MapAnnotation>::decode(*edit.after, &codec_error);
+    if (!decoded || decoded->uuid != edit.entityId ||
+        aowis::model::ModelCodec<MapAnnotation>::encode(*decoded) != *edit.after ||
+        !aowis::model::validateMapAnnotation(*decoded).valid())
+        return fail(error, QStringLiteral("Invalid annotation after-image: ") + codec_error);
+    if (exists)
+        annotations[index] = *decoded;
+    else
+        annotations.append(*decoded);
+    return true;
+}
+
+bool prepareAnyEvent(const QByteArray &encoded_event,
+                     NetworkHydraulicDistribution &network,
+                     QList<MapAnnotation> &annotations, const QUuid &layer_id,
+                     QList<PersonalWorkingCopyChange> &records,
+                     QList<HydraulicDraftMembershipEdit> &membership,
+                     QString *error)
+{
+    const std::optional<aowis::model::ModelEditTransaction> decoded =
+        aowis::model::ModelEditTransactionCodec::decode(encoded_event, error);
+    if (!decoded || decoded->edits.isEmpty())
+        return fail(error, QStringLiteral("Invalid staged event"));
+    if (decoded->edits.first().entityType ==
+        QString::fromLatin1(aowis::model::mapAnnotationEditType))
+    {
+        for (const aowis::model::ModelEntityEdit &edit : decoded->edits)
+            if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType))
+                return fail(error, QStringLiteral("Mixed annotation and hydraulic event unsupported"));
+        return prepareAnnotationEvent(encoded_event, layer_id, annotations, error);
+    }
+    return HydraulicDraftEventAdapter::prepareWithMembership(
+        encoded_event, network, records, membership, error);
+}
+
 // True when the candidate already holds every after-image of the event (and
 // lacks every entity it deletes). That is the state the event produces, so it
 // reached DVMDB before its local acknowledgement was lost, also when a later
 // Commit has since cleared the journal that would otherwise prove it.
-bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulicDistribution &candidate)
+bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulicDistribution &candidate,
+                         const QList<MapAnnotation> &annotations)
 {
     const std::optional<aowis::model::ModelEditTransaction> event =
         aowis::model::ModelEditTransactionCodec::decode(encoded_event);
@@ -45,6 +120,13 @@ bool eventAlreadyApplied(const QByteArray &encoded_event, const NetworkHydraulic
         return false;
     for (const aowis::model::ModelEntityEdit &edit : event->edits)
     {
+        if (edit.entityType == QString::fromLatin1(aowis::model::mapAnnotationEditType))
+        {
+            std::optional<QByteArray> image;
+            if (!currentImage(annotations, edit.entityId, image) || image != edit.after)
+                return false;
+            continue;
+        }
         if (edit.entityType == QString::fromLatin1(aowis::model::hydraulicDistributionRootEditType))
         {
             if (edit.entityId != candidate.uuid ||
@@ -101,18 +183,34 @@ QString unsaveableEvent(const QByteArray &encoded_event,
 bool PersonalDraftEditStage::open(
     const QString &queue_root, const QUuid &repository_id, const QUuid &draft_id,
     const NetworkHydraulicDistribution &verified_candidate,
-    const QByteArray &last_journal_event, QString *error)
+    const QByteArray &last_journal_event, QString *error,
+    const QList<MapAnnotation> &verified_annotations, const QUuid &annotation_layer_id)
 {
     close();
     if (error)
         error->clear();
     if (verified_candidate.uuid.isNull())
         return fail(error, QStringLiteral("A verified hydraulic network UUID is required"));
+    const QUuid resolved_layer = annotation_layer_id.isNull()
+        ? distributionMapAnnotationLayerId(verified_candidate.uuid) : annotation_layer_id;
+    if (resolved_layer != distributionMapAnnotationLayerId(verified_candidate.uuid))
+        return fail(error, QStringLiteral("The verified annotation layer does not match this network"));
+    QSet<QUuid> identities;
+    for (const MapAnnotation &annotation : verified_annotations)
+    {
+        if (identities.contains(annotation.uuid) ||
+            !aowis::model::validateMapAnnotation(annotation).valid())
+            return fail(error, QStringLiteral("The verified annotation list is invalid"));
+        identities.insert(annotation.uuid);
+    }
     if (!this->queue_.open(queue_root, repository_id, draft_id, error))
         return false;
 
     this->persisted_ = verified_candidate;
     this->visible_ = verified_candidate;
+    this->annotation_layer_id_ = resolved_layer;
+    this->persisted_annotations_ = verified_annotations;
+    this->visible_annotations_ = verified_annotations;
 
     // Exactly the FIRST local queued event may have reached the authoritative
     // journal before the process crashed. The caller supplies the journal tail
@@ -135,14 +233,15 @@ bool PersonalDraftEditStage::open(
         QList<PersonalWorkingCopyChange> records;
         QList<HydraulicDraftMembershipEdit> membership;
         QString replay_error;
-        if (!HydraulicDraftEventAdapter::prepareWithMembership(
-                entry.encoded_transaction, this->visible_, records,
-                membership, &replay_error))
+        if (!prepareAnyEvent(entry.encoded_transaction, this->visible_,
+                             this->visible_annotations_, this->annotation_layer_id_,
+                             records, membership, &replay_error))
         {
             // Saves are serial, so only the oldest queued event can have
             // reached DVMDB unacknowledged. If the candidate already is its
             // result, retire it locally instead of blocking the draft forever.
-            if (index == 0 && eventAlreadyApplied(entry.encoded_transaction, this->visible_))
+            if (index == 0 && eventAlreadyApplied(entry.encoded_transaction, this->visible_,
+                                                   this->visible_annotations_))
             {
                 if (!this->queue_.acknowledgePersisted(entry.transaction_id, error))
                 {
@@ -162,7 +261,8 @@ bool PersonalDraftEditStage::open(
 }
 
 bool PersonalDraftEditStage::resetVerifiedNetwork(
-    const NetworkHydraulicDistribution &network, QString *error)
+    const NetworkHydraulicDistribution &network, QString *error,
+    const QList<MapAnnotation> &annotations)
 {
     if (error) error->clear();
     if (!isOpen() || this->blocked_ || !this->queue_.pending().isEmpty() ||
@@ -170,6 +270,8 @@ bool PersonalDraftEditStage::resetVerifiedNetwork(
         return fail(error, QStringLiteral("History cannot replace a busy or mismatched private draft."));
     this->persisted_ = network;
     this->visible_ = network;
+    this->persisted_annotations_ = annotations;
+    this->visible_annotations_ = annotations;
     return true;
 }
 
@@ -178,6 +280,9 @@ void PersonalDraftEditStage::close()
     this->queue_.close();
     this->persisted_ = NetworkHydraulicDistribution{};
     this->visible_ = NetworkHydraulicDistribution{};
+    this->persisted_annotations_.clear();
+    this->visible_annotations_.clear();
+    this->annotation_layer_id_ = QUuid();
     this->blocked_ = false;
 }
 
@@ -188,10 +293,11 @@ bool PersonalDraftEditStage::append(const QByteArray &encoded_event, QString *er
     if (!isOpen() || this->blocked_)
         return fail(error, QStringLiteral("Personal draft edit stage is not writable"));
     NetworkHydraulicDistribution next = this->visible_;
+    QList<MapAnnotation> annotations = this->visible_annotations_;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
-    if (!HydraulicDraftEventAdapter::prepareWithMembership(
-            encoded_event, next, records, membership, error))
+    if (!prepareAnyEvent(encoded_event, next, annotations,
+                         this->annotation_layer_id_, records, membership, error))
         return false;
     // Refuse before the queue is touched: nothing durable refers to it.
     const QString unsaveable = unsaveableEvent(encoded_event, records, membership);
@@ -205,6 +311,7 @@ bool PersonalDraftEditStage::append(const QByteArray &encoded_event, QString *er
         return false;
     }
     this->visible_ = std::move(next);
+    this->visible_annotations_ = std::move(annotations);
     return true;
 }
 
@@ -212,22 +319,32 @@ bool PersonalDraftEditStage::prepareOldest(
     NetworkHydraulicDistribution &next_candidate,
     QList<PersonalWorkingCopyChange> &records,
     QList<HydraulicDraftMembershipEdit> &membership,
-    QString *error) const
+    QString *error, QUuid *annotation_layer_id) const
 {
     if (error)
         error->clear();
     if (!isOpen() || this->blocked_ || this->queue_.pending().isEmpty())
         return fail(error, QStringLiteral("No writable personal draft with a queued transaction"));
     NetworkHydraulicDistribution next = this->persisted_;
+    QList<MapAnnotation> annotations = this->persisted_annotations_;
     QList<PersonalWorkingCopyChange> proposed;
     QList<HydraulicDraftMembershipEdit> intents;
-    if (!HydraulicDraftEventAdapter::prepareWithMembership(
-            this->queue_.pending().first().encoded_transaction,
-            next, proposed, intents, error))
+    const QByteArray encoded = this->queue_.pending().first().encoded_transaction;
+    if (!prepareAnyEvent(encoded, next, annotations, this->annotation_layer_id_,
+                         proposed, intents, error))
         return false;
     next_candidate = std::move(next);
     records = std::move(proposed);
     membership = std::move(intents);
+    if (annotation_layer_id)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> decoded =
+            aowis::model::ModelEditTransactionCodec::decode(encoded);
+        *annotation_layer_id = decoded && !decoded->edits.isEmpty() &&
+            decoded->edits.first().entityType ==
+                QString::fromLatin1(aowis::model::mapAnnotationEditType)
+            ? this->annotation_layer_id_ : QUuid();
+    }
     return true;
 }
 
@@ -254,6 +371,21 @@ bool PersonalDraftEditStage::acknowledgeOldest(const QByteArray &confirmed_event
         return false;
     }
     this->persisted_ = std::move(next);
+    // Hydraulic-only events leave annotations untouched. The server owns
+    // membership changes of annotation events (empty typed records).
+    const std::optional<aowis::model::ModelEditTransaction> decoded =
+        aowis::model::ModelEditTransactionCodec::decode(confirmed_event);
+    if (decoded && !decoded->edits.isEmpty() &&
+        decoded->edits.first().entityType ==
+            QString::fromLatin1(aowis::model::mapAnnotationEditType))
+    {
+        if (!prepareAnnotationEvent(confirmed_event, this->annotation_layer_id_,
+                                    this->persisted_annotations_, error))
+        {
+            this->blocked_ = true;
+            return false;
+        }
+    }
     return true;
 }
 
@@ -285,4 +417,14 @@ const NetworkHydraulicDistribution &PersonalDraftEditStage::persistedNetwork() c
 const PersonalEditQueue &PersonalDraftEditStage::queue() const
 {
     return this->queue_;
+}
+
+const QList<MapAnnotation> &PersonalDraftEditStage::visibleAnnotations() const
+{
+    return this->visible_annotations_;
+}
+
+const QList<MapAnnotation> &PersonalDraftEditStage::persistedAnnotations() const
+{
+    return this->persisted_annotations_;
 }

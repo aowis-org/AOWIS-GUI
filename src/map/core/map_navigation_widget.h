@@ -57,7 +57,7 @@ private:
     QLabel *label_map_opacity = nullptr;
     QLabel *label_labels_title = nullptr;
     QComboBox *combo_provider = nullptr;
-    QShortcut *provider_shortcuts[4] = {nullptr, nullptr, nullptr, nullptr};
+    QShortcut *provider_shortcuts[5] = {nullptr, nullptr, nullptr, nullptr, nullptr};
     void refreshProviderChoices();
     void refreshLocalizedText();
     bool triggerProviderShortcut(const QKeySequence &pressed);
@@ -80,7 +80,7 @@ private:
     int icon_size_2d_px = NetworkSymbologyDefaultIconSizePx;
     double icon_size_2d_m = NetworkSymbologyDefaultIconSizeM;
 
-    void activateMapProvider(MapProvider provider);
+    void activateMapProvider(const QString &provider_id);
     void sync3dIconsForViewMode(MapViewMode view_mode);
     void syncIconSizeSliderForViewMode(MapViewMode view_mode);
     void refreshIconSizeUnitPresentation();

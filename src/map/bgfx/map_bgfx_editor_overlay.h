@@ -7,6 +7,7 @@
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "map/editor/map_editor_visual_state.h"
 #include "network/network_render_snapshot.h"
+#include <aowis/model/map/map_annotation.h>
 
 #include <QHash>
 #include <QPointF>
@@ -89,6 +90,10 @@ public:
         const NetworkRenderSnapshot *snapshot = nullptr;
         const MapEditorVisualState *visual_state = nullptr;
         const MapEditorViewportRenderState *viewport_state = nullptr;
+        const QList<MapAnnotation> *annotations = nullptr;
+        QUuid selected_annotation_uuid;
+        QUuid dragged_annotation_uuid;
+        std::optional<CoordinateWGS84> dragged_annotation_position;
         // The whole network is being moved: the GPU network is drawn
         // shifted by this many logical pixels, and so are the icons here.
         // Map Management keeps the cache selection overlays without network
@@ -103,6 +108,13 @@ public:
     // Builds the overlay into canvas (cleared first); rebuilds once when the
     // atlas had to be cleared during the build.
     void build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache, const Inputs &inputs);
+
+    // Distribution Monitor's 2D presentation uses exactly the editor's
+    // annotation sprites, without constructing an editable hydraulic scene.
+    // No selection/edit handles or network geometry are drawn by this method.
+    void buildAnnotations2d(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+                            const MapBgfx2d::Camera &camera, const QSizeF &viewport,
+                            const QList<MapAnnotation> *annotations);
 
     // Globe mode: use the same full-colour editor entity icons as 2D,
     // projected onto the terrain-aware globe, plus the tile-cache selection.
@@ -124,7 +136,11 @@ public:
                     const MapBgfxGlobeIconIndex::Frustum &frustum = {},
                     const MapEditorVisualState *editor_state = nullptr,
                     const MapCanvasProjection *editor_projection = nullptr,
-                    const GlobeElevatedProjector &elevated_projector = {});
+                    const GlobeElevatedProjector &elevated_projector = {},
+                    const QList<MapAnnotation> *annotations = nullptr,
+                    const QUuid &selected_annotation_uuid = QUuid(),
+                    const QUuid &dragged_annotation_uuid = QUuid(),
+                    const std::optional<CoordinateWGS84> &dragged_annotation_position = std::nullopt);
     // The rectangles are recorded while painting the actual 3D Editor sprites.
     // Query them before the globe network geometry hit-test so clicking an
     // icon (including through terrain) selects the entity the user sees.
@@ -185,6 +201,9 @@ private:
 
     void synchronizeGeometry(const NetworkRenderSnapshot &snapshot);
     void buildOnce();
+    void drawAnnotation(const MapAnnotation &annotation, const MapBgfxHudPoint &position,
+                        bool selected);
+    void drawAnnotations2d();
 
     // Projection with the current translation offset.
     MapBgfxHudPoint screen(const MapBgfx2d::WorldPoint &world) const;

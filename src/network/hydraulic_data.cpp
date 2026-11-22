@@ -1,5 +1,7 @@
 #include "network/hydraulic_data.h"
 #include "projects/hydraulic_draft_entity_registry.h"
+#include "network/map_annotation_layer_id.h"
+#include <aowis/model/edit/model_edit_transaction.h>
 
 #include <aowis/model/serialization/model_codec.h>
 #include <aowis/model/edit/hydraulic_distribution_root_edit.h>
@@ -110,19 +112,6 @@ bool hydraulicRuleReferencesValid(const NetworkHydraulicDistribution &network,
     for (const HydraulicControlRuleAction &action : rule.actions_else)
         if (!hydraulicLinkReferenceExists(network, action.link_uuid)) return false;
     return true;
-}
-
-bool hydraulicLabelReferencesValid(const NetworkHydraulicDistribution &network,
-                                   const HydraulicMapLabel &label)
-{
-    if (!label.anchor_node_uuid.isNull() &&
-        !hydraulicNodeReferenceExists(network, label.anchor_node_uuid))
-        return false;
-    const CoordinateWGS84 &coordinate = label.coordinate_wgs84;
-    return std::isfinite(coordinate.latitude_deg) && coordinate.latitude_deg >= -90.0 &&
-           coordinate.latitude_deg <= 90.0 && std::isfinite(coordinate.longitude_deg) &&
-           coordinate.longitude_deg >= -180.0 && coordinate.longitude_deg <= 180.0 &&
-           (!coordinate.altitude_m.has_value() || std::isfinite(*coordinate.altitude_m));
 }
 
 bool pipeMaterialReferenced(const NetworkHydraulicDistribution &network, const QUuid &uuid)
@@ -337,11 +326,6 @@ public:
             if (affected)
                 this->capture_.watch(this->owner_.network_hydraulic_distribution, rule.uuid);
         }
-        for (const HydraulicMapLabel &label : this->owner_.network_hydraulic_distribution.map_labels)
-        {
-            if (label.anchor_node_uuid == node_uuid)
-                this->capture_.watch(this->owner_.network_hydraulic_distribution, label.uuid);
-        }
         for (const HydraulicDemandPoint &point : this->owner_.network_hydraulic_distribution.demand_points)
         {
             const bool linked_to_deleted_pipe =
@@ -432,13 +416,15 @@ void HydraulicData::publishCapturedEdit(const HydraulicEditTransactionCapture &c
 
 void HydraulicData::replaceNetworkHydraulicDistribution(
     NetworkHydraulicDistribution network,
-    QList<WaterQualitySolverOptions> quality_run_options)
+    QList<WaterQualitySolverOptions> quality_run_options,
+    QList<MapAnnotation> map_annotations)
 {
     clearSimulationResultTimeline();
 
     updateLogicalEditCapture(false);
     this->network_hydraulic_distribution = std::move(network);
     this->simulation_quality_run_options = std::move(quality_run_options);
+    this->map_annotations = std::move(map_annotations);
     this->source_trace_origin_node_uuid = QUuid();
 
     for (const WaterQualitySolverOptions &quality_options : this->simulation_quality_run_options)
@@ -454,12 +440,143 @@ void HydraulicData::replaceNetworkHydraulicDistribution(
     markNetworkChanged(NetworkChange::Geometry);
     emit signalWaterQualityOptionsChanged();
     emit signalNetworkLoaded();
+    emit signalMapAnnotationsChanged();
     emit signalPresentationUnitsChanged();
 }
 
 const QList<WaterQualitySolverOptions> &HydraulicData::simulationQualityRunOptions() const
 {
     return this->simulation_quality_run_options;
+}
+
+const QList<MapAnnotation> &HydraulicData::mapAnnotations() const
+{
+    return this->map_annotations;
+}
+
+std::optional<MapAnnotation> HydraulicData::mapAnnotation(const QUuid &uuid) const
+{
+    std::optional<MapAnnotation> found;
+    for (const MapAnnotation &value : this->map_annotations)
+    {
+        if (value.uuid != uuid)
+            continue;
+        if (found.has_value())
+            return std::nullopt;
+        found = value;
+    }
+    return found;
+}
+
+// Unlike an ordinary hydraulic model setter, annotation edits MUST have a
+// working-copy writer and valid layer owner. Never mutate an in-memory
+// read-only revision; never emit an unidentifiable or noncanonical edit.
+static QByteArray mapAnnotationEvent(const std::optional<MapAnnotation> &before,
+                                     const std::optional<MapAnnotation> &after,
+                                     const QUuid &layer_id, const QString &operation)
+{
+    if (layer_id.isNull() || (!before && !after))
+        return {};
+    aowis::model::ModelEditTransaction transaction;
+    transaction.transactionId = createUuidV7();
+    transaction.operation = operation;
+    transaction.description = QStringLiteral("Map annotation");
+    aowis::model::ModelEntityEdit edit;
+    edit.entityId = after ? after->uuid : before->uuid;
+    edit.entityType = QString::fromLatin1(aowis::model::mapAnnotationEditType);
+    edit.ownerLayerId = layer_id;
+    if (before)
+        edit.before = aowis::model::ModelCodec<MapAnnotation>::encode(*before);
+    if (after)
+        edit.after = aowis::model::ModelCodec<MapAnnotation>::encode(*after);
+    if ((before && edit.before->isEmpty()) || (after && edit.after->isEmpty()))
+        return {};
+    transaction.edits.append(edit);
+    return aowis::model::ModelEditTransactionCodec::encode(transaction);
+}
+
+bool HydraulicData::createMapAnnotation(const QString &text,
+                                        const CoordinateWGS84 &position,
+                                        QUuid *created_uuid,
+                                        const MapAnnotationStyle &style)
+{
+    if (!this->logical_edit_capture_enabled ||
+        this->network_hydraulic_distribution.uuid.isNull())
+        return false;
+    MapAnnotation value;
+    value.uuid = createUuidV7();
+    value.text = text;
+    value.position_wgs84 = position;
+    value.style = style;
+    if (!aowis::model::validateMapAnnotation(value).valid())
+        return false;
+    const QByteArray event = mapAnnotationEvent(std::nullopt, value,
+        distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
+        QStringLiteral("map.annotation.create"));
+    if (event.isEmpty())
+        return false;
+    this->map_annotations.append(value);
+    if (created_uuid)
+        *created_uuid = value.uuid;
+    emit signalMapAnnotationsChanged();
+    emit signalLogicalEditRecorded(event);
+    return true;
+}
+
+bool HydraulicData::updateMapAnnotation(const MapAnnotation &annotation)
+{
+    if (!this->logical_edit_capture_enabled ||
+        !aowis::model::validateMapAnnotation(annotation).valid())
+        return false;
+    qsizetype index = -1;
+    for (qsizetype at = 0; at < this->map_annotations.size(); ++at)
+        if (this->map_annotations.at(at).uuid == annotation.uuid)
+        {
+            if (index >= 0)
+                return false;
+            index = at;
+        }
+    if (index < 0)
+        return false;
+    const MapAnnotation before = this->map_annotations.at(index);
+    const QByteArray old_image = aowis::model::ModelCodec<MapAnnotation>::encode(before);
+    const QByteArray new_image = aowis::model::ModelCodec<MapAnnotation>::encode(annotation);
+    if (old_image == new_image)
+        return true;
+    const QByteArray event = mapAnnotationEvent(before, annotation,
+        distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
+        QStringLiteral("map.annotation.update"));
+    if (event.isEmpty())
+        return false;
+    this->map_annotations[index] = annotation;
+    emit signalMapAnnotationsChanged();
+    emit signalLogicalEditRecorded(event);
+    return true;
+}
+
+bool HydraulicData::deleteMapAnnotation(const QUuid &uuid)
+{
+    if (!this->logical_edit_capture_enabled)
+        return false;
+    qsizetype index = -1;
+    for (qsizetype at = 0; at < this->map_annotations.size(); ++at)
+        if (this->map_annotations.at(at).uuid == uuid)
+        {
+            if (index >= 0)
+                return false;
+            index = at;
+        }
+    if (index < 0)
+        return false;
+    const QByteArray event = mapAnnotationEvent(this->map_annotations.at(index), std::nullopt,
+        distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
+        QStringLiteral("map.annotation.delete"));
+    if (event.isEmpty())
+        return false;
+    this->map_annotations.removeAt(index);
+    emit signalMapAnnotationsChanged();
+    emit signalLogicalEditRecorded(event);
+    return true;
 }
 
 bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulicDistribution &metadata,
@@ -2468,7 +2585,7 @@ void HydraulicData::requestEntityLocate(InfrastructureEntity entity_type, const 
     emit signalEntityLocateRequested(entity_type, uuid);
 }
 
-// HC-02.7: Create/update/delete rule controls and map labels through the
+// HC-02.7: Create/update/delete rule controls through the
 // same captured edit and collection-membership path as hydraulic libraries.
 QUuid HydraulicData::addRuleControl(HydraulicControlRule entity)
 {
@@ -2517,59 +2634,6 @@ bool HydraulicData::removeRuleControl(const QUuid &uuid)
     {
         if (this->network_hydraulic_distribution.controls_rules.at(index).uuid != uuid) continue;
         this->network_hydraulic_distribution.controls_rules.removeAt(index);
-        markNetworkChanged(NetworkChange::Visual, uuid);
-        return true;
-    }
-    return false;
-}
-
-QUuid HydraulicData::addMapLabel(HydraulicMapLabel entity)
-{
-    if (!hydraulicLabelReferencesValid(this->network_hydraulic_distribution, entity))
-        return QUuid();
-    entity.uuid = createUuidV7();
-    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic_distribution, entity.uuid) != 0 ||
-        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity).isEmpty())
-        return QUuid();
-    const QUuid uuid = entity.uuid;
-    HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.map.labels.create"));
-    if (this->logical_edit_capture_enabled && !capture.watchCreated(uuid))
-        return QUuid();
-    this->network_hydraulic_distribution.map_labels.append(std::move(entity));
-    markNetworkChanged(NetworkChange::Visual, uuid);
-    if (this->logical_edit_capture_enabled)
-        publishCapturedEdit(capture);
-    return uuid;
-}
-
-bool HydraulicData::updateMapLabel(const HydraulicMapLabel &entity)
-{
-    if (entity.uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic_distribution, entity.uuid) != 1 ||
-        !hydraulicLabelReferencesValid(this->network_hydraulic_distribution, entity) ||
-        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity).isEmpty())
-        return false;
-    HydraulicMapLabel *existing = editableLibraryItem(this->network_hydraulic_distribution.map_labels, entity.uuid);
-    if (existing == nullptr)
-        return false;
-    if (aowis::model::ModelCodec<HydraulicMapLabel>::encode(*existing) ==
-        aowis::model::ModelCodec<HydraulicMapLabel>::encode(entity))
-        return true;
-    EditScope edit_scope(*this, QStringLiteral("hydraulic.map.labels.update"), entity.uuid);
-    *existing = entity;
-    markNetworkChanged(NetworkChange::Visual, entity.uuid);
-    return true;
-}
-
-bool HydraulicData::removeMapLabel(const QUuid &uuid)
-{
-    if (uuid.isNull() || hydraulicUuidOccurrences(this->network_hydraulic_distribution, uuid) != 1 ||
-        editableLibraryItem(this->network_hydraulic_distribution.map_labels, uuid) == nullptr)
-        return false;
-    EditScope edit_scope(*this, QStringLiteral("hydraulic.map.labels.delete"), uuid);
-    for (int index = 0; index < this->network_hydraulic_distribution.map_labels.size(); ++index)
-    {
-        if (this->network_hydraulic_distribution.map_labels.at(index).uuid != uuid) continue;
-        this->network_hydraulic_distribution.map_labels.removeAt(index);
         markNetworkChanged(NetworkChange::Visual, uuid);
         return true;
     }

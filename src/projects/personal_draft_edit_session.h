@@ -40,6 +40,7 @@ public:
     int pendingCount() const;
     QString currentGeneration() const;
     const NetworkHydraulicDistribution &visibleNetwork() const;
+    const QList<MapAnnotation> &visibleAnnotations() const;
     QList<QByteArray> savedHistoryEvents() const;
     QList<QByteArray> pendingHistoryEvents() const;
     const QJsonObject &historyCursor() const;
@@ -86,6 +87,8 @@ private:
                                  const QString &error);
     void completeHistoryNavigation(const NetworkHydraulicDistribution &network,
                                    const QString &generation, bool replace_network);
+    void finalizeHistoryNavigation(const NetworkHydraulicDistribution &network,
+                                   const QString &generation);
     void scheduleHistoryRecovery();
     void resumeHistoryAfterReconcile(bool already_published, bool model_matches,
                                      const QString &server_generation);

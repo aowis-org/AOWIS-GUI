@@ -6,6 +6,8 @@
 #include "map/render/map_render_diagnostics.h"
 
 #include <QColor>
+#include <QCryptographicHash>
+#include <QFontMetrics>
 #include <QImage>
 #include <QPainter>
 #include <QPen>
@@ -258,6 +260,45 @@ void MapBgfxEditorOverlay::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *
     this->inputs = nullptr;
 }
 
+void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
+                                               MapBgfxHudTextCache *cache,
+                                               const MapBgfx2d::Camera &camera,
+                                               const QSizeF &viewport,
+                                               const QList<MapAnnotation> *annotations)
+{
+    canvas->clear();
+    if (annotations == nullptr || annotations->isEmpty() || !(camera.world_pixels > 0.0))
+        return;
+
+    // The monitor has no editable MapEditorVisualState or hydraulic overlay.
+    // Keep the callback's frame-local Inputs alive for the entire draw.
+    Inputs inputs;
+    inputs.camera = camera;
+    inputs.viewport = viewport;
+    inputs.annotations = annotations;
+    this->canvas = canvas;
+    this->cache = cache;
+    this->inputs = &inputs;
+    cache->beginFrame();
+    const std::function<void()> draw = [this]()
+    {
+        this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
+        this->offset_x = 0.0;
+        this->offset_y = 0.0;
+        drawAnnotations2d();
+    };
+    draw();
+    if (cache->evictedSinceFrameStart())
+    {
+        cache->beginFrame();
+        canvas->clear();
+        draw();
+    }
+    this->inputs = nullptr;
+    this->cache = nullptr;
+    this->canvas = nullptr;
+}
+
 void MapBgfxEditorOverlay::buildOnce()
 {
     this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
@@ -278,6 +319,7 @@ void MapBgfxEditorOverlay::buildOnce()
         this->offset_x = this->inputs->full_network_move_translation.x();
         this->offset_y = this->inputs->full_network_move_translation.y();
         staticDetails(true);
+        drawAnnotations2d();
         this->offset_x = 0.0;
         this->offset_y = 0.0;
         return;
@@ -287,6 +329,7 @@ void MapBgfxEditorOverlay::buildOnce()
     if (state.move.active)
     {
         movingNetwork();
+        drawAnnotations2d();
         return;
     }
     selectedPipes();
@@ -295,6 +338,83 @@ void MapBgfxEditorOverlay::buildOnce()
     selectedMarkersAndDeviceLinks();
     simulationErrors();
     floatingPlacement();
+    drawAnnotations2d();
+}
+
+// Labels are part of the existing bgfx HUD draw list, not a Qt widget
+// painted above the map. Sprite content is cached in the shared HUD atlas.
+void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
+                                           const MapBgfxHudPoint &position, bool selected)
+{
+    if (!annotation.style.visible || annotation.text.trimmed().isEmpty()
+        || this->canvas == nullptr || this->cache == nullptr)
+        return;
+    const int point_size = annotation.style.text_size == MapAnnotationTextSize::Small ? 10
+        : annotation.style.text_size == MapAnnotationTextSize::Large ? 16 : 12;
+    QFont font;
+    font.setPointSize(point_size);
+    QFontMetrics metrics(font);
+    const QString flat_text = annotation.text.simplified();
+    const QString text = metrics.elidedText(flat_text, Qt::ElideRight, 330);
+    const int width = metrics.horizontalAdvance(text) + 18;
+    const int height = metrics.height() + 10;
+    const QSizeF logical(width, height);
+    const QByteArray digest = QCryptographicHash::hash(
+        (QString::number(point_size) + QLatin1Char('|')
+        + QString::number(annotation.style.show_background) + QLatin1Char('|')
+        + QString::number(selected) + QLatin1Char('|') + text).toUtf8(),
+        QCryptographicHash::Sha256).toHex();
+    const QString key = QStringLiteral("map-annotation|") + QString::fromLatin1(digest);
+    MapBgfxHudSprite sprite = this->cache->cachedImage(key, logical);
+    if (!sprite.valid)
+    {
+        const double ratio = this->cache->devicePixelRatio();
+        QImage image(qMax(1, qRound(width * ratio)), qMax(1, qRound(height * ratio)),
+                     QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(ratio, ratio);
+        if (annotation.style.show_background || selected)
+        {
+            painter.setPen(selected ? QColor(0, 155, 235) : QColor(45, 55, 65, 175));
+            painter.setBrush(QColor(245, 248, 252, 230));
+            painter.drawRoundedRect(QRectF(0.5, 0.5, width - 1.0, height - 1.0), 4, 4);
+        }
+        painter.setFont(font);
+        painter.setPen(QColor(12, 22, 32));
+        painter.drawText(QRectF(9, 5, width - 18, height - 10), Qt::AlignVCenter | Qt::AlignLeft,
+                         text);
+        painter.end();
+        sprite = this->cache->image(key, image, logical);
+    }
+    if (sprite.valid)
+    {
+        this->canvas->sprite(MapBgfxHudRect{position.x - 5.0, position.y - height - 4.0,
+                                             double(width), double(height)}, sprite,
+                             0xffffffffu);
+        this->canvas->fillCircle(position.x, position.y, 2.5,
+                                  selected ? SelectedColor : BlackColor);
+    }
+}
+
+void MapBgfxEditorOverlay::drawAnnotations2d()
+{
+    if (this->inputs == nullptr || this->inputs->annotations == nullptr)
+        return;
+    for (const MapAnnotation &annotation : *this->inputs->annotations)
+    {
+        if (annotation.anchor)
+            continue; // unresolved anchors must never display at a stale geographic position
+        const CoordinateWGS84 &coordinate =
+            annotation.uuid == this->inputs->dragged_annotation_uuid
+                && this->inputs->dragged_annotation_position
+            ? *this->inputs->dragged_annotation_position : annotation.position_wgs84;
+        const MapBgfxHudPoint position = screen(coordinate);
+        if (onScreen(position.x, position.y, 330.0, 40.0))
+            drawAnnotation(annotation, position,
+                           annotation.uuid == this->inputs->selected_annotation_uuid);
+    }
 }
 
 // --- Projection and pens ----------------------------------------------------------
@@ -778,13 +898,18 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const MapBgfxGlobeIconIndex::Frustum &frustum,
                                       const MapEditorVisualState *editor_state,
                                       const MapCanvasProjection *editor_projection,
-                                      const GlobeElevatedProjector &elevated_projector)
+                                      const GlobeElevatedProjector &elevated_projector,
+                                      const QList<MapAnnotation> *annotations,
+                                      const QUuid &selected_annotation_uuid,
+                                      const QUuid &dragged_annotation_uuid,
+                                      const std::optional<CoordinateWGS84> &dragged_annotation_position)
 {
     canvas->clear();
     this->globe_icon_hit_areas.clear();
     if (!projector || (!viewport_state.tile_selection_visible
                        && !viewport_state.rectangle_selection_visible
-                       && (snapshot == nullptr || icon_width <= 0)))
+                       && (snapshot == nullptr || icon_width <= 0)
+                       && (annotations == nullptr || annotations->isEmpty())))
         return;
 
     // The common icon and pen helpers use the viewport from Inputs. Keep
@@ -803,7 +928,9 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
         synchronizeGlobeIcons(*snapshot);
     const std::function<void()> build = [this, &viewport_state, &projector, snapshot, icon_width,
                                          &viewport_size, &frustum, editor_state,
-                                         editor_projection, &elevated_projector]()
+                                         editor_projection, &elevated_projector,
+                                         annotations, &selected_annotation_uuid,
+                                         &dragged_annotation_uuid, &dragged_annotation_position]()
     {
         // The atlas can be reset and this frame rebuilt: never retain hit
         // areas from sprites discarded by the rebuild.
@@ -822,6 +949,23 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
             && !viewport_size.isEmpty())
             globeEditorVisuals(*snapshot, *editor_state, *editor_projection,
                                elevated_projector, viewport_size, icon_width);
+        if (annotations != nullptr)
+        {
+            for (const MapAnnotation &annotation : *annotations)
+            {
+                if (annotation.anchor || !annotation.style.visible)
+                    continue;
+                QPointF projected;
+                const CoordinateWGS84 &coordinate =
+                    annotation.uuid == dragged_annotation_uuid && dragged_annotation_position
+                    ? *dragged_annotation_position : annotation.position_wgs84;
+                if (!projector(coordinate.longitude_deg,
+                               coordinate.latitude_deg, &projected, nullptr))
+                    continue;
+                drawAnnotation(annotation, MapBgfxHudPoint{projected.x(), projected.y()},
+                               annotation.uuid == selected_annotation_uuid);
+            }
+        }
     };
     build();
     // The atlas may evict while the first icon sizes are created. As with

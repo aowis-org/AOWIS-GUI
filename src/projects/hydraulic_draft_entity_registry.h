@@ -1,6 +1,6 @@
 #pragma once
 
-// One canonical GUI-side mapping for the 18 persisted hydraulic entity
+// One canonical GUI-side mapping for the 17 persisted hydraulic entity
 // collections. The storage kind and membership ordinal are DVMDB's V2 draft
 // contract, while MODEL owns the type names and their canonical binary codec.
 //
@@ -23,5 +23,4 @@
     X(links_pumps, HydraulicLinkPump, 5, 13) \
     X(links_valves, HydraulicLinkValve, 6, 14) \
     X(controls_simple, HydraulicControlSimple, 16, 15) \
-    X(controls_rules, HydraulicControlRule, 17, 16) \
-    X(map_labels, HydraulicMapLabel, 18, 17)
+    X(controls_rules, HydraulicControlRule, 17, 16)

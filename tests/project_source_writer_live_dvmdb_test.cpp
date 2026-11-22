@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <functional>
 #include <stdexcept>
+#include <string>
 
 namespace {
 struct Reply {
@@ -31,6 +32,14 @@ struct Reply {
 
 void check(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
+}
+
+// The same, with the GUI writer's own reason appended (e.g. a MODEL codec
+// fingerprint mismatch between this GUI build and the DVMDB executable).
+void check(bool condition, const char* message, const QString& reason) {
+    if (!condition)
+        throw std::runtime_error(reason.isEmpty() ? std::string(message)
+            : std::string(message) + ": " + reason.toStdString());
 }
 
 QString id() { return DvmdbIdentity::newUuidV7(); }
@@ -144,7 +153,7 @@ void run(QCoreApplication& app, const QString& executable) {
         });
         check(await(app, [&] { return done; }) && error.isEmpty()
               && DvmdbIdentity::isUuidV7(firstProject),
-              "GUI cannot create the first project on an unconfigured live DVMDB");
+              "GUI cannot create the first project on an unconfigured live DVMDB", error);
         const Reply afterCreate = request(manager, endpoint, "GET", "/repository/tracking");
         check(afterCreate.status == 200 && afterCreate.body.value("role").toString()
               == QStringLiteral("unconfigured")
@@ -160,7 +169,7 @@ void run(QCoreApplication& app, const QString& executable) {
             project = value; error = failure; done = true;
         });
         check(await(app, [&] { return done; }) && error.isEmpty() &&
-              DvmdbIdentity::isUuidV7(project), "GUI writer could not create real project");
+              DvmdbIdentity::isUuidV7(project), "GUI writer could not create real project", error);
         QString doomed;
         done = false;
         writer.createUnbornBranch(profile, project, QStringLiteral("doomed"), {}, {},
@@ -168,7 +177,7 @@ void run(QCoreApplication& app, const QString& executable) {
             doomed = value; error = failure; done = true;
         });
         check(await(app, [&] { return done; }) && error.isEmpty() &&
-              DvmdbIdentity::isUuidV7(doomed), "GUI writer could not create real branch");
+              DvmdbIdentity::isUuidV7(doomed), "GUI writer could not create real branch", error);
         QString surviving;
         done = false;
         writer.createUnbornBranch(profile, project, QStringLiteral("surviving"), {}, {},
@@ -176,7 +185,7 @@ void run(QCoreApplication& app, const QString& executable) {
             surviving = value; error = failure; done = true;
         });
         check(await(app, [&] { return done; }) && error.isEmpty() &&
-              DvmdbIdentity::isUuidV7(surviving), "GUI writer could not create second branch");
+              DvmdbIdentity::isUuidV7(surviving), "GUI writer could not create second branch", error);
         const QString doomedDraft = id();
         const QString survivingDraft = id();
         for (const QPair<QString, QString>& item :

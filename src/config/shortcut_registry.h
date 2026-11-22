@@ -20,6 +20,7 @@ enum class GuiShortcutId
     MapPanDown,
     MapPanLeft,
     MapPanRight,
+    MapProviderGoogleSatellite,
     MapProviderArcGisSat,
     MapProviderOpenStreetMap,
     MapProviderOpenTopoMap,
@@ -34,7 +35,7 @@ enum class GuiShortcutId
     MapEditorAddTank,
     MapEditorAddPowerSource,
     MapEditorAddReservoir,
-    MapEditorAddNote
+    MapEditorAddAnnotation
 };
 
 // Modifier keys held during a mouse gesture (no key sequence: QKeySequenceEdit

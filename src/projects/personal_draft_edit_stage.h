@@ -4,6 +4,7 @@
 #include "projects/personal_edit_queue.h"
 
 #include <aowis/model/hydraulic/network_hydraulic_distribution.h>
+#include <aowis/model/map/map_annotation.h>
 
 #include <QByteArray>
 #include <QList>
@@ -25,11 +26,14 @@ public:
     bool open(const QString &queue_root, const QUuid &repository_id,
               const QUuid &draft_id, const NetworkHydraulicDistribution &verified_candidate,
               const QByteArray &last_journal_event = QByteArray(),
-              QString *error = nullptr);
+              QString *error = nullptr,
+              const QList<MapAnnotation> &verified_annotations = {},
+              const QUuid &annotation_layer_id = QUuid());
     void close();
     // After a verified server-side History navigation: the queue must be empty
     // and its lock remains held throughout the replacement.
-    bool resetVerifiedNetwork(const NetworkHydraulicDistribution &network, QString *error = nullptr);
+    bool resetVerifiedNetwork(const NetworkHydraulicDistribution &network, QString *error = nullptr,
+                              const QList<MapAnnotation> &annotations = {});
 
     // Stage a newly captured MODEL event, then write it to the local durable
     // queue. The visible staged snapshot advances only after local durability.
@@ -44,7 +48,7 @@ public:
     bool prepareOldest(NetworkHydraulicDistribution &next_candidate,
                        QList<PersonalWorkingCopyChange> &records,
                        QList<HydraulicDraftMembershipEdit> &membership,
-                       QString *error = nullptr) const;
+                       QString *error = nullptr, QUuid *annotation_layer_id = nullptr) const;
 
     // Call only after the server has authoritatively confirmed the exact
     // oldest event. Removing its local queue file is part of acknowledgement;
@@ -57,11 +61,16 @@ public:
     int pendingCount() const;
     const NetworkHydraulicDistribution &visibleNetwork() const;
     const NetworkHydraulicDistribution &persistedNetwork() const;
+    const QList<MapAnnotation> &visibleAnnotations() const;
+    const QList<MapAnnotation> &persistedAnnotations() const;
     const PersonalEditQueue &queue() const;
 
 private:
     PersonalEditQueue queue_;
     NetworkHydraulicDistribution persisted_;
     NetworkHydraulicDistribution visible_;
+    QList<MapAnnotation> persisted_annotations_;
+    QList<MapAnnotation> visible_annotations_;
+    QUuid annotation_layer_id_;
     bool blocked_ = false;
 };

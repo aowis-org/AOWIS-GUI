@@ -58,8 +58,10 @@ void EntityInspectorDock::clearEntity()
 {
     if (this->widget_current)
         this->widget_current->deleteLater();
-    
+    if (this->widget_annotation)
+        this->widget_annotation->deleteLater();
     this->widget_current = nullptr;
+    this->widget_annotation = nullptr;
 }
 
 void EntityInspectorDock::setInspector(EntityInspectorWidget *inspector)
@@ -77,6 +79,38 @@ void EntityInspectorDock::setInspector(EntityInspectorWidget *inspector)
     this->widget_current->onHeadlossFormulaChanged(this->headloss_formulas_current);
     
     setVisible(true);
+}
+
+void EntityInspectorDock::beginMapAnnotation(const CoordinateWGS84 &coordinate)
+{
+    clearEntity();
+    this->widget_annotation = new EntityInspectorAnnotation(
+        this->hydraulic_data, std::nullopt, coordinate, this);
+    connect(this->widget_annotation, &EntityInspectorAnnotation::annotationCreated,
+            this, &EntityInspectorDock::showMapAnnotation);
+    connect(this->widget_annotation, &EntityInspectorAnnotation::annotationSelected,
+            this, &EntityInspectorDock::showMapAnnotation);
+    setWidget(this->widget_annotation);
+    setVisible(true);
+    emit mapAnnotationSelected(QUuid());
+    this->widget_annotation->focusText();
+}
+
+void EntityInspectorDock::showMapAnnotation(const QUuid &uuid)
+{
+    const std::optional<MapAnnotation> annotation = this->hydraulic_data->mapAnnotation(uuid);
+    if (!annotation)
+        return;
+    clearEntity();
+    this->widget_annotation = new EntityInspectorAnnotation(this->hydraulic_data, annotation,
+                                                           annotation->position_wgs84, this);
+    connect(this->widget_annotation, &EntityInspectorAnnotation::annotationDeleted,
+            this, [this] { clearEntity(); setVisible(false); });
+    connect(this->widget_annotation, &EntityInspectorAnnotation::annotationSelected,
+            this, &EntityInspectorDock::showMapAnnotation);
+    setWidget(this->widget_annotation);
+    setVisible(true);
+    emit mapAnnotationSelected(uuid);
 }
 
 void EntityInspectorDock::showEntityTank(const HydraulicNodeTank &tank)

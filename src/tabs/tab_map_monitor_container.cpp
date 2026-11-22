@@ -520,6 +520,15 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
                 surface, [this, surface]() {
             surface->setNetworkSnapshot(this->hydraulic_data->networkRenderSnapshot());
         });
+        connect(this->hydraulic_data, &HydraulicData::signalMapAnnotationsChanged,
+                surface, [this, surface]()
+        {
+            // The editor owns its own overlay invalidation. When the monitor
+            // owns the shared surface, redraw so newly staged annotations
+            // appear immediately without touching network/symbology data.
+            if (!this->editor_mode && !this->basemap_only)
+                surface->requestRedraw();
+        });
         connect(this->hydraulic_data, &HydraulicData::signalNetworkGeometryChanged,
                 surface, [this, surface](quint64) {
             surface->setNetworkSnapshot(this->hydraulic_data->networkRenderSnapshot());
@@ -1724,10 +1733,24 @@ void MapMonitorContainer::activateMonitorSurface()
                 break;
         }
     });
-    surface->setOverlayBuilder(MapBgfxSurface::OverlayBuilder());
+    if (this->monitor_annotation_overlay == nullptr)
+        this->monitor_annotation_overlay = std::make_shared<MapBgfxEditorOverlay>();
+    surface->setOverlayBuilder(
+        [this](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+               const MapBgfx2d::Camera &camera, const QSizeF &viewport) -> QPointF
+        {
+            // Distribution Monitor keeps the existing GPU-atlas network
+            // symbols, adding only persistent project annotations on top.
+            // Drainage and Map Management must never show Distribution notes.
+            const QList<MapAnnotation> *annotations =
+                !this->basemap_only && this->hydraulic_data != nullptr
+                    ? &this->hydraulic_data->mapAnnotations() : nullptr;
+            this->monitor_annotation_overlay->buildAnnotations2d(
+                canvas, cache, camera, viewport, annotations);
+            return QPointF();
+        });
     // The 3D Monitor uses exactly the Editor's full-colour pixmaps and
-    // terrain-aware globe projection. The 2D Monitor still draws its own
-    // GPU-atlas symbols; no 2D overlay is installed.
+    // terrain-aware globe projection, with the same read-only annotations.
     if (this->monitor_globe_icon_overlay == nullptr)
     {
         const std::shared_ptr<MapBgfxEditorIcons> icons =
@@ -1757,7 +1780,9 @@ void MapMonitorContainer::activateMonitorSurface()
                 * this->monitor_globe_icon_size_percent / 100.0));
             this->monitor_globe_icon_overlay->buildGlobe(
                 canvas, cache, MapEditorViewportRenderState(), projector,
-                snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector);
+                snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector,
+                !this->basemap_only && this->hydraulic_data != nullptr
+                    ? &this->hydraulic_data->mapAnnotations() : nullptr);
         });
     // Suppress only the generic globe icons, not the 2D symbols or the
     // monitor's network colours, legend, simulation values and flow arrows.

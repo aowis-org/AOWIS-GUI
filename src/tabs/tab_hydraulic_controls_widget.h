@@ -4,11 +4,10 @@
 #include <QUuid>
 
 class HydraulicData;
-class QComboBox;
 class QListWidget;
 class QPushButton;
 
-// GUI controls for the current NetworkHydraulicDistribution. All persistent edits are
+// GUI rule controls for the current NetworkHydraulicDistribution. All persistent edits are
 // routed through HydraulicData (HC-02.7), never through mutable list access.
 class HydraulicControlsWidget : public QWidget
 {
@@ -26,7 +25,6 @@ private:
     void deleteEntry();
 
     HydraulicData *hydraulic_data = nullptr;
-    QComboBox *category = nullptr;
     QListWidget *entries = nullptr;
     QPushButton *edit_button = nullptr;
     QPushButton *delete_button = nullptr;

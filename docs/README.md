@@ -13,7 +13,7 @@ acceptance; historical test evidence is dated where appropriate.
 | [Personal working databases](working-repository-configuration.md) | Server designation, embedded/REST targets and checkout boundary |
 | [DVMDB quickstart](dvmdb-quickstart.md) | Project creation, open/import/export, autosave and Commit |
 | [Distribution Editor](distribution-editor.md) | Shared 2D/3D hydraulic editing, terrain, UI and limitations |
-| [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 18 collections |
+| [Hydraulic MODEL transactions](hydraulic-edit-transactions.md) | Canonical edits, root metadata and 17 collections |
 | [Network import/export boundaries](network-open-import-replacement.md) | Supported initialization and replacement limits |
 | [Projects and editing acceptance](vc00-baseline.md) | Product acceptance scenarios for projects and private editing |
 
