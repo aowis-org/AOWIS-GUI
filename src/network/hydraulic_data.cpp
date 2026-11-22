@@ -1,6 +1,7 @@
 #include "network/hydraulic_data.h"
 #include "projects/hydraulic_draft_entity_registry.h"
 #include "network/map_annotation_layer_id.h"
+#include "map/core/map_annotation_position.h"
 #include <aowis/model/edit/model_edit_transaction.h>
 
 #include <aowis/model/serialization/model_codec.h>
@@ -498,7 +499,8 @@ static QByteArray mapAnnotationEvent(const std::optional<MapAnnotation> &before,
 bool HydraulicData::createMapAnnotation(const QString &text,
                                         const CoordinateWGS84 &position,
                                         QUuid *created_uuid,
-                                        const MapAnnotationStyle &style)
+                                        const MapAnnotationStyle &style,
+                                        const std::optional<MapAnnotationAnchor> &anchor)
 {
     if (!this->logical_edit_capture_enabled ||
         this->network_hydraulic_distribution.uuid.isNull())
@@ -508,7 +510,10 @@ bool HydraulicData::createMapAnnotation(const QString &text,
     value.text = text;
     value.position_wgs84 = position;
     value.style = style;
-    if (!aowis::model::validateMapAnnotation(value).valid())
+    value.anchor = anchor;
+    if ((anchor && !MapAnnotationPosition::targetPosition(
+            this->network_hydraulic_distribution, *anchor)) ||
+        !aowis::model::validateMapAnnotation(value).valid())
         return false;
     const QByteArray event = mapAnnotationEvent(std::nullopt, value,
         distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
@@ -526,6 +531,8 @@ bool HydraulicData::createMapAnnotation(const QString &text,
 bool HydraulicData::updateMapAnnotation(const MapAnnotation &annotation)
 {
     if (!this->logical_edit_capture_enabled ||
+        (annotation.anchor && !MapAnnotationPosition::targetPosition(
+            this->network_hydraulic_distribution, *annotation.anchor)) ||
         !aowis::model::validateMapAnnotation(annotation).valid())
         return false;
     qsizetype index = -1;
@@ -4553,6 +4560,9 @@ QUuid HydraulicData::splitPipeAtVertex(const QUuid &pipe_uuid, int vertex_index,
 bool HydraulicData::undoPipeSplit(const QUuid &first_pipe_uuid, const QUuid &second_pipe_uuid,
                                   const QUuid &junction_uuid)
 {
+    // Rejoining removes the intermediate junction as well.
+    if (MapAnnotationPosition::references(this->map_annotations, junction_uuid))
+        return false;
     HydraulicEditTransactionCapture capture(QStringLiteral("hydraulic.pipe.rejoin"));
     if (this->logical_edit_capture_enabled)
     {
@@ -4593,6 +4603,12 @@ bool HydraulicData::undoPipeSplit(const QUuid &first_pipe_uuid, const QUuid &sec
 
 bool HydraulicData::deleteJunction(const QUuid &uuid)
 {
+    // DVMDB cannot yet atomically mix hydraulic and map.annotation edits.
+    // Fail closed rather than persist a dangling anchor. Detach the label
+    // through its Inspector first; then deletion is an ordinary edit.
+    if (MapAnnotationPosition::references(this->map_annotations, uuid))
+        return false;
+
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deleteJunction"), uuid);
     edit_scope.watchNodeDeletionDependents(uuid);
     const bool was_source_trace_origin = this->source_trace_origin_node_uuid == uuid;
@@ -4613,6 +4629,12 @@ bool HydraulicData::deleteJunction(const QUuid &uuid)
 
 bool HydraulicData::deleteReservoir(const QUuid &uuid)
 {
+    // DVMDB cannot yet atomically mix hydraulic and map.annotation edits.
+    // Fail closed rather than persist a dangling anchor. Detach the label
+    // through its Inspector first; then deletion is an ordinary edit.
+    if (MapAnnotationPosition::references(this->map_annotations, uuid))
+        return false;
+
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deleteReservoir"), uuid);
     edit_scope.watchNodeDeletionDependents(uuid);
     const bool was_source_trace_origin = this->source_trace_origin_node_uuid == uuid;
@@ -4633,6 +4655,12 @@ bool HydraulicData::deleteReservoir(const QUuid &uuid)
 
 bool HydraulicData::deleteTank(const QUuid &uuid)
 {
+    // DVMDB cannot yet atomically mix hydraulic and map.annotation edits.
+    // Fail closed rather than persist a dangling anchor. Detach the label
+    // through its Inspector first; then deletion is an ordinary edit.
+    if (MapAnnotationPosition::references(this->map_annotations, uuid))
+        return false;
+
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deleteTank"), uuid);
     edit_scope.watchNodeDeletionDependents(uuid);
     const bool was_source_trace_origin = this->source_trace_origin_node_uuid == uuid;
@@ -4653,6 +4681,12 @@ bool HydraulicData::deleteTank(const QUuid &uuid)
 
 bool HydraulicData::deleteDemandPoint(const QUuid &uuid)
 {
+    // DVMDB cannot yet atomically mix hydraulic and map.annotation edits.
+    // Fail closed rather than persist a dangling anchor. Detach the label
+    // through its Inspector first; then deletion is an ordinary edit.
+    if (MapAnnotationPosition::references(this->map_annotations, uuid))
+        return false;
+
     EditScope edit_scope(*this, QStringLiteral("hydraulic.deleteDemandPoint"), uuid);
     const bool successful = this->network_editor.deleteDemandPoint(uuid);
     if (successful)

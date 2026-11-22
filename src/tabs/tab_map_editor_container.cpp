@@ -1,3 +1,4 @@
+#include "map/core/map_annotation_position.h"
 #include "config/live_ui_text.h"
 #include "tabs/tab_map_editor_container.h"
 #include "tabs/map_mode_tool_panel.h"
@@ -666,7 +667,10 @@ void MapEditorContainer::setupBgfxEditor()
             MapBgfxPanReuse::Build build = overlay_frame->pan.begin(camera, viewport, ratio, pannable);
             inputs.viewport = build.viewport;
             inputs.camera = build.camera;
-            inputs.annotations = &this->hydraulic_data->mapAnnotations();
+            const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+                this->hydraulic_data->networkHydraulicDistribution(),
+                this->hydraulic_data->mapAnnotations());
+            inputs.annotations = &annotations;
             inputs.selected_annotation_uuid = this->selected_annotation_uuid;
             inputs.dragged_annotation_uuid = this->pressed_annotation_uuid;
             inputs.dragged_annotation_position = this->annotation_drag_preview;
@@ -731,11 +735,14 @@ void MapEditorContainer::setupBgfxEditor()
                         return std::nullopt;
                     return projected;
                 });
+            const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+                this->hydraulic_data->networkHydraulicDistribution(),
+                this->hydraulic_data->mapAnnotations());
             overlay->buildGlobe(canvas, cache, viewport_state, projector,
                                 snapshot, width, viewport, frustum,
                                 snapshot != nullptr ? &this->bgfx_visual_state : nullptr,
                                 &globe_projection, elevated_projector,
-                                &this->hydraulic_data->mapAnnotations(),
+                                &annotations,
                                 this->selected_annotation_uuid,
                                 this->pressed_annotation_uuid,
                                 this->annotation_drag_preview);
@@ -1048,11 +1055,13 @@ std::optional<CoordinateWGS84> MapEditorContainer::annotationCoordinateAt(
 
 std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
 {
-    const QList<MapAnnotation> &annotations = this->hydraulic_data->mapAnnotations();
+    const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+        this->hydraulic_data->networkHydraulicDistribution(),
+        this->hydraulic_data->mapAnnotations());
     for (qsizetype i = annotations.size(); i > 0; --i)
     {
         const MapAnnotation &annotation = annotations.at(i - 1);
-        if (!annotation.style.visible || annotation.anchor)
+        if (!annotation.style.visible)
             continue;
         QPointF position;
         if (this->map_model->viewMode() == MapViewMode::Globe)
@@ -1140,11 +1149,13 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
             const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(chosen);
             const std::optional<CoordinateWGS84> position = dropped_position
                 ? dropped_position : annotationCoordinateAt(mouse->position());
-            if (existing && position && !existing->anchor)
+            if (existing && position)
             {
                 MapAnnotation updated = *existing;
-                updated.position_wgs84 = *position;
-                this->hydraulic_data->updateMapAnnotation(updated);
+                if (MapAnnotationPosition::place(
+                        this->hydraulic_data->networkHydraulicDistribution(),
+                        updated, *position))
+                    this->hydraulic_data->updateMapAnnotation(updated);
             }
         }
         this->selected_annotation_uuid = chosen;

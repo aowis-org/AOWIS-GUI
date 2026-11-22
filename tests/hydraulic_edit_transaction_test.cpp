@@ -2,6 +2,7 @@
 #include "network/hydraulic_edit_transaction_capture.h"
 #include "network/hydraulic_network_editor.h"
 #include "network/map_annotation_export.h"
+#include "map/core/map_annotation_position.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/hydraulic_draft_event_adapter.h"
 #include "projects/hydraulic_draft_entity_registry.h"
@@ -17,6 +18,7 @@
 #include <QTemporaryDir>
 #include <aowis/model/uuid.h>
 
+#include <cmath>
 #include <limits>
 #include <optional>
 #include <functional>
@@ -2187,6 +2189,93 @@ void testRuleControlCrud()
 // HydraulicData keeps them with that network only, and INP export frees an
 // annotation whose anchor node was deleted (at its stored position) while
 // every other anchor keeps following its node.
+void testMapAnnotationAnchorGeodesyAndEvents()
+{
+    NetworkHydraulicDistribution network;
+    network.uuid = createUuidV7();
+    network.id = QStringLiteral("Attached annotations");
+    HydraulicNodeJunction junction;
+    junction.id = QStringLiteral("J1");
+    junction.uuid = createUuidV7();
+    junction.coordinate_wgs84 = coordinate(50.0, 8.0);
+    network.nodes_junctions.append(junction);
+    HydraulicData data;
+    data.replaceNetworkHydraulicDistribution(network, {});
+    data.setLogicalEditCaptureEnabled(true);
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+        &data, [&events](const QByteArray &event) { events.append(event); });
+
+    const CoordinateWGS84 placed = coordinate(50.00006, 8.00014);
+    MapAnnotation annotation;
+    annotation.anchor = MapAnnotationAnchor{junction.uuid,
+        QStringLiteral("HydraulicNodeJunction")};
+    test_harness.expectTrue(MapAnnotationPosition::place(network, annotation, placed),
+        "placing anchored annotation computes geodesic offsets");
+    const std::optional<CoordinateWGS84> positioned =
+        MapAnnotationPosition::resolve(network, annotation);
+    test_harness.expectTrue(positioned &&
+        std::abs(positioned->latitude_deg - placed.latitude_deg) < 1e-9 &&
+        std::abs(positioned->longitude_deg - placed.longitude_deg) < 1e-9,
+        "stored east/north offsets reproduce requested WGS84 coordinate");
+
+    QUuid uuid;
+    test_harness.expectTrue(data.createMapAnnotation(QStringLiteral("Follow junction"),
+        placed, &uuid, MapAnnotationStyle(), annotation.anchor) && events.size() == 1,
+        "anchored creation is one canonical MODEL event");
+    const std::optional<aowis::model::ModelEditTransaction> event = decoded(events.last());
+    test_harness.expectTrue(event && event->edits.size() == 1 &&
+        event->edits.first().entityType == QStringLiteral("map.annotation"),
+        "anchored creation has the expected event type");
+    MapAnnotation invalid = *data.mapAnnotation(uuid);
+    invalid.anchor->entity_uuid = createUuidV7();
+    test_harness.expectTrue(!data.updateMapAnnotation(invalid) && events.size() == 1,
+        "unresolvable anchor cannot be stored in a working copy");
+    QUuid rejected;
+    test_harness.expectTrue(!data.createMapAnnotation(QStringLiteral("Invalid anchor"),
+        placed, &rejected, MapAnnotationStyle(), invalid.anchor) && rejected.isNull(),
+        "creation rejects nonexistent anchors without emitting a transaction");
+    const NetworkHydraulicDistribution &before_movement = data.networkHydraulicDistribution();
+    MapAnnotation unresolvable = invalid;
+    const QList<MapAnnotation> skipped = MapAnnotationPosition::drawable(
+        before_movement, {unresolvable});
+    test_harness.expectTrue(skipped.isEmpty(),
+        "unresolved attachments are omitted instead of drawn at stale locations");
+
+    const MapAnnotation before_move = *data.mapAnnotation(uuid);
+    const CoordinateWGS84 moved = coordinate(50.002, 8.003);
+    test_harness.expectTrue(data.setNodeCoordinate(junction.uuid, moved),
+        "node anchor can move through a captured hydraulic edit");
+    const NetworkHydraulicDistribution &now = data.networkHydraulicDistribution();
+    const std::optional<CoordinateWGS84> new_position =
+        MapAnnotationPosition::resolve(now, before_move);
+    test_harness.expectTrue(new_position &&
+        std::abs(new_position->latitude_deg - placed.latitude_deg) > 0.001 &&
+        data.mapAnnotation(uuid)->anchor->offset_east_m ==
+            before_move.anchor->offset_east_m,
+        "annotation follows moved target without mutating its stored offsets");
+    const QList<MapAnnotation> drawn = MapAnnotationPosition::drawable(
+        now, data.mapAnnotations());
+    test_harness.expectTrue(drawn.size() == 1 && !drawn.first().anchor &&
+        std::abs(drawn.first().position_wgs84.latitude_deg - new_position->latitude_deg) < 1e-9,
+        "renderable annotation copy resolves anchored coordinate");
+
+    MapAnnotation dragged = *data.mapAnnotation(uuid);
+    const CoordinateWGS84 dragged_position = coordinate(50.0024, 8.0033);
+    test_harness.expectTrue(MapAnnotationPosition::place(now, dragged, dragged_position) &&
+        data.updateMapAnnotation(dragged),
+        "dragging anchored annotation updates the revisioned offset");
+    test_harness.expectTrue(!data.deleteJunction(junction.uuid),
+        "deleting an anchor target is blocked until detachment is durable");
+    const std::optional<CoordinateWGS84> last_position =
+        MapAnnotationPosition::resolve(data.networkHydraulicDistribution(), dragged);
+    dragged.anchor.reset();
+    dragged.position_wgs84 = *last_position;
+    test_harness.expectTrue(data.updateMapAnnotation(dragged) &&
+        data.deleteJunction(junction.uuid) && !data.mapAnnotation(uuid)->anchor,
+        "detachment preserves last visible WGS84 position before target deletion");
+}
+
 void testMapAnnotationsTravelWithTheNetwork()
 {
     NetworkHydraulicDistribution baseline;
@@ -2234,8 +2323,11 @@ void testMapAnnotationsTravelWithTheNetwork()
                             !exported.at(2).anchor,
                             "A3 export keeps every resolvable anchor");
 
-    test_harness.expectTrue(data.deleteJunction(removed.uuid), "A3 fixture junction can be deleted");
-    exported = exportableMapAnnotations(data.networkHydraulicDistribution(), data.mapAnnotations());
+    test_harness.expectTrue(!data.deleteJunction(removed.uuid),
+        "attached annotations prevent non-atomic target deletion");
+    NetworkHydraulicDistribution orphaned = data.networkHydraulicDistribution();
+    orphaned.nodes_junctions.removeAt(1); // simulate an inconsistent external import
+    exported = exportableMapAnnotations(orphaned, data.mapAnnotations());
     test_harness.expectTrue(exported.size() == 3 &&
                             exported.at(0).anchor && exported.at(0).anchor->entity_uuid == kept.uuid &&
                             exported.at(0).anchor->offset_east_m == 15.0 &&
@@ -2246,6 +2338,14 @@ void testMapAnnotationsTravelWithTheNetwork()
                             "A3 export frees only the annotation whose anchor node was deleted");
     test_harness.expectTrue(data.mapAnnotations().at(1).anchor.has_value(),
                             "A3 export does not change the stored annotations");
+    // A user may detach a label first, which is one canonical annotation
+    // event. A subsequent hydraulic deletion can then proceed safely.
+    data.setLogicalEditCaptureEnabled(true);
+    MapAnnotation detached = on_removed;
+    detached.anchor.reset();
+    test_harness.expectTrue(data.updateMapAnnotation(detached) &&
+        data.deleteJunction(removed.uuid),
+        "manually detached annotation allows node deletion");
 
     NetworkHydraulicDistribution other = baseline;
     other.uuid = createUuidV7();
@@ -2851,6 +2951,8 @@ int main(int argc, char **argv)
     test_harness.runCase("Rule control reference cascades", testRuleControlDeletionCascades);
     test_harness.runCase("Pipe rejoin control cascades", testPipeRejoinCapturesControlCascades);
     test_harness.runCase("Rule control CRUD", testRuleControlCrud);
+    test_harness.runCase("Anchored annotation geodesy and durable event guards",
+                         testMapAnnotationAnchorGeodesyAndEvents);
     test_harness.runCase("Map annotations travel with the network", testMapAnnotationsTravelWithTheNetwork);
     test_harness.runCase("Revisioned map annotations: stage, acknowledgement and restart",
                          testRevisionedMapAnnotationDraftEditing);

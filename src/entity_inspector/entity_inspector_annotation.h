@@ -42,6 +42,7 @@ private:
     void refreshPermission();
     void refreshFromModel();
     void refreshAnnotationChoices();
+    void refreshAnchorChoices(const std::optional<MapAnnotation> &current);
     void retranslate();
     void commit();
 
@@ -60,7 +61,10 @@ private:
     QCheckBox *background_ = nullptr;
     QCheckBox *visible_ = nullptr;
     QLabel *message_ = nullptr;
-    QLabel *anchor_ = nullptr;
+    QComboBox *anchor_ = nullptr;
+    // A node may move while text is being edited. Only rewrite offset fields
+    // when the user actually changes the annotation's geographic position.
+    bool position_dirty_ = false;
     QPushButton *create_ = nullptr;
     QPushButton *delete_ = nullptr;
     QTimer commit_timer_;

@@ -70,7 +70,8 @@ public:
     std::optional<MapAnnotation> mapAnnotation(const QUuid &uuid) const;
     bool createMapAnnotation(const QString &text, const CoordinateWGS84 &position,
                              QUuid *created_uuid = nullptr,
-                             const MapAnnotationStyle &style = MapAnnotationStyle());
+                             const MapAnnotationStyle &style = MapAnnotationStyle(),
+                             const std::optional<MapAnnotationAnchor> &anchor = std::nullopt);
     bool updateMapAnnotation(const MapAnnotation &annotation);
     bool deleteMapAnnotation(const QUuid &uuid);
     // Canonical, reversible edit of all network-wide metadata (not collections).

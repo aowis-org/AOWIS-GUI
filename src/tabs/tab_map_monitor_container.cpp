@@ -1,3 +1,4 @@
+#include "map/core/map_annotation_position.h"
 #include "config/live_ui_text.h"
 #include <aowis/model/units/quantity.h>
 #include "tabs/tab_map_monitor_container.h"
@@ -1742,11 +1743,13 @@ void MapMonitorContainer::activateMonitorSurface()
             // Distribution Monitor keeps the existing GPU-atlas network
             // symbols, adding only persistent project annotations on top.
             // Drainage and Map Management must never show Distribution notes.
-            const QList<MapAnnotation> *annotations =
-                !this->basemap_only && this->hydraulic_data != nullptr
-                    ? &this->hydraulic_data->mapAnnotations() : nullptr;
+            QList<MapAnnotation> annotations;
+            if (!this->basemap_only && this->hydraulic_data != nullptr)
+                annotations = MapAnnotationPosition::drawable(
+                    this->hydraulic_data->networkHydraulicDistribution(),
+                    this->hydraulic_data->mapAnnotations());
             this->monitor_annotation_overlay->buildAnnotations2d(
-                canvas, cache, camera, viewport, annotations);
+                canvas, cache, camera, viewport, &annotations);
             return QPointF();
         });
     // The 3D Monitor uses exactly the Editor's full-colour pixmaps and
@@ -1778,11 +1781,15 @@ void MapMonitorContainer::activateMonitorSurface()
                 10.0 + (zoom - 16.0) * 10.0, 10.0, 40.0);
             const int width = qMax(1, qRound(base_width
                 * this->monitor_globe_icon_size_percent / 100.0));
+            QList<MapAnnotation> annotations;
+            if (!this->basemap_only && this->hydraulic_data != nullptr)
+                annotations = MapAnnotationPosition::drawable(
+                    this->hydraulic_data->networkHydraulicDistribution(),
+                    this->hydraulic_data->mapAnnotations());
             this->monitor_globe_icon_overlay->buildGlobe(
                 canvas, cache, MapEditorViewportRenderState(), projector,
                 snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector,
-                !this->basemap_only && this->hydraulic_data != nullptr
-                    ? &this->hydraulic_data->mapAnnotations() : nullptr);
+                &annotations);
         });
     // Suppress only the generic globe icons, not the 2D symbols or the
     // monitor's network colours, legend, simulation values and flow arrows.

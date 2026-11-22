@@ -9,10 +9,10 @@
 
 // The current network's map annotations, ready for EPANET INP export: an
 // annotation whose anchor no longer exists (its node was deleted after the
-// import) is exported free at its stored position_wgs84, which import set to
-// the label's own position. Anchors that still resolve keep following their
-// node. Annotations are not yet edited in the GUI (phase C), so this is the
-// only place that has to react to anchor deletion.
+// import) is exported free at its last stored position_wgs84. Canonical
+// editing refuses to remove a referenced entity until the user detaches its
+// annotation, since mixed hydraulic/annotation transactions are unsupported.
+// Export still handles inconsistent external imports without mutating state.
 inline QList<MapAnnotation> exportableMapAnnotations(
     const NetworkHydraulicDistribution &network, const QList<MapAnnotation> &annotations)
 {
