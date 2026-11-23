@@ -41,7 +41,12 @@ when the designated server is unreachable.
    GUI verifies the source digest and every before-image, applies the changes
    to a temporary model, then checks the destination digest before publishing
    it to the editor. Membership changes and moves outside `orderedTypes` are
-   refused.
+   refused. The same reply carries `annotationDelta` (version 1) for the
+   network's annotation layer: changed annotation images, insertion positions
+   or the complete member order, and order digests. The GUI applies it to a
+   copy of its verified annotations the same way (`map_annotation_history_delta.h`).
+   Only without it (layer missing at either draft, older DVMDB) is the layer
+   reloaded at the published generation.
 5. The GUI acknowledges/removes the local intent and fetches a fresh
    authoritative History cursor. It does **not** reopen the draft, reload the
    original journal or GET a complete `NetworkHydraulicDistribution` for this operation.

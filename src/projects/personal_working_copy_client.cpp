@@ -29,6 +29,7 @@
 #include <QUuid>
 #include <QUrl>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -1143,16 +1144,23 @@ void PersonalWorkingCopyClient::navigateHistoryRecovering(
     {
         if (!error.isEmpty()) { completion({}, *uncertain, error); return; }
         PersonalWorkingCopyInfo draft;
+        const bool has_annotation_delta = response.contains(QStringLiteral("annotationDelta"));
         if (!parseDraft(response, draft) || draft.id != draft_id ||
             (!network_id.isEmpty() &&
              (!response.value(QStringLiteral("historyDelta")).isObject() ||
               response.value(QStringLiteral("historyDelta")).toObject()
+                .value(QStringLiteral("networkId")).toString() != network_id)) ||
+            (has_annotation_delta &&
+             (network_id.isEmpty() ||
+              !response.value(QStringLiteral("annotationDelta")).isObject() ||
+              response.value(QStringLiteral("annotationDelta")).toObject()
                 .value(QStringLiteral("networkId")).toString() != network_id)))
         {
             completion({}, false, QStringLiteral("Invalid DVMDB History delta/publication response."));
             return;
         }
         draft.history_delta = response.value(QStringLiteral("historyDelta")).toObject();
+        draft.annotation_delta = response.value(QStringLiteral("annotationDelta")).toObject();
         completion(draft, false, {});
     }, 2, uncertain); // two fast retries, then the session can resume after reconnection
 }
@@ -1519,6 +1527,22 @@ void PersonalWorkingCopyClient::loadDraftNetwork(
     });
 }
 
+// D1: DVMDB serves a layer in pages of membership chunks. 39 chunks of at
+// most 256 members stay within its 10,000-member response limit; a layer
+// holds at most 4096 chunks.
+constexpr int annotation_page_chunks = 39;
+constexpr int annotation_max_chunks = 4096;
+constexpr qsizetype annotation_max_members = 4096 * 256;
+
+struct PersonalWorkingCopyClient::AnnotationLayerRead
+{
+    QList<MapAnnotation> annotations;
+    QSet<QUuid> identities;
+    QString generation; // of the first page; every later page must match
+    int chunk_count = -1;
+    int from_chunk = 0;
+};
+
 void PersonalWorkingCopyClient::loadDraftAnnotationLayer(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QUuid &layer_id, const QUuid &network_id, AnnotationLayerCompletion completion)
@@ -1530,28 +1554,64 @@ void PersonalWorkingCopyClient::loadDraftAnnotationLayer(
         completion({}, {}, {}, QStringLiteral("Invalid draft annotation-layer identity"));
         return;
     }
+    loadDraftAnnotationLayerPage(target, draft_id, layer_id, network,
+                                 std::make_shared<AnnotationLayerRead>(), std::move(completion));
+}
+
+void PersonalWorkingCopyClient::loadDraftAnnotationLayerPage(
+    const PersonalRepositoryTarget &target, const QString &draft_id, const QUuid &layer_id,
+    const QString &network_id, std::shared_ptr<AnnotationLayerRead> read,
+    AnnotationLayerCompletion completion)
+{
     const QString layer = layer_id.toString(QUuid::WithoutBraces);
+    const int from_chunk = read->from_chunk;
     request(target, "GET", QStringLiteral("/working-copies/") + draft_id +
-                QStringLiteral("/annotation-layers/") + layer, {},
-            [completion = std::move(completion), draft_id, layer_id, layer, network]
-            (const QJsonObject &response, const QString &error)
+                QStringLiteral("/annotation-layers/") + layer +
+                QStringLiteral("?fromChunk=%1&chunkLimit=%2").arg(from_chunk).arg(annotation_page_chunks),
+            {},
+            [this, target, completion = std::move(completion), draft_id, layer_id, layer,
+             network_id, read, from_chunk]
+            (const QJsonObject &response, const QString &error) mutable
     {
         if (!error.isEmpty()) { completion({}, {}, {}, error); return; }
         const QString generation = response.value(QStringLiteral("generation")).toString();
         const QJsonValue members = response.value(QStringLiteral("annotations"));
+        const QJsonValue chunk_value = response.value(QStringLiteral("chunkCount"));
+        const QJsonValue next_value = response.value(QStringLiteral("nextChunk"));
+        const int chunk_count = chunk_value.isDouble() ? chunk_value.toInt(-1) : -1;
         if (response.value(QStringLiteral("draftId")).toString() != draft_id ||
             response.value(QStringLiteral("id")).toString() != layer ||
-            response.value(QStringLiteral("ownerNetworkId")).toString() != network ||
+            response.value(QStringLiteral("ownerNetworkId")).toString() != network_id ||
             response.value(QStringLiteral("domain")).toString() != QStringLiteral("distribution") ||
             !decimal(generation) || !members.isArray() ||
-            members.toArray().size() > 50000 ||
-            response.value(QStringLiteral("count")).toInt(-1) != members.toArray().size())
+            members.toArray().size() > annotation_page_chunks * 256 ||
+            response.value(QStringLiteral("count")).toInt(-1) != members.toArray().size() ||
+            chunk_count < 0 || chunk_count > annotation_max_chunks ||
+            chunk_value.toDouble() != static_cast<double>(chunk_count) ||
+            response.value(QStringLiteral("fromChunk")) != QJsonValue(from_chunk))
         {
             completion({}, {}, {}, QStringLiteral("Invalid annotation layer scope or generation"));
             return;
         }
-        QList<MapAnnotation> annotations;
-        QSet<QUuid> identities;
+        // Every page must come from the generation and chunk list of the
+        // first; a Save between two pages restarts nothing silently.
+        if ((!read->generation.isEmpty() && generation != read->generation) ||
+            (read->chunk_count >= 0 && chunk_count != read->chunk_count))
+        {
+            completion({}, {}, {}, QStringLiteral("Annotation layer changed while it was read in pages"));
+            return;
+        }
+        read->generation = generation;
+        read->chunk_count = chunk_count;
+        // DVMDB stops a page after chunkLimit chunks or at the end.
+        const int expected_next = std::min(from_chunk + annotation_page_chunks, chunk_count);
+        const bool last = expected_next >= chunk_count;
+        if (last ? !next_value.isNull()
+                 : (!next_value.isDouble() || next_value != QJsonValue(expected_next)))
+        {
+            completion({}, {}, {}, QStringLiteral("Invalid annotation layer page sequence"));
+            return;
+        }
         for (const QJsonValue &entry : members.toArray())
         {
             if (!entry.isObject())
@@ -1564,7 +1624,7 @@ void PersonalWorkingCopyClient::loadDraftAnnotationLayer(
             const QByteArray encoded = object.value(QStringLiteral("payloadBase64")).toString().toLatin1();
             const QByteArray::FromBase64Result binary = QByteArray::fromBase64Encoding(
                 encoded, QByteArray::AbortOnBase64DecodingErrors);
-            if (uuid.isNull() || identities.contains(uuid) || !binary ||
+            if (uuid.isNull() || read->identities.contains(uuid) || !binary ||
                 binary.decoded.toBase64() != encoded)
             {
                 completion({}, {}, {}, QStringLiteral("Duplicate or invalid annotation member"));
@@ -1579,10 +1639,28 @@ void PersonalWorkingCopyClient::loadDraftAnnotationLayer(
                 completion({}, {}, {}, QStringLiteral("Invalid canonical annotation: %1").arg(codec_error));
                 return;
             }
-            identities.insert(uuid);
-            annotations.append(*value);
+            read->identities.insert(uuid);
+            read->annotations.append(*value);
         }
-        completion(annotations, layer_id, generation, {});
+        if (read->annotations.size() > annotation_max_members)
+        {
+            completion({}, {}, {}, QStringLiteral("Annotation layer exceeds the DVMDB layer limit"));
+            return;
+        }
+        if (last)
+        {
+            completion(read->annotations, layer_id, read->generation, {});
+            return;
+        }
+        read->from_chunk = expected_next;
+        // Queue the next request instead of deepening the network callback stack.
+        QTimer::singleShot(0, this,
+            [this, target, draft_id, layer_id, network_id, read,
+             completion = std::move(completion)]() mutable
+        {
+            loadDraftAnnotationLayerPage(target, draft_id, layer_id, network_id, read,
+                                         std::move(completion));
+        });
     });
 }
 

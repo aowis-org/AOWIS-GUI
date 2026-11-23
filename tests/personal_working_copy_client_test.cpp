@@ -6,6 +6,7 @@
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_draft_edit_session.h"
 #include "projects/hydraulic_history_delta.h"
+#include "projects/map_annotation_history_delta.h"
 #include "network/hydraulic_network_editor.h"
 #include "network/hydraulic_edit_transaction_capture.h"
 #include "network/map_annotation_layer_id.h"
@@ -36,6 +37,7 @@
 #include <QTemporaryDir>
 #include <QUuid>
 
+#include <algorithm>
 #include <cstdio>
 #include <functional>
 #include <optional>
@@ -123,6 +125,18 @@ public:
     int network_read_count = 0;
     int network_summary_count = 0;
     int annotation_layer_read_count = 0;
+    // The draft annotation layer, served in pages of `layer_chunk_size`
+    // members per membership chunk (DVMDB: up to 256).
+    QList<MapAnnotation> layer_annotations;
+    int layer_chunk_size = 256;
+    QStringList annotation_layer_paths;
+    bool layer_generation_changes_after_first_page = false;
+    bool corrupt_layer_next_chunk = false;
+    bool duplicate_layer_member_across_pages = false;
+    // History replies carry an annotationDelta (D2); with
+    // history_annotation_rename the first annotation's text changes.
+    bool history_annotation_delta = true;
+    bool history_annotation_rename = false;
     QString saved_network_id;
     int archive_page_reads = 0;
     int branch_history_reads = 0;
@@ -643,6 +657,34 @@ public:
                                     {QStringLiteral("orderedTypes"), QJsonArray{}},
                                     {QStringLiteral("edits"), edits},
                                     {QStringLiteral("moves"), QJsonArray{}}});
+                                const QUuid layer = distributionMapAnnotationLayerId(QUuid(requested));
+                                QJsonArray annotation_edits;
+                                if (this->history_annotation_rename && !this->layer_annotations.isEmpty())
+                                {
+                                    MapAnnotation renamed = this->layer_annotations.first();
+                                    renamed.text = renamed.text + QStringLiteral(" (History)");
+                                    annotation_edits.append(QJsonObject{
+                                        {QStringLiteral("id"), renamed.uuid.toString(QUuid::WithoutBraces)},
+                                        {QStringLiteral("beforeBase64"), QString::fromLatin1(
+                                            aowis::model::ModelCodec<MapAnnotation>::encode(
+                                                this->layer_annotations.first()).toBase64())},
+                                        {QStringLiteral("afterBase64"), QString::fromLatin1(
+                                            aowis::model::ModelCodec<MapAnnotation>::encode(renamed).toBase64())}});
+                                    this->layer_annotations[0] = renamed;
+                                }
+                                if (this->history_annotation_delta)
+                                    document.insert(QStringLiteral("annotationDelta"), QJsonObject{
+                                        {QStringLiteral("version"), 1},
+                                        {QStringLiteral("layerId"), layer.toString(QUuid::WithoutBraces)},
+                                        {QStringLiteral("networkId"), requested},
+                                        {QStringLiteral("orderChanged"), false},
+                                        {QStringLiteral("fromSha256"),
+                                         MapAnnotationHistoryDelta::orderDigest(layer, nullptr)},
+                                        {QStringLiteral("toSha256"),
+                                         MapAnnotationHistoryDelta::orderDigest(layer, nullptr)},
+                                        {QStringLiteral("edits"), annotation_edits},
+                                        {QStringLiteral("insertions"), QJsonArray{}},
+                                        {QStringLiteral("orderBase64"), QJsonValue(QJsonValue::Null)}});
                             }
                             this->acknowledged_history_request = request_body;
                             this->acknowledged_history_reply = document;
@@ -652,7 +694,12 @@ public:
                              request_line.contains("/annotation-layers/"))
                     {
                         ++this->annotation_layer_read_count;
-                        const QByteArray path = request_line.split(' ').value(1);
+                        const QByteArray target_path = request_line.split(' ').value(1);
+                        this->annotation_layer_paths.append(QString::fromLatin1(target_path));
+                        const qsizetype query_start = target_path.indexOf('?');
+                        const QByteArray path = query_start < 0 ? target_path : target_path.left(query_start);
+                        const QUrlQuery query(query_start < 0 ? QString()
+                            : QString::fromLatin1(target_path.mid(query_start + 1)));
                         const QString requested_layer = QString::fromLatin1(
                             path.mid(path.lastIndexOf('/') + 1));
                         const QString expected_layer = distributionMapAnnotationLayerId(
@@ -668,16 +715,48 @@ public:
                         else
                         {
                             // Model DVMDB's independent, generation-pinned
-                            // annotation layer. Every verified History change
-                            // must rehydrate it before edit capture resumes.
+                            // annotation layer, read in pages of chunks.
+                            const int size = std::max(1, this->layer_chunk_size);
+                            const int chunk_count = static_cast<int>(
+                                (this->layer_annotations.size() + size - 1) / size);
+                            const int from = query.hasQueryItem(QStringLiteral("fromChunk"))
+                                ? query.queryItemValue(QStringLiteral("fromChunk")).toInt() : 0;
+                            const int limit = query.hasQueryItem(QStringLiteral("chunkLimit"))
+                                ? query.queryItemValue(QStringLiteral("chunkLimit")).toInt() : chunk_count;
+                            const int next = std::min(chunk_count, from + limit);
+                            QJsonArray members;
+                            for (qsizetype index = qsizetype(from) * size;
+                                 index < qsizetype(next) * size && index < this->layer_annotations.size();
+                                 ++index)
+                            {
+                                const MapAnnotation &item = this->layer_annotations.at(index);
+                                members.append(QJsonObject{
+                                    {QStringLiteral("uuid"), item.uuid.toString(QUuid::WithoutBraces)},
+                                    {QStringLiteral("payloadBase64"), QString::fromLatin1(
+                                        aowis::model::ModelCodec<MapAnnotation>::encode(item).toBase64())}});
+                            }
+                            if (this->duplicate_layer_member_across_pages && from > 0 &&
+                                !this->layer_annotations.isEmpty())
+                                members.replace(0, QJsonObject{
+                                    {QStringLiteral("uuid"), this->layer_annotations.first().uuid
+                                        .toString(QUuid::WithoutBraces)},
+                                    {QStringLiteral("payloadBase64"), QString::fromLatin1(
+                                        aowis::model::ModelCodec<MapAnnotation>::encode(
+                                            this->layer_annotations.first()).toBase64())}});
                             document = QJsonObject{
                                 {QStringLiteral("draftId"), draft_id},
                                 {QStringLiteral("generation"), QString::number(this->generation)},
                                 {QStringLiteral("id"), expected_layer},
                                 {QStringLiteral("domain"), QStringLiteral("distribution")},
                                 {QStringLiteral("ownerNetworkId"), this->saved_network_id},
-                                {QStringLiteral("count"), 0},
-                                {QStringLiteral("annotations"), QJsonArray{}}};
+                                {QStringLiteral("count"), members.size()},
+                                {QStringLiteral("chunkCount"), chunk_count},
+                                {QStringLiteral("fromChunk"), from},
+                                {QStringLiteral("nextChunk"), next < chunk_count
+                                    ? QJsonValue(this->corrupt_layer_next_chunk ? next + 1 : next)
+                                    : QJsonValue(QJsonValue::Null)},
+                                {QStringLiteral("annotations"), members}};
+                            if (this->layer_generation_changes_after_first_page) ++this->generation;
                         }
                     }
                     else if (request_line.startsWith("GET /dvmdb/v1/working-copies/") &&
@@ -1258,6 +1337,12 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
     stub.saved_network_id = network_id;
     stub.history_selected_archived = true;
     stub.history_require_committed_head = true;
+    MapAnnotation label;
+    label.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    label.text = QStringLiteral("Archived label");
+    label.position_wgs84.longitude_deg = 14.25;
+    label.position_wgs84.latitude_deg = 11.5;
+    stub.layer_annotations.append(label);
     PersonalDraftEditSession session;
     bool opened = false;
     bool navigation_complete = false;
@@ -1305,12 +1390,16 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                    stub.last_history_navigation.value(QStringLiteral("operationId")) &&
                stub.network_read_count == initialNetworkReads &&
                stub.network_summary_count == initialSummaryReads &&
-               stub.annotation_layer_read_count == 2 &&
+               stub.annotation_layer_read_count == 1 &&
+               session.visibleAnnotations().size() == 1 &&
+               session.visibleAnnotations().first().text == label.text &&
                stub.last_history_navigation.value(QStringLiteral("networkId")) == network_id,
-               "archived History attempted a full-network or summary reload")) return false;
+               "archived History attempted a full-network, summary or annotation reload")) return false;
 
+    // D2: the annotation changes of the navigation arrive with its reply.
     navigation_complete = false;
     writable_at_navigation_completion = true;
+    stub.history_annotation_rename = true;
     session.navigateHistoryTo(QJsonObject{
         {QStringLiteral("selectionKind"), QStringLiteral("draft")},
         {QStringLiteral("revisionId"), QJsonValue(QJsonValue::Null)},
@@ -1324,14 +1413,282 @@ bool testArchivedHistoryCaptureGate(QCoreApplication &application)
                stub.history_navigation_requests == 3 && stub.saved_events.isEmpty() &&
                stub.network_read_count == initialNetworkReads &&
                stub.network_summary_count == initialSummaryReads &&
-               stub.annotation_layer_read_count == 3,
-               "return from archived History reloaded the entire network")) return false;
+               stub.annotation_layer_read_count == 1 &&
+               session.visibleAnnotations().size() == 1 &&
+               session.visibleAnnotations().first().text ==
+                   label.text + QStringLiteral(" (History)"),
+               "return from archived History reloaded the network or its annotations")) return false;
+    // Without an annotationDelta (layer missing at a draft, older DVMDB) the
+    // layer is reloaded at the published generation.
+    stub.history_annotation_rename = true;
+    stub.history_annotation_delta = false;
+    navigation_complete = false;
+    session.navigateHistoryTo(QJsonObject{
+        {QStringLiteral("selectionKind"), QStringLiteral("archived")},
+        {QStringLiteral("revisionId"), head_id},
+        {QStringLiteral("actionPosition"), QStringLiteral("1")}});
+    if (!check(until(application, [&] {
+                    return (navigation_complete && session.canCaptureHistoryEdits()) ||
+                        !problem.isEmpty();
+               }) && problem.isEmpty() &&
+               stub.history_navigation_requests == 4 &&
+               stub.annotation_layer_read_count == 2 &&
+               session.visibleAnnotations().size() == 1 &&
+               session.visibleAnnotations().first().text ==
+                   label.text + QStringLiteral(" (History) (History)"),
+               "History without annotationDelta did not reload the annotation layer")) return false;
     bool stopped = false;
     QObject::connect(&session, &PersonalDraftEditSession::stopped, &session,
                      [&](const QString &) { stopped = true; });
     session.stop();
     return check(until(application, [&] { return stopped; }),
                  "archived cursor fixture could not release its lease");
+}
+
+// D1: a large draft annotation layer is read in pages of 39 membership
+// chunks, all of one generation, joined in layer order.
+bool testAnnotationLayerPages(QCoreApplication &application)
+{
+    Stub stub;
+    if (!check(stub.listen(), "annotation page fixture could not listen")) return false;
+    const QString network_id = PersonalWorkingCopyClient::newSessionUuidV7();
+    const QUuid network(network_id);
+    const QUuid layer = distributionMapAnnotationLayerId(network);
+    stub.saved_network_id = network_id;
+    stub.generation = 7;
+    stub.layer_chunk_size = 2; // 100 members in 50 chunks: two pages
+    for (int number = 0; number < 100; ++number)
+    {
+        MapAnnotation item;
+        item.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+        item.text = QStringLiteral("Paged label %1").arg(number);
+        item.position_wgs84.longitude_deg = 14.0 + number * 0.001;
+        item.position_wgs84.latitude_deg = 11.0;
+        stub.layer_annotations.append(item);
+    }
+    PersonalWorkingCopyClient client;
+    const std::function<bool(QList<MapAnnotation> &, QString &, QString &)> load =
+        [&](QList<MapAnnotation> &annotations, QString &generation, QString &failure)
+    {
+        bool done = false;
+        client.loadDraftAnnotationLayer(stub.target(), draft_id, layer, network,
+            [&](const QList<MapAnnotation> &loaded, const QUuid &, const QString &loaded_generation,
+                const QString &error)
+        {
+            annotations = loaded;
+            generation = loaded_generation;
+            failure = error;
+            done = true;
+        });
+        return until(application, [&] { return done; });
+    };
+    QList<MapAnnotation> annotations;
+    QString generation;
+    QString failure;
+    bool same_order = true;
+    if (!check(load(annotations, generation, failure) && failure.isEmpty() &&
+               generation == QStringLiteral("7") && annotations.size() == 100,
+               "paged annotation layer was not read completely")) return false;
+    for (qsizetype index = 0; index < annotations.size(); ++index)
+        if (annotations.at(index).uuid != stub.layer_annotations.at(index).uuid ||
+            annotations.at(index).text != stub.layer_annotations.at(index).text)
+            same_order = false;
+    if (!check(same_order && stub.annotation_layer_paths.size() == 2 &&
+               stub.annotation_layer_paths.at(0).endsWith(
+                   QStringLiteral("?fromChunk=0&chunkLimit=39")) &&
+               stub.annotation_layer_paths.at(1).endsWith(
+                   QStringLiteral("?fromChunk=39&chunkLimit=39")),
+               "annotation layer pages were not requested and joined in layer order")) return false;
+
+    // An empty layer is one page.
+    stub.annotation_layer_paths.clear();
+    const QList<MapAnnotation> members = stub.layer_annotations;
+    stub.layer_annotations.clear();
+    if (!check(load(annotations, generation, failure) && failure.isEmpty() &&
+               annotations.isEmpty() && stub.annotation_layer_paths.size() == 1,
+               "an empty annotation layer was not read in one page")) return false;
+    stub.layer_annotations = members;
+
+    // A Save between two pages, a forged continuation and a member listed by
+    // two pages are refused.
+    stub.layer_generation_changes_after_first_page = true;
+    if (!check(load(annotations, generation, failure) && !failure.isEmpty() && annotations.isEmpty(),
+               "annotation pages of different generations were joined")) return false;
+    stub.layer_generation_changes_after_first_page = false;
+    stub.corrupt_layer_next_chunk = true;
+    if (!check(load(annotations, generation, failure) && !failure.isEmpty(),
+               "a forged annotation page continuation was accepted")) return false;
+    stub.corrupt_layer_next_chunk = false;
+    stub.duplicate_layer_member_across_pages = true;
+    if (!check(load(annotations, generation, failure) && !failure.isEmpty(),
+               "an annotation listed by two pages was accepted")) return false;
+    stub.duplicate_layer_member_across_pages = false;
+    return check(load(annotations, generation, failure) && failure.isEmpty() &&
+                     annotations.size() == 100,
+                 "annotation page fixture did not recover");
+}
+
+MapAnnotation deltaAnnotation(const QString &text)
+{
+    MapAnnotation item;
+    item.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    item.text = text;
+    item.position_wgs84.longitude_deg = 13.5;
+    item.position_wgs84.latitude_deg = 52.5;
+    return item;
+}
+
+QJsonValue annotationImage(const std::optional<MapAnnotation> &item)
+{
+    if (!item) return QJsonValue(QJsonValue::Null);
+    return QString::fromLatin1(aowis::model::ModelCodec<MapAnnotation>::encode(*item).toBase64());
+}
+
+QJsonObject annotationEdit(const QUuid &id, const std::optional<MapAnnotation> &before,
+                           const std::optional<MapAnnotation> &after)
+{
+    return QJsonObject{{QStringLiteral("id"), id.toString(QUuid::WithoutBraces)},
+                       {QStringLiteral("beforeBase64"), annotationImage(before)},
+                       {QStringLiteral("afterBase64"), annotationImage(after)}};
+}
+
+QJsonObject annotationDeltaV1(const QUuid &layer, const QUuid &network,
+                              const QList<MapAnnotation> &source,
+                              const QList<MapAnnotation> &desired, bool order_changed,
+                              const QJsonArray &edits, const QJsonArray &insertions,
+                              const QJsonValue &order = QJsonValue(QJsonValue::Null))
+{
+    return QJsonObject{
+        {QStringLiteral("version"), 1},
+        {QStringLiteral("layerId"), layer.toString(QUuid::WithoutBraces)},
+        {QStringLiteral("networkId"), network.toString(QUuid::WithoutBraces)},
+        {QStringLiteral("orderChanged"), order_changed},
+        {QStringLiteral("fromSha256"),
+         MapAnnotationHistoryDelta::orderDigest(layer, order_changed ? &source : nullptr)},
+        {QStringLiteral("toSha256"),
+         MapAnnotationHistoryDelta::orderDigest(layer, order_changed ? &desired : nullptr)},
+        {QStringLiteral("edits"), edits},
+        {QStringLiteral("insertions"), insertions},
+        {QStringLiteral("orderBase64"), order}};
+}
+
+bool sameAnnotations(const QList<MapAnnotation> &first, const QList<MapAnnotation> &second)
+{
+    if (first.size() != second.size()) return false;
+    for (qsizetype index = 0; index < first.size(); ++index)
+        if (aowis::model::ModelCodec<MapAnnotation>::encode(first.at(index)) !=
+            aowis::model::ModelCodec<MapAnnotation>::encode(second.at(index)))
+            return false;
+    return true;
+}
+
+// D2: annotationDelta version 1 is applied to a copy and verified completely.
+bool testVerifiedAnnotationHistoryDelta()
+{
+    const QUuid network(PersonalWorkingCopyClient::newSessionUuidV7());
+    const QUuid layer = distributionMapAnnotationLayerId(network);
+    const MapAnnotation a = deltaAnnotation(QStringLiteral("A"));
+    const MapAnnotation b = deltaAnnotation(QStringLiteral("B"));
+    const MapAnnotation c = deltaAnnotation(QStringLiteral("C"));
+    const MapAnnotation d = deltaAnnotation(QStringLiteral("D"));
+    MapAnnotation b_renamed = b;
+    b_renamed.text = QStringLiteral("B renamed");
+    const QList<MapAnnotation> source{a, b, c};
+
+    // Documented digest layout.
+    QByteArray bytes("AOWIS-ANNOTATION-DELTA-1");
+    bytes.append(layer.toRfc4122());
+    const QString unchanged = QString::fromLatin1(
+        QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    bytes.append(QByteArray::fromHex("00000003"));
+    for (const MapAnnotation &item : source) bytes.append(item.uuid.toRfc4122());
+    const QString ordered = QString::fromLatin1(
+        QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+    if (!check(MapAnnotationHistoryDelta::orderDigest(layer, nullptr) == unchanged &&
+               MapAnnotationHistoryDelta::orderDigest(layer, &source) == ordered,
+               "annotationDelta digest differs from the documented byte layout")) return false;
+
+    QList<MapAnnotation> result;
+    QString problem;
+    // Update only: order unchanged.
+    const QList<MapAnnotation> updated{a, b_renamed, c};
+    if (!check(MapAnnotationHistoryDelta::apply(annotationDeltaV1(layer, network, source, updated, false,
+                   QJsonArray{annotationEdit(b.uuid, b, b_renamed)}, QJsonArray{}),
+                   layer, network, source, result, &problem) &&
+               sameAnnotations(result, updated),
+               "annotationDelta update was not applied")) return false;
+    // Deletion, creation at a position, update.
+    const QList<MapAnnotation> mixed{a, d, b_renamed};
+    if (!check(MapAnnotationHistoryDelta::apply(annotationDeltaV1(layer, network, source, mixed, true,
+                   QJsonArray{annotationEdit(b.uuid, b, b_renamed),
+                              annotationEdit(c.uuid, c, std::nullopt),
+                              annotationEdit(d.uuid, std::nullopt, d)},
+                   QJsonArray{QJsonObject{{QStringLiteral("id"), d.uuid.toString(QUuid::WithoutBraces)},
+                                          {QStringLiteral("position"), 1}}}),
+                   layer, network, source, result, &problem) &&
+               sameAnnotations(result, mixed),
+               "annotationDelta deletion/insertion/update was not applied")) return false;
+    // Members that stay change their relative order: the complete order.
+    const QList<MapAnnotation> reordered{b, c, a, d};
+    QByteArray order;
+    for (const MapAnnotation &item : reordered) order.append(item.uuid.toRfc4122());
+    const QJsonObject reorder = annotationDeltaV1(layer, network, source, reordered, true,
+        QJsonArray{annotationEdit(d.uuid, std::nullopt, d)}, QJsonArray{},
+        QString::fromLatin1(order.toBase64()));
+    if (!check(MapAnnotationHistoryDelta::apply(reorder, layer, network, source, result, &problem) &&
+               sameAnnotations(result, reordered),
+               "annotationDelta complete order was not applied")) return false;
+
+    // Refusals: the result must stay untouched.
+    const QList<MapAnnotation> untouched = result;
+    const std::function<bool(const QJsonObject &, const QList<MapAnnotation> &)> refused =
+        [&](const QJsonObject &delta, const QList<MapAnnotation> &from)
+    {
+        QString message;
+        const bool applied = MapAnnotationHistoryDelta::apply(delta, layer, network, from,
+                                                              result, &message);
+        return !applied && !message.isEmpty() && sameAnnotations(result, untouched);
+    };
+    QJsonObject stale = annotationDeltaV1(layer, network, source, updated, false,
+        QJsonArray{annotationEdit(b.uuid, b_renamed, b)}, QJsonArray{});
+    QJsonObject wrongSource = annotationDeltaV1(layer, network, QList<MapAnnotation>{b, a, c},
+        QList<MapAnnotation>{a, b}, true,
+        QJsonArray{annotationEdit(c.uuid, c, std::nullopt)}, QJsonArray{});
+    QJsonObject wrongDestination = annotationDeltaV1(layer, network, source, reordered, true,
+        QJsonArray{annotationEdit(c.uuid, c, std::nullopt)}, QJsonArray{});
+    QJsonObject unlisted = annotationDeltaV1(layer, network, source, mixed, false,
+        QJsonArray{annotationEdit(c.uuid, c, std::nullopt)}, QJsonArray{});
+    QJsonObject missingPosition = annotationDeltaV1(layer, network, source, QList<MapAnnotation>{a, b, c, d},
+        true, QJsonArray{annotationEdit(d.uuid, std::nullopt, d)}, QJsonArray{});
+    QJsonObject existingCreation = annotationDeltaV1(layer, network, source, source, true,
+        QJsonArray{annotationEdit(a.uuid, std::nullopt, a)},
+        QJsonArray{QJsonObject{{QStringLiteral("id"), a.uuid.toString(QUuid::WithoutBraces)},
+                               {QStringLiteral("position"), 0}}});
+    QJsonObject duplicateEdit = annotationDeltaV1(layer, network, source, updated, false,
+        QJsonArray{annotationEdit(b.uuid, b, b_renamed), annotationEdit(b.uuid, b, b_renamed)},
+        QJsonArray{});
+    QByteArray shortOrder = order.left(48);
+    QJsonObject badOrder = annotationDeltaV1(layer, network, source, reordered, true,
+        QJsonArray{annotationEdit(d.uuid, std::nullopt, d)}, QJsonArray{},
+        QString::fromLatin1(shortOrder.toBase64()));
+    QJsonObject bothOrders = reorder;
+    bothOrders.insert(QStringLiteral("insertions"), QJsonArray{QJsonObject{
+        {QStringLiteral("id"), d.uuid.toString(QUuid::WithoutBraces)}, {QStringLiteral("position"), 3}}});
+    QJsonObject otherLayer = reorder;
+    otherLayer.insert(QStringLiteral("layerId"),
+                      QUuid(PersonalWorkingCopyClient::newSessionUuidV7()).toString(QUuid::WithoutBraces));
+    QJsonObject extraField = reorder;
+    extraField.insert(QStringLiteral("moves"), QJsonArray{});
+    QJsonObject otherVersion = reorder;
+    otherVersion.insert(QStringLiteral("version"), 2);
+    return check(refused(stale, source) && refused(wrongSource, source) &&
+                     refused(wrongDestination, source) && refused(unlisted, source) &&
+                     refused(missingPosition, source) && refused(existingCreation, source) &&
+                     refused(duplicateEdit, source) && refused(badOrder, source) &&
+                     refused(bothOrders, source) && refused(otherLayer, source) &&
+                     refused(extraField, source) && refused(otherVersion, source) &&
+                     refused(reorder, QList<MapAnnotation>{a, a, b, c}),
+                 "an inconsistent annotationDelta was applied");
 }
 
 // After three lost acknowledgements the server and GUI already hold the
@@ -1904,6 +2261,8 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     if (!testVerifiedHistoryDelta()) return 1;
     if (!testVerifiedHistoryDeltaCollections()) return 1;
+    if (!testVerifiedAnnotationHistoryDelta()) return 1;
+    if (!testAnnotationLayerPages(application)) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;
     if (!testHistoryReconnectAfterLostReplies(application)) return 1;
     if (!testHistoryReconciliationSourceAndDivergence(application)) return 1;

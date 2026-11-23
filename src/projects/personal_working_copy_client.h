@@ -64,6 +64,9 @@ struct PersonalWorkingCopyInfo
     QList<PersonalWorkingCopyChange> changes; // populated by reopen(), not list()
     QString event_count; // decimal journal count, when supplied by server
     QJsonObject history_delta; // sparse verified MODEL delta on History navigate only
+    // annotationDelta of the network's layer on History navigate (D2); empty
+    // when DVMDB sent none, then the layer is reloaded.
+    QJsonObject annotation_delta;
     QList<PersonalWorkingCopyEvent> events; // populated by reopen(), not list()
 };
 
@@ -206,7 +209,8 @@ public:
     void loadDraftNetwork(const PersonalRepositoryTarget &target,
                           const QString &draft_id, const QString &network_id,
                           NetworkCompletion completion);
-    // Read the versioned annotation layer from the exact same DVMDB draft.
+    // Read the versioned annotation layer from the exact same DVMDB draft,
+    // in pages of at most 39 membership chunks (D1), all of one generation.
     // The layer ID and generation must be checked against the hydrated
     // network before allowing the session to capture any edits.
     using AnnotationLayerCompletion = std::function<void(
@@ -320,6 +324,14 @@ private:
     void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
                   const QString &after, int page_count,
                   QList<PersonalWorkingCopyInfo> collected, ListCompletion completion);
+    // One page of membership chunks of a draft annotation layer, then the
+    // next page; every page must belong to the same draft generation.
+    struct AnnotationLayerRead;
+    void loadDraftAnnotationLayerPage(const PersonalRepositoryTarget &target,
+                                      const QString &draft_id, const QUuid &layer_id,
+                                      const QString &network_id,
+                                      std::shared_ptr<AnnotationLayerRead> read,
+                                      AnnotationLayerCompletion completion);
     // Personal-repository transport: direct, or a DvmdbConnection over the
     // target's WireGuard profile (shared tunnel), opened before the first
     // request. Never falls back to direct for a WireGuard target.

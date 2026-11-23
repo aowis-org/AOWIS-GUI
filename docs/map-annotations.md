@@ -92,6 +92,9 @@ integrate once its engineering network and storage lifecycle exist.
 - DVMDB: a Distribution annotation layer belongs to its network UUID; it has
   separate native layer/member records. Hydraulic collections remain **17**.
   Draft reads must verify layer identity and generation against the network.
+  The layer is read in pages of 39 membership chunks (`fromChunk`,
+  `chunkLimit`); every page must have the same generation and chunk count,
+  and no annotation may appear in two pages.
 - Persistence: one local durable MODEL event is staged before fenced
   `/working-copies/{draftId}/save-events`; when a node is removed, its hydraulic
   deletion and annotation detaches are one mixed event with one layer ID.

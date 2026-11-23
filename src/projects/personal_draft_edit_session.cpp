@@ -2,6 +2,7 @@
 
 #include "projects/dvmdb_identity.h"
 #include "projects/hydraulic_history_delta.h"
+#include "projects/map_annotation_history_delta.h"
 #include "network/map_annotation_layer_id.h"
 
 #include <QDateTime>
@@ -666,7 +667,31 @@ void PersonalDraftEditSession::finishHistoryNavigation(
         fail(QStringLiteral("Sparse History delta disagrees with reconciled destination SHA-256."));
         return;
     }
-    completeHistoryNavigation(network, result.generation, true);
+    // D2: the same reply carries the changed annotations of this network's
+    // layer. Without it (layer missing at either draft, older DVMDB) the
+    // layer is reloaded at the published generation. So it is after a GUI
+    // restart: the navigation intent records the source network only, so
+    // there are no verified source annotations to apply the delta to.
+    if (result.annotation_delta.isEmpty() || this->history_restarted_)
+    {
+        completeHistoryNavigation(network, result.generation, true);
+        return;
+    }
+    QList<MapAnnotation> annotations;
+    if (!MapAnnotationHistoryDelta::apply(result.annotation_delta,
+            distributionMapAnnotationLayerId(network.uuid), network.uuid,
+            this->stage_.persistedAnnotations(), annotations, &deltaError))
+    {
+        fail(QStringLiteral("Cannot verify incremental annotation History state: %1").arg(deltaError));
+        return;
+    }
+    QString stage_error;
+    if (!this->stage_.resetVerifiedNetwork(network, &stage_error, annotations))
+    {
+        fail(QStringLiteral("Cannot publish navigated annotation state: %1").arg(stage_error));
+        return;
+    }
+    finalizeHistoryNavigation(network, result.generation);
 }
 
 void PersonalDraftEditSession::completeHistoryNavigation(
