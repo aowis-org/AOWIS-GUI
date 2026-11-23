@@ -1,5 +1,6 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
 #include "map/editor/map_canvas_projection.h"
+#include "map/editor/map_annotation_hit_area.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
@@ -358,6 +359,11 @@ void testEmptyAnnotationDraft()
     QList<MapAnnotation> annotations{draft};
     const MapBgfx2d::Camera view = camera();
     const MapBgfxHudPoint target = project(view, 9.0, 47.0);
+    const QRectF draft_hit = MapAnnotationHitArea::rect(draft, QPointF(target.x, target.y));
+    req(draft_hit.contains(QPointF(target.x + 75.0, target.y - 38.0)) &&
+            draft_hit.contains(QPointF(target.x, target.y - 5.0)) &&
+            !draft_hit.contains(QPointF(target.x + 120.0, target.y - 38.0)),
+        "hit-testing covers the entire blank on-screen callout and its map pin");
 
     MapBgfxEditorOverlay::Inputs inputs;
     inputs.viewport = QSizeF(ViewportWidth, ViewportHeight);
@@ -371,9 +377,144 @@ void testEmptyAnnotationDraft()
                                                        target.x, target.y, 90.0);
     inputs.selected_annotation_uuid = draft.uuid;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(!harness.canvas.indices().isEmpty() &&
+            hasColorNear(harness.canvas, 0xff008bdfu, target.x, target.y - 18.0, 100.0) &&
+            hasColorNear(harness.canvas, 0xff00d6ffu, target.x, target.y, 5.0),
+        "blank annotation uses GPU geometry for a visible 2D placeholder");
+    // No text-glyph sprites are required for the blank preview: the GPU
+    // callout must remain visible even before the atlas contains its text.
     req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 90.0)
-            > unselected_sprites,
-        "blank selected annotation draft draws a visible placeholder in 2D");
+            == unselected_sprites,
+        "blank annotation placeholder does not depend on a text sprite");
+
+    // Multiple empty placements must all remain in the same draw list.
+    // Drawing one selected preview must not suppress or replace the others.
+    MapAnnotation second = draft;
+    second.uuid = QUuid::createUuid();
+    second.position_wgs84 = coordinate(9.0006, 47.0);
+    annotations.append(second);
+    const MapBgfxHudPoint second_target = project(view, 9.0006, 47.0);
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(hasColorNear(harness.canvas, 0xff00d6ffu, target.x, target.y, 5.0) &&
+            hasColorNear(harness.canvas, 0xff00d6ffu, second_target.x, second_target.y, 5.0),
+        "two independently placed blank annotations both render in 2D");
+
+    // A map can be open before network geometry has loaded. Annotation
+    // placement still needs a live 2D overlay in that state.
+    NetworkRenderSnapshot no_network_geometry;
+    inputs.snapshot = &no_network_geometry;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(hasColorNear(harness.canvas, 0xff00d6ffu, target.x, target.y, 5.0),
+        "blank annotation displays even without a loaded network mesh");
+
+    // The same callout must draw in globe mode, even with no network icons
+    // or available text glyphs. Both modes use the shared GPU HUD canvas.
+    const MapBgfxEditorOverlay::GlobeProjector projector =
+        [target, second_target](double longitude, double, QPointF *projected, double *) -> bool
+    {
+        if (projected != nullptr)
+        {
+            const MapBgfxHudPoint position = longitude > 9.0003 ? second_target : target;
+            *projected = QPointF(position.x, position.y);
+        }
+        return true;
+    };
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
+        MapEditorViewportRenderState(), projector, nullptr, 0,
+        QSizeF(ViewportWidth, ViewportHeight), MapBgfxGlobeIconIndex::Frustum(),
+        nullptr, nullptr, {}, &annotations, draft.uuid);
+    req(!harness.canvas.indices().isEmpty() &&
+            hasColorNear(harness.canvas, 0xff00d6ffu, target.x, target.y, 5.0),
+        "blank annotation renders its GPU placement marker in globe mode");
+    req(hasColorNear(harness.canvas, 0xff00d6ffu, second_target.x, second_target.y, 5.0),
+        "two independently placed blank annotations both render in 3D");
+}
+
+// Read back an annotation's interior texel from the actual HUD sprite atlas.
+// The position is outside the glyph and border. An unchecked background must
+// be transparent even when the annotation is selected in Editor.
+int annotationBackgroundAlpha(const MapBgfxHudCanvas &canvas,
+                              const MapBgfxHudTextCache &cache,
+                              const QRectF &rect)
+{
+    const QImage &atlas = cache.atlas();
+    for (const MapBgfxHudVertex &vertex : canvas.vertices())
+    {
+        if (vertex.abgr != 0xffffffffu ||
+            (vertex.u == cache.whiteU() && vertex.v == cache.whiteV()) ||
+            std::fabs(vertex.x - rect.left()) > 0.6 ||
+            std::fabs(vertex.y - rect.top()) > 0.6)
+            continue;
+        const int x = int(vertex.u * atlas.width()) + 5;
+        const int y = int(vertex.v * atlas.height()) + int(rect.height() / 2.0);
+        if (x >= 0 && x < atlas.width() && y >= 0 && y < atlas.height())
+            return qAlpha(atlas.pixel(x, y));
+    }
+    return -1;
+}
+
+void testAnnotationVisibilityBackgroundAndScale()
+{
+    Harness harness;
+    MapAnnotation annotation;
+    annotation.uuid = QUuid::createUuid();
+    annotation.text = QStringLiteral("Visibility label");
+    annotation.position_wgs84 = coordinate(9.0, 47.0);
+    annotation.style.visible = true;
+    QList<MapAnnotation> annotations{annotation};
+    const MapBgfx2d::Camera view = camera();
+    const MapBgfxHudPoint target = project(view, 9.0, 47.0);
+    const QSizeF viewport(ViewportWidth, ViewportHeight);
+    const QPointF point(target.x, target.y);
+
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 0);
+    req(harness.canvas.vertices().isEmpty(),
+        "annotation slider at far-left hides persisted annotations");
+    annotations[0].style.visible = false;
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 100);
+    req(harness.canvas.vertices().isEmpty(),
+        "per-annotation Visible on map hides a record at nonzero scale");
+    annotations[0].style.visible = true;
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 50);
+    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 240.0) > 0 &&
+        MapAnnotationHitArea::rect(annotations[0], point, 50).width() <
+        MapAnnotationHitArea::rect(annotations[0], point, 100).width(),
+        "half-size Monitor labels render with matching smaller hit rectangles");
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 200);
+    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 300.0) > 0 &&
+        MapAnnotationHitArea::rect(annotations[0], point, 200).width() >
+        MapAnnotationHitArea::rect(annotations[0], point, 100).width(),
+        "double-size Monitor labels render with matching larger hit rectangles");
+
+    // The old drawing code forcibly filled a selected annotation's background,
+    // making the Inspector checkbox appear to do nothing.
+    NetworkRenderSnapshot empty_snapshot;
+    MapEditorVisualState state;
+    MapEditorViewportRenderState viewport_state;
+    MapBgfxEditorOverlay::Inputs inputs;
+    inputs.snapshot = &empty_snapshot;
+    inputs.visual_state = &state;
+    inputs.viewport_state = &viewport_state;
+    inputs.viewport = viewport;
+    inputs.camera = view;
+    inputs.annotations = &annotations;
+    inputs.selected_annotation_uuid = annotation.uuid;
+    inputs.annotation_scale_percent = 100;
+    annotations[0].style.show_background = false;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    const QRectF area = MapAnnotationHitArea::rect(annotations[0], point);
+    const int without_background = annotationBackgroundAlpha(
+        harness.canvas, harness.cache, area);
+    annotations[0].style.show_background = true;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    const int with_background = annotationBackgroundAlpha(
+        harness.canvas, harness.cache, area);
+    req(without_background == 0 && with_background > 150,
+        "Show background actually changes the selected annotation sprite alpha");
 }
 
 void testReadOnlyMonitorAnnotations()
@@ -1404,6 +1545,7 @@ int main(int argc, char **argv)
     testMapManagementOverlay();
     testEmptyAnnotationDraft();
     testReadOnlyMonitorAnnotations();
+    testAnnotationVisibilityBackgroundAndScale();
     testStaticDetails();
     testSelection();
     testPlacement();

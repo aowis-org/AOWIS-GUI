@@ -4621,6 +4621,10 @@ Dies kann nicht rückgängig gemacht werden.</translation>
       <source>Providers marked “From upstream” are defined on an upstream MAP server: here you can only switch them on or off and choose how their tiles are fetched. Acquisition: Automatic asks the MAP upstreams first and then the provider itself if permitted; Cascade only never contacts the provider directly; Direct only skips the upstreams. MAP upstreams sets which upstream servers may be asked for a provider, and in which order.</source>
       <translation>Mit „Vom Upstream“ gekennzeichnete Anbieter sind auf einem Upstream-MAP-Server definiert: Hier können Sie sie nur ein- oder ausschalten und festlegen, wie ihre Kacheln bezogen werden. Bezug: Automatisch fragt zuerst die MAP-Upstreams und dann, falls erlaubt, den Anbieter selbst; Nur Kaskade kontaktiert den Anbieter nie direkt; Nur direkt überspringt die Upstreams. MAP-Upstreams legt fest, welche Upstream-Server für einen Anbieter gefragt werden dürfen und in welcher Reihenfolge.</translation>
     </message>
+    <message>
+      <source>Annotations [%]</source>
+      <translation>Anmerkungen [%]</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -9518,6 +9522,29 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>Invalid annotation or failed working-copy transaction.</source>
       <translation>Ungültige Annotation oder fehlgeschlagene Arbeitskopie-Transaktion.</translation>
+    </message>
+      <message>
+      <source>Discard draft</source>
+      <translation>Entwurf verwerfen</translation>
+    </message>
+    <message>
+      <source>Draft: type text to save automatically.</source>
+      <translation>Entwurf: Text eingeben, um automatisch zu speichern.</translation>
+    </message>
+    <message>
+      <source>Unsaved draft: open a writable private working copy to save.</source>
+      <translation>Ungespeicherter Entwurf: Zum Speichern eine bearbeitbare private Arbeitskopie öffnen.</translation>
+    </message>
+</context>
+  <context>
+    <name>MapAnnotationScaleSlider</name>
+    <message>
+      <source>Off</source>
+      <translation>Aus</translation>
+    </message>
+    <message>
+      <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
+      <translation>Größe der Kartenanmerkungen: %1. Ganz links werden alle Anmerkungen ausgeblendet; andere Positionen skalieren ihre Größe. Rechtsklick setzt zurück.</translation>
     </message>
   </context>
 </TS>

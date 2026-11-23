@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QWidget>
 #include <QString>
+#include <QList>
+#include <aowis/model/map/map_annotation.h>
 #include <QUuid>
 
 #include <QTimer>
@@ -46,6 +48,7 @@ class MapBgfxEditorOverlay;
 class MapBgfxGlobeHudController;
 class QTimer;
 class QShortcut;
+class MapAnnotationScaleSlider;
 
 #ifdef Q_OS_WASM
 #include "gps/gps_provider_dummy.h"
@@ -67,6 +70,7 @@ public:
     void setNodeVisualSelection(VisualNode visual_node);
     void setLinkVisualSelection(VisualLink visual_link);
     void setHeatmapVisualSelection(VisualHeatmap visual_heatmap);
+    void setAnnotationScalePercent(int percent);
 
 private:
     QVBoxLayout *layout;
@@ -74,6 +78,7 @@ private:
     MapWidget *map;
     
     MapNavigationWidget *map_nav;
+    MapAnnotationScaleSlider *annotation_scale_slider = nullptr;
     QButtonGroup *node_visual_group = nullptr;
     QButtonGroup *link_visual_group = nullptr;
     QButtonGroup *heatmap_visual_group = nullptr;
@@ -108,6 +113,7 @@ signals:
     void signalHeatmapRadiusUnitChanged(HeatmapRadiusUnit unit);
     void signalHeatmapRadiusChanged(HeatmapRadiusUnit unit, int radius);
     void signalHeatmapSolidCenterChanged(int percent);
+    void signalAnnotationScalePercentChanged(int percent);
 };
 
 
@@ -131,6 +137,10 @@ public:
     void activateMonitorSurface();
     void setEditorMode(bool enabled);
     void setBasemapOnly(bool enabled);
+    int annotationScalePercent() const { return this->annotation_scale_percent; }
+    void setAnnotationScalePercent(int percent);
+    // Unsaved editor drafts are visible locally on Monitor, not persisted.
+    void setPendingMapAnnotations(const QList<MapAnnotation> &drafts);
     MapModeToolPanel *toolPanel() const;
     QWidget *mapViewport() const;
     
@@ -193,6 +203,8 @@ private:
     bool monitor_node_decluttering = true;
     bool monitor_globe_3d_icons = false;
     int monitor_globe_icon_size_percent = 100;
+    int annotation_scale_percent = 100;
+    QList<MapAnnotation> pending_map_annotations;
     // Same annotation sprite renderer as Distribution Editor, without any
     // editable network overlays or monitor symbology changes.
     std::shared_ptr<MapBgfxEditorOverlay> monitor_annotation_overlay;
@@ -276,6 +288,7 @@ signals:
     // The HUD button / shortcut: the main window enters or leaves map
     // fullscreen and answers with applyMapFullscreen().
     void signalMapFullscreenRequested(bool fullscreen);
+    void signalAnnotationScalePercentChanged(int percent);
     void signalShowMapLegendNode(VisualNode visual_node);
     void signalShowMapLegendLink(VisualLink visual_link);
     void signalShowMapLegendHeatmap(VisualHeatmap visual_heatmap);

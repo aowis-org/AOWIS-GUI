@@ -4641,6 +4641,10 @@ This cannot be undone.</source>
       <source>Providers marked “From upstream” are defined on an upstream MAP server: here you can only switch them on or off and choose how their tiles are fetched. Acquisition: Automatic asks the MAP upstreams first and then the provider itself if permitted; Cascade only never contacts the provider directly; Direct only skips the upstreams. MAP upstreams sets which upstream servers may be asked for a provider, and in which order.</source>
       <translation>المزوّدون الموسومون بـ «من الخادم الأعلى» معرَّفون على خادم MAP أعلى: هنا يمكنك فقط تفعيلهم أو تعطيلهم واختيار طريقة جلب بلاطاتهم. الاكتساب: تلقائي يسأل خوادم MAP العليا أولاً ثم المزوّد نفسه إن كان ذلك مسموحاً؛ التسلسل فقط لا يتصل بالمزوّد مباشرة أبداً؛ المباشر فقط يتجاوز الخوادم العليا. خوادم MAP العليا تحدد أي الخوادم العليا يمكن سؤالها لمزوّد ما وبأي ترتيب.</translation>
     </message>
+    <message>
+      <source>Annotations [%]</source>
+      <translation>التعليقات التوضيحية [%]</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -9578,6 +9582,29 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Invalid annotation or failed working-copy transaction.</source>
       <translation>تعليق غير صالح أو فشلت معاملة نسخة العمل.</translation>
+    </message>
+      <message>
+      <source>Discard draft</source>
+      <translation>تجاهل المسودة</translation>
+    </message>
+    <message>
+      <source>Draft: type text to save automatically.</source>
+      <translation>مسودة: اكتب نصًا للحفظ تلقائيًا.</translation>
+    </message>
+    <message>
+      <source>Unsaved draft: open a writable private working copy to save.</source>
+      <translation>مسودة غير محفوظة: افتح نسخة عمل خاصة قابلة للتحرير للحفظ.</translation>
+    </message>
+</context>
+  <context>
+    <name>MapAnnotationScaleSlider</name>
+    <message>
+      <source>Off</source>
+      <translation>إيقاف</translation>
+    </message>
+    <message>
+      <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
+      <translation>حجم عرض التعليقات التوضيحية: %1. يخفي أقصى اليسار جميع التعليقات؛ وتضبط المواضع الأخرى حجمها على الخريطة. انقر بزر الماوس الأيمن لإعادة الضبط.</translation>
     </message>
   </context>
 </TS>

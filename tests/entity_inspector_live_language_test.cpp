@@ -9,6 +9,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDoubleSpinBox>
@@ -100,19 +101,53 @@ int runAnnotationInspectorAcceptance(QApplication &app)
                     check, "right-click did not show an editable, blank unsaved draft"))
             return 28;
 
-        // Abandon a blank draft: it must disappear without an invalid empty
-        // annotation being inserted into revision History.
-        draft_dock.clearEntity();
-        if (!expect(clears > 0 && draft_events.isEmpty() &&
-                    draft_data.mapAnnotations().isEmpty(), check,
-                    "abandoning blank draft wrote an annotation"))
+        // A second right click MUST retain the first empty marker, and the
+        // Inspector must allow reselecting either draft without recreating it.
+        const QUuid first_draft_id = previews.last().uuid;
+        CoordinateWGS84 other_position = position;
+        other_position.latitude_deg = 50.4;
+        other_position.longitude_deg = 8.5;
+        draft_dock.beginMapAnnotation(other_position);
+        const QList<MapAnnotation> two_drafts = draft_dock.pendingMapAnnotations();
+        if (!expect(two_drafts.size() == 2 && two_drafts[0].uuid == first_draft_id &&
+                    two_drafts[0].text.isEmpty() && two_drafts[1].uuid != first_draft_id &&
+                    two_drafts[1].position_wgs84.latitude_deg == 50.4 &&
+                    draft_events.isEmpty(), check,
+                    "second placement replaced the first annotation placeholder"))
             return 29;
-        draft_dock.beginMapAnnotation(position);
+        const QUuid second_draft_id = two_drafts[1].uuid;
+        EntityInspectorAnnotation *second_inspector =
+            qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        QComboBox *pending_selector = second_inspector
+            ? second_inspector->findChild<QComboBox *>() : nullptr;
+        if (!expect(pending_selector && pending_selector->count() >= 2 &&
+                    pending_selector->itemData(0).toString() ==
+                        first_draft_id.toString(QUuid::WithoutBraces), check,
+                    "Inspector picker did not list both unsaved annotations"))
+            return 38;
+        pending_selector->setCurrentIndex(0);
+        draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        if (!expect(draft_inspector && draft_inspector->draftUuid() == first_draft_id,
+                    check, "Inspector dropdown could not reopen the first placeholder"))
+            return 39;
+        draft_dock.selectPendingMapAnnotation(first_draft_id);
         draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
         draft_text = draft_inspector ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
-        if (!expect(draft_text && !draft_text->isReadOnly(), check,
-                    "reopening blank draft did not restore the text editor"))
+        if (!expect(draft_inspector && draft_inspector->draftUuid() == first_draft_id &&
+                    draft_text && !draft_text->isReadOnly() &&
+                    draft_dock.pendingMapAnnotations().size() == 2, check,
+                    "reselecting a pending annotation did not restore its editable Inspector"))
             return 30;
+        draft_dock.selectPendingMapAnnotation(second_draft_id);
+        draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        draft_text = draft_inspector ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
+        if (!expect(draft_inspector && draft_inspector->draftUuid() == second_draft_id &&
+                    draft_text && !draft_text->isReadOnly() &&
+                    draft_dock.pendingMapAnnotations().size() == 2, check,
+                    "selecting the second placeholder lost the first one"))
+            return 34;
+        // The currently selected draft can become a real, revisioned entity;
+        // other blank drafts stay on the map and remain independently usable.
         const QWidget *original_inspector = draft_inspector;
         draft_text->setPlainText(QStringLiteral("Annotation created automatically"));
         draft_inspector->flushPendingEdit();
@@ -121,8 +156,10 @@ int runAnnotationInspectorAcceptance(QApplication &app)
         if (!expect(draft_events.size() == 1 && created &&
                     created->text == QStringLiteral("Annotation created automatically") &&
                     draft_dock.widget() == original_inspector &&
-                    !draft_inspector->isCreating() && !draft_text->isReadOnly(), check,
-                    "typing did not auto-create a persisted annotation in-place"))
+                    !draft_inspector->isCreating() && !draft_text->isReadOnly() &&
+                    draft_dock.pendingMapAnnotations().size() == 1 &&
+                    draft_dock.pendingMapAnnotations().first().uuid == first_draft_id, check,
+                    "typing did not auto-create only the selected placeholder"))
             return 31;
         draft_text->setPlainText(QStringLiteral("Edited again"));
         draft_inspector->flushPendingEdit();
@@ -133,17 +170,61 @@ int runAnnotationInspectorAcceptance(QApplication &app)
             return 32;
 
         draft_data.setLogicalEditCaptureEnabled(false);
-        draft_dock.beginMapAnnotation(position);
+        CoordinateWGS84 third_position = position;
+        third_position.latitude_deg = 50.6;
+        draft_dock.beginMapAnnotation(third_position);
         draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
         draft_text = draft_inspector ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
-        const int preview_count_before = previews.size();
-        if (draft_inspector)
-            draft_inspector->publishDraftPreview();
-        if (!expect(draft_text && draft_text->isReadOnly() &&
-                    preview_count_before == previews.size() &&
+        if (!expect(draft_text && !draft_text->isReadOnly() &&
+                    draft_dock.pendingMapAnnotations().size() == 2 &&
                     draft_events.size() == 2, check,
-                    "read-only History position exposed a fake writable draft"))
+                    "read-only session prevented local placeholder editing"))
             return 33;
+        const QUuid third_draft_id = draft_inspector->draftUuid();
+        draft_text->setPlainText(QStringLiteral("Unsaved while read-only"));
+        draft_inspector->flushPendingEdit();
+        const std::optional<MapAnnotation> unsaved = draft_dock.pendingMapAnnotation(third_draft_id);
+        if (!expect(unsaved && unsaved->text == QStringLiteral("Unsaved while read-only") &&
+                    draft_events.size() == 2 && !draft_data.mapAnnotation(third_draft_id),
+                    check, "local-only draft was silently saved or lost in read-only mode"))
+            return 35;
+        // Local drafts must obey the same Inspector visibility/background
+        // checkboxes as persisted annotations, without writing to DVMDB.
+        QCheckBox *draft_visible = draft_inspector->findChild<QCheckBox *>(
+            QStringLiteral("mapAnnotationVisible"));
+        QCheckBox *draft_background = draft_inspector->findChild<QCheckBox *>(
+            QStringLiteral("mapAnnotationBackground"));
+        if (!expect(draft_visible && draft_background, check,
+                    "draft Inspector style controls are unavailable"))
+            return 40;
+        draft_visible->setChecked(false);
+        draft_background->setChecked(true);
+        const std::optional<MapAnnotation> hidden_draft =
+            draft_dock.pendingMapAnnotation(third_draft_id);
+        if (!expect(hidden_draft && !hidden_draft->style.visible &&
+                    hidden_draft->style.show_background && draft_events.size() == 2,
+                    check, "draft visibility/background toggles ignored or saved unexpectedly"))
+            return 41;
+        draft_visible->setChecked(true);
+        if (!expect(draft_dock.pendingMapAnnotation(third_draft_id)->style.visible,
+                    check, "showing a hidden draft again did not restore map visibility"))
+            return 42;
+        // A fourth placement must not erase that already-typed local draft.
+        CoordinateWGS84 fourth_position = position;
+        fourth_position.latitude_deg = 50.7;
+        draft_dock.beginMapAnnotation(fourth_position);
+        if (!expect(draft_dock.pendingMapAnnotations().size() == 3 &&
+                    draft_dock.pendingMapAnnotation(third_draft_id) &&
+                    draft_dock.pendingMapAnnotation(third_draft_id)->text ==
+                        QStringLiteral("Unsaved while read-only"),
+                    check, "placing another marker lost unsaved Inspector text"))
+            return 36;
+        const QUuid fourth_draft_id = draft_dock.pendingMapAnnotations().last().uuid;
+        draft_dock.removePendingMapAnnotation(fourth_draft_id);
+        if (!expect(draft_dock.pendingMapAnnotations().size() == 2 && clears > 0 &&
+                    draft_events.size() == 2, check,
+                    "discarding one blank draft also removed unrelated placeholders"))
+            return 37;
     }
 
     HydraulicData data;
@@ -221,8 +302,48 @@ int runAnnotationInspectorAcceptance(QApplication &app)
     if (!expect(events.size() == 3, check, "post-replacement inspector committed a stale edit"))
         return 27;
 
+    // The two Inspector checkboxes must change the canonical style; they
+    // are not merely visual controls. Rendering checks are in the bgfx suite.
+    {
+        HydraulicData style_data;
+        style_data.replaceNetworkHydraulicDistribution(network, {}, {first});
+        style_data.setLogicalEditCaptureEnabled(true);
+        EntityInspectorDock style_dock(&style_data);
+        style_dock.showMapAnnotation(first.uuid);
+        EntityInspectorAnnotation *style_inspector =
+            qobject_cast<EntityInspectorAnnotation *>(style_dock.widget());
+        QCheckBox *background = style_inspector
+            ? style_inspector->findChild<QCheckBox *>(QStringLiteral("mapAnnotationBackground"))
+            : nullptr;
+        QCheckBox *visible = style_inspector
+            ? style_inspector->findChild<QCheckBox *>(QStringLiteral("mapAnnotationVisible"))
+            : nullptr;
+        if (!expect(background && visible && background->isEnabled() && visible->isEnabled(),
+                    check, "annotation style checkboxes are missing or disabled"))
+            return 28;
+        background->setChecked(true);
+        style_inspector->flushPendingEdit();
+        std::optional<MapAnnotation> updated = style_data.mapAnnotation(first.uuid);
+        if (!expect(updated && updated->style.show_background, check,
+                    "Show background did not persist into the annotation MODEL"))
+            return 29;
+        visible->setChecked(false);
+        style_inspector->flushPendingEdit();
+        updated = style_data.mapAnnotation(first.uuid);
+        if (!expect(updated && !updated->style.visible, check,
+                    "Visible on map did not persist the hidden annotation"))
+            return 30;
+        visible->setChecked(true);
+        style_inspector->flushPendingEdit();
+        updated = style_data.mapAnnotation(first.uuid);
+        if (!expect(updated && updated->style.visible, check,
+                    "Visible on map could not restore the hidden annotation"))
+            return 31;
+        style_dock.clearEntity();
+        app.processEvents();
+    }
     qInfo() << "PASS: annotation inspector flushes safely across selection,"
-               " session close, and network replacement";
+               " session close, and network replacement; style toggles persist";
     return 0;
 }
 

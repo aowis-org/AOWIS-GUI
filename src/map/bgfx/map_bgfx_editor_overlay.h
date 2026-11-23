@@ -91,6 +91,7 @@ public:
         const MapEditorVisualState *visual_state = nullptr;
         const MapEditorViewportRenderState *viewport_state = nullptr;
         const QList<MapAnnotation> *annotations = nullptr;
+        int annotation_scale_percent = 100;
         QUuid selected_annotation_uuid;
         QUuid dragged_annotation_uuid;
         std::optional<CoordinateWGS84> dragged_annotation_position;
@@ -114,7 +115,8 @@ public:
     // No selection/edit handles or network geometry are drawn by this method.
     void buildAnnotations2d(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
                             const MapBgfx2d::Camera &camera, const QSizeF &viewport,
-                            const QList<MapAnnotation> *annotations);
+                            const QList<MapAnnotation> *annotations,
+                            int annotation_scale_percent = 100);
 
     // Globe mode: use the same full-colour editor entity icons as 2D,
     // projected onto the terrain-aware globe, plus the tile-cache selection.
@@ -140,7 +142,8 @@ public:
                     const QList<MapAnnotation> *annotations = nullptr,
                     const QUuid &selected_annotation_uuid = QUuid(),
                     const QUuid &dragged_annotation_uuid = QUuid(),
-                    const std::optional<CoordinateWGS84> &dragged_annotation_position = std::nullopt);
+                    const std::optional<CoordinateWGS84> &dragged_annotation_position = std::nullopt,
+                    int annotation_scale_percent = 100);
     // The rectangles are recorded while painting the actual 3D Editor sprites.
     // Query them before the globe network geometry hit-test so clicking an
     // icon (including through terrain) selects the entity the user sees.
@@ -204,6 +207,7 @@ private:
     void drawAnnotation(const MapAnnotation &annotation, const MapBgfxHudPoint &position,
                         bool selected);
     void drawAnnotations2d();
+    int annotation_scale_percent = 100;
 
     // Projection with the current translation offset.
     MapBgfxHudPoint screen(const MapBgfx2d::WorldPoint &world) const;

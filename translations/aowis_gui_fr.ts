@@ -4621,6 +4621,10 @@ Cette action est irréversible.</translation>
       <source>Providers marked “From upstream” are defined on an upstream MAP server: here you can only switch them on or off and choose how their tiles are fetched. Acquisition: Automatic asks the MAP upstreams first and then the provider itself if permitted; Cascade only never contacts the provider directly; Direct only skips the upstreams. MAP upstreams sets which upstream servers may be asked for a provider, and in which order.</source>
       <translation>Les fournisseurs marqués « De l’amont » sont définis sur un serveur MAP amont : ici, vous pouvez seulement les activer ou les désactiver et choisir comment leurs tuiles sont obtenues. Acquisition : Automatique interroge d’abord les serveurs MAP amont, puis le fournisseur lui-même si c’est autorisé ; Cascade uniquement ne contacte jamais le fournisseur directement ; Direct uniquement ignore les serveurs amont. Serveurs MAP amont définit quels serveurs amont peuvent être interrogés pour un fournisseur, et dans quel ordre.</translation>
     </message>
+    <message>
+      <source>Annotations [%]</source>
+      <translation>Annotations [%]</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -9518,6 +9522,29 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Invalid annotation or failed working-copy transaction.</source>
       <translation>Annotation non valide ou échec de la transaction de la copie de travail.</translation>
+    </message>
+      <message>
+      <source>Discard draft</source>
+      <translation>Abandonner le brouillon</translation>
+    </message>
+    <message>
+      <source>Draft: type text to save automatically.</source>
+      <translation>Brouillon : saisissez du texte pour enregistrer automatiquement.</translation>
+    </message>
+    <message>
+      <source>Unsaved draft: open a writable private working copy to save.</source>
+      <translation>Brouillon non enregistré : ouvrez une copie de travail privée modifiable pour enregistrer.</translation>
+    </message>
+</context>
+  <context>
+    <name>MapAnnotationScaleSlider</name>
+    <message>
+      <source>Off</source>
+      <translation>Désactivé</translation>
+    </message>
+    <message>
+      <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
+      <translation>Taille d’affichage des annotations : %1. Tout à gauche, toutes les annotations sont masquées ; les autres positions ajustent leur taille. Clic droit pour réinitialiser.</translation>
     </message>
   </context>
 </TS>

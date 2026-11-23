@@ -4621,6 +4621,10 @@ Esta acción no se puede deshacer.</translation>
       <source>Providers marked “From upstream” are defined on an upstream MAP server: here you can only switch them on or off and choose how their tiles are fetched. Acquisition: Automatic asks the MAP upstreams first and then the provider itself if permitted; Cascade only never contacts the provider directly; Direct only skips the upstreams. MAP upstreams sets which upstream servers may be asked for a provider, and in which order.</source>
       <translation>Los proveedores marcados como «Del servidor superior» están definidos en un servidor MAP superior: aquí solo puede activarlos o desactivarlos y elegir cómo se obtienen sus teselas. Adquisición: Automático consulta primero los servidores MAP superiores y luego, si está permitido, al propio proveedor; Solo cascada nunca contacta directamente con el proveedor; Solo directo omite los servidores superiores. Servidores MAP superiores define qué servidores superiores pueden consultarse para un proveedor y en qué orden.</translation>
     </message>
+    <message>
+      <source>Annotations [%]</source>
+      <translation>Anotaciones [%]</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -9518,6 +9522,29 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>Invalid annotation or failed working-copy transaction.</source>
       <translation>Anotación no válida o error de transacción de la copia de trabajo.</translation>
+    </message>
+      <message>
+      <source>Discard draft</source>
+      <translation>Descartar borrador</translation>
+    </message>
+    <message>
+      <source>Draft: type text to save automatically.</source>
+      <translation>Borrador: escriba texto para guardar automáticamente.</translation>
+    </message>
+    <message>
+      <source>Unsaved draft: open a writable private working copy to save.</source>
+      <translation>Borrador sin guardar: abra una copia de trabajo privada editable para guardar.</translation>
+    </message>
+</context>
+  <context>
+    <name>MapAnnotationScaleSlider</name>
+    <message>
+      <source>Off</source>
+      <translation>Desactivado</translation>
+    </message>
+    <message>
+      <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
+      <translation>Tamaño de las anotaciones: %1. El extremo izquierdo oculta todas las anotaciones; las demás posiciones ajustan su tamaño. Clic derecho para restablecer.</translation>
     </message>
   </context>
 </TS>

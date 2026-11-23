@@ -37,6 +37,7 @@ signals:
     void mapAnnotationSelected(const QUuid &uuid);
     void mapAnnotationDraftUpdated(const MapAnnotation &annotation);
     void mapAnnotationDraftCleared();
+    void mapAnnotationDraftsChanged();
 
 private:
     HydraulicData *hydraulic_data = nullptr;
@@ -44,6 +45,10 @@ private:
     
     EntityInspectorWidget *widget_current = nullptr;
     EntityInspectorAnnotation *widget_annotation = nullptr;
+    QList<MapAnnotation> pending_annotation_drafts;
+    void rememberDraft(const MapAnnotation &annotation);
+    void discardDraft(const QUuid &uuid);
+    void updateInspectorDraftChoices();
     int tab_index_current = 0;
     
     HeadlossFormulas headloss_formulas_current =
@@ -54,8 +59,12 @@ public slots:
     
 public slots:
     void beginMapAnnotation(const CoordinateWGS84 &coordinate);
-    void focusPendingMapAnnotation();
-    void movePendingMapAnnotation(const CoordinateWGS84 &position);
+    void beginMapAnnotation(const MapAnnotation &draft);
+    const QList<MapAnnotation> &pendingMapAnnotations() const;
+    std::optional<MapAnnotation> pendingMapAnnotation(const QUuid &uuid) const;
+    void removePendingMapAnnotation(const QUuid &uuid);
+    void selectPendingMapAnnotation(const QUuid &uuid);
+    void movePendingMapAnnotation(const QUuid &uuid, const CoordinateWGS84 &position);
     void showMapAnnotation(const QUuid &uuid);
     void showEntityTank(const HydraulicNodeTank &tank);
     void showEntityJunction(const HydraulicNodeJunction &junction);

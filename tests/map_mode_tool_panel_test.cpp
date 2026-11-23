@@ -1,4 +1,5 @@
 #include "tabs/map_mode_tool_panel.h"
+#include "widgets/map_annotation_scale_slider.h"
 
 #include <QApplication>
 #include <QHBoxLayout>
@@ -79,6 +80,31 @@ int main(int argc, char **argv)
                  "monitor width not restored"))
         return 1;
 
+    MapAnnotationScaleSlider annotation_scale;
+    int slider_events = 0;
+    QObject::connect(&annotation_scale, &QSlider::valueChanged,
+                     &annotation_scale, [&slider_events](int) { ++slider_events; });
+    if (!require(annotation_scale.percent() == 100,
+                 "annotations must default to visible at 100%"))
+        return 1;
+    annotation_scale.setValue(0);
+    if (!require(annotation_scale.percent() == 0 &&
+                 annotation_scale.toolTip().contains(QStringLiteral("Off")),
+                 "far-left annotation scale must hide the layer"))
+        return 1;
+    annotation_scale.setValue(1);
+    if (!require(annotation_scale.percent() == 25,
+                 "first active detent must snap to 25%, not an invisible size"))
+        return 1;
+    annotation_scale.setValue(annotation_scale.maximum());
+    if (!require(annotation_scale.percent() == 250,
+                 "annotation scale maximum must reach 250%"))
+        return 1;
+    const int previous_events = slider_events;
+    annotation_scale.setPercent(100);
+    if (!require(annotation_scale.percent() == 100 && slider_events == previous_events,
+                 "cross-mode synchronization must not emit a second valueChanged"))
+        return 1;
     container.show();
     app.processEvents();
     editor.setMapFullscreen(true);

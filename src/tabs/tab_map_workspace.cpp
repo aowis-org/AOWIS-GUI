@@ -70,6 +70,10 @@ MapWorkspaceWidget::MapWorkspaceWidget(MapEditorContainer *editor,
 
     this->editor_tools->setModeSelector(createModeSelector(DistributionEditor));
     this->monitor_tools->setModeSelector(createModeSelector(DistributionMonitor));
+    connect(editor, &MapEditorContainer::annotationScalePercentChanged,
+            monitor, &MapMonitorContainer::setAnnotationScalePercent);
+    connect(monitor, &MapMonitorContainer::annotationScalePercentChanged,
+            editor, &MapEditorContainer::setAnnotationScalePercent);
     this->management_tools->setModeSelector(createModeSelector(MapManagement));
 }
 

@@ -43,6 +43,23 @@ EntityInspectorDock::EntityInspectorDock(HydraulicData *hydraulic_data, QWidget 
     
     connect(this->hydraulic_data, &HydraulicData::signalSelectedDemandPoint, this, &EntityInspectorDock::showEntityDemandPoint);
     
+    // A pending blank annotation belongs to the editor session, not the
+    // currently displayed Inspector. Discard it on network/revision reload,
+    // never merely because another annotation was selected.
+    connect(this->hydraulic_data, &HydraulicData::signalNetworkLoaded, this, [this]()
+    {
+        if (this->widget_annotation && this->widget_annotation->isCreating())
+        {
+            clearEntity();
+            setVisible(false);
+        }
+        if (!this->pending_annotation_drafts.isEmpty())
+        {
+            this->pending_annotation_drafts.clear();
+            emit mapAnnotationDraftCleared();
+            emit mapAnnotationDraftsChanged();
+        }
+    });
     setVisible(false);
     
     //showEntityTank();
@@ -62,7 +79,11 @@ void EntityInspectorDock::clearEntity()
     if (this->widget_annotation)
     {
         this->widget_annotation->flushPendingEdit();
-        emit mapAnnotationDraftCleared();
+        // deleteLater() leaves the outgoing widget alive until the next Qt
+        // event loop pass. It must not react to another session/History
+        // signal or emit a stale draft update after selection changes.
+        QObject::disconnect(this->hydraulic_data, nullptr, this->widget_annotation, nullptr);
+        QObject::disconnect(this->widget_annotation, nullptr, this, nullptr);
     }
     if (this->widget_current)
         this->widget_current->deleteLater();
@@ -89,39 +110,146 @@ void EntityInspectorDock::setInspector(EntityInspectorWidget *inspector)
     setVisible(true);
 }
 
+const QList<MapAnnotation> &EntityInspectorDock::pendingMapAnnotations() const
+{
+    return this->pending_annotation_drafts;
+}
+
+std::optional<MapAnnotation> EntityInspectorDock::pendingMapAnnotation(const QUuid &uuid) const
+{
+    for (const MapAnnotation &draft : this->pending_annotation_drafts)
+        if (draft.uuid == uuid)
+            return draft;
+    return std::nullopt;
+}
+
+void EntityInspectorDock::updateInspectorDraftChoices()
+{
+    if (this->widget_annotation)
+        this->widget_annotation->setPendingDraftChoices(this->pending_annotation_drafts);
+}
+
+void EntityInspectorDock::rememberDraft(const MapAnnotation &annotation)
+{
+    for (MapAnnotation &draft : this->pending_annotation_drafts)
+    {
+        if (draft.uuid == annotation.uuid)
+        {
+            draft = annotation;
+            emit mapAnnotationDraftUpdated(annotation);
+            emit mapAnnotationDraftsChanged();
+            updateInspectorDraftChoices();
+            return;
+        }
+    }
+    this->pending_annotation_drafts.append(annotation);
+    emit mapAnnotationDraftUpdated(annotation);
+    emit mapAnnotationDraftsChanged();
+    updateInspectorDraftChoices();
+}
+
+void EntityInspectorDock::discardDraft(const QUuid &uuid)
+{
+    for (qsizetype i = 0; i < this->pending_annotation_drafts.size(); ++i)
+    {
+        if (this->pending_annotation_drafts.at(i).uuid != uuid)
+            continue;
+        this->pending_annotation_drafts.removeAt(i);
+        emit mapAnnotationDraftCleared();
+        emit mapAnnotationDraftsChanged();
+        updateInspectorDraftChoices();
+        return;
+    }
+}
+
+void EntityInspectorDock::removePendingMapAnnotation(const QUuid &uuid)
+{
+    if (this->widget_annotation && this->widget_annotation->isCreating()
+        && this->widget_annotation->draftUuid() == uuid)
+    {
+        // Do not recreate the discarded draft from the edit flush.
+        this->widget_annotation->discardDraft();
+        clearEntity();
+        setVisible(false);
+    }
+    discardDraft(uuid);
+}
+
 void EntityInspectorDock::beginMapAnnotation(const CoordinateWGS84 &coordinate)
 {
+    MapAnnotation draft;
+    draft.uuid = QUuid::createUuid(); // Local placeholder, never a persisted ID.
+    draft.position_wgs84 = coordinate;
+    draft.style.visible = true;
+    draft.style.show_background = true;
+    beginMapAnnotation(draft);
+}
+
+void EntityInspectorDock::beginMapAnnotation(const MapAnnotation &draft)
+{
+    if (draft.uuid.isNull())
+        return;
     clearEntity();
+    rememberDraft(draft);
     this->widget_annotation = new EntityInspectorAnnotation(
-        this->hydraulic_data, std::nullopt, coordinate, this);
+        this->hydraulic_data, std::nullopt, draft.position_wgs84, this, draft);
     connect(this->widget_annotation, &EntityInspectorAnnotation::annotationCreated,
-            this, [this](const QUuid &id) { emit mapAnnotationSelected(id); });
+            this, [this, uuid = draft.uuid](const QUuid &id)
+    {
+        discardDraft(uuid);
+        emit mapAnnotationSelected(id);
+    });
     connect(this->widget_annotation, &EntityInspectorAnnotation::draftPreviewChanged,
-            this, &EntityInspectorDock::mapAnnotationDraftUpdated);
-    connect(this->widget_annotation, &EntityInspectorAnnotation::draftPreviewCleared,
-            this, &EntityInspectorDock::mapAnnotationDraftCleared);
+            this, &EntityInspectorDock::rememberDraft);
     connect(this->widget_annotation, &EntityInspectorAnnotation::annotationSelected,
             this, &EntityInspectorDock::showMapAnnotation);
+    connect(this->widget_annotation, &EntityInspectorAnnotation::draftDeleted,
+            this, &EntityInspectorDock::removePendingMapAnnotation);
     setWidget(this->widget_annotation);
+    updateInspectorDraftChoices();
     setVisible(true);
-    this->widget_annotation->publishDraftPreview();
     this->widget_annotation->focusText();
 }
 
-void EntityInspectorDock::focusPendingMapAnnotation()
+void EntityInspectorDock::selectPendingMapAnnotation(const QUuid &uuid)
 {
-    if (this->widget_annotation && this->widget_annotation->isCreating())
+    const std::optional<MapAnnotation> draft = pendingMapAnnotation(uuid);
+    if (!draft)
+        return;
+    if (this->widget_annotation && this->widget_annotation->isCreating()
+        && this->widget_annotation->draftUuid() == uuid)
+    {
         this->widget_annotation->focusText();
+        setVisible(true);
+        return;
+    }
+    beginMapAnnotation(*draft);
 }
 
-void EntityInspectorDock::movePendingMapAnnotation(const CoordinateWGS84 &position)
+void EntityInspectorDock::movePendingMapAnnotation(const QUuid &uuid,
+                                                     const CoordinateWGS84 &position)
 {
-    if (this->widget_annotation && this->widget_annotation->isCreating())
+    const std::optional<MapAnnotation> draft = pendingMapAnnotation(uuid);
+    if (!draft)
+        return;
+    if (this->widget_annotation && this->widget_annotation->isCreating()
+        && this->widget_annotation->draftUuid() == uuid)
+    {
         this->widget_annotation->moveDraft(position);
+        return;
+    }
+    MapAnnotation moved = *draft;
+    moved.position_wgs84 = position;
+    rememberDraft(moved);
 }
 
 void EntityInspectorDock::showMapAnnotation(const QUuid &uuid)
 {
+    if (pendingMapAnnotation(uuid))
+    {
+        selectPendingMapAnnotation(uuid);
+        return;
+    }
     const std::optional<MapAnnotation> annotation = this->hydraulic_data->mapAnnotation(uuid);
     if (!annotation)
         return;
@@ -133,6 +261,7 @@ void EntityInspectorDock::showMapAnnotation(const QUuid &uuid)
     connect(this->widget_annotation, &EntityInspectorAnnotation::annotationSelected,
             this, &EntityInspectorDock::showMapAnnotation);
     setWidget(this->widget_annotation);
+    updateInspectorDraftChoices();
     setVisible(true);
     emit mapAnnotationSelected(uuid);
 }

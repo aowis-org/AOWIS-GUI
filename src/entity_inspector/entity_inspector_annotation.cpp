@@ -17,10 +17,12 @@
 
 EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     const std::optional<MapAnnotation> &existing, const CoordinateWGS84 &new_position,
-    QWidget *parent)
+    QWidget *parent, const std::optional<MapAnnotation> &draft)
     : QWidget(parent), data_(data), annotation_uuid_(existing ? existing->uuid : QUuid()),
-      creating_(!existing.has_value()), initial_position_(new_position)
+      creating_(!existing.has_value()), initial_position_(new_position), initial_draft_(draft)
 {
+    if (this->initial_draft_)
+        this->draft_uuid_ = this->initial_draft_->uuid;
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(10, 12, 10, 12);
     this->heading_ = new QLabel(tr("Map annotation"), this);
@@ -69,8 +71,10 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     this->size_->setCurrentIndex(int(MapAnnotationTextSize::Normal));
     this->form_->addRow(tr("Text size"), this->size_);
     this->background_ = new QCheckBox(tr("Show background"), this);
+    this->background_->setObjectName(QStringLiteral("mapAnnotationBackground"));
     this->form_->addRow(QString(), this->background_);
     this->visible_ = new QCheckBox(tr("Visible on map"), this);
+    this->visible_->setObjectName(QStringLiteral("mapAnnotationVisible"));
     this->form_->addRow(QString(), this->visible_);
     this->anchor_ = new QComboBox(this);
     this->form_->addRow(tr("Attached to"), this->anchor_);
@@ -90,7 +94,7 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     connect(&this->commit_timer_, &QTimer::timeout, this, &EntityInspectorAnnotation::commit);
     const std::function<void()> changed = [this]
     {
-        if (this->updating_ui_ || !this->data_->logicalEditCaptureEnabled())
+        if (this->updating_ui_ || (!this->creating_ && !this->data_->logicalEditCaptureEnabled()))
             return;
         // A blank new annotation is a visible local draft. MODEL rejects
         // blank persisted text, so the first valid text automatically creates
@@ -121,7 +125,12 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
             [changed](int) { changed(); });
     connect(this->delete_, &QPushButton::clicked, this, [this]
     {
-        if (this->creating_ || !this->data_->logicalEditCaptureEnabled())
+        if (this->creating_)
+        {
+            emit draftDeleted(this->draft_uuid_);
+            return;
+        }
+        if (!this->data_->logicalEditCaptureEnabled())
             return;
         if (!this->data_->deleteMapAnnotation(this->annotation_uuid_))
         {
@@ -133,7 +142,12 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     connect(this->data_, &HydraulicData::signalLogicalEditCaptureAboutToDisable,
             this, &EntityInspectorAnnotation::flushPendingEdit);
     connect(this->data_, &HydraulicData::signalLogicalEditCaptureChanged,
-            this, &EntityInspectorAnnotation::refreshPermission);
+            this, [this](bool enabled)
+    {
+        refreshPermission();
+        if (enabled && this->creating_ && !this->text_->toPlainText().trimmed().isEmpty())
+            this->commit_timer_.start();
+    });
     connect(this->data_, &HydraulicData::signalMapAnnotationsChanged,
             this, &EntityInspectorAnnotation::refreshFromModel);
     connect(this->data_, &HydraulicData::signalNetworkLoaded,
@@ -177,7 +191,7 @@ void EntityInspectorAnnotation::retranslate()
     this->size_->setItemText(2, tr("Large"));
     this->background_->setText(tr("Show background"));
     this->visible_->setText(tr("Visible on map"));
-    this->delete_->setText(tr("Delete annotation"));
+    this->delete_->setText(this->creating_ ? tr("Discard draft") : tr("Delete annotation"));
     refreshFromModel();
     refreshPermission();
 }
@@ -201,18 +215,26 @@ void EntityInspectorAnnotation::refreshAnnotationChoices()
 {
     const QSignalBlocker blocker(this->browse_);
     this->browse_->clear();
-    if (this->creating_)
-        this->browse_->addItem(tr("New annotation"), QString());
+    for (const MapAnnotation &draft : this->pending_drafts_)
+    {
+        const QString summary = draft.text.simplified().left(40);
+        const QString coordinates = QStringLiteral(" (%1°, %2°)")
+            .arg(draft.position_wgs84.latitude_deg, 0, 'f', 5)
+            .arg(draft.position_wgs84.longitude_deg, 0, 'f', 5);
+        this->browse_->addItem(summary.isEmpty() ? tr("New annotation") + coordinates : summary,
+                               draft.uuid.toString(QUuid::WithoutBraces));
+    }
     for (const MapAnnotation &annotation : this->data_->mapAnnotations())
     {
         const QString summary = annotation.text.simplified().left(40);
         this->browse_->addItem(summary.isEmpty() ? tr("Untitled annotation") : summary,
                                annotation.uuid.toString(QUuid::WithoutBraces));
     }
-    if (!this->annotation_uuid_.isNull())
+    const QUuid chosen_uuid = this->creating_ ? this->draft_uuid_ : this->annotation_uuid_;
+    if (!chosen_uuid.isNull())
     {
         const int selected = this->browse_->findData(
-            this->annotation_uuid_.toString(QUuid::WithoutBraces));
+            chosen_uuid.toString(QUuid::WithoutBraces));
         if (selected >= 0)
             this->browse_->setCurrentIndex(selected);
     }
@@ -221,6 +243,23 @@ void EntityInspectorAnnotation::refreshAnnotationChoices()
 bool EntityInspectorAnnotation::isCreating() const
 {
     return this->creating_;
+}
+
+QUuid EntityInspectorAnnotation::draftUuid() const
+{
+    return this->draft_uuid_;
+}
+
+void EntityInspectorAnnotation::discardDraft()
+{
+    this->discarded_ = true;
+    this->commit_timer_.stop();
+}
+
+void EntityInspectorAnnotation::setPendingDraftChoices(const QList<MapAnnotation> &drafts)
+{
+    this->pending_drafts_ = drafts;
+    refreshAnnotationChoices();
 }
 
 CoordinateWGS84 EntityInspectorAnnotation::enteredPosition() const
@@ -233,23 +272,35 @@ CoordinateWGS84 EntityInspectorAnnotation::enteredPosition() const
 
 void EntityInspectorAnnotation::publishDraftPreview()
 {
-    if (!this->creating_ || this->updating_ui_ ||
-        !this->data_->logicalEditCaptureEnabled())
+    // The map must acknowledge a placement even when the selected revision is
+    // read-only. This is a local preview, NOT a MODEL edit or DVMDB record.
+    // Text can be drafted locally at any time; durable MODEL edits still
+    // require a verified writable working copy.
+    if (!this->creating_ || this->updating_ui_ || this->discarded_)
         return;
     MapAnnotation preview;
     preview.uuid = this->draft_uuid_;
     preview.position_wgs84 = enteredPosition();
     preview.text = this->text_->toPlainText();
     preview.style.text_size = static_cast<MapAnnotationTextSize>(this->size_->currentIndex());
-    // A pending placement remains visible even if the eventual style is hidden.
-    preview.style.visible = true;
-    preview.style.show_background = true;
+    // The same visibility flag applies to local drafts and persisted records.
+    // Even a hidden draft remains selectable from the Inspector list.
+    preview.style.show_background = this->background_->isChecked();
+    preview.style.visible = this->visible_->isChecked();
+    const QUuid anchor_id(this->anchor_->currentData().toString());
+    if (!anchor_id.isNull())
+    {
+        preview.anchor = MapAnnotationAnchor{
+            anchor_id, this->anchor_->currentData(Qt::UserRole + 1).toString()};
+        MapAnnotationPosition::place(this->data_->networkHydraulicDistribution(),
+                                     preview, enteredPosition());
+    }
     emit draftPreviewChanged(preview);
 }
 
 void EntityInspectorAnnotation::moveDraft(const CoordinateWGS84 &position)
 {
-    if (!this->creating_ || !this->data_->logicalEditCaptureEnabled())
+    if (!this->creating_ || this->discarded_)
         return;
     this->latitude_->setValue(position.latitude_deg);
     this->longitude_->setValue(position.longitude_deg);
@@ -265,23 +316,25 @@ void EntityInspectorAnnotation::refreshPermission()
 {
     const bool writable = this->data_ != nullptr && this->data_->logicalEditCaptureEnabled()
         && (this->creating_ || this->data_->mapAnnotation(this->annotation_uuid_).has_value());
-    this->text_->setReadOnly(!writable);
-    this->latitude_->setReadOnly(!writable);
-    this->longitude_->setReadOnly(!writable);
-    this->size_->setEnabled(writable);
-    this->background_->setEnabled(writable);
-    this->visible_->setEnabled(writable);
-    this->anchor_->setEnabled(writable);
-    this->delete_->setVisible(!this->creating_);
-    this->delete_->setEnabled(writable);
-    if (!writable)
-    {
+    // Local drafts are always editable. Their content remains explicitly
+    // unsaved until a verified private working copy accepts the MODEL edit.
+    const bool editable = this->creating_ || writable;
+    this->text_->setReadOnly(!editable);
+    this->latitude_->setReadOnly(!editable);
+    this->longitude_->setReadOnly(!editable);
+    this->size_->setEnabled(editable);
+    this->background_->setEnabled(editable);
+    this->visible_->setEnabled(editable);
+    this->anchor_->setEnabled(editable);
+    this->delete_->setVisible(true);
+    this->delete_->setText(this->creating_ ? tr("Discard draft") : tr("Delete annotation"));
+    this->delete_->setEnabled(editable);
+    if (this->creating_ && !writable)
+        this->message_->setText(tr("Unsaved draft: open a writable private working copy to save."));
+    else if (!writable)
         this->message_->setText(tr("Read-only: open a writable private working copy to edit."));
-        if (this->creating_)
-            emit draftPreviewCleared();
-    }
     else if (this->creating_)
-        this->message_->setText(tr("Enter annotation text"));
+        this->message_->setText(tr("Draft: type text to save automatically."));
     else
         this->message_->clear();
 }
@@ -327,9 +380,14 @@ void EntityInspectorAnnotation::refreshFromModel()
         if (this->updating_ui_ || this->draft_initialized_)
             return; // Network updates must not erase a moved, unsaved draft.
         this->updating_ui_ = true;
+        const MapAnnotation draft = this->initial_draft_.value_or(MapAnnotation());
+        this->text_->setPlainText(draft.text);
         this->latitude_->setValue(this->initial_position_.latitude_deg);
         this->longitude_->setValue(this->initial_position_.longitude_deg);
-        refreshAnchorChoices(std::nullopt);
+        this->size_->setCurrentIndex(int(draft.style.text_size));
+        this->background_->setChecked(draft.style.show_background);
+        this->visible_->setChecked(draft.style.visible);
+        refreshAnchorChoices(draft.anchor ? std::optional<MapAnnotation>(draft) : std::nullopt);
         this->position_dirty_ = false;
         this->draft_initialized_ = true;
         this->updating_ui_ = false;
@@ -363,7 +421,7 @@ void EntityInspectorAnnotation::refreshFromModel()
 
 void EntityInspectorAnnotation::commit()
 {
-    if (!this->data_->logicalEditCaptureEnabled())
+    if (this->discarded_ || !this->data_->logicalEditCaptureEnabled())
         return;
     if (this->creating_)
     {

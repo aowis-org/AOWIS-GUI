@@ -8,15 +8,22 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
 
 1. Open a verified, writable personal working copy of a Distribution network.
 2. In **Maps → Distribution Editor**, select **Annotation**, then right-click
-   an empty map position in 2D or 3D. A selected, empty annotation outline
-   appears immediately at that location and the **Annotation Inspector** opens
-   with the text field focused. Type normally: the first nonblank text is
+   an empty map position in 2D or 3D. An empty, GPU-drawn annotation marker
+   appears on right-button press; a short click opens the **Annotation Inspector**
+   with the text field focused. Right-button dragging cancels the placement. Type normally: the first nonblank text is
    automatically created as a canonical MODEL edit after a short debounce.
    All subsequent edits autosave; there is **no Create or Save button**.
-   A still-blank outline is a temporary GUI preview, not a DVMDB record, and
-   disappears when abandoned. MODEL deliberately rejects blank persisted text.
-   If the inspector says **Read-only**, open a verified writable private
-   working copy first; a read-only revision cannot create annotations.
+   Each right-click leaves its own visible placeholder on the map. You can
+   place several blank annotations, select any of them later by clicking its
+   callout (or choosing it in the Inspector), reposition them, and enter text
+   in any order. Switching Inspector selection **does not discard** other drafts.
+   A still-blank outline is a temporary GUI draft, not a DVMDB record: MODEL
+   rejects blank persisted text. Drafts remain visible until discarded or the
+   network/revision is replaced; they do not survive restarting the GUI.
+   Without a verified writable working copy, the draft text field stays
+   editable for local preparation, but the Inspector explicitly labels it
+   **Unsaved draft** and nothing is written to MODEL or DVMDB. Once a writable
+   working copy is available, selecting the draft allows it to autosave.
 3. Select an existing annotation on the map (or use the Inspector's annotation
    selector). Edit text, WGS84 coordinates, text size, visibility and background.
    Move it by dragging in the map, or attach it to a junction, reservoir, tank
@@ -26,8 +33,21 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
    detaches the annotation at its last resolved position **within the same
    reversible edit event**.
 5. **Distribution Monitor** displays annotations in 2D/3D without allowing
-   edits. Opened immutable revisions and unverified History positions are also
+   edits, including local unfinished drafts from the active Editor session.
+   Opened immutable revisions and unverified History positions are also
    read-only. Committing a working-copy HEAD creates the immutable revision.
+6. **Annotation display size** is controlled by the left-side **Annotations [%]**
+   slider in both Distribution Editor and Distribution Monitor. The extreme
+   left position means **Off**; moving right shows annotations from 25% to
+   250% of their normal screen size. The slider is synchronized between the
+   two views and changes **presentation only**, not the revisioned MODEL
+   style. Right-click the slider to reset it to 100%.
+7. In the **Annotation Inspector**, **Visible on map** hides or shows only
+   that annotation in both views; it remains in the Inspector's list when
+   hidden. **Show background** toggles the text callout's filled background;
+   a selected annotation can still have an outline without a fill. These
+   style changes are revisioned when editing a writable working copy. For
+   unfinished local drafts, the preview follows the checkboxes immediately.
 
 The Inspector debounces edits while typing; changing annotation selection,
 explicitly closing writable editing, or replacing the network flushes a pending

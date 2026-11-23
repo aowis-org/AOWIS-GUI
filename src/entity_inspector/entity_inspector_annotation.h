@@ -26,10 +26,14 @@ public:
     explicit EntityInspectorAnnotation(HydraulicData *data,
                                        const std::optional<MapAnnotation> &existing,
                                        const CoordinateWGS84 &new_position = {},
-                                       QWidget *parent = nullptr);
+                                       QWidget *parent = nullptr,
+                                       const std::optional<MapAnnotation> &draft = std::nullopt);
     ~EntityInspectorAnnotation() override;
     void focusText();
     bool isCreating() const;
+    QUuid draftUuid() const;
+    void discardDraft();
+    void setPendingDraftChoices(const QList<MapAnnotation> &drafts);
     void publishDraftPreview();
     void moveDraft(const CoordinateWGS84 &position);
     // Synchronously publish a pending, debounced edit before changing
@@ -43,9 +47,9 @@ signals:
     void annotationCreated(const QUuid &uuid);
     void annotationDeleted();
     void annotationSelected(const QUuid &uuid);
+    void draftDeleted(const QUuid &uuid);
     // Local-only placeholder; it is never sent to MODEL/DVMDB while blank.
     void draftPreviewChanged(const MapAnnotation &annotation);
-    void draftPreviewCleared();
 
 private:
     void refreshPermission();
@@ -60,9 +64,12 @@ private:
     QUuid annotation_uuid_;
     QUuid draft_uuid_ = QUuid::createUuid(); // Transient UI identity; never persisted.
     bool creating_ = false;
+    bool discarded_ = false;
     bool draft_initialized_ = false;
     bool updating_ui_ = false;
     CoordinateWGS84 initial_position_;
+    std::optional<MapAnnotation> initial_draft_;
+    QList<MapAnnotation> pending_drafts_;
     QLabel *heading_ = nullptr;
     QFormLayout *form_ = nullptr;
     QComboBox *browse_ = nullptr;

@@ -60,6 +60,7 @@ class MapModeToolPanel;
 class MapBgfxSurface;
 class MapMonitorContainer;
 class MapBgfxGlobeHudController;
+class MapAnnotationScaleSlider;
 class QKeyEvent;
 class QShortcut;
 
@@ -75,6 +76,7 @@ public:
     MapNavigationWidget *mapNavigationWidget();
     bool isEditNetworkSectionActive() const;
     bool isAnnotationToolActive() const;
+    void setAnnotationScalePercent(int percent);
     bool isSelectToolActive() const;
     // Map fullscreen: the left menu is not visible, so its buttons' window
     // shortcuts (tools, map providers) cannot fire. The map forwards key
@@ -121,6 +123,7 @@ private:
     QCheckBox *checkbox_map_editor_guide = nullptr;
     QWidget *edit_tools = nullptr;
     QToolButton *button_edit_delete = nullptr;
+    MapAnnotationScaleSlider *annotation_scale_slider = nullptr;
     bool editor_delete_selection_available = false;
 
     // Terrain Cache section.
@@ -151,6 +154,7 @@ public slots:
 signals:
     void signalSlideOpacityChanged(int opacity);
     void signalMapEditorGuideVisibilityChanged(bool visible);
+    void signalAnnotationScalePercentChanged(int percent);
     void signalEditNetworkSectionActive(bool active);
 };
 
@@ -179,6 +183,8 @@ public:
     
     MapNavigationWidget *mapNavigationWidget();
     bool isEditNetworkSectionActive() const;
+    int annotationScalePercent() const { return this->annotation_scale_percent; }
+    void setAnnotationScalePercent(int percent);
 
 public slots:
     void setMapEditorGuideChecked(bool checked);
@@ -244,8 +250,10 @@ private:
     std::optional<CoordinateWGS84> annotationCoordinateAt(const QPointF &screen) const;
     std::optional<QUuid> annotationAt(const QPointF &screen) const;
     void refreshAnnotationOverlay();
-    std::optional<MapAnnotation> draft_annotation; // UI-only until valid nonblank text is entered.
+    // Immediate right-press marker; never persisted, discarded on drag/cancel.
+    std::optional<MapAnnotation> annotation_press_preview;
     QUuid selected_annotation_uuid;
+    int annotation_scale_percent = 100;
     QUuid pressed_annotation_uuid;
     QPointF annotation_press_point;
     bool annotation_mouse_pressed = false;
@@ -277,6 +285,7 @@ signals:
     // The HUD button / shortcut: the main window enters or leaves map
     // fullscreen and answers with applyMapFullscreen().
     void signalMapFullscreenRequested(bool fullscreen);
+    void signalAnnotationScalePercentChanged(int percent);
     void signalMapEditorGuideVisibilityChanged(bool visible);
     void signalEditNetworkSectionActive(bool active);
 };

@@ -1,4 +1,5 @@
 #include "map/core/map_annotation_distribution_targets.h"
+#include "widgets/map_annotation_scale_slider.h"
 #include "config/live_ui_text.h"
 #include <aowis/model/units/quantity.h>
 #include "tabs/tab_map_monitor_container.h"
@@ -372,6 +373,8 @@ MapMonitorContainer::MapMonitorContainer(MapModel *map_model, MapTileRepository 
     this->map_stack_layout->setStackingMode(QStackedLayout::StackAll);
     connect(this->map_menu->mapNavigationWidget(), &MapNavigationWidget::signalSlideOpacityChanged,
         this, &MapMonitorContainer::setNetworkBackgroundOpacity);
+    connect(this->map_menu, &MapMonitorMenuWidget::signalAnnotationScalePercentChanged,
+            this, &MapMonitorContainer::setAnnotationScalePercent);
     // The opacity slider follows whether there is a network to show:
     // leftmost without one, NetworkOpacityPercent once one is loaded, left
     // again when it is deleted (MapNavigationWidget::setNetworkPresent()).
@@ -1673,6 +1676,25 @@ void MapMonitorContainer::setBasemapOnly(bool enabled)
     }
 }
 
+void MapMonitorContainer::setAnnotationScalePercent(int percent)
+{
+    percent = percent <= 0 ? 0 : qBound(25, percent, 250);
+    if (this->annotation_scale_percent == percent)
+        return;
+    this->annotation_scale_percent = percent;
+    this->map_menu->setAnnotationScalePercent(percent);
+    if (!this->editor_mode && this->bgfx_surface != nullptr)
+        this->bgfx_surface->requestRedraw();
+    emit annotationScalePercentChanged(percent);
+}
+
+void MapMonitorContainer::setPendingMapAnnotations(const QList<MapAnnotation> &drafts)
+{
+    this->pending_map_annotations = drafts;
+    if (!this->editor_mode && !this->basemap_only && this->bgfx_surface != nullptr)
+        this->bgfx_surface->requestRedraw();
+}
+
 void MapMonitorContainer::setEditorMode(bool enabled)
 {
     if (this->editor_mode == enabled)
@@ -1745,11 +1767,15 @@ void MapMonitorContainer::activateMonitorSurface()
             // Drainage and Map Management must never show Distribution notes.
             QList<MapAnnotation> annotations;
             if (!this->basemap_only && this->hydraulic_data != nullptr)
+            {
+                annotations = this->hydraulic_data->mapAnnotations();
+                annotations.append(this->pending_map_annotations);
                 annotations = MapAnnotationPosition::drawable(
-                    this->hydraulic_data->networkHydraulicDistribution(),
-                    this->hydraulic_data->mapAnnotations());
+                    this->hydraulic_data->networkHydraulicDistribution(), annotations);
+            }
             this->monitor_annotation_overlay->buildAnnotations2d(
-                canvas, cache, camera, viewport, &annotations);
+                canvas, cache, camera, viewport, &annotations,
+                this->annotation_scale_percent);
             return QPointF();
         });
     // The 3D Monitor uses exactly the Editor's full-colour pixmaps and
@@ -1783,13 +1809,17 @@ void MapMonitorContainer::activateMonitorSurface()
                 * this->monitor_globe_icon_size_percent / 100.0));
             QList<MapAnnotation> annotations;
             if (!this->basemap_only && this->hydraulic_data != nullptr)
+            {
+                annotations = this->hydraulic_data->mapAnnotations();
+                annotations.append(this->pending_map_annotations);
                 annotations = MapAnnotationPosition::drawable(
-                    this->hydraulic_data->networkHydraulicDistribution(),
-                    this->hydraulic_data->mapAnnotations());
+                    this->hydraulic_data->networkHydraulicDistribution(), annotations);
+            }
             this->monitor_globe_icon_overlay->buildGlobe(
                 canvas, cache, MapEditorViewportRenderState(), projector,
                 snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector,
-                &annotations);
+                &annotations, QUuid(), QUuid(), std::nullopt,
+                this->annotation_scale_percent);
         });
     // Suppress only the generic globe icons, not the 2D symbols or the
     // monitor's network colours, legend, simulation values and flow arrows.
@@ -1833,6 +1863,12 @@ MapNavigationWidget *MapMonitorContainer::mapNavigationWidget()
 
 
 
+
+void MapMonitorMenuWidget::setAnnotationScalePercent(int percent)
+{
+    if (this->annotation_scale_slider != nullptr)
+        this->annotation_scale_slider->setPercent(percent);
+}
 
 MapMonitorMenuWidget::MapMonitorMenuWidget(MapWidget *map, QWidget *parent)
     : QWidget{parent},
@@ -2167,6 +2203,16 @@ void MapMonitorMenuWidget::addGroupVisualSettings()
     vbox->addWidget(slider_heatmap_solid_center);
     vbox->addWidget(label_heatmap_opacity);
     vbox->addWidget(slider_heatmap_opacity);
+    vbox->addSpacing(4);
+    QLabel *label_annotation_scale = LiveUiText::caption<QLabel>(
+        QT_TRANSLATE_NOOP("LiveUiText", "Annotations [%]"), this);
+    vbox->addWidget(label_annotation_scale);
+    this->annotation_scale_slider = new MapAnnotationScaleSlider(this);
+    vbox->addWidget(this->annotation_scale_slider);
+    connect(this->annotation_scale_slider, &QSlider::valueChanged, this, [this](int)
+    {
+        emit signalAnnotationScalePercentChanged(this->annotation_scale_slider->percent());
+    });
 }
 
 void MapMonitorMenuWidget::addGroupNodeVisuals()
