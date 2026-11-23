@@ -224,7 +224,8 @@ private:
     struct AnnotationHitArea
     {
         QUuid uuid;
-        QRectF bounds;
+        QRectF bounds; // Full callout: direct click/context-menu hit testing.
+        QPointF anchor; // Central map-position dot: rectangle selection only.
     };
     QList<AnnotationHitArea> annotation_hit_areas;
     QPointF annotation_hit_offset;

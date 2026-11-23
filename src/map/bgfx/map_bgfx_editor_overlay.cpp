@@ -361,7 +361,8 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
     this->annotation_hit_areas.append(AnnotationHitArea{
         annotation.uuid,
         MapAnnotationHitArea::rect(annotation, QPointF(position.x, position.y),
-                                   this->annotation_scale_percent)});
+                                   this->annotation_scale_percent),
+        QPointF(position.x, position.y)});
     const double scale = MapAnnotationDisplayScale::factor(this->annotation_scale_percent);
     // Match the editor's glowing selection feedback for hydraulic objects.
     // These GPU strokes surround the actual callout, not just its WGS84 pin,
@@ -979,8 +980,11 @@ QSet<QUuid> MapBgfxEditorOverlay::annotationsInRectangle(const QRectF &rectangle
     QSet<QUuid> selected;
     if (rectangle.isEmpty())
         return selected;
+    // Same selection rule as hydraulic markers: only the central position dot
+    // must be INSIDE the rectangle. Text/callout overlap never counts.
+    // Pan reuse translates both the GPU draw list and the dot positions.
     for (const AnnotationHitArea &area : this->annotation_hit_areas)
-        if (area.bounds.translated(this->annotation_hit_offset).intersects(rectangle))
+        if (rectangle.contains(area.anchor + this->annotation_hit_offset))
             selected.insert(area.uuid);
     return selected;
 }

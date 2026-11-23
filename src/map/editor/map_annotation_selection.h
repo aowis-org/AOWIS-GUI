@@ -1,7 +1,7 @@
 #ifndef MAP_EDITOR_MAP_ANNOTATION_SELECTION_H
 #define MAP_EDITOR_MAP_ANNOTATION_SELECTION_H
 
-#include "map/editor/map_annotation_hit_area.h"
+#include <aowis/model/map/map_annotation.h>
 
 #include <GeographicLib/Geodesic.hpp>
 
@@ -27,8 +27,9 @@ inline QList<MapAnnotation> editorVisible(const QList<MapAnnotation> &annotation
     return result;
 }
 
-// Select the same callout footprint that hit-testing and bgfx draw, not just
-// the pin. The screen projector is the Editor's 2D or terrain-aware 3D one.
+// Match hydraulic marker rectangle selection: an annotation is selected only
+// if its central geographic position dot lies inside the screen rectangle.
+// Direct clicks/context menus still use the full rendered callout footprint.
 inline QSet<QUuid> inRectangle(
     const QList<MapAnnotation> &annotations, const QRectF &rectangle,
     int scale_percent,
@@ -39,13 +40,12 @@ inline QSet<QUuid> inRectangle(
         return result;
     for (const MapAnnotation &annotation : annotations)
     {
-        if (annotation.uuid.isNull())
+        if (annotation.uuid.isNull() || !annotation.style.visible)
             continue;
         QPointF position;
         if (!project(annotation, &position))
             continue;
-        if (MapAnnotationHitArea::rect(annotation, position, scale_percent)
-                .intersects(rectangle))
+        if (rectangle.contains(position))
             result.insert(annotation.uuid);
     }
     return result;

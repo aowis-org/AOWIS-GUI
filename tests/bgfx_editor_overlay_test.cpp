@@ -553,14 +553,21 @@ void testEditorAnnotationsCanAlwaysBeSelected()
     const QSet<QUuid> only_a = MapAnnotationSelection::inRectangle(
         editor, around_a, 100, two_d);
     req(only_a.contains(hidden.uuid) && !only_a.contains(second.uuid),
-        "rectangle selection includes monitor-hidden annotation in Editor");
+        "rectangle selection includes monitor-hidden annotation by its central dot");
+    const QRectF text_only(a.x + 35.0, a.y - 35.0, 14.0, 10.0);
+    req(MapAnnotationSelection::inRectangle(editor, text_only, 100, two_d).isEmpty(),
+        "fallback selection ignores callout text when its dot is outside");
+    const QRectF dot_only(a.x - 3.0, a.y - 3.0, 6.0, 6.0);
+    req(MapAnnotationSelection::inRectangle(editor, dot_only, 100, two_d)
+            == QSet<QUuid>{hidden.uuid},
+        "fallback selection includes only an annotation whose dot is enclosed");
     const QRectF both(QPointF(a.x - 50.0, a.y - 80.0),
                       QSizeF(b.x - a.x + 180.0, 140.0));
     const QSet<QUuid> selected = MapAnnotationSelection::inRectangle(
         editor, both, 100, two_d);
     req(selected.size() == 2 && selected.contains(hidden.uuid)
         && selected.contains(second.uuid),
-        "2D rectangle selection selects multiple annotation callouts");
+        "2D rectangle selection selects annotations by their central dots");
     req(MapAnnotationSelection::inRectangle(editor, both, 0, two_d).isEmpty(),
         "annotation-size Off excludes annotation hits");
     const std::function<bool(const MapAnnotation &, QPointF *)> globe =
@@ -605,8 +612,8 @@ void testEditorAnnotationsCanAlwaysBeSelected()
 }
 
 
-// Test the actual bgfx draw-list's hit rectangles, not a synthetic projector.
-// In the live Editor, clicks and right-drag rectangles use these exact areas.
+// Direct clicks use the bgfx callout hit rectangle; marquee selection uses the
+// central dot recorded from the same draw list, as with hydraulic entities.
 void testRenderedAnnotationPicking()
 {
     Harness harness;
@@ -638,20 +645,22 @@ void testRenderedAnnotationPicking()
         "click selects the blank callout exactly as bgfx drew it");
     req(harness.overlay.hitTestAnnotation(second_callout) == second.uuid,
         "click selects persisted annotation text from its drawn footprint");
-    // The Select gesture can begin directly on the first callout. A right
+    // The Select gesture may begin on the first annotation's dot. A right
     // click without movement still opens the context menu; a right DRAG
-    // must use the ordinary screen rectangle and select both annotations.
+    // selects both only if their central dots are enclosed.
+    const QPointF first_dot(a.x, a.y);
+    const QPointF second_dot(b.x, b.y);
+    const QPointF drag_start(first_dot - QPointF(4.0, 4.0));
+    const QPointF drag_end(second_dot + QPointF(18.0, 18.0));
     const QRect drag_from_annotation = MapScreenSelectionRectangle::bounded(
-        first_callout, second_callout + QPointF(18.0, 18.0),
-        QSize(int(ViewportWidth), int(ViewportHeight)));
+        drag_start, drag_end, QSize(int(ViewportWidth), int(ViewportHeight)));
     const QSet<QUuid> selected_by_drag = harness.overlay.annotationsInRectangle(
         QRectF(drag_from_annotation));
     req(selected_by_drag.size() == 2 && selected_by_drag.contains(first.uuid)
         && selected_by_drag.contains(second.uuid),
-        "right drag starting on a callout selects both rendered annotations");
+        "right drag encloses both annotation dots, selecting both");
     const QRect reverse_drag = MapScreenSelectionRectangle::bounded(
-        second_callout + QPointF(18.0, 18.0), first_callout,
-        QSize(int(ViewportWidth), int(ViewportHeight)));
+        drag_end, drag_start, QSize(int(ViewportWidth), int(ViewportHeight)));
     req(reverse_drag == drag_from_annotation,
         "screen selection handles backward drags without geo projection roundtrip");
     const QSize screen_size{int(ViewportWidth), int(ViewportHeight)};
@@ -681,9 +690,14 @@ void testRenderedAnnotationPicking()
         "reversed out-of-bounds selection clips identically");
     req(!harness.overlay.hitTestAnnotation(QPointF(a.x - 160.0, a.y + 75.0)),
         "click on empty map is not an annotation hit");
-    const QRectF first_rect(first_callout.x() - 4.0, first_callout.y() - 4.0, 8.0, 8.0);
+    // Text-only overlap must not select annotations; the central dot is
+    // the exact same inclusion criterion as other map entities.
+    const QRectF text_rect(first_callout.x() - 4.0, first_callout.y() - 4.0, 8.0, 8.0);
+    req(harness.overlay.annotationsInRectangle(text_rect).isEmpty(),
+        "2D rectangle overlapping only callout text selects no annotation");
+    const QRectF first_rect(first_dot.x() - 4.0, first_dot.y() - 4.0, 8.0, 8.0);
     req(harness.overlay.annotationsInRectangle(first_rect) == QSet<QUuid>{first.uuid},
-        "rectangle intersects only the first drawn annotation");
+        "2D rectangle containing only the first central dot selects only first annotation");
     // Pan reuse can translate the already rendered overlay without calling
     // build() again. The pick list must follow the GPU translation exactly.
     const QPointF pan_offset(145.0, -21.0);
@@ -692,14 +706,14 @@ void testRenderedAnnotationPicking()
         "2D clicking uses the translated GPU position after pan reuse");
     req(harness.overlay.annotationsInRectangle(first_rect.translated(pan_offset))
             == QSet<QUuid>{first.uuid},
-        "2D selection rectangle follows a margin/pan-translated callout");
+        "2D selection rectangle follows the pan-translated central dot");
     harness.overlay.setAnnotationHitOffset(QPointF());
     const QRectF both(QPointF(a.x - 10.0, a.y - 60.0),
                       QSizeF(b.x - a.x + 120.0, 100.0));
     const QSet<QUuid> selected = harness.overlay.annotationsInRectangle(both);
     req(selected.size() == 2 && selected.contains(first.uuid)
         && selected.contains(second.uuid),
-        "right-drag rectangle selects multiple rendered annotation callouts");
+        "right-drag rectangle selects multiple annotation center dots");
     // A rectangle selection must produce visible GPU glow for EVERY hit,
     // not only a selected UUID that exists in an Inspector or local list.
     inputs.selected_annotation_uuids = &selected;
@@ -734,7 +748,13 @@ void testRenderedAnnotationPicking()
         "3D annotation callout is clickable at the drawn position");
     req(harness.overlay.annotationsInRectangle(
             QRectF(390.0, 245.0, 260.0, 90.0)).size() == 2,
-        "3D rectangle selection finds both drawn annotations");
+        "3D rectangle selection finds both projected central dots");
+    req(harness.overlay.annotationsInRectangle(
+            QRectF(460.0, 265.0, 12.0, 12.0)).isEmpty(),
+        "3D rectangle crossing text but missing dot does not select annotation");
+    req(harness.overlay.annotationsInRectangle(
+            QRectF(396.0, 296.0, 8.0, 8.0)) == QSet<QUuid>{first.uuid},
+        "3D rectangle enclosing first annotation dot selects only first");
     harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
         current.viewport, projector, nullptr, 0, QSizeF(ViewportWidth, ViewportHeight));
     req(!harness.overlay.hitTestAnnotation(QPointF(465.0, 267.0)),

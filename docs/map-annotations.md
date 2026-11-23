@@ -54,15 +54,17 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
    unfinished local drafts, the preview follows the checkboxes immediately.
 
 8. The regular **Select** tool also handles annotations: left-click selects,
-   left-drag moves, and right-drag on empty map selects every annotation whose actually
-   rendered bgfx callout intersects the selection rectangle (in 2D and 3D).
+   left-drag moves, and right-drag rectangle-selects an annotation only when
+   its **central map-position dot** is inside the rectangle (in 2D and 3D),
+   matching hydraulic entities. Merely overlapping its text does not select it.
    Right-click directly on an annotation (with Select or Annotation active) opens
    the same **Move / Delete** context menu as other map entities. Move arms a
    floating preview and the next right-click commits the new position; Escape
    cancels the move. For a selected annotation group the menu includes group
    actions. Context-menu deletion requires confirmation.
-   Selection uses rectangles recorded during GPU overlay construction, so
-   hit-testing follows the visible callout instead of an estimated projection. The standard
+   Direct click/context-menu hit-testing uses the visible bgfx callout. Rectangle
+   selection instead uses the dot's projected screen position recorded with the
+   same GPU overlay (including pan offsets). The standard
    **Delete Selected** action removes the selected annotations, including
    unfinished local placeholders. A group move or deletion of persistent
    annotations is recorded as **one reversible MODEL transaction**, not one
