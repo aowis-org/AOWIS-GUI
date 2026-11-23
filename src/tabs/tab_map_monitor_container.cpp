@@ -1685,7 +1685,7 @@ void MapMonitorContainer::setAnnotationScalePercent(int percent)
     this->map_menu->setAnnotationScalePercent(percent);
     if (!this->editor_mode && this->bgfx_surface != nullptr)
         this->bgfx_surface->requestRedraw();
-    emit annotationScalePercentChanged(percent);
+    emit signalAnnotationScalePercentChanged(percent);
 }
 
 void MapMonitorContainer::setPendingMapAnnotations(const QList<MapAnnotation> &drafts)

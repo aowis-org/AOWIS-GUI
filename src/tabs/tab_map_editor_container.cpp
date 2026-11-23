@@ -1129,7 +1129,7 @@ void MapEditorContainer::setAnnotationScalePercent(int percent)
     this->annotation_scale_percent = percent;
     this->map_menu->setAnnotationScalePercent(percent);
     refreshAnnotationOverlay();
-    emit annotationScalePercentChanged(percent);
+    emit signalAnnotationScalePercentChanged(percent);
 }
 
 void MapEditorContainer::refreshAnnotationOverlay()
