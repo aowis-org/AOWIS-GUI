@@ -647,6 +647,11 @@ signals:
     // Logical-edit capture switched on or off (a private draft became
     // editable, or editing stopped).
     void signalLogicalEditCaptureChanged(bool enabled);
+    // Emitted while the old model and verified writer are still available.
+    // Allows debounced inspector edits to enter the durable queue before an
+    // explicit session stop or network replacement disables capture.
+    // Not emitted on an internal fatal capture failure.
+    void signalLogicalEditCaptureAboutToDisable();
     // NetworkHydraulicDistribution::presentation_units may have changed (network loaded,
     // replaced, or a root edit/undo touched it).
     void signalPresentationUnitsChanged();

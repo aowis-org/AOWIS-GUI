@@ -49,9 +49,14 @@ and [private working-copy save](personal-working-copy-save.md).
 
 The **Select** tool is also the default mode after cancelling placement. The
 left-hand tools include Pipe, Junction, Valve, Demand Point, Pump, Tank, and
-Reservoir. **Power Source** and **Note** are present but disabled. The editor
+Reservoir and **Annotation**. **Power Source** remains disabled. The editor
 supports the regular map navigation controls, fullscreen, icon size, and map
-presentation controls without a separate editing camera.
+presentation controls without a separate editing camera. With **Annotation**
+active, **left-click** the map to place text through the Annotation Inspector;
+select or drag an existing annotation in either 2D or 3D. These are versioned
+project objects, not automatically generated hydraulic map labels. See the
+[Map annotations guide](map-annotations.md) for anchor, Inspector, History and
+read-only behavior.
 
 ### Selection and visibility in 3D
 

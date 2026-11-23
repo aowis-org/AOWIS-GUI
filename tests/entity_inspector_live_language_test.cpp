@@ -3,6 +3,7 @@
 // as a user session without launching MainWindow or initializing bgfx.
 #include "config/gui_language.h"
 #include "entity_inspector/entity_inspector_tank.h"
+#include "entity_inspector/entity_inspector_dock.h"
 #include "network/hydraulic_data.h"
 #include "widgets/group_box_collapsible.h"
 
@@ -13,6 +14,7 @@
 #include <QDoubleSpinBox>
 #include <QEvent>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QTabWidget>
 
 #include <array>
@@ -26,6 +28,108 @@ bool expect(bool condition, const QString &language, const char *description)
     qCritical().noquote() << "Live Entity Inspector" << language << "FAIL:" << description;
     return false;
 }
+}
+
+// Annotation editor acceptance in the real QWidget dock. This specifically
+// exercises the synchronous handoff of the inspector's 350-ms text debounce;
+// the MODEL/queue replay suite covers the resulting canonical transactions.
+int runAnnotationInspectorAcceptance(QApplication &app)
+{
+    const QString check = QStringLiteral("annotation inspector");
+    NetworkHydraulicDistribution network;
+    network.uuid = QUuid(QStringLiteral("{019a6010-0001-7000-8000-000000000011}"));
+    network.id = QStringLiteral("Inspection network");
+
+    MapAnnotation first;
+    first.uuid = QUuid(QStringLiteral("{019a6010-0001-7000-8000-000000000012}"));
+    first.text = QStringLiteral("First annotation");
+    first.position_wgs84.latitude_deg = 50.0;
+    first.position_wgs84.longitude_deg = 8.0;
+
+    MapAnnotation second;
+    second.uuid = QUuid(QStringLiteral("{019a6010-0001-7000-8000-000000000013}"));
+    second.text = QStringLiteral("Second annotation");
+    second.position_wgs84.latitude_deg = 50.1;
+    second.position_wgs84.longitude_deg = 8.1;
+
+    HydraulicData data;
+    data.replaceNetworkHydraulicDistribution(network, {}, {first, second});
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded, &data,
+        [&events](const QByteArray &encoded) { events.append(encoded); });
+    data.setLogicalEditCaptureEnabled(true);
+
+    EntityInspectorDock dock(&data);
+    dock.showMapAnnotation(first.uuid);
+    app.processEvents();
+    EntityInspectorAnnotation *inspector =
+        qobject_cast<EntityInspectorAnnotation *>(dock.widget());
+    QPlainTextEdit *text = inspector ? inspector->findChild<QPlainTextEdit *>() : nullptr;
+    if (!expect(text != nullptr && !text->isReadOnly(), check,
+                "writable annotation inspector did not open"))
+        return 20;
+
+    // Switch before the debounce timer has elapsed. Exactly one edit must be
+    // recorded against the old UUID, not lost or written to the next item.
+    text->setPlainText(QStringLiteral("First annotation edited"));
+    dock.showMapAnnotation(second.uuid);
+    const std::optional<MapAnnotation> saved_first = data.mapAnnotation(first.uuid);
+    const std::optional<MapAnnotation> unchanged_second = data.mapAnnotation(second.uuid);
+    if (!expect(events.size() == 1 && saved_first && unchanged_second &&
+                saved_first->text == QStringLiteral("First annotation edited") &&
+                unchanged_second->text == second.text,
+                check, "switching selection dropped or misrouted a pending edit"))
+        return 21;
+    app.processEvents();
+    inspector = qobject_cast<EntityInspectorAnnotation *>(dock.widget());
+    text = inspector ? inspector->findChild<QPlainTextEdit *>() : nullptr;
+    if (!expect(text != nullptr && text->toPlainText() == second.text,
+                check, "the second inspector did not load its own annotation"))
+        return 22;
+
+    // Closing a writable session must flush before revoking write permission,
+    // otherwise a rapid History/Monitor transition silently drops the edit.
+    text->setPlainText(QStringLiteral("Second annotation edited"));
+    data.setLogicalEditCaptureEnabled(false);
+    const std::optional<MapAnnotation> saved_second = data.mapAnnotation(second.uuid);
+    if (!expect(events.size() == 2 && saved_second &&
+                saved_second->text == QStringLiteral("Second annotation edited") &&
+                !data.logicalEditCaptureEnabled() && text->isReadOnly(), check,
+                "leaving the writable draft did not flush the pending edit"))
+        return 23;
+    dock.clearEntity();
+    app.processEvents();
+    if (!expect(events.size() == 2, check,
+                "delayed inspector destruction produced an extra edit"))
+        return 24;
+
+    // Network replacement must flush the old inspector BEFORE loading the new
+    // network and annotation layer; it must not mutate the incoming layer.
+    data.setLogicalEditCaptureEnabled(true);
+    dock.showMapAnnotation(first.uuid);
+    inspector = qobject_cast<EntityInspectorAnnotation *>(dock.widget());
+    text = inspector ? inspector->findChild<QPlainTextEdit *>() : nullptr;
+    if (!expect(text != nullptr, check, "could not reopen annotation inspector"))
+        return 25;
+    text->setPlainText(QStringLiteral("Before network replacement"));
+    NetworkHydraulicDistribution different_network = network;
+    different_network.uuid = QUuid(QStringLiteral("{019a6010-0001-7000-8000-000000000014}"));
+    MapAnnotation incoming = first;
+    incoming.text = QStringLiteral("From a different revision");
+    data.replaceNetworkHydraulicDistribution(different_network, {}, {incoming});
+    const std::optional<MapAnnotation> loaded = data.mapAnnotation(first.uuid);
+    if (!expect(events.size() == 3 && !data.logicalEditCaptureEnabled() && loaded &&
+                loaded->text == incoming.text,
+                check, "network replacement misapplied or dropped a pending annotation edit"))
+        return 26;
+    dock.clearEntity();
+    app.processEvents();
+    if (!expect(events.size() == 3, check, "post-replacement inspector committed a stale edit"))
+        return 27;
+
+    qInfo() << "PASS: annotation inspector flushes safely across selection,"
+               " session close, and network replacement";
+    return 0;
 }
 
 int runEntityInspectorLanguageAcceptance(QApplication &app)
@@ -181,5 +285,5 @@ int runEntityInspectorLanguageAcceptance(QApplication &app)
     inspector.hide();
     language.select(QStringLiteral("en"));
     qInfo() << "PASS: real EntityInspectorTank survives 9 live language switches without edits";
-    return 0;
+    return runAnnotationInspectorAcceptance(app);
 }

@@ -485,6 +485,8 @@ const NetworkHydraulicDistribution &HydraulicData::networkHydraulicDistribution(
 
 void HydraulicData::setLogicalEditCaptureEnabled(bool enabled)
 {
+    if (!enabled && this->logical_edit_capture_enabled)
+        emit signalLogicalEditCaptureAboutToDisable();
     updateLogicalEditCapture(enabled);
 }
 
@@ -524,7 +526,10 @@ void HydraulicData::replaceNetworkHydraulicDistribution(
 {
     clearSimulationResultTimeline();
 
-    updateLogicalEditCapture(false);
+    // Publish pending inspector edits against the OLD network/annotation layer
+    // before replacing either canonical in-memory object. A fatal capture
+    // error still uses updateLogicalEditCapture() directly (no flush).
+    setLogicalEditCaptureEnabled(false);
     this->network_hydraulic_distribution = std::move(network);
     this->simulation_quality_run_options = std::move(quality_run_options);
     this->map_annotations = std::move(map_annotations);

@@ -42,8 +42,9 @@ consistent with sparse History navigation.
 
 ## 3. Complete editing, import and lifecycle acceptance
 
-Run the full 18-collection/root-metadata GUI mutation matrix against a
-**separate live DVMDB process** and embedded Standalone; test Save, Commit,
+Run the full 17-collection/root-metadata **and separate annotation-layer** GUI
+mutation matrix against a **separate live DVMDB process** and embedded
+Standalone; include mixed hydraulic deletion + annotation detach. Test Save, Commit,
 branch/fork, HEAD deletion and revision truncation through actual HTTP.
 Check expected-HEAD/role/identity guards, lost Save/Commit acknowledgements,
 writer contention, queue restart, malicious/malformed response, bulk action

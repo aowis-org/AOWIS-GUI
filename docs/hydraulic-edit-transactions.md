@@ -116,9 +116,15 @@ checksummed restart intent, documented separately in
 
 `aowis-hydraulic-edit-transaction` tests canonical capture/replay for the
 17 collections, root metadata, durable local queue operations and mixed
-transaction staging. Related widget tests cover libraries and controls.
+transaction staging. The real QWidget inspector acceptance test also checks
+flushing a pending annotation edit before selection changes, writer revocation
+and network replacement. Related widget tests cover libraries and controls.
 DVMDB native and HTTP tests exercise server-owned manifests, leases,
 generations, commit/reopen and mixed root/member events. The newest changes
 in the reviewed source are **not asserted to pass** unless their test
 execution has been reported. For the missing end-to-end tests, including operational Undo/Redo
 acceptance, see the two roadmaps linked above.
+
+For the Distribution annotation workflow and an explicit real-DVMDB acceptance
+checklist, see [Map annotations](map-annotations.md). Drainage annotations
+remain deferred until the Drainage network and persistence lifecycle exist.

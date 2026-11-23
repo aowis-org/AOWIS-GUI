@@ -168,6 +168,8 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
         }
         emit annotationDeleted();
     });
+    connect(this->data_, &HydraulicData::signalLogicalEditCaptureAboutToDisable,
+            this, &EntityInspectorAnnotation::flushPendingEdit);
     connect(this->data_, &HydraulicData::signalLogicalEditCaptureChanged,
             this, &EntityInspectorAnnotation::refreshPermission);
     connect(this->data_, &HydraulicData::signalMapAnnotationsChanged,
@@ -221,11 +223,17 @@ void EntityInspectorAnnotation::retranslate()
 
 EntityInspectorAnnotation::~EntityInspectorAnnotation()
 {
-    if (this->commit_timer_.isActive())
-    {
-        this->commit_timer_.stop();
-        commit();
-    }
+    flushPendingEdit();
+}
+
+void EntityInspectorAnnotation::flushPendingEdit()
+{
+    if (!this->commit_timer_.isActive())
+        return;
+    // Stop before publishing: a failed synchronous queue append can revoke
+    // edit permission and re-enter the closing signal in the same call stack.
+    this->commit_timer_.stop();
+    commit();
 }
 
 void EntityInspectorAnnotation::refreshAnnotationChoices()

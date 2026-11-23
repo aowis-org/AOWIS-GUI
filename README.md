@@ -92,7 +92,9 @@ are preserved. Through-terrain picking remains available. The 3D **Delete
 Selected** control is currently disabled.
 
 See the [Distribution Editor guide](docs/distribution-editor.md) for controls,
-terrain and elevation behavior, editing limitations and relevant tests.
+terrain and elevation behavior, editing limitations and relevant tests. The
+[Map annotations guide](docs/map-annotations.md) describes revisioned text
+annotations, their Inspector, anchors and remaining live-DVMDB qualification.
 
 ## Map and rendering
 

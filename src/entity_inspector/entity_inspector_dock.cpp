@@ -56,6 +56,11 @@ EntityInspectorDock::EntityInspectorDock(HydraulicData *hydraulic_data, QWidget 
 
 void EntityInspectorDock::clearEntity()
 {
+    // deleteLater() is not immediate. If the old annotation editor has a
+    // debounced text edit, commit it against its original UUID NOW, before
+    // selection changes or its owning draft/network can be replaced.
+    if (this->widget_annotation)
+        this->widget_annotation->flushPendingEdit();
     if (this->widget_current)
         this->widget_current->deleteLater();
     if (this->widget_annotation)

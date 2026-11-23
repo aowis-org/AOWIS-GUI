@@ -29,6 +29,9 @@ public:
                                        QWidget *parent = nullptr);
     ~EntityInspectorAnnotation() override;
     void focusText();
+    // Synchronously publish a pending, debounced edit before changing
+    // inspector selection or ending the verified private editing session.
+    void flushPendingEdit();
 
 protected:
     void changeEvent(QEvent *event) override;
