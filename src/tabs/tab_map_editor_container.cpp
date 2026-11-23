@@ -1,5 +1,5 @@
 #include "map/core/map_annotation_distribution_targets.h"
-#include "widgets/map_annotation_scale_slider.h"
+#include "map/core/map_annotation_display_scale.h"
 #include "config/live_ui_text.h"
 #include "tabs/tab_map_editor_container.h"
 #include "tabs/map_mode_tool_panel.h"
@@ -217,8 +217,6 @@ MapEditorContainer::MapEditorContainer(MapModel *map_model, MapTileRepository *t
     });
     connect(this->map_menu, &MapEditorMenuWidget::signalMapEditorGuideVisibilityChanged, this, &MapEditorContainer::signalMapEditorGuideVisibilityChanged);
     connect(this->map_menu, &MapEditorMenuWidget::signalEditNetworkSectionActive, this, &MapEditorContainer::signalEditNetworkSectionActive);
-    connect(this->map_menu, &MapEditorMenuWidget::signalAnnotationScalePercentChanged,
-            this, &MapEditorContainer::setAnnotationScalePercent);
     // The Inspector owns the independent local drafts. Mirror them to the
     // Monitor controller so switching modes cannot make them disappear.
     const std::function<void()> mirror_drafts = [this]()
@@ -526,6 +524,7 @@ void MapEditorContainer::setupBgfxEditor()
     // The same overlay instance paints the globe sprites and records their
     // hit rectangles. Its hit data is read only while Editor mode is active.
     const std::shared_ptr<MapBgfxEditorOverlay> overlay = std::make_shared<MapBgfxEditorOverlay>();
+    this->editor_annotation_hit_overlay = overlay;
     const std::function<void(MapViewMode)> update_editor_projection = [this, overlay](MapViewMode mode)
     {
         MapCanvasEntities *entities = this->map_canvas->mapCanvasEntities();
@@ -670,7 +669,12 @@ void MapEditorContainer::setupBgfxEditor()
                        == this->editor_controller->tileSelectionRevision();
             QPointF offset;
             if (content_unchanged && overlay_frame->pan.reuse(camera, viewport, ratio, &offset))
+            {
+                // The GPU repositions a cached draw list. Move its recorded
+                // annotation hit rectangles by that exact same offset.
+                overlay->setAnnotationHitOffset(offset);
                 return offset;
+            }
             // Full rebuild only when the editor's content changed; camera
             // motion only moves the pointer's map coordinate (the visual
             // state is O(demand points) and must not run every frame).
@@ -713,7 +717,7 @@ void MapEditorContainer::setupBgfxEditor()
             inputs.camera = build.camera;
             QList<MapAnnotation> annotations = editorAnnotations();
             inputs.annotations = &annotations;
-            inputs.annotation_scale_percent = this->annotation_scale_percent;
+            inputs.annotation_scale_percent = MapAnnotationDisplayScale::DefaultPercent;
             inputs.selected_annotation_uuid = this->selected_annotation_uuid;
             inputs.selected_annotation_uuids = &this->selected_annotation_uuids;
             inputs.dragged_annotation_positions = &this->annotation_drag_previews;
@@ -730,6 +734,9 @@ void MapEditorContainer::setupBgfxEditor()
                 inputs.camera = build.camera;
                 overlay->build(canvas, cache, inputs);
             }
+            // A margin-expanded build draws at a (-margin,-margin) offset.
+            // Apply it to picking as well, without disabling pan reuse.
+            overlay->setAnnotationHitOffset(build.offset);
             overlay_frame->pannable = pannable;
             overlay_frame->atlas_generation = cache->generation();
             overlay_frame->tile_selection_revision = this->editor_controller->tileSelectionRevision();
@@ -789,7 +796,7 @@ void MapEditorContainer::setupBgfxEditor()
                                 this->selected_annotation_uuid,
                                 this->pressed_annotation_uuid,
                                 this->annotation_drag_preview,
-                                this->annotation_scale_percent,
+                                MapAnnotationDisplayScale::DefaultPercent,
                                 &this->selected_annotation_uuids,
                                 &this->annotation_drag_previews);
         };
@@ -1147,8 +1154,20 @@ void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
             viewport_size, this->map_canvas->visualState().wrap_reference_longitude);
         return true;
     };
-    QSet<QUuid> selected = MapAnnotationSelection::inRectangle(
-        editorAnnotations(), QRectF(rectangle), this->annotation_scale_percent, project);
+    const std::function<QSet<QUuid>()> find_annotations = [this, &rectangle, &project]()
+    {
+        if (this->editor_annotation_hit_overlay)
+        {
+            const QSet<QUuid> rendered = this->editor_annotation_hit_overlay->annotationsInRectangle(
+                QRectF(rectangle));
+            if (!rendered.isEmpty())
+                return rendered;
+        }
+        return MapAnnotationSelection::inRectangle(
+            editorAnnotations(), QRectF(rectangle), MapAnnotationDisplayScale::DefaultPercent,
+            project);
+    };
+    QSet<QUuid> selected = find_annotations();
     if (selected.size() != 1
         && qobject_cast<EntityInspectorAnnotation *>(this->map_inspector->widget()))
     {
@@ -1157,8 +1176,7 @@ void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
         // from the resulting authoritative visible set.
         this->map_inspector->clearEntity();
         this->map_inspector->setVisible(false);
-        selected = MapAnnotationSelection::inRectangle(
-            editorAnnotations(), QRectF(rectangle), this->annotation_scale_percent, project);
+        selected = find_annotations();
     }
     this->selected_annotation_uuids = selected;
     this->selected_annotation_uuid = selected.size() == 1
@@ -1194,6 +1212,18 @@ bool MapEditorContainer::deleteSelectedAnnotations()
 
 std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
 {
+    if (this->editor_annotation_hit_overlay)
+    {
+        const std::optional<QUuid> drawn =
+            this->editor_annotation_hit_overlay->hitTestAnnotation(screen);
+        if (drawn)
+        {
+            const QList<MapAnnotation> current = editorAnnotations();
+            for (const MapAnnotation &annotation : current)
+                if (annotation.uuid == *drawn)
+                    return drawn;
+        }
+    }
     const QList<MapAnnotation> annotations = editorAnnotations();
     for (qsizetype i = annotations.size(); i > 0; --i)
     {
@@ -1214,21 +1244,10 @@ std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) con
                 viewport_size, this->map_canvas->visualState().wrap_reference_longitude);
         }
         if (MapAnnotationHitArea::rect(annotation, position,
-                                       this->annotation_scale_percent).contains(screen))
+                                       MapAnnotationDisplayScale::DefaultPercent).contains(screen))
             return annotation.uuid;
     }
     return std::nullopt;
-}
-
-void MapEditorContainer::setAnnotationScalePercent(int percent)
-{
-    percent = percent <= 0 ? 0 : qBound(25, percent, 250);
-    if (this->annotation_scale_percent == percent)
-        return;
-    this->annotation_scale_percent = percent;
-    this->map_menu->setAnnotationScalePercent(percent);
-    refreshAnnotationOverlay();
-    emit signalAnnotationScalePercentChanged(percent);
 }
 
 void MapEditorContainer::refreshAnnotationOverlay()
@@ -1559,12 +1578,6 @@ void MapEditorMenuWidget::setAnnotationSelectionAvailable(bool available)
         this->button_edit_delete->setEnabled(
             available || (this->editor_delete_selection_available
                           && this->map->model()->viewMode() != MapViewMode::Globe));
-}
-
-void MapEditorMenuWidget::setAnnotationScalePercent(int percent)
-{
-    if (this->annotation_scale_slider != nullptr)
-        this->annotation_scale_slider->setPercent(percent);
 }
 
 MapEditorMenuWidget::MapEditorMenuWidget(MapWidget *map, MapCanvasWidget *map_canvas,
@@ -2262,16 +2275,6 @@ void MapEditorMenuWidget::createEditControls()
                        QT_TRANSLATE_NOOP("LiveUiText", "Annotation"), this);
     lay->addWidget(button_radio_annotation);
     this->button_group_tools->addButton(button_radio_annotation, 9);
-    // Display-only size is independent of each annotation's persisted style.
-    QLabel *label_annotation_scale = LiveUiText::caption<QLabel>(
-        QT_TRANSLATE_NOOP("LiveUiText", "Annotations [%]"), wgt);
-    lay->addWidget(label_annotation_scale);
-    this->annotation_scale_slider = new MapAnnotationScaleSlider(wgt);
-    lay->addWidget(this->annotation_scale_slider);
-    connect(this->annotation_scale_slider, &QSlider::valueChanged, this, [this](int)
-    {
-        emit signalAnnotationScalePercentChanged(this->annotation_scale_slider->percent());
-    });
     
     
     

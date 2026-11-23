@@ -10,6 +10,7 @@
 #include <aowis/model/map/map_annotation.h>
 
 #include <QHash>
+#include <QList>
 #include <QPointF>
 #include <QRectF>
 #include <QSet>
@@ -154,6 +155,15 @@ public:
     // Returns no hit when the last globe frame contained no drawable icons.
     std::optional<InfrastructureEntityReference> hitTestGlobeIcon(
         const QPointF &position) const;
+    // Mouse selection uses the exact screen rectangles painted by the last
+    // Editor overlay frame in either projection, rather than a separately
+    // projected estimate that can miss the on-screen callout.
+    std::optional<QUuid> hitTestAnnotation(const QPointF &position) const;
+    QSet<QUuid> annotationsInRectangle(const QRectF &rectangle) const;
+    // The 2D draw list can be panned without rebuilding. Its rendered screen
+    // rectangles move by the SAME GPU draw offset (including margin), not
+    // by an independent geographic projection.
+    void setAnnotationHitOffset(const QPointF &offset) { this->annotation_hit_offset = offset; }
     // Globe tile selection lattice: at most this many cells per axis (each
     // lattice point is one projection, relief lookup included), at most
     // this many cells per tile (relief detail along the frame and grid).
@@ -211,6 +221,13 @@ private:
     void drawAnnotation(const MapAnnotation &annotation, const MapBgfxHudPoint &position,
                         bool selected);
     void drawAnnotations2d();
+    struct AnnotationHitArea
+    {
+        QUuid uuid;
+        QRectF bounds;
+    };
+    QList<AnnotationHitArea> annotation_hit_areas;
+    QPointF annotation_hit_offset;
     int annotation_scale_percent = 100;
 
     // Projection with the current translation offset.

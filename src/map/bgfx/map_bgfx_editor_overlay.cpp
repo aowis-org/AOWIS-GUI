@@ -1,4 +1,5 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
+#include "map/editor/map_annotation_hit_area.h"
 #include "map/core/map_annotation_display_scale.h"
 #include "map/editor/map_canvas_projection.h"
 
@@ -221,6 +222,8 @@ void MapBgfxEditorOverlay::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *
                                  const Inputs &inputs)
 {
     canvas->clear();
+    this->annotation_hit_areas.clear();
+    this->annotation_hit_offset = QPointF();
     if (inputs.snapshot == nullptr || inputs.visual_state == nullptr
         || inputs.viewport_state == nullptr || !(inputs.camera.world_pixels > 0.0))
         return;
@@ -270,6 +273,7 @@ void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
                                                int annotation_scale_percent)
 {
     canvas->clear();
+    this->annotation_hit_areas.clear();
     if (annotations == nullptr || annotations->isEmpty() || !(camera.world_pixels > 0.0))
         return;
 
@@ -305,6 +309,7 @@ void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
 
 void MapBgfxEditorOverlay::buildOnce()
 {
+    this->annotation_hit_areas.clear();
     this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
     this->offset_x = 0.0;
     this->offset_y = 0.0;
@@ -353,6 +358,10 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
     if (!annotation.style.visible || this->annotation_scale_percent <= 0
         || this->canvas == nullptr || this->cache == nullptr)
         return;
+    this->annotation_hit_areas.append(AnnotationHitArea{
+        annotation.uuid,
+        MapAnnotationHitArea::rect(annotation, QPointF(position.x, position.y),
+                                   this->annotation_scale_percent)});
     const double scale = MapAnnotationDisplayScale::factor(this->annotation_scale_percent);
     const bool empty_draft = annotation.text.trimmed().isEmpty();
     if (empty_draft)
@@ -931,6 +940,28 @@ void MapBgfxEditorOverlay::tileSelection()
     }
 }
 
+std::optional<QUuid> MapBgfxEditorOverlay::hitTestAnnotation(const QPointF &position) const
+{
+    for (qsizetype index = this->annotation_hit_areas.size(); index > 0; --index)
+    {
+        const AnnotationHitArea &area = this->annotation_hit_areas.at(index - 1);
+        if (area.bounds.translated(this->annotation_hit_offset).contains(position))
+            return area.uuid;
+    }
+    return std::nullopt;
+}
+
+QSet<QUuid> MapBgfxEditorOverlay::annotationsInRectangle(const QRectF &rectangle) const
+{
+    QSet<QUuid> selected;
+    if (rectangle.isEmpty())
+        return selected;
+    for (const AnnotationHitArea &area : this->annotation_hit_areas)
+        if (area.bounds.translated(this->annotation_hit_offset).intersects(rectangle))
+            selected.insert(area.uuid);
+    return selected;
+}
+
 std::optional<InfrastructureEntityReference> MapBgfxEditorOverlay::hitTestGlobeIcon(
     const QPointF &position) const
 {
@@ -965,6 +996,8 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
 {
     canvas->clear();
     this->globe_icon_hit_areas.clear();
+    this->annotation_hit_areas.clear();
+    this->annotation_hit_offset = QPointF();
     if (!projector || (!viewport_state.tile_selection_visible
                        && !viewport_state.rectangle_selection_visible
                        && (snapshot == nullptr || icon_width <= 0)
@@ -997,6 +1030,7 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
         // The atlas can be reset and this frame rebuilt: never retain hit
         // areas from sprites discarded by the rebuild.
         this->globe_icon_hit_areas.clear();
+        this->annotation_hit_areas.clear();
         this->canvas->setWhiteTexel(this->cache->whiteU(), this->cache->whiteV());
         if (viewport_state.tile_selection_visible)
             globeTileSelection(viewport_state, projector);

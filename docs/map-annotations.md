@@ -36,25 +36,28 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
    edits, including local unfinished drafts from the active Editor session.
    Opened immutable revisions and unverified History positions are also
    read-only. Committing a working-copy HEAD creates the immutable revision.
-6. **Annotation display size** is controlled by the left-side **Annotations [%]**
-   slider in both Distribution Editor and Distribution Monitor. The extreme
-   left position means **Off**; moving right shows annotations from 25% to
-   250% of their normal screen size. The slider is synchronized between the
-   two views and changes **presentation only**, not the revisioned MODEL
-   style. Right-click the slider to reset it to 100%.
+6. **Annotation display size** is controlled by the **Annotations [%]**
+   slider in the **Distribution Monitor left panel only**. The extreme left
+   position means **Off**; moving right shows Monitor annotations from 25%
+   to 250% of their normal screen size. Distribution Editor always renders
+   annotations at a fixed, selectable 100%, independently of that slider.
+   This is a display preference, not revisioned MODEL data. Right-click
+   the Monitor slider to reset it to 100%.
 7. In the **Annotation Inspector**, **Visible on monitor map** controls only
    whether an annotation appears in Distribution Monitor. **Distribution Editor
    always displays it**, even with this flag turned off, so it remains
-   selectable, movable and recoverable. The separate display-size slider's
-   **Off** position can temporarily hide annotations in either view.
+   selectable, movable and recoverable. The Monitor size slider's **Off**
+   position never suppresses Editor visibility or selection.
    **Show background** toggles the text callout's filled background;
    a selected annotation can still have an outline without a fill. These
    style changes are revisioned when editing a writable working copy. For
    unfinished local drafts, the preview follows the checkboxes immediately.
 
 8. The regular **Select** tool also handles annotations: left-click selects,
-   left-drag moves, and right-drag selects every annotation whose visible
-   callout intersects the selection rectangle (in 2D and 3D). The standard
+   left-drag moves, and right-drag selects every annotation whose actually
+   rendered bgfx callout intersects the selection rectangle (in 2D and 3D).
+   Selection uses rectangles recorded during GPU overlay construction, so
+   hit-testing follows the visible callout instead of an estimated projection. The standard
    **Delete Selected** action removes the selected annotations, including
    unfinished local placeholders. A group move or deletion of persistent
    annotations is recorded as **one reversible MODEL transaction**, not one

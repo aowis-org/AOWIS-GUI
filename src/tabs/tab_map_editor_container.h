@@ -47,6 +47,7 @@
 #include <QHash>
 #include <QSet>
 #include <optional>
+#include <memory>
 
 // The map editor draws with bgfx only (roadmap Phase 2; the QPainter editor
 // and the QRhi editor path are gone): imagery, the network, every editor
@@ -60,9 +61,9 @@
 // Cache tile selection works in 3D.
 class MapModeToolPanel;
 class MapBgfxSurface;
+class MapBgfxEditorOverlay;
 class MapMonitorContainer;
 class MapBgfxGlobeHudController;
-class MapAnnotationScaleSlider;
 class QKeyEvent;
 class QShortcut;
 
@@ -78,7 +79,6 @@ public:
     MapNavigationWidget *mapNavigationWidget();
     bool isEditNetworkSectionActive() const;
     bool isAnnotationToolActive() const;
-    void setAnnotationScalePercent(int percent);
     void setAnnotationSelectionAvailable(bool available);
     bool isSelectToolActive() const;
     // Map fullscreen: the left menu is not visible, so its buttons' window
@@ -126,7 +126,6 @@ private:
     QCheckBox *checkbox_map_editor_guide = nullptr;
     QWidget *edit_tools = nullptr;
     QToolButton *button_edit_delete = nullptr;
-    MapAnnotationScaleSlider *annotation_scale_slider = nullptr;
     bool editor_delete_selection_available = false;
     bool annotation_delete_selection_available = false;
 
@@ -158,7 +157,6 @@ public slots:
 signals:
     void signalSlideOpacityChanged(int opacity);
     void signalMapEditorGuideVisibilityChanged(bool visible);
-    void signalAnnotationScalePercentChanged(int percent);
     void signalEditNetworkSectionActive(bool active);
     void signalDeleteSelectionRequested();
 };
@@ -188,8 +186,6 @@ public:
     
     MapNavigationWidget *mapNavigationWidget();
     bool isEditNetworkSectionActive() const;
-    int annotationScalePercent() const { return this->annotation_scale_percent; }
-    void setAnnotationScalePercent(int percent);
 
 public slots:
     void setMapEditorGuideChecked(bool checked);
@@ -211,6 +207,7 @@ private:
     MapMonitorContainer *monitor = nullptr;
     bool shared_editor_mode = false;
     std::function<void(const MapBgfxHud::Command &)> editor_hud_action_handler;
+    std::shared_ptr<MapBgfxEditorOverlay> editor_annotation_hit_overlay;
     MapBgfxSurface::OverlayBuilder editor_overlay_builder;
     MapBgfxSurface::GlobeOverlayBuilder editor_globe_overlay_builder;
     MapBgfxLabels::SymbolRect editor_node_label_rect;
@@ -263,7 +260,6 @@ private:
     std::optional<MapAnnotation> annotation_press_preview;
     QUuid selected_annotation_uuid;
     QSet<QUuid> selected_annotation_uuids;
-    int annotation_scale_percent = 100;
     QUuid pressed_annotation_uuid;
     QPointF annotation_press_point;
     bool annotation_mouse_pressed = false;
@@ -296,7 +292,6 @@ signals:
     // The HUD button / shortcut: the main window enters or leaves map
     // fullscreen and answers with applyMapFullscreen().
     void signalMapFullscreenRequested(bool fullscreen);
-    void signalAnnotationScalePercentChanged(int percent);
     void signalMapEditorGuideVisibilityChanged(bool visible);
     void signalEditNetworkSectionActive(bool active);
 };

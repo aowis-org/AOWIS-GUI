@@ -603,6 +603,93 @@ void testEditorAnnotationsCanAlwaysBeSelected()
         "Monitor still renders annotations whose visibility is enabled");
 }
 
+
+// Test the actual bgfx draw-list's hit rectangles, not a synthetic projector.
+// In the live Editor, clicks and right-drag rectangles use these exact areas.
+void testRenderedAnnotationPicking()
+{
+    Harness harness;
+    const Scene current = scene();
+    const MapBgfx2d::Camera view = camera();
+    MapAnnotation first;
+    first.uuid = QUuid::createUuid();
+    first.position_wgs84 = coordinate(9.0, 47.0);
+    first.style.visible = false; // Monitor-only flag: still editable in Editor.
+    MapAnnotation second;
+    second.uuid = QUuid::createUuid();
+    second.position_wgs84 = coordinate(9.001, 47.0);
+    second.text = QStringLiteral("Pump room");
+    QList<MapAnnotation> editor = MapAnnotationSelection::editorVisible({first, second});
+    MapBgfxEditorOverlay::Inputs inputs;
+    inputs.snapshot = &current.snapshot;
+    inputs.visual_state = &current.state;
+    inputs.viewport_state = &current.viewport;
+    inputs.viewport = QSizeF(ViewportWidth, ViewportHeight);
+    inputs.camera = view;
+    inputs.annotations = &editor;
+    inputs.annotation_scale_percent = 100; // Editor size is fixed, not Monitor Off.
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    const MapBgfxHudPoint a = project(view, 9.0, 47.0);
+    const MapBgfxHudPoint b = project(view, 9.001, 47.0);
+    const QPointF first_callout(a.x + 65.0, a.y - 33.0);
+    const QPointF second_callout(b.x + 20.0, b.y - 13.0);
+    req(harness.overlay.hitTestAnnotation(first_callout) == first.uuid,
+        "click selects the blank callout exactly as bgfx drew it");
+    req(harness.overlay.hitTestAnnotation(second_callout) == second.uuid,
+        "click selects persisted annotation text from its drawn footprint");
+    req(!harness.overlay.hitTestAnnotation(QPointF(a.x - 160.0, a.y + 75.0)),
+        "click on empty map is not an annotation hit");
+    const QRectF first_rect(first_callout.x() - 4.0, first_callout.y() - 4.0, 8.0, 8.0);
+    req(harness.overlay.annotationsInRectangle(first_rect) == QSet<QUuid>{first.uuid},
+        "rectangle intersects only the first drawn annotation");
+    // Pan reuse can translate the already rendered overlay without calling
+    // build() again. The pick list must follow the GPU translation exactly.
+    const QPointF pan_offset(145.0, -21.0);
+    harness.overlay.setAnnotationHitOffset(pan_offset);
+    req(harness.overlay.hitTestAnnotation(first_callout + pan_offset) == first.uuid,
+        "2D clicking uses the translated GPU position after pan reuse");
+    req(harness.overlay.annotationsInRectangle(first_rect.translated(pan_offset))
+            == QSet<QUuid>{first.uuid},
+        "2D selection rectangle follows a margin/pan-translated callout");
+    harness.overlay.setAnnotationHitOffset(QPointF());
+    const QRectF both(QPointF(a.x - 10.0, a.y - 60.0),
+                      QSizeF(b.x - a.x + 120.0, 100.0));
+    const QSet<QUuid> selected = harness.overlay.annotationsInRectangle(both);
+    req(selected.size() == 2 && selected.contains(first.uuid)
+        && selected.contains(second.uuid),
+        "right-drag rectangle selects multiple rendered annotation callouts");
+    // Monitor slider Off must not affect the separate Editor overlay.
+    Harness monitor;
+    monitor.overlay.buildAnnotations2d(&monitor.canvas, &monitor.cache, view,
+        QSizeF(ViewportWidth, ViewportHeight), &editor, 0);
+    req(monitor.canvas.vertices().isEmpty(), "Monitor slider Off hides Monitor callouts");
+    req(harness.overlay.hitTestAnnotation(first_callout) == first.uuid,
+        "Monitor slider Off leaves Editor hit-testing and rendering untouched");
+
+    // The exact same hit list is populated by the terrain-aware 3D overlay.
+    const MapBgfxEditorOverlay::GlobeProjector projector = [](
+        double lon, double lat, QPointF *position, double *distance)
+    {
+        *position = QPointF(400.0 + (lon - 9.0) * 100000.0,
+                            300.0 - (lat - 47.0) * 100000.0);
+        if (distance != nullptr)
+            *distance = 1000.0;
+        return true;
+    };
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
+        current.viewport, projector, nullptr, 0, QSizeF(ViewportWidth, ViewportHeight),
+        {}, nullptr, nullptr, {}, &editor, {}, {}, std::nullopt, 100);
+    req(harness.overlay.hitTestAnnotation(QPointF(465.0, 267.0)) == first.uuid,
+        "3D annotation callout is clickable at the drawn position");
+    req(harness.overlay.annotationsInRectangle(
+            QRectF(390.0, 245.0, 260.0, 90.0)).size() == 2,
+        "3D rectangle selection finds both drawn annotations");
+    harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
+        current.viewport, projector, nullptr, 0, QSizeF(ViewportWidth, ViewportHeight));
+    req(!harness.overlay.hitTestAnnotation(QPointF(465.0, 267.0)),
+        "switching overlay to no annotations invalidates its former hit rectangles");
+}
+
 void testReadOnlyMonitorAnnotations()
 {
     Harness harness;
@@ -1630,6 +1717,7 @@ int main(int argc, char **argv)
 
     testMapManagementOverlay();
     testEmptyAnnotationDraft();
+    testRenderedAnnotationPicking();
     testReadOnlyMonitorAnnotations();
     testAnnotationVisibilityBackgroundAndScale();
     testEditorAnnotationsCanAlwaysBeSelected();
