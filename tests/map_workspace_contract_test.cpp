@@ -1,4 +1,5 @@
 #include "tabs/map_workspace_mode.h"
+#include "map/editor/map_annotation_input_policy.h"
 
 #include <cstdio>
 #include <cstring>
@@ -74,6 +75,29 @@ int main()
                        && !useGlobe3dIconModels(DrainageEditor, true)
                        && !useGlobe3dIconModels(MapManagement, true),
                    "basemap-only modes must not inherit distribution icon models"))
+        return 1;
+
+    // Distribution Annotation tool uses the same RIGHT-click placement as
+    // pipes and nodes; LEFT-click on empty map must continue to pan.
+    using MapAnnotationInput::Button;
+    using MapAnnotationInput::PressAction;
+    using MapAnnotationInput::classifyPress;
+    if (!expect(classifyPress(true, false, false, Button::Right) == PressAction::Place,
+                "annotation tool must place on right click")
+        || !expect(classifyPress(true, false, true, Button::Right) == PressAction::Select,
+                   "right click on existing annotation must open it, not duplicate it")
+        || !expect(classifyPress(true, false, true, Button::Left) == PressAction::Select,
+                   "left click must select existing annotation for drag")
+        || !expect(classifyPress(true, false, false, Button::Left) == PressAction::PassThrough,
+                   "left drag on empty map must remain normal map pan")
+        || !expect(classifyPress(false, true, false, Button::Right) == PressAction::PassThrough,
+                   "Select right drag must remain rectangle selection")
+        || !expect(classifyPress(false, true, true, Button::Left) == PressAction::Select,
+                   "Select left click must pick annotations")
+        || !expect(classifyPress(false, false, false, Button::Right) == PressAction::PassThrough,
+                   "other tools must keep their own right-click events")
+        || !expect(classifyPress(true, false, false, Button::Other) == PressAction::PassThrough,
+                   "other mouse buttons must never place an annotation"))
         return 1;
 
     std::puts("Map workspace mode/ownership contract passed");

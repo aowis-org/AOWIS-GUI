@@ -52,7 +52,7 @@ left-hand tools include Pipe, Junction, Valve, Demand Point, Pump, Tank, and
 Reservoir and **Annotation**. **Power Source** remains disabled. The editor
 supports the regular map navigation controls, fullscreen, icon size, and map
 presentation controls without a separate editing camera. With **Annotation**
-active, **left-click** the map to place text through the Annotation Inspector;
+active, **right-click** the map to place text through the Annotation Inspector;
 select or drag an existing annotation in either 2D or 3D. These are versioned
 project objects, not automatically generated hydraulic map labels. See the
 [Map annotations guide](map-annotations.md) for anchor, Inspector, History and

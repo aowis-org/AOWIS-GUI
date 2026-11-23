@@ -47,6 +47,7 @@ MapEditorGuideDock::MapEditorGuideDock(QWidget *parent)
             <li><b>Pipes:</b> right-click the start node, optional bend points, then the end node.</li>
             <li><b>Pumps and valves:</b> right-click the two nodes to connect.</li>
             <li><b>Demand points:</b> place the point, then right-click it and choose <i>Attach to network</i>; right-click a junction or any position on a pipe.</li>
+            <li><b>Annotations:</b> choose Annotation, then right-click a map position to open the Annotation Inspector; enter text and choose Create annotation. Left-click an existing annotation to select or drag it.</li>
         </ul>
 
         <h3>Edit elements</h3>
