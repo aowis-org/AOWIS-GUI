@@ -1826,7 +1826,9 @@ void MainWindow::checkPersonalDraftModel()
     // Annotations live outside the hydraulic network and deliberately do
     // not change its geometry/visual revision. Verify them on every guard
     // pass, including when the hydraulic revision itself is unchanged.
-    const QList<MapAnnotation> &live_annotations = this->hydraulic_data->mapAnnotations();
+    // An open annotation editing session is live but not yet recorded (one
+    // History item per session): compare what has been recorded.
+    const QList<MapAnnotation> live_annotations = this->hydraulic_data->recordedMapAnnotations();
     const QList<MapAnnotation> &staged_annotations = this->personal_edit_session->visibleAnnotations();
     if (live_annotations.size() != staged_annotations.size())
     {

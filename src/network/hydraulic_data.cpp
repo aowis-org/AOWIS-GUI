@@ -670,6 +670,22 @@ bool HydraulicData::mapAnnotationEditOpen() const
     return this->annotation_edit_open;
 }
 
+QList<MapAnnotation> HydraulicData::recordedMapAnnotations() const
+{
+    if (!this->annotation_edit_open || this->annotation_edit_uuid.isNull())
+        return this->map_annotations;
+    QList<MapAnnotation> recorded;
+    recorded.reserve(this->map_annotations.size());
+    for (const MapAnnotation &annotation : this->map_annotations)
+    {
+        if (annotation.uuid != this->annotation_edit_uuid)
+            recorded.append(annotation);
+        else if (this->annotation_edit_before)
+            recorded.append(*this->annotation_edit_before);
+    }
+    return recorded;
+}
+
 void HydraulicData::discardMapAnnotationEdit()
 {
     this->annotation_edit_open = false;

@@ -90,6 +90,10 @@ public:
     void beginMapAnnotationEdit(const QUuid &uuid);
     bool finishMapAnnotationEdit();
     bool mapAnnotationEditOpen() const;
+    // The annotations as recorded so far (what durable staging holds): the
+    // live list, with the open session's annotation at its state when the
+    // session began, or without it when it was created in the session.
+    QList<MapAnnotation> recordedMapAnnotations() const;
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     // operation/description label the captured event (history dock).
