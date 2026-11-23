@@ -42,6 +42,13 @@ collection ordinal to MODEL type and DVMDB native record kind:
 Map labels are no longer a hydraulic collection: MODEL A3 replaced
 `HydraulicMapLabel` with map annotations (`MapAnnotation`) in a separate
 per-network annotation layer. The GUI persists annotations as separate, per-network layer members.
+Geodesic annotation placement and rendering projection use the domain-neutral
+`MapAnnotationPosition` core, which accepts a list of typed, domain-owned point
+targets. `map_annotation_distribution_targets.h` adapts the current hydraulic
+network to that interface. The projection core has no hydraulic network
+include. Drainage persistence and its network/domain target provider remain
+separate work; merely selecting Drainage must never display Distribution
+annotations or silently write them into a Distribution layer.
 
 MODEL owns canonical `ModelCodec<T>`, `ModelEditTransaction`, and reversible
 entity/root images. The GUI's `HydraulicEditTransactionCapture` watches model

@@ -1,4 +1,4 @@
-#include "map/core/map_annotation_position.h"
+#include "map/core/map_annotation_distribution_targets.h"
 #include "config/live_ui_text.h"
 #include "tabs/tab_map_editor_container.h"
 #include "tabs/map_mode_tool_panel.h"

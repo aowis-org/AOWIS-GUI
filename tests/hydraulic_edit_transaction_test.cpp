@@ -2,7 +2,7 @@
 #include "network/hydraulic_edit_transaction_capture.h"
 #include "network/hydraulic_network_editor.h"
 #include "network/map_annotation_export.h"
-#include "map/core/map_annotation_position.h"
+#include "map/core/map_annotation_distribution_targets.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/hydraulic_draft_event_adapter.h"
 #include "projects/hydraulic_draft_entity_registry.h"
@@ -2221,6 +2221,47 @@ void testMapAnnotationAnchorGeodesyAndEvents()
         std::abs(positioned->latitude_deg - placed.latitude_deg) < 1e-9 &&
         std::abs(positioned->longitude_deg - placed.longitude_deg) < 1e-9,
         "stored east/north offsets reproduce requested WGS84 coordinate");
+
+    // The presentation solver is domain-neutral: Drainage can supply its own
+    // typed point targets without importing HydraulicNetworkDistribution.
+    const QList<MapAnnotationPosition::Target> distribution_targets =
+        MapAnnotationPosition::targets(network);
+    const std::optional<CoordinateWGS84> generic_position =
+        MapAnnotationPosition::resolve(distribution_targets, annotation);
+    test_harness.expectTrue(generic_position &&
+        std::abs(generic_position->latitude_deg - placed.latitude_deg) < 1e-9 &&
+        std::abs(generic_position->longitude_deg - placed.longitude_deg) < 1e-9,
+        "generic annotation resolver matches the Distribution adapter");
+    MapAnnotation generic_placed = annotation;
+    const CoordinateWGS84 generic_move = coordinate(50.00011, 8.00019);
+    const bool generic_move_recorded = MapAnnotationPosition::place(
+        distribution_targets, generic_placed, generic_move);
+    const std::optional<CoordinateWGS84> generic_moved_position =
+        MapAnnotationPosition::resolve(distribution_targets, generic_placed);
+    test_harness.expectTrue(generic_move_recorded && generic_moved_position &&
+        std::abs(generic_moved_position->latitude_deg - generic_move.latitude_deg) < 1e-9 &&
+        std::abs(generic_moved_position->longitude_deg - generic_move.longitude_deg) < 1e-9,
+        "generic annotation placement uses the same WGS84 offset semantics");
+    MapAnnotation detached;
+    const CoordinateWGS84 drainage_position = coordinate(49.3, 8.2);
+    test_harness.expectTrue(MapAnnotationPosition::place(
+            QList<MapAnnotationPosition::Target>{}, detached, drainage_position) &&
+        MapAnnotationPosition::drawable(
+            QList<MapAnnotationPosition::Target>{}, {detached}).size() == 1 &&
+        !MapAnnotationPosition::resolve(
+            QList<MapAnnotationPosition::Target>{}, annotation),
+        "domain-neutral free annotations work without targets, while foreign anchors fail closed");
+    const QList<MapAnnotationPosition::Target> ambiguous_targets{
+        distribution_targets.first(), distribution_targets.first()
+    };
+    test_harness.expectTrue(!MapAnnotationPosition::resolve(ambiguous_targets, annotation) &&
+        MapAnnotationPosition::drawable(ambiguous_targets, {annotation}).isEmpty(),
+        "duplicate target UUIDs cannot resolve ambiguous annotations");
+    MapAnnotation foreign = annotation;
+    foreign.anchor->entity_type = QStringLiteral("DrainageNode");
+    test_harness.expectTrue(!MapAnnotationPosition::resolve(distribution_targets, foreign) &&
+        MapAnnotationPosition::drawable(distribution_targets, {foreign}).isEmpty(),
+        "typed anchors cannot attach to a different engineering domain");
 
     QUuid uuid;
     test_harness.expectTrue(data.createMapAnnotation(QStringLiteral("Follow junction"),

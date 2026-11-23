@@ -1,4 +1,4 @@
-#include "map/core/map_annotation_position.h"
+#include "map/core/map_annotation_distribution_targets.h"
 #include "entity_inspector/entity_inspector_annotation.h"
 
 #include <QCheckBox>

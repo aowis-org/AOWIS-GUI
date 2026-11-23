@@ -1,7 +1,6 @@
 #ifndef MAP_CORE_MAP_ANNOTATION_POSITION_H
 #define MAP_CORE_MAP_ANNOTATION_POSITION_H
 
-#include <aowis/model/hydraulic/network_hydraulic_distribution.h>
 #include <aowis/model/map/map_annotation.h>
 
 #include <GeographicLib/Geodesic.hpp>
@@ -16,9 +15,10 @@
 #include <optional>
 #include <utility>
 
-// Presentation-only WGS84 placement. MODEL owns canonical coordinates and
-// anchors, but deliberately does not implement geodesy. Both map modes and
-// the Inspector use these functions; no renderer-specific state is involved.
+// Domain-independent WGS84 annotation placement. MODEL owns canonical
+// coordinates/anchors but deliberately does not implement geodesy. The
+// caller supplies ONLY targets from the annotation's own domain; this core
+// never needs to include a Distribution or Drainage engineering network.
 namespace MapAnnotationPosition
 {
 struct Target
@@ -29,37 +29,15 @@ struct Target
     CoordinateWGS84 coordinate;
 };
 
-inline QList<Target> targets(const NetworkHydraulicDistribution &network,
-                             const QSet<QUuid> &only = {})
-{
-    QList<Target> result;
-    for (const HydraulicNodeJunction &node : network.nodes_junctions)
-        if (only.isEmpty() || only.contains(node.uuid))
-            result.append(Target{node.uuid, QStringLiteral("HydraulicNodeJunction"), node.id,
-                       node.coordinate_wgs84});
-    for (const HydraulicNodeReservoir &node : network.nodes_reservoirs)
-        if (only.isEmpty() || only.contains(node.uuid))
-            result.append(Target{node.uuid, QStringLiteral("HydraulicNodeReservoir"), node.id,
-                       node.coordinate_wgs84});
-    for (const HydraulicNodeTank &node : network.nodes_tanks)
-        if (only.isEmpty() || only.contains(node.uuid))
-            result.append(Target{node.uuid, QStringLiteral("HydraulicNodeTank"), node.id,
-                       node.coordinate_wgs84});
-    for (const HydraulicDemandPoint &point : network.demand_points)
-        if (only.isEmpty() || only.contains(point.uuid))
-            result.append(Target{point.uuid, QStringLiteral("HydraulicDemandPoint"), point.id,
-                       point.coordinate_wgs84});
-    return result;
-}
-
+// The position resolver accepts a domain-owned collection of eligible point
+// targets. Distribution adapts its hydraulic nodes below; Drainage can supply
+// its own targets later without including a hydraulic network in this logic.
 inline std::optional<CoordinateWGS84> targetPosition(
-    const NetworkHydraulicDistribution &network, const MapAnnotationAnchor &anchor)
+    const QList<Target> &available_targets, const MapAnnotationAnchor &anchor)
 {
     std::optional<CoordinateWGS84> position;
     int matches = 0;
-    QSet<QUuid> only;
-    only.insert(anchor.entity_uuid);
-    for (const Target &target : targets(network, only))
+    for (const Target &target : available_targets)
     {
         if (target.uuid != anchor.entity_uuid)
             continue;
@@ -67,6 +45,8 @@ inline std::optional<CoordinateWGS84> targetPosition(
         if (target.type == anchor.entity_type)
             position = target.coordinate;
     }
+    // An ambiguous UUID must not select an arbitrary entity, even if only
+    // one of the records has the requested type.
     if (matches != 1)
         return std::nullopt;
     return position;
@@ -91,17 +71,18 @@ inline std::optional<CoordinateWGS84> offsetFromTarget(
 }
 
 inline std::optional<CoordinateWGS84> resolve(
-    const NetworkHydraulicDistribution &network, const MapAnnotation &annotation)
+    const QList<Target> &available_targets, const MapAnnotation &annotation)
 {
     if (!annotation.anchor)
         return annotation.position_wgs84;
-    const std::optional<CoordinateWGS84> target = targetPosition(network, *annotation.anchor);
+    const std::optional<CoordinateWGS84> target = targetPosition(
+        available_targets, *annotation.anchor);
     return target ? offsetFromTarget(*target, *annotation.anchor) : std::nullopt;
 }
 
-// Compute east/north offsets geodesically when a label is attached or dragged.
-// A free-standing annotation stores the picked coordinate directly.
-inline bool place(const NetworkHydraulicDistribution &network, MapAnnotation &annotation,
+// Compute east/north offsets geodesically when an annotation is attached or
+// dragged. A free-standing annotation stores its picked coordinate directly.
+inline bool place(const QList<Target> &available_targets, MapAnnotation &annotation,
                   const CoordinateWGS84 &position)
 {
     if (!std::isfinite(position.latitude_deg) || !std::isfinite(position.longitude_deg) ||
@@ -110,7 +91,8 @@ inline bool place(const NetworkHydraulicDistribution &network, MapAnnotation &an
         return false;
     if (annotation.anchor)
     {
-        const std::optional<CoordinateWGS84> target = targetPosition(network, *annotation.anchor);
+        const std::optional<CoordinateWGS84> target = targetPosition(
+            available_targets, *annotation.anchor);
         if (!target)
             return false;
         double distance = 0.0;
@@ -128,10 +110,10 @@ inline bool place(const NetworkHydraulicDistribution &network, MapAnnotation &an
     return true;
 }
 
-// Rendering gets a resolved copy of each label; canonical anchors are never
-// stripped from the stored records. Missing anchors are omitted fail-closed.
-inline QList<MapAnnotation> drawable(const NetworkHydraulicDistribution &network,
-                                    const QList<MapAnnotation> &annotations)
+// Rendering gets a resolved copy, never a mutated canonical record. Anchors
+// missing from the supplied domain's target collection are omitted fail-closed.
+inline QList<MapAnnotation> drawable(const QList<Target> &available_targets,
+                                      const QList<MapAnnotation> &annotations)
 {
     if (annotations.isEmpty())
         return {};
@@ -144,15 +126,12 @@ inline QList<MapAnnotation> drawable(const NetworkHydraulicDistribution &network
         }
     if (!anchored)
         return annotations;
-    // One index per frame rather than scanning every node for every label.
-    // A duplicate UUID is ambiguous and must never resolve an attachment.
-    QSet<QUuid> needed;
-    for (const MapAnnotation &annotation : annotations)
-        if (annotation.anchor)
-            needed.insert(annotation.anchor->entity_uuid);
+
+    // One index per frame rather than scanning every point for every label.
+    // Duplicate UUIDs are ambiguous and cannot resolve an attachment.
     QHash<QUuid, Target> by_id;
     QSet<QUuid> ambiguous;
-    for (const Target &target : targets(network, needed))
+    for (const Target &target : available_targets)
     {
         if (ambiguous.contains(target.uuid))
             continue;

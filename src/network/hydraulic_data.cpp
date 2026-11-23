@@ -1,7 +1,7 @@
 #include "network/hydraulic_data.h"
 #include "projects/hydraulic_draft_entity_registry.h"
 #include "network/map_annotation_layer_id.h"
-#include "map/core/map_annotation_position.h"
+#include "map/core/map_annotation_distribution_targets.h"
 #include <aowis/model/edit/model_edit_transaction.h>
 
 #include <aowis/model/serialization/model_codec.h>
