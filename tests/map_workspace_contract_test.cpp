@@ -87,7 +87,7 @@ int main()
         || !expect(classifyPress(true, false, true, Button::Right) == PressAction::ContextMenu,
                    "annotation tool right-click on an annotation opens Move/Delete menu")
         || !expect(classifyPress(false, true, true, Button::Right) == PressAction::ContextMenu,
-                   "Select tool right-click on an annotation opens Move/Delete menu")
+                   "Select tool right-click on an annotation opens Move/Delete menu unless dragged")
         || !expect(classifyPress(true, false, true, Button::Left) == PressAction::Select,
                    "left click must select existing annotation for drag")
         || !expect(classifyPress(true, false, false, Button::Left) == PressAction::PassThrough,
@@ -96,6 +96,12 @@ int main()
                    "Select right drag must remain rectangle selection")
         || !expect(classifyPress(false, true, true, Button::Left) == PressAction::Select,
                    "Select left click must pick annotations")
+        || !expect(MapAnnotationInput::armRectangleOnAnnotationPress(true, true, Button::Right),
+                   "right drag can start on a selected annotation without opening its menu")
+        || !expect(!MapAnnotationInput::armRectangleOnAnnotationPress(false, true, Button::Right)
+                       && !MapAnnotationInput::armRectangleOnAnnotationPress(true, false, Button::Right)
+                       && !MapAnnotationInput::armRectangleOnAnnotationPress(true, true, Button::Left),
+                   "rectangle ownership remains restricted to Select plus right annotation hit")
         || !expect(classifyPress(false, false, false, Button::Right) == PressAction::PassThrough,
                    "other tools must keep their own right-click events")
         || !expect(classifyPress(true, false, false, Button::Other) == PressAction::PassThrough,

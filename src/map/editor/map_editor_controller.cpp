@@ -1,6 +1,7 @@
 #include "map/editor/map_editor_controller.h"
 
 #include "map/editor/map_canvas_entities.h"
+#include "map/editor/map_screen_selection_rectangle.h"
 #include "map/core/map_model.h"
 
 #include "geo/geo_web_mercator.h"
@@ -154,6 +155,27 @@ void MapEditorController::startRectangleSelection(bool oneshot, bool interact_wi
     emit signalFocusRequested();
 }
 
+bool MapEditorController::beginEntityRectangleDragFromScreen(
+    const QPointF &position, const QSize &viewport_size)
+{
+    if (!this->rectangle_selection_active || !this->rectangle_selection_interacts_with_entities
+        || viewport_size.isEmpty() || !this->map_canvas_entities
+        || this->map_canvas_entities->positioningActive())
+        return false;
+    if (globeMode())
+    {
+        this->globe_drag_press_position = position;
+        this->globe_drag_current_position = position;
+        this->globe_drag_moved = false;
+        this->rectangle_dragging = true;
+        this->cursor_shape = Qt::CrossCursor;
+        emit signalStateChanged();
+    }
+    else
+        beginRectangleDrag(position, viewport_size);
+    return true;
+}
+
 void MapEditorController::cancelRectangleSelection()
 {
     if (!this->rectangle_selection_active)
@@ -197,17 +219,15 @@ QRect MapEditorController::currentSelectionRect(const QSize &viewport_size) cons
 {
     if (!this->map_model || viewport_size.isEmpty())
         return QRect();
-    // The shared rectangle selector works in screen pixels in either view.
-    // Keep the globe bounds in screen space: two terrain ray hits cannot
-    // describe a rectangle containing elevated or underground entities.
+    // Entity selection uses the *mouse's screen rectangle* in 2D and 3D.
+    // The previous 2D WGS84 roundtrip could shift the selection when the
+    // camera/panning changed between press and release. Tile-cache selection
+    // still uses its own geographic corners below.
+    if (this->rectangle_selection_interacts_with_entities)
+        return MapScreenSelectionRectangle::bounded(
+            this->globe_drag_press_position, this->globe_drag_current_position, viewport_size);
     if (globeMode())
-    {
-        if (!this->rectangle_selection_interacts_with_entities)
-            return QRect();
-        return QRect(this->globe_drag_press_position.toPoint(),
-                     this->globe_drag_current_position.toPoint()).normalized()
-            .intersected(QRect(QPoint(0, 0), viewport_size));
-    }
+        return QRect();
 
     const QPoint rectangle_start_pos = this->map_model->screenFromWgs84(
         this->rectangle_start_wgs84, viewport_size).toPoint();
@@ -378,6 +398,7 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
 
     if (this->rectangle_selection_active && this->rectangle_dragging)
     {
+        this->globe_drag_current_position = position;
         this->rectangle_current_wgs84 = this->map_model->wgs84FromScreen(
             position.toPoint(), viewport_size);
 
@@ -389,6 +410,7 @@ bool MapEditorController::mouseMove(const QPointF &position, const QSize &viewpo
 #else
             this->map_canvas_entities->onRectangleSelect(selected_rect, RectangleSelectMode::Replace);
 #endif
+            emit signalEntityRectangleScreenSelectionUpdated(selected_rect);
         }
         else
         {
@@ -440,6 +462,7 @@ bool MapEditorController::mouseRelease(const QPointF &position, Qt::MouseButton 
         return false;
     }
 
+    this->globe_drag_current_position = position;
     this->rectangle_current_wgs84 = this->map_model->wgs84FromScreen(
         position.toPoint(), viewport_size);
     const QRect selected_rect = currentSelectionRect(viewport_size);
@@ -479,6 +502,8 @@ bool MapEditorController::mouseRelease(const QPointF &position, Qt::MouseButton 
 
 void MapEditorController::beginRectangleDrag(const QPointF &position, const QSize &viewport_size)
 {
+    this->globe_drag_press_position = position;
+    this->globe_drag_current_position = position;
     this->rectangle_start_wgs84 = this->map_model->wgs84FromScreen(
         position.toPoint(), viewport_size);
     this->rectangle_current_wgs84 = this->rectangle_start_wgs84;
@@ -626,6 +651,7 @@ bool MapEditorController::globeMouseMove(const QPointF &position, const QSize &v
 #else
             this->map_canvas_entities->onRectangleSelect(rect, RectangleSelectMode::Replace);
 #endif
+            emit signalEntityRectangleScreenSelectionUpdated(rect);
         }
         this->cursor_shape = Qt::CrossCursor;
         emit signalStateChanged();

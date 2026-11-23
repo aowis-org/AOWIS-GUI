@@ -2,6 +2,7 @@
 #include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_annotation_hit_area.h"
 #include "map/editor/map_annotation_selection.h"
+#include "map/editor/map_screen_selection_rectangle.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
@@ -637,6 +638,22 @@ void testRenderedAnnotationPicking()
         "click selects the blank callout exactly as bgfx drew it");
     req(harness.overlay.hitTestAnnotation(second_callout) == second.uuid,
         "click selects persisted annotation text from its drawn footprint");
+    // The Select gesture can begin directly on the first callout. A right
+    // click without movement still opens the context menu; a right DRAG
+    // must use the ordinary screen rectangle and select both annotations.
+    const QRect drag_from_annotation = MapScreenSelectionRectangle::bounded(
+        first_callout, second_callout + QPointF(18.0, 18.0),
+        QSize(int(ViewportWidth), int(ViewportHeight)));
+    const QSet<QUuid> selected_by_drag = harness.overlay.annotationsInRectangle(
+        QRectF(drag_from_annotation));
+    req(selected_by_drag.size() == 2 && selected_by_drag.contains(first.uuid)
+        && selected_by_drag.contains(second.uuid),
+        "right drag starting on a callout selects both rendered annotations");
+    const QRect reverse_drag = MapScreenSelectionRectangle::bounded(
+        second_callout + QPointF(18.0, 18.0), first_callout,
+        QSize(int(ViewportWidth), int(ViewportHeight)));
+    req(reverse_drag == drag_from_annotation,
+        "screen selection handles backward drags without geo projection roundtrip");
     req(!harness.overlay.hitTestAnnotation(QPointF(a.x - 160.0, a.y + 75.0)),
         "click on empty map is not an annotation hit");
     const QRectF first_rect(first_callout.x() - 4.0, first_callout.y() - 4.0, 8.0, 8.0);

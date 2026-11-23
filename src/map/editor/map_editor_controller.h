@@ -74,6 +74,10 @@ public:
     void deleteSelectedEntities();
 
     void startRectangleSelection(bool oneshot, bool interact_with_entities = true);
+    // A right-drag begun over an annotation must join the same hydraulic
+    // screen-rectangle selector. The container defers its context menu until
+    // button release so a drag does not get consumed as a context click.
+    bool beginEntityRectangleDragFromScreen(const QPointF &position, const QSize &viewport_size);
     void cancelRectangleSelection();
     void clearTileSelectionOverlay();
 
@@ -101,6 +105,9 @@ signals:
     void signalRectangleSelected(const CoordinateWGS84Rect &rect);
     // Finished entity-selection rectangle in screen pixels (2D and 3D).
     void signalEntityRectangleScreenSelected(const QRect &rect);
+    // While the rubber band moves, update annotation glows alongside the
+    // hydraulic selection instead of only after right-button release.
+    void signalEntityRectangleScreenSelectionUpdated(const QRect &rect);
     void signalRectangleSelectionCanceled();
     void signalEntitySelectionChanged(bool selected);
 

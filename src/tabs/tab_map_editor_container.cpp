@@ -194,6 +194,10 @@ MapEditorContainer::MapEditorContainer(MapModel *map_model, MapTileRepository *t
     connect(this->map_inspector, &EntityInspectorDock::mapAnnotationSelected,
             this, [this](const QUuid &uuid)
     {
+        // A rectangle can select hydraulic entities and one annotation in the
+        // same gesture. Showing that Inspector must not replace that selection.
+        if (this->applying_annotation_rectangle_selection)
+            return;
         // Choosing one annotation is an ordinary replace-selection operation.
         // An old network selection must not be deleted by the same Delete click.
         this->map_canvas->mapCanvasEntities()->clearSelectedEntities();
@@ -213,6 +217,9 @@ MapEditorContainer::MapEditorContainer(MapModel *map_model, MapTileRepository *t
         refreshAnnotationOverlay();
     });
     connect(this->editor_controller, &MapEditorController::signalEntityRectangleScreenSelected,
+            this, &MapEditorContainer::selectAnnotationsInRectangle);
+    connect(this->editor_controller,
+            &MapEditorController::signalEntityRectangleScreenSelectionUpdated,
             this, &MapEditorContainer::selectAnnotationsInRectangle);
     connect(this->map_menu, &MapEditorMenuWidget::signalDeleteSelectionRequested,
             this, [this]()
@@ -1175,7 +1182,7 @@ void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
             project);
     };
     QSet<QUuid> selected = find_annotations();
-    if (selected.size() != 1
+    if (!this->editor_controller->rectangleDragging() && selected.size() != 1
         && qobject_cast<EntityInspectorAnnotation *>(this->map_inspector->widget()))
     {
         // Finish any debounced Inspector edit BEFORE replacing the selection.
@@ -1188,8 +1195,13 @@ void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
     this->selected_annotation_uuids = selected;
     this->selected_annotation_uuid = selected.size() == 1
         ? *selected.cbegin() : QUuid();
-    if (!this->selected_annotation_uuid.isNull())
+    if (!this->selected_annotation_uuid.isNull()
+        && !this->editor_controller->rectangleDragging())
+    {
+        this->applying_annotation_rectangle_selection = true;
         this->map_inspector->showMapAnnotation(this->selected_annotation_uuid);
+        this->applying_annotation_rectangle_selection = false;
+    }
     updateAnnotationDeleteAvailability();
     refreshAnnotationOverlay();
 }
@@ -1550,6 +1562,12 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
         this->annotation_drag_previews.clear();
         this->annotation_press_point = mouse->position();
         this->pressed_annotation_uuid = hit.value_or(QUuid());
+        // A right press over an annotation is a *candidate* context click.
+        // Arm the normal screen-space rectangle as well: if it becomes a
+        // drag, the shared Select tool owns it instead of eating the gesture.
+        if (MapAnnotationInput::armRectangleOnAnnotationPress(select_tool, hit.has_value(), button))
+            this->editor_controller->beginEntityRectangleDragFromScreen(
+                mouse->position(), this->map_canvas->size());
         const bool preserve_group = hit && this->selected_annotation_uuids.contains(*hit)
             && this->selected_annotation_uuids.size() > 1
             && (mouse->button() == Qt::RightButton
@@ -1591,6 +1609,13 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
             this->annotation_press_preview.reset();
             refreshAnnotationOverlay();
         }
+        if (select_tool && this->annotation_press_button == Qt::RightButton
+            && !this->pressed_annotation_uuid.isNull()
+            && this->editor_controller->rectangleDragging())
+        {
+            this->editor_controller->mouseMove(mouse->position(), this->map_canvas->size(), true);
+            return true;
+        }
         // Left drag moves an existing annotation. Right click places/opens it,
         // but right-drag must never accidentally place an annotation.
         if (this->annotation_press_button == Qt::LeftButton
@@ -1624,6 +1649,20 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
     {
         const QUuid chosen = this->pressed_annotation_uuid;
         this->pressed_annotation_uuid = QUuid();
+        if (completed_button == Qt::RightButton && select_tool
+            && this->editor_controller->rectangleDragging())
+        {
+            if (this->annotation_drag_started)
+            {
+                // One screen rectangle selects BOTH annotations and the
+                // hydraulic entities already owned by MapEditorController.
+                this->editor_controller->mouseRelease(
+                    mouse->position(), completed_button, this->map_canvas->size());
+                refreshAnnotationOverlay();
+                return true;
+            }
+            this->editor_controller->cancelRectangleSelection();
+        }
         if (completed_button == Qt::RightButton && !this->annotation_drag_started)
         {
             showAnnotationContextMenu(chosen, mouse->globalPosition().toPoint());
@@ -1691,7 +1730,8 @@ bool MapEditorContainer::eventFilter(QObject *watched, QEvent *event)
         // the HUD can swallow the release and strand the rubber band onscreen.
         if (event->type() == QEvent::MouseButtonRelease
             && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton
-            && this->editor_controller->rectangleDragging())
+            && this->editor_controller->rectangleDragging()
+            && !this->annotation_mouse_pressed)
         {
             // We are already filtering an event delivered to the canvas:
             // don't send it a second time. Let QWidget dispatch it there.

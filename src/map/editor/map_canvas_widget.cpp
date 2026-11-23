@@ -273,6 +273,15 @@ void MapCanvasWidget::mouseMoveEvent(QMouseEvent *event)
     this->last_pointer_position = event->position();
     this->last_pointer_position_valid = true;
 
+    // The Select tool owns its right-button rectangle drag. Never feed that
+    // motion to map navigation first: a camera pan would shift the footprint
+    // under the cursor and break selection of the visible callouts.
+    if (this->editor_controller && this->editor_controller->rectangleDragging())
+    {
+        this->editor_controller->mouseMove(event->position(), size(), true);
+        event->accept();
+        return;
+    }
     const bool map_handled_event = this->map->handleMouseMoveEvent(event);
     const bool editor_handled_event = this->editor_controller &&
         this->editor_controller->mouseMove(event->position(), size(), !map_handled_event);

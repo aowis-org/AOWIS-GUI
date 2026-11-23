@@ -265,6 +265,7 @@ private:
     std::optional<MapAnnotation> annotation_press_preview;
     QUuid selected_annotation_uuid;
     QSet<QUuid> selected_annotation_uuids;
+    bool applying_annotation_rectangle_selection = false;
     QUuid pressed_annotation_uuid;
     QPointF annotation_press_point;
     bool annotation_mouse_pressed = false;
