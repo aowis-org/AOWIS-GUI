@@ -84,8 +84,10 @@ int main()
     using MapAnnotationInput::classifyPress;
     if (!expect(classifyPress(true, false, false, Button::Right) == PressAction::Place,
                 "annotation tool must place on right click")
-        || !expect(classifyPress(true, false, true, Button::Right) == PressAction::Select,
-                   "right click on existing annotation must open it, not duplicate it")
+        || !expect(classifyPress(true, false, true, Button::Right) == PressAction::ContextMenu,
+                   "annotation tool right-click on an annotation opens Move/Delete menu")
+        || !expect(classifyPress(false, true, true, Button::Right) == PressAction::ContextMenu,
+                   "Select tool right-click on an annotation opens Move/Delete menu")
         || !expect(classifyPress(true, false, true, Button::Left) == PressAction::Select,
                    "left click must select existing annotation for drag")
         || !expect(classifyPress(true, false, false, Button::Left) == PressAction::PassThrough,

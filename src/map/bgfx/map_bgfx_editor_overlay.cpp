@@ -363,6 +363,25 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
         MapAnnotationHitArea::rect(annotation, QPointF(position.x, position.y),
                                    this->annotation_scale_percent)});
     const double scale = MapAnnotationDisplayScale::factor(this->annotation_scale_percent);
+    // Match the editor's glowing selection feedback for hydraulic objects.
+    // These GPU strokes surround the actual callout, not just its WGS84 pin,
+    // so every annotation inside a rectangle selection is unmistakably selected.
+    const std::function<void(const MapBgfxHudRect &)> draw_glow =
+        [this, selected, scale](const MapBgfxHudRect &bounds)
+    {
+        if (!selected)
+            return;
+        for (int extra = 9; extra >= 3; extra -= 3)
+        {
+            const double spread = double(extra) * scale;
+            this->canvas->strokeRoundedRect(
+                MapBgfxHudRect{bounds.x - spread, bounds.y - spread,
+                               bounds.width + 2.0 * spread,
+                               bounds.height + 2.0 * spread},
+                5.0 * scale, 2.2 * scale,
+                extra == 9 ? 0x3300aaffu : extra == 6 ? 0x6600aaffu : 0xbb00beffu);
+        }
+    };
     const bool empty_draft = annotation.text.trimmed().isEmpty();
     if (empty_draft)
     {
@@ -371,6 +390,7 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
         // never make the initial marker disappear. Shared 2D and 3D path.
         const MapBgfxHudRect callout{position.x - 7.0 * scale, position.y - 46.0 * scale,
                                       92.0 * scale, 34.0 * scale};
+        draw_glow(callout);
         if (annotation.style.show_background)
             this->canvas->fillRoundedRect(callout, 5.0 * scale, 0xfff7fbffu);
         this->canvas->strokeRoundedRect(callout, 5.0 * scale,
@@ -404,6 +424,9 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
     const int width = empty_draft ? qRound(72.0 * scale)
                                   : metrics.horizontalAdvance(text) + qRound(18.0 * scale);
     const int height = metrics.height() + qRound(10.0 * scale);
+    draw_glow(MapBgfxHudRect{position.x - 5.0 * scale,
+                             position.y - double(height) - 4.0 * scale,
+                             double(width), double(height)});
     const QSizeF logical(width, height);
     const QByteArray digest = QCryptographicHash::hash(
         (QString::number(point_size) + QLatin1Char('|')

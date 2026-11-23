@@ -254,6 +254,11 @@ private:
     QList<MapAnnotation> editorAnnotations() const;
     void selectAnnotationsInRectangle(const QRect &rectangle);
     bool deleteSelectedAnnotations();
+    bool deleteAnnotationUuids(const QSet<QUuid> &uuids);
+    bool applyAnnotationPositions(const QHash<QUuid, CoordinateWGS84> &positions);
+    void showAnnotationContextMenu(const QUuid &uuid, const QPoint &global_position);
+    void startAnnotationContextMove(const QUuid &uuid, bool move_selected);
+    void cancelAnnotationContextMove();
     void updateAnnotationDeleteAvailability();
     void refreshAnnotationOverlay();
     // Immediate right-press marker; never persisted, discarded on drag/cancel.
@@ -267,6 +272,9 @@ private:
     bool annotation_drag_started = false;
     std::optional<CoordinateWGS84> annotation_drag_preview;
     QHash<QUuid, CoordinateWGS84> annotation_drag_previews;
+    // Right-click Move arms a floating preview, confirmed by the next right-click.
+    QUuid annotation_context_move_uuid;
+    QSet<QUuid> annotation_context_move_uuids;
     // HUD first for pointer, wheel and Escape on the canvas (desktop: the
     // events forwarded from the native window; WASM: the canvas' own).
     bool routeBgfxHudEvent(QEvent *event);

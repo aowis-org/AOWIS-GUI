@@ -31,6 +31,11 @@
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QMessageBox>
+#include <QMenu>
+#include <QPushButton>
+#ifdef Q_OS_WASM
+#include "widgets/wasm_popup_menu.h"
+#endif
 #include <QHideEvent>
 #include <functional>
 #include <QMouseEvent>
@@ -579,6 +584,7 @@ void MapEditorContainer::setupBgfxEditor()
     connect(this->map_model, &MapModel::viewModeChanged, this,
             [this, update_editor_projection](MapViewMode mode)
     {
+        cancelAnnotationContextMove();
         update_editor_projection(mode);
         applyRenderSurfaceEditorSymbology();
         this->bgfx_visual_state_dirty = true;
@@ -891,6 +897,7 @@ void MapEditorContainer::activateSharedSurface(bool active)
         this->pressed_annotation_uuid = QUuid();
         this->annotation_drag_preview.reset();
         this->annotation_press_preview.reset();
+        cancelAnnotationContextMove();
         this->render_move_session_id = 0;
         this->render_full_network_move = false;
         this->render_move_translation = QPointF();
@@ -1187,27 +1194,203 @@ void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
     refreshAnnotationOverlay();
 }
 
-bool MapEditorContainer::deleteSelectedAnnotations()
+bool MapEditorContainer::applyAnnotationPositions(
+    const QHash<QUuid, CoordinateWGS84> &positions)
 {
-    // Copy first: deleting a draft can close its Inspector and emit selection
-    // signals while the list is being traversed. Persisted deletes use the
-    // same canonical MODEL events as the single-item Inspector action.
-    const QSet<QUuid> selected = this->selected_annotation_uuids;
+    if (positions.isEmpty())
+        return false;
+    QList<MapAnnotation> persisted_updates;
+    for (QHash<QUuid, CoordinateWGS84>::const_iterator it = positions.cbegin();
+         it != positions.cend(); ++it)
+    {
+        if (this->map_inspector->pendingMapAnnotation(it.key()))
+            continue;
+        const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(it.key());
+        if (!existing || !this->hydraulic_data->logicalEditCaptureEnabled())
+            return false;
+        MapAnnotation updated = *existing;
+        if (!MapAnnotationPosition::place(
+                this->hydraulic_data->networkHydraulicDistribution(), updated, it.value()))
+            return false;
+        persisted_updates.append(updated);
+    }
+    // Do not move local previews if the server-bound edit could not be staged.
+    if (!persisted_updates.isEmpty()
+        && !this->hydraulic_data->updateMapAnnotations(persisted_updates))
+        return false;
+    for (QHash<QUuid, CoordinateWGS84>::const_iterator it = positions.cbegin();
+         it != positions.cend(); ++it)
+        if (this->map_inspector->pendingMapAnnotation(it.key()))
+            this->map_inspector->movePendingMapAnnotation(it.key(), it.value());
+    refreshAnnotationOverlay();
+    return true;
+}
+
+void MapEditorContainer::cancelAnnotationContextMove()
+{
+    this->annotation_context_move_uuid = QUuid();
+    this->annotation_context_move_uuids.clear();
+    this->annotation_drag_previews.clear();
+    this->annotation_drag_preview.reset();
+    refreshAnnotationOverlay();
+}
+
+void MapEditorContainer::startAnnotationContextMove(const QUuid &uuid, bool move_selected)
+{
+    if (!this->map_inspector->pendingMapAnnotation(uuid)
+        && (!this->hydraulic_data->logicalEditCaptureEnabled()
+            || !this->hydraulic_data->mapAnnotation(uuid)))
+        return;
+    this->annotation_context_move_uuid = uuid;
+    if (move_selected && this->selected_annotation_uuids.contains(uuid))
+        this->annotation_context_move_uuids = this->selected_annotation_uuids;
+    else
+    {
+        this->annotation_context_move_uuids = {uuid};
+        this->selected_annotation_uuids = {uuid};
+        this->selected_annotation_uuid = uuid;
+        this->map_inspector->showMapAnnotation(uuid);
+    }
+    this->annotation_drag_previews.clear();
+    updateAnnotationDeleteAvailability();
+    refreshAnnotationOverlay();
+}
+
+bool MapEditorContainer::deleteAnnotationUuids(const QSet<QUuid> &uuids)
+{
     QSet<QUuid> persisted;
-    for (const QUuid &uuid : selected)
+    for (const QUuid &uuid : uuids)
         if (!this->map_inspector->pendingMapAnnotation(uuid)
             && this->hydraulic_data->mapAnnotation(uuid))
             persisted.insert(uuid);
     if (!persisted.isEmpty() && !this->hydraulic_data->deleteMapAnnotations(persisted))
-        return false; // Do not also delete hydraulic entities after a failed batch.
-    for (const QUuid &uuid : selected)
+        return false;
+    for (const QUuid &uuid : uuids)
         if (this->map_inspector->pendingMapAnnotation(uuid))
             this->map_inspector->removePendingMapAnnotation(uuid);
-    this->selected_annotation_uuids.clear();
-    this->selected_annotation_uuid = QUuid();
+    for (const QUuid &uuid : uuids)
+        this->selected_annotation_uuids.remove(uuid);
+    if (uuids.contains(this->selected_annotation_uuid))
+        this->selected_annotation_uuid = QUuid();
+    if (uuids.contains(this->annotation_context_move_uuid))
+        cancelAnnotationContextMove();
     updateAnnotationDeleteAvailability();
     refreshAnnotationOverlay();
     return true;
+}
+
+void MapEditorContainer::showAnnotationContextMenu(const QUuid &uuid,
+                                                    const QPoint &global_position)
+{
+    // As for hydraulic objects, right-click selects the clicked object
+    // unless it is already part of a multi-selection.
+    const bool group = this->selected_annotation_uuids.contains(uuid)
+        && this->selected_annotation_uuids.size() > 1;
+    if (!group)
+    {
+        this->selected_annotation_uuids = {uuid};
+        this->selected_annotation_uuid = uuid;
+        this->map_inspector->showMapAnnotation(uuid);
+    }
+    const std::function<bool(const QUuid &)> is_writable = [this](const QUuid &target) {
+        return this->map_inspector->pendingMapAnnotation(target)
+            || (this->hydraulic_data->logicalEditCaptureEnabled()
+                && this->hydraulic_data->mapAnnotation(target));
+    };
+    const bool writable = is_writable(uuid);
+    bool group_writable = writable;
+    if (group)
+        for (const QUuid &target : this->selected_annotation_uuids)
+            group_writable = group_writable && is_writable(target);
+    updateAnnotationDeleteAvailability();
+    refreshAnnotationOverlay();
+
+    const std::function<void(const QSet<QUuid> &, bool)> request_delete =
+        [this](const QSet<QUuid> &targets, bool delete_all_selected)
+    {
+        QMessageBox *dialog = new QMessageBox(QMessageBox::Question, QString(), QString(),
+                                              QMessageBox::Yes | QMessageBox::No,
+                                              this->map_canvas);
+        dialog->setAttribute(Qt::WA_DeleteOnClose);
+        dialog->setDefaultButton(QMessageBox::No);
+        LiveUiText::bind(dialog, [dialog, delete_all_selected] {
+            dialog->setWindowTitle(LiveUiText::translate(QT_TRANSLATE_NOOP(
+                "LiveUiText", "Delete entity")));
+            dialog->setText(LiveUiText::translate(delete_all_selected
+                ? QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete all selected entities?")
+                : QT_TRANSLATE_NOOP("LiveUiText", "Do you really want to delete this entity?")));
+        });
+        connect(dialog, &QMessageBox::finished, this,
+                [this, targets, delete_all_selected](int result) {
+            if (result != QMessageBox::Yes)
+                return;
+            if (deleteAnnotationUuids(targets) && delete_all_selected)
+                this->editor_controller->deleteSelectedEntities();
+        });
+        dialog->open();
+    };
+
+    const std::function<void()> move_this = [this, uuid] {
+        startAnnotationContextMove(uuid, false);
+    };
+    const std::function<void()> move_group = [this, uuid] {
+        startAnnotationContextMove(uuid, true);
+    };
+    const std::function<void()> delete_this = [request_delete, uuid] {
+        request_delete(QSet<QUuid>{uuid}, false);
+    };
+    const std::function<void()> delete_group = [this, request_delete] {
+        request_delete(this->selected_annotation_uuids, true);
+    };
+#ifdef Q_OS_WASM
+    WasmPopupMenu *menu = new WasmPopupMenu(this->map_canvas);
+    menu->setDeleteOnClose(true);
+    if (group)
+    {
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move this entity")), move_this)
+            ->setEnabled(writable);
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move selected entities")), move_group)
+            ->setEnabled(group_writable);
+    }
+    else
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move")), move_this)
+            ->setEnabled(writable);
+    menu->addSeparator();
+    menu->addAction(LiveUiText::translate(group
+        ? QT_TRANSLATE_NOOP("LiveUiText", "Delete this entity")
+        : QT_TRANSLATE_NOOP("LiveUiText", "Delete")), delete_this)->setEnabled(writable);
+    if (group)
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")), delete_group)
+            ->setEnabled(group_writable);
+    menu->popup(global_position);
+#else
+    QMenu *menu = new QMenu(this->map_canvas);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    if (group)
+    {
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move this entity")),
+                        this, move_this)->setEnabled(writable);
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move selected entities")),
+                        this, move_group)->setEnabled(group_writable);
+    }
+    else
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Move")),
+                        this, move_this)->setEnabled(writable);
+    menu->addSeparator();
+    menu->addAction(LiveUiText::translate(group
+        ? QT_TRANSLATE_NOOP("LiveUiText", "Delete this entity")
+        : QT_TRANSLATE_NOOP("LiveUiText", "Delete")), this, delete_this)->setEnabled(writable);
+    if (group)
+        menu->addAction(LiveUiText::translate(QT_TRANSLATE_NOOP("LiveUiText", "Delete selected entities")),
+                        this, delete_group)->setEnabled(group_writable);
+    menu->popup(global_position);
+#endif
+}
+
+bool MapEditorContainer::deleteSelectedAnnotations()
+{
+    const QSet<QUuid> selected = this->selected_annotation_uuids;
+    return deleteAnnotationUuids(selected);
 }
 
 std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
@@ -1281,9 +1464,58 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
     const bool annotation_tool = this->map_menu->isAnnotationToolActive();
     const bool select_tool = this->map_menu->isSelectToolActive();
     if (!annotation_tool && !select_tool)
+    {
+        if (!this->annotation_context_move_uuid.isNull())
+            cancelAnnotationContextMove();
         return false;
-    if (event->type() == QEvent::ContextMenu && annotation_tool)
-        return true; // The right click belongs to annotation placement, not a context menu.
+    }
+    if (event->type() == QEvent::ContextMenu
+        && (annotation_tool || select_tool || !this->annotation_context_move_uuid.isNull()))
+    {
+        // The pointer press/release already handled placement or the
+        // annotation context menu. Do not display a second native menu.
+        return true;
+    }
+    if (!this->annotation_context_move_uuid.isNull())
+    {
+        if (event->type() == QEvent::KeyPress
+            && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape)
+        {
+            cancelAnnotationContextMove();
+            return true;
+        }
+        if (event->type() == QEvent::MouseMove)
+        {
+            QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            const std::optional<CoordinateWGS84> point = annotationCoordinateAt(mouse->position());
+            this->annotation_drag_previews = point
+                ? MapAnnotationSelection::translatedPositions(
+                    editorAnnotations(), this->annotation_context_move_uuids,
+                    this->annotation_context_move_uuid, *point)
+                : QHash<QUuid, CoordinateWGS84>();
+            refreshAnnotationOverlay();
+            return true;
+        }
+        if (event->type() == QEvent::MouseButtonPress
+            && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)
+            return true;
+        if (event->type() == QEvent::MouseButtonRelease
+            && static_cast<QMouseEvent *>(event)->button() == Qt::RightButton)
+        {
+            const QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
+            const std::optional<CoordinateWGS84> point = annotationCoordinateAt(mouse->position());
+            if (point)
+            {
+                const QHash<QUuid, CoordinateWGS84> positions =
+                    MapAnnotationSelection::translatedPositions(
+                        editorAnnotations(), this->annotation_context_move_uuids,
+                        this->annotation_context_move_uuid, *point);
+                if (applyAnnotationPositions(positions))
+                    cancelAnnotationContextMove();
+            }
+            return true;
+        }
+    }
     if (event->type() != QEvent::MouseButtonPress
         && event->type() != QEvent::MouseMove
         && event->type() != QEvent::MouseButtonRelease)
@@ -1318,10 +1550,11 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
         this->annotation_drag_previews.clear();
         this->annotation_press_point = mouse->position();
         this->pressed_annotation_uuid = hit.value_or(QUuid());
-        const bool preserve_group = select_tool && mouse->button() == Qt::LeftButton
-            && hit && this->selected_annotation_uuids.contains(*hit)
-            && this->selected_annotation_uuids.size() > 1;
-        if (hit)
+        const bool preserve_group = hit && this->selected_annotation_uuids.contains(*hit)
+            && this->selected_annotation_uuids.size() > 1
+            && (mouse->button() == Qt::RightButton
+                || (select_tool && mouse->button() == Qt::LeftButton));
+        if (hit && !preserve_group)
             this->map_canvas->mapCanvasEntities()->clearSelectedEntities();
         if (!preserve_group && hit)
             this->selected_annotation_uuids = {*hit};
@@ -1391,44 +1624,17 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
     {
         const QUuid chosen = this->pressed_annotation_uuid;
         this->pressed_annotation_uuid = QUuid();
+        if (completed_button == Qt::RightButton && !this->annotation_drag_started)
+        {
+            showAnnotationContextMenu(chosen, mouse->globalPosition().toPoint());
+            return true;
+        }
         const bool moving = completed_button == Qt::LeftButton
             && this->annotation_drag_started && dropped_position;
         const bool group = this->selected_annotation_uuids.size() > 1
             && this->selected_annotation_uuids.contains(chosen);
         if (moving && !moved_positions.isEmpty())
-        {
-            QList<MapAnnotation> persisted_updates;
-            bool valid = true;
-            for (QHash<QUuid, CoordinateWGS84>::const_iterator it = moved_positions.cbegin();
-                 it != moved_positions.cend(); ++it)
-            {
-                if (this->map_inspector->pendingMapAnnotation(it.key()))
-                    continue;
-                const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(it.key());
-                if (!existing || !this->hydraulic_data->logicalEditCaptureEnabled())
-                {
-                    valid = false;
-                    break;
-                }
-                MapAnnotation updated = *existing;
-                if (!MapAnnotationPosition::place(
-                        this->hydraulic_data->networkHydraulicDistribution(), updated,
-                        it.value()))
-                {
-                    valid = false;
-                    break;
-                }
-                persisted_updates.append(updated);
-            }
-            if (valid && (persisted_updates.isEmpty()
-                || this->hydraulic_data->updateMapAnnotations(persisted_updates)))
-            {
-                for (QHash<QUuid, CoordinateWGS84>::const_iterator it = moved_positions.cbegin();
-                     it != moved_positions.cend(); ++it)
-                    if (this->map_inspector->pendingMapAnnotation(it.key()))
-                        this->map_inspector->movePendingMapAnnotation(it.key(), it.value());
-            }
-        }
+            applyAnnotationPositions(moved_positions);
         if (!group)
         {
             this->selected_annotation_uuids = {chosen};

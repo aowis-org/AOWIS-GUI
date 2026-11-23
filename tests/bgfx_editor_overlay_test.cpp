@@ -658,6 +658,12 @@ void testRenderedAnnotationPicking()
     req(selected.size() == 2 && selected.contains(first.uuid)
         && selected.contains(second.uuid),
         "right-drag rectangle selects multiple rendered annotation callouts");
+    // A rectangle selection must produce visible GPU glow for EVERY hit,
+    // not only a selected UUID that exists in an Inspector or local list.
+    inputs.selected_annotation_uuids = &selected;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(hasColor(harness.canvas, 0x6600aaffu),
+        "selected annotations draw blue outer glow in 2D");
     // Monitor slider Off must not affect the separate Editor overlay.
     Harness monitor;
     monitor.overlay.buildAnnotations2d(&monitor.canvas, &monitor.cache, view,
@@ -678,7 +684,10 @@ void testRenderedAnnotationPicking()
     };
     harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
         current.viewport, projector, nullptr, 0, QSizeF(ViewportWidth, ViewportHeight),
-        {}, nullptr, nullptr, {}, &editor, {}, {}, std::nullopt, 100);
+        {}, nullptr, nullptr, {}, &editor, {}, {}, std::nullopt, 100,
+        &selected);
+    req(hasColor(harness.canvas, 0x6600aaffu),
+        "selected annotations draw blue outer glow in 3D");
     req(harness.overlay.hitTestAnnotation(QPointF(465.0, 267.0)) == first.uuid,
         "3D annotation callout is clickable at the drawn position");
     req(harness.overlay.annotationsInRectangle(
