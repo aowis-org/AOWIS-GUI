@@ -2192,6 +2192,185 @@ void testRuleControlCrud()
 // HydraulicData keeps them with that network only, and INP export frees an
 // annotation whose anchor node was deleted (at its stored position) while
 // every other anchor keeps following its node.
+// One History item per annotation editing session: every keystroke changes
+// the live annotation at once, but ONE MODEL event is recorded at the end.
+void testMapAnnotationEditSessionIsOneEvent()
+{
+    NetworkHydraulicDistribution network;
+    network.uuid = createUuidV7();
+    network.id = QStringLiteral("Annotation sessions");
+    HydraulicNodeJunction junction;
+    junction.id = QStringLiteral("J1");
+    junction.uuid = createUuidV7();
+    junction.coordinate_wgs84 = coordinate(50.0, 8.0);
+    network.nodes_junctions.append(junction);
+    HydraulicData data;
+    data.replaceNetworkHydraulicDistribution(network, {});
+    data.setLogicalEditCaptureEnabled(true);
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+        &data, [&events](const QByteArray &event) { events.append(event); });
+    int notifications = 0;
+    QObject::connect(&data, &HydraulicData::signalMapAnnotationsChanged,
+        &data, [&notifications] { ++notifications; });
+    const std::function<bool(const QUuid &, const QString &)> type =
+        [&data](const QUuid &uuid, const QString &text)
+    {
+        std::optional<MapAnnotation> value = data.mapAnnotation(uuid);
+        if (!value)
+            return false;
+        value->text = text;
+        return data.updateMapAnnotation(*value);
+    };
+    const std::function<bool(const QByteArray &, const QString &, const std::optional<MapAnnotation> &,
+                             const std::optional<MapAnnotation> &)> recorded =
+        [](const QByteArray &bytes, const QString &operation,
+           const std::optional<MapAnnotation> &before, const std::optional<MapAnnotation> &after)
+    {
+        const std::optional<aowis::model::ModelEditTransaction> event = decoded(bytes);
+        if (!event || event->operation != operation || event->edits.size() != 1)
+            return false;
+        const aowis::model::ModelEntityEdit &edit = event->edits.first();
+        const std::optional<QByteArray> want_before = before
+            ? std::optional<QByteArray>(aowis::model::ModelCodec<MapAnnotation>::encode(*before))
+            : std::nullopt;
+        const std::optional<QByteArray> want_after = after
+            ? std::optional<QByteArray>(aowis::model::ModelCodec<MapAnnotation>::encode(*after))
+            : std::nullopt;
+        return edit.entityType == QStringLiteral("map.annotation") && edit.ownerLayerId &&
+               edit.before == want_before && edit.after == want_after;
+    };
+
+    // A creation joins the session, and so does the typing after it.
+    QUuid uuid;
+    data.beginMapAnnotationEdit(QUuid());
+    test_harness.expectTrue(data.mapAnnotationEditOpen() &&
+        data.createMapAnnotation(QStringLiteral("H"), coordinate(50.001, 8.001), &uuid) &&
+        events.isEmpty() && data.mapAnnotation(uuid).has_value(),
+        "a creation in an editing session is live but not yet recorded");
+    const int notified = notifications;
+    test_harness.expectTrue(type(uuid, QStringLiteral("He")) && type(uuid, QStringLiteral("Hel")) &&
+        type(uuid, QStringLiteral("Hello")) && events.isEmpty() &&
+        notifications == notified + 3 && data.mapAnnotation(uuid)->text == QStringLiteral("Hello"),
+        "typing in a session updates the live annotation without recording events");
+    test_harness.expectTrue(data.finishMapAnnotationEdit() && !data.mapAnnotationEditOpen() &&
+        events.size() == 1 &&
+        recorded(events.last(), QStringLiteral("map.annotation.create"), std::nullopt,
+                 data.mapAnnotation(uuid)),
+        "a creation and its typing are ONE create event with the final text");
+
+    // An existing annotation: one update from the state at begin to the end.
+    const MapAnnotation start = *data.mapAnnotation(uuid);
+    data.beginMapAnnotationEdit(uuid);
+    data.beginMapAnnotationEdit(uuid); // begin again: same session
+    MapAnnotation styled = *data.mapAnnotation(uuid);
+    styled.style.show_background = !styled.style.show_background;
+    test_harness.expectTrue(type(uuid, QStringLiteral("Hello w")) &&
+        type(uuid, QStringLiteral("Hello world")) &&
+        data.updateMapAnnotation([&] { MapAnnotation next = *data.mapAnnotation(uuid);
+            next.style = styled.style; return next; }()) &&
+        events.size() == 1 && data.finishMapAnnotationEdit() && events.size() == 2 &&
+        recorded(events.last(), QStringLiteral("map.annotation.update"), start,
+                 data.mapAnnotation(uuid)),
+        "an editing session of an existing annotation is ONE update event");
+    test_harness.expectTrue(data.finishMapAnnotationEdit() && events.size() == 2,
+        "finishing without an open session records nothing");
+
+    // Typed and typed back: nothing changed, nothing recorded.
+    const QString settled = data.mapAnnotation(uuid)->text;
+    data.beginMapAnnotationEdit(uuid);
+    test_harness.expectTrue(type(uuid, QStringLiteral("Temporary")) && type(uuid, settled) &&
+        data.finishMapAnnotationEdit() && events.size() == 2,
+        "an editing session that ends unchanged records no event");
+
+    // Another annotation edit records the open session first, in order.
+    data.beginMapAnnotationEdit(uuid);
+    const MapAnnotation before_other = *data.mapAnnotation(uuid);
+    QUuid other;
+    test_harness.expectTrue(type(uuid, QStringLiteral("Session text")) &&
+        data.createMapAnnotation(QStringLiteral("Other"), coordinate(50.002, 8.002), &other) &&
+        !data.mapAnnotationEditOpen() && events.size() == 4 &&
+        recorded(events.at(2), QStringLiteral("map.annotation.update"), before_other,
+                 data.mapAnnotation(uuid)) &&
+        recorded(events.at(3), QStringLiteral("map.annotation.create"), std::nullopt,
+                 data.mapAnnotation(other)),
+        "another annotation edit finished the open session first");
+
+    // So does a hydraulic edit.
+    data.beginMapAnnotationEdit(uuid);
+    test_harness.expectTrue(type(uuid, QStringLiteral("Before node move")) &&
+        data.setNodeCoordinate(junction.uuid, coordinate(50.0003, 8.0003)) &&
+        !data.mapAnnotationEditOpen() && events.size() == 6 &&
+        decoded(events.at(4)) && decoded(events.at(4))->edits.first().entityId == uuid &&
+        decoded(events.at(5)) && decoded(events.at(5))->edits.first().entityId == junction.uuid,
+        "a hydraulic edit finished the open session first");
+
+    // Deleting in the session records only the deletion, from the state the
+    // session began with.
+    const MapAnnotation recorded_state = *data.mapAnnotation(uuid);
+    data.beginMapAnnotationEdit(uuid);
+    test_harness.expectTrue(type(uuid, QStringLiteral("Doomed")) &&
+        data.deleteMapAnnotation(uuid) && !data.mapAnnotation(uuid) &&
+        !data.mapAnnotationEditOpen() && events.size() == 7 &&
+        recorded(events.last(), QStringLiteral("map.annotation.delete"), recorded_state,
+                 std::nullopt),
+        "a deletion in a session is ONE delete event from the recorded state");
+
+    // Created and deleted in one session: nothing recorded.
+    QUuid transient;
+    data.beginMapAnnotationEdit(QUuid());
+    test_harness.expectTrue(
+        data.createMapAnnotation(QStringLiteral("Gone"), coordinate(50.003, 8.003), &transient) &&
+        type(transient, QStringLiteral("Gone soon")) && data.deleteMapAnnotation(transient) &&
+        !data.mapAnnotation(transient) && !data.mapAnnotationEditOpen() && events.size() == 7,
+        "an annotation created and deleted in one session records nothing");
+    // A session begun for a creation that never happens records nothing.
+    data.beginMapAnnotationEdit(QUuid());
+    test_harness.expectTrue(data.finishMapAnnotationEdit() && events.size() == 7,
+        "an empty creation session records nothing");
+
+    // Ending edit capture records the open session first.
+    data.beginMapAnnotationEdit(other);
+    test_harness.expectTrue(type(other, QStringLiteral("Closing")) && events.size() == 7,
+        "fixture: the session is open");
+    data.setLogicalEditCaptureEnabled(false);
+    test_harness.expectTrue(!data.logicalEditCaptureEnabled() && !data.mapAnnotationEditOpen() &&
+        events.size() == 8 && decoded(events.last()) &&
+        decoded(events.last())->edits.first().entityId == other,
+        "ending edit capture recorded the open session");
+    data.beginMapAnnotationEdit(other);
+    test_harness.expectTrue(!data.mapAnnotationEditOpen(),
+        "a session cannot begin without edit capture");
+
+    // A hydraulic deletion that detaches the annotation being edited: the
+    // session is recorded first, and the detachment starts from its result.
+    data.setLogicalEditCaptureEnabled(true);
+    MapAnnotation anchored;
+    anchored.anchor = MapAnnotationAnchor{junction.uuid, QStringLiteral("HydraulicNodeJunction")};
+    test_harness.expectTrue(MapAnnotationPosition::place(data.networkHydraulicDistribution(),
+        anchored, coordinate(50.0006, 8.0006)), "fixture: anchored placement");
+    QUuid attached;
+    test_harness.expectTrue(data.createMapAnnotation(QStringLiteral("Attached"),
+        coordinate(50.0006, 8.0006), &attached, MapAnnotationStyle(), anchored.anchor) &&
+        events.size() == 9, "fixture: anchored annotation created");
+    data.beginMapAnnotationEdit(attached);
+    test_harness.expectTrue(type(attached, QStringLiteral("Attached, renamed")) &&
+        data.deleteJunction(junction.uuid) && !data.mapAnnotationEditOpen() &&
+        events.size() == 11, "a detaching deletion did not record the session first");
+    const std::optional<aowis::model::ModelEditTransaction> session = decoded(events.at(9));
+    const std::optional<aowis::model::ModelEditTransaction> detaching = decoded(events.at(10));
+    std::optional<QByteArray> session_after;
+    std::optional<QByteArray> detach_before;
+    if (session && session->edits.size() == 1 && session->edits.first().entityId == attached)
+        session_after = session->edits.first().after;
+    if (detaching)
+        for (const aowis::model::ModelEntityEdit &edit : detaching->edits)
+            if (edit.entityId == attached)
+                detach_before = edit.before;
+    test_harness.expectTrue(session_after && detach_before && *session_after == *detach_before,
+        "the detachment does not start from the recorded editing session");
+}
+
 void testMapAnnotationAnchorGeodesyAndEvents()
 {
     NetworkHydraulicDistribution network;
@@ -3327,6 +3506,8 @@ int main(int argc, char **argv)
     test_harness.runCase("Rule control CRUD", testRuleControlCrud);
     test_harness.runCase("Anchored annotation geodesy and durable event guards",
                          testMapAnnotationAnchorGeodesyAndEvents);
+    test_harness.runCase("Annotation editing session is one History item",
+                         testMapAnnotationEditSessionIsOneEvent);
     test_harness.runCase("Map annotations travel with the network", testMapAnnotationsTravelWithTheNetwork);
     test_harness.runCase("Revisioned map annotations: stage, acknowledgement and restart",
                          testRevisionedMapAnnotationDraftEditing);

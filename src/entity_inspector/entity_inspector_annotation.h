@@ -36,8 +36,10 @@ public:
     void setPendingDraftChoices(const QList<MapAnnotation> &drafts);
     void publishDraftPreview();
     void moveDraft(const CoordinateWGS84 &position);
-    // Synchronously publish a pending, debounced edit before changing
-    // inspector selection or ending the verified private editing session.
+    // Ends the editing session: synchronously publishes a pending, debounced
+    // edit and records the whole session as one History item. Called before
+    // changing inspector selection, when focus leaves the inspector and when
+    // the verified private editing session ends.
     void flushPendingEdit();
 
 protected:
@@ -58,6 +60,7 @@ private:
     void refreshAnchorChoices(const std::optional<MapAnnotation> &current);
     void retranslate();
     void commit();
+    bool containsWidget(const QWidget *widget) const;
     CoordinateWGS84 enteredPosition() const;
 
     HydraulicData *data_ = nullptr;
@@ -86,6 +89,7 @@ private:
     bool position_dirty_ = false;
     QPushButton *delete_ = nullptr;
     QTimer commit_timer_;
+    QMetaObject::Connection focus_connection_;
 };
 
 #endif

@@ -77,6 +77,19 @@ public:
     // One reversible canonical event for a multi-selection move or delete.
     bool updateMapAnnotations(const QList<MapAnnotation> &annotations);
     bool deleteMapAnnotations(const QSet<QUuid> &uuids);
+    // One History item per editing session of one annotation (e.g. typing
+    // its text). Between begin and finish, createMapAnnotation (when begun
+    // with a null UUID) and updateMapAnnotation of that annotation change the
+    // live list and notify views, but record no MODEL event; finish records
+    // ONE event from the state at begin to the final state (a create when the
+    // annotation was created in the session; nothing when unchanged).
+    // Deleting it in the session records only the deletion (or nothing when
+    // it was created in the session). Any other annotation or hydraulic edit
+    // and the end of edit capture (also before a network replacement) finish
+    // the open session first; a capture failure discards it.
+    void beginMapAnnotationEdit(const QUuid &uuid);
+    bool finishMapAnnotationEdit();
+    bool mapAnnotationEditOpen() const;
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     // operation/description label the captured event (history dock).
@@ -551,7 +564,14 @@ private:
     void refreshNetworkRenderSnapshotIds();
     void publishCapturedEdit(const HydraulicEditTransactionCapture &capture);
 
+    void discardMapAnnotationEdit();
+
     bool logical_edit_capture_enabled = false;
+    // Open annotation editing session (see beginMapAnnotationEdit). A null
+    // annotation_edit_uuid while open: the next createMapAnnotation joins it.
+    bool annotation_edit_open = false;
+    QUuid annotation_edit_uuid;
+    std::optional<MapAnnotation> annotation_edit_before; // nullopt: created in it
     NetworkHydraulicDistribution network_hydraulic_distribution;
     QList<WaterQualitySolverOptions> simulation_quality_run_options;
     QList<MapAnnotation> map_annotations;

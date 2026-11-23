@@ -7,12 +7,16 @@
 #include "network/hydraulic_data.h"
 #include "widgets/group_box_collapsible.h"
 
+#include <aowis/model/edit/model_edit_transaction.h>
+#include <aowis/model/serialization/model_codec.h>
+
 #include <QApplication>
 #include <QComboBox>
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDoubleSpinBox>
+#include <QElapsedTimer>
 #include <QEvent>
 #include <QLineEdit>
 #include <QPlainTextEdit>
@@ -20,6 +24,7 @@
 #include <QTabWidget>
 
 #include <array>
+#include <functional>
 
 namespace
 {
@@ -342,8 +347,65 @@ int runAnnotationInspectorAcceptance(QApplication &app)
         style_dock.clearEntity();
         app.processEvents();
     }
+    // Typing with pauses publishes each pause to the live annotation (the map
+    // follows), but the whole editing session is ONE History item.
+    {
+        HydraulicData typing_data;
+        typing_data.replaceNetworkHydraulicDistribution(network, {}, {first});
+        QList<QByteArray> typing_events;
+        QObject::connect(&typing_data, &HydraulicData::signalLogicalEditRecorded, &typing_data,
+            [&typing_events](const QByteArray &encoded) { typing_events.append(encoded); });
+        typing_data.setLogicalEditCaptureEnabled(true);
+        EntityInspectorDock typing_dock(&typing_data);
+        typing_dock.showMapAnnotation(first.uuid);
+        EntityInspectorAnnotation *typing_inspector =
+            qobject_cast<EntityInspectorAnnotation *>(typing_dock.widget());
+        QPlainTextEdit *typing_text = typing_inspector
+            ? typing_inspector->findChild<QPlainTextEdit *>() : nullptr;
+        if (!expect(typing_text != nullptr, check, "typing fixture inspector did not open"))
+            return 43;
+        const std::function<void()> pause = [&app]
+        {
+            QElapsedTimer waited;
+            waited.start();
+            while (waited.elapsed() < 500)
+                app.processEvents(QEventLoop::AllEvents, 50);
+        };
+        for (const QString &value : {QStringLiteral("F"), QStringLiteral("Fi"),
+                                     QStringLiteral("First, typed")})
+        {
+            typing_text->setPlainText(value);
+            pause();
+        }
+        const std::optional<MapAnnotation> live = typing_data.mapAnnotation(first.uuid);
+        if (!expect(typing_events.isEmpty() && live &&
+                    live->text == QStringLiteral("First, typed") &&
+                    typing_text->toPlainText() == QStringLiteral("First, typed"), check,
+                    "typing with pauses recorded History items before the edit ended"))
+            return 44;
+        typing_inspector->flushPendingEdit();
+        QString decode_error;
+        const std::optional<aowis::model::ModelEditTransaction> one = typing_events.size() == 1
+            ? aowis::model::ModelEditTransactionCodec::decode(typing_events.first(), &decode_error)
+            : std::nullopt;
+        if (!expect(one && one->edits.size() == 1 &&
+                    one->edits.first().before ==
+                        aowis::model::ModelCodec<MapAnnotation>::encode(first) &&
+                    one->edits.first().after ==
+                        aowis::model::ModelCodec<MapAnnotation>::encode(*live), check,
+                    "an editing session with pauses was not ONE update from start to end"))
+            return 45;
+        typing_text->setPlainText(QStringLiteral("Second session"));
+        pause();
+        typing_dock.clearEntity();
+        app.processEvents();
+        if (!expect(typing_events.size() == 2, check,
+                    "a second editing session was not its own History item"))
+            return 46;
+    }
     qInfo() << "PASS: annotation inspector flushes safely across selection,"
-               " session close, and network replacement; style toggles persist";
+               " session close, and network replacement; style toggles persist;"
+               " one History item per editing session";
     return 0;
 }
 

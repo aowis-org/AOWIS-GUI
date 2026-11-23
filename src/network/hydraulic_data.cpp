@@ -265,6 +265,10 @@ public:
           capture_(std::move(operation)),
           enabled_(owner.logical_edit_capture_enabled)
     {
+        // Record an open annotation editing session before this edit can
+        // change annotations (detachment) or record its own event.
+        if (this->enabled_)
+            this->owner_.finishMapAnnotationEdit();
         if (this->enabled_ && !entity_uuid.isNull())
             this->capture_.watch(this->owner_.network_hydraulic_distribution, entity_uuid);
     }
@@ -486,12 +490,21 @@ const NetworkHydraulicDistribution &HydraulicData::networkHydraulicDistribution(
 void HydraulicData::setLogicalEditCaptureEnabled(bool enabled)
 {
     if (!enabled && this->logical_edit_capture_enabled)
+    {
         emit signalLogicalEditCaptureAboutToDisable();
+        // Editors flushed their pending input above; record the open
+        // annotation session while edits can still be captured.
+        finishMapAnnotationEdit();
+    }
     updateLogicalEditCapture(enabled);
 }
 
 void HydraulicData::updateLogicalEditCapture(bool enabled)
 {
+    // A capture failure (or a disable without the flush above) must not
+    // record the session later against a different state.
+    if (!enabled)
+        discardMapAnnotationEdit();
     if (this->logical_edit_capture_enabled == enabled)
         return;
     this->logical_edit_capture_enabled = enabled;
@@ -505,6 +518,8 @@ bool HydraulicData::logicalEditCaptureEnabled() const
 
 void HydraulicData::publishCapturedEdit(const HydraulicEditTransactionCapture &capture)
 {
+    // Keep the recorded order: the open annotation session came first.
+    finishMapAnnotationEdit();
     QString error;
     const std::optional<QByteArray> transaction = capture.finish(this->network_hydraulic_distribution, &error);
     if (!error.isEmpty())
@@ -530,6 +545,7 @@ void HydraulicData::replaceNetworkHydraulicDistribution(
     // before replacing either canonical in-memory object. A fatal capture
     // error still uses updateLogicalEditCapture() directly (no flush).
     setLogicalEditCaptureEnabled(false);
+    discardMapAnnotationEdit();
     this->network_hydraulic_distribution = std::move(network);
     this->simulation_quality_run_options = std::move(quality_run_options);
     this->map_annotations = std::move(map_annotations);
@@ -603,6 +619,64 @@ static QByteArray mapAnnotationEvent(const std::optional<MapAnnotation> &before,
     return aowis::model::ModelEditTransactionCodec::encode(transaction);
 }
 
+void HydraulicData::beginMapAnnotationEdit(const QUuid &uuid)
+{
+    if (this->annotation_edit_open && this->annotation_edit_uuid == uuid && !uuid.isNull())
+        return;
+    finishMapAnnotationEdit();
+    if (!this->logical_edit_capture_enabled)
+        return;
+    if (uuid.isNull())
+    {
+        this->annotation_edit_open = true;
+        this->annotation_edit_uuid = QUuid();
+        this->annotation_edit_before.reset();
+        return;
+    }
+    const std::optional<MapAnnotation> current = mapAnnotation(uuid);
+    if (!current)
+        return;
+    this->annotation_edit_open = true;
+    this->annotation_edit_uuid = uuid;
+    this->annotation_edit_before = current;
+}
+
+bool HydraulicData::finishMapAnnotationEdit()
+{
+    if (!this->annotation_edit_open)
+        return true;
+    const QUuid uuid = this->annotation_edit_uuid;
+    const std::optional<MapAnnotation> before = this->annotation_edit_before;
+    discardMapAnnotationEdit();
+    if (uuid.isNull() || !this->logical_edit_capture_enabled)
+        return true; // nothing was created, or nothing can be recorded
+    const std::optional<MapAnnotation> after = mapAnnotation(uuid);
+    if (!after)
+        return true;
+    if (before && aowis::model::ModelCodec<MapAnnotation>::encode(*before) ==
+                      aowis::model::ModelCodec<MapAnnotation>::encode(*after))
+        return true;
+    const QByteArray event = mapAnnotationEvent(before, after,
+        distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
+        before ? QStringLiteral("map.annotation.update") : QStringLiteral("map.annotation.create"));
+    if (event.isEmpty())
+        return false;
+    emit signalLogicalEditRecorded(event);
+    return true;
+}
+
+bool HydraulicData::mapAnnotationEditOpen() const
+{
+    return this->annotation_edit_open;
+}
+
+void HydraulicData::discardMapAnnotationEdit()
+{
+    this->annotation_edit_open = false;
+    this->annotation_edit_uuid = QUuid();
+    this->annotation_edit_before.reset();
+}
+
 bool HydraulicData::createMapAnnotation(const QString &text,
                                         const CoordinateWGS84 &position,
                                         QUuid *created_uuid,
@@ -612,6 +686,11 @@ bool HydraulicData::createMapAnnotation(const QString &text,
     if (!this->logical_edit_capture_enabled ||
         this->network_hydraulic_distribution.uuid.isNull())
         return false;
+    // Joins a session begun for the next creation; otherwise any open
+    // session is recorded first.
+    const bool joins = this->annotation_edit_open && this->annotation_edit_uuid.isNull();
+    if (!joins)
+        finishMapAnnotationEdit();
     MapAnnotation value;
     value.uuid = createUuidV7();
     value.text = text;
@@ -630,8 +709,11 @@ bool HydraulicData::createMapAnnotation(const QString &text,
     this->map_annotations.append(value);
     if (created_uuid)
         *created_uuid = value.uuid;
+    if (joins)
+        this->annotation_edit_uuid = value.uuid; // recorded by finishMapAnnotationEdit
     emit signalMapAnnotationsChanged();
-    emit signalLogicalEditRecorded(event);
+    if (!joins)
+        emit signalLogicalEditRecorded(event);
     return true;
 }
 
@@ -657,6 +739,16 @@ bool HydraulicData::updateMapAnnotation(const MapAnnotation &annotation)
     const QByteArray new_image = aowis::model::ModelCodec<MapAnnotation>::encode(annotation);
     if (old_image == new_image)
         return true;
+    if (this->annotation_edit_open && this->annotation_edit_uuid == annotation.uuid)
+    {
+        // Part of the open editing session: recorded once when it finishes.
+        if (new_image.isEmpty())
+            return false;
+        this->map_annotations[index] = annotation;
+        emit signalMapAnnotationsChanged();
+        return true;
+    }
+    finishMapAnnotationEdit();
     const QByteArray event = mapAnnotationEvent(before, annotation,
         distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
         QStringLiteral("map.annotation.update"));
@@ -672,6 +764,13 @@ bool HydraulicData::deleteMapAnnotation(const QUuid &uuid)
 {
     if (!this->logical_edit_capture_enabled)
         return false;
+    // Deleting the annotation of the open session replaces it: the deletion
+    // starts from the state the session began with (the recorded state).
+    const bool in_session = this->annotation_edit_open && !uuid.isNull() &&
+                            this->annotation_edit_uuid == uuid;
+    const std::optional<MapAnnotation> session_before = this->annotation_edit_before;
+    if (!in_session)
+        finishMapAnnotationEdit();
     qsizetype index = -1;
     for (qsizetype at = 0; at < this->map_annotations.size(); ++at)
         if (this->map_annotations.at(at).uuid == uuid)
@@ -682,11 +781,22 @@ bool HydraulicData::deleteMapAnnotation(const QUuid &uuid)
         }
     if (index < 0)
         return false;
-    const QByteArray event = mapAnnotationEvent(this->map_annotations.at(index), std::nullopt,
+    if (in_session && !session_before)
+    {
+        // Created and deleted in one session: nothing was ever recorded.
+        discardMapAnnotationEdit();
+        this->map_annotations.removeAt(index);
+        emit signalMapAnnotationsChanged();
+        return true;
+    }
+    const QByteArray event = mapAnnotationEvent(
+        in_session ? *session_before : this->map_annotations.at(index), std::nullopt,
         distributionMapAnnotationLayerId(this->network_hydraulic_distribution.uuid),
         QStringLiteral("map.annotation.delete"));
     if (event.isEmpty())
         return false;
+    if (in_session)
+        discardMapAnnotationEdit();
     this->map_annotations.removeAt(index);
     emit signalMapAnnotationsChanged();
     emit signalLogicalEditRecorded(event);
@@ -698,6 +808,7 @@ bool HydraulicData::updateMapAnnotations(const QList<MapAnnotation> &changes)
     if (!this->logical_edit_capture_enabled ||
         this->network_hydraulic_distribution.uuid.isNull() || changes.isEmpty())
         return false;
+    finishMapAnnotationEdit();
     QList<MapAnnotation> next = this->map_annotations;
     QSet<QUuid> seen;
     aowis::model::ModelEditTransaction transaction;
@@ -757,6 +868,7 @@ bool HydraulicData::deleteMapAnnotations(const QSet<QUuid> &uuids)
     if (!this->logical_edit_capture_enabled || uuids.isEmpty()
         || this->network_hydraulic_distribution.uuid.isNull())
         return false;
+    finishMapAnnotationEdit();
     QList<MapAnnotation> next = this->map_annotations;
     aowis::model::ModelEditTransaction transaction;
     transaction.transactionId = createUuidV7();

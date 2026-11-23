@@ -71,9 +71,15 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
    transaction per annotation. Selecting a group draws a visible blue glow
    around every selected callout, in both map projections.
 
-The Inspector debounces edits while typing; changing annotation selection,
-explicitly closing writable editing, or replacing the network flushes a pending
-edit **before** the original writer/network is relinquished. A write is still
+The Inspector debounces edits while typing: each pause updates the live
+annotation (the map follows), but nothing is recorded yet. One editing session
+— from the first change until keyboard focus leaves the Inspector, the
+selection changes, writable editing closes or the network is replaced — is
+recorded as **one** MODEL event, so one History item (a new annotation and the
+text typed after it are one creation). `HydraulicData::beginMapAnnotationEdit`
+/ `finishMapAnnotationEdit` hold the session; any other edit records it first.
+The pending edit is flushed **before** the original writer/network is
+relinquished. A write is still
 subject to canonical MODEL validation and durable local queue staging: the
 on-screen change is not itself a server acknowledgement.
 

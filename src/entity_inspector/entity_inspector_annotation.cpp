@@ -1,6 +1,7 @@
 #include "map/core/map_annotation_distribution_targets.h"
 #include "entity_inspector/entity_inspector_annotation.h"
 
+#include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -141,6 +142,16 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     });
     connect(this->data_, &HydraulicData::signalLogicalEditCaptureAboutToDisable,
             this, &EntityInspectorAnnotation::flushPendingEdit);
+    // An editing session (one History item) also ends when keyboard focus
+    // leaves this inspector, e.g. to the map or another panel. Popups of its
+    // own controls are children of them and do not end it; neither does the
+    // whole window losing focus.
+    this->focus_connection_ = connect(qApp, &QApplication::focusChanged, this,
+                                      [this](QWidget *old, QWidget *now)
+    {
+        if (now != nullptr && containsWidget(old) && !containsWidget(now))
+            flushPendingEdit();
+    });
     connect(this->data_, &HydraulicData::signalLogicalEditCaptureChanged,
             this, [this](bool enabled)
     {
@@ -198,17 +209,34 @@ void EntityInspectorAnnotation::retranslate()
 
 EntityInspectorAnnotation::~EntityInspectorAnnotation()
 {
+    // Child widgets are destroyed after this body and the members; a focus
+    // change during that must not reach this half-destroyed inspector.
+    QObject::disconnect(this->focus_connection_);
     flushPendingEdit();
 }
 
 void EntityInspectorAnnotation::flushPendingEdit()
 {
-    if (!this->commit_timer_.isActive())
-        return;
-    // Stop before publishing: a failed synchronous queue append can revoke
-    // edit permission and re-enter the closing signal in the same call stack.
-    this->commit_timer_.stop();
-    commit();
+    if (this->commit_timer_.isActive())
+    {
+        // Stop before publishing: a failed synchronous queue append can revoke
+        // edit permission and re-enter the closing signal in the same call stack.
+        this->commit_timer_.stop();
+        commit();
+    }
+    // End of the editing session: everything typed since it began becomes
+    // ONE MODEL event, so one History item.
+    if (this->data_ != nullptr)
+        this->data_->finishMapAnnotationEdit();
+}
+
+bool EntityInspectorAnnotation::containsWidget(const QWidget *widget) const
+{
+    // Walk parents across windows: a combo box popup is its own window.
+    for (const QWidget *at = widget; at != nullptr; at = at->parentWidget())
+        if (at == this)
+            return true;
+    return false;
 }
 
 void EntityInspectorAnnotation::refreshAnnotationChoices()
@@ -405,7 +433,10 @@ void EntityInspectorAnnotation::refreshFromModel()
     if (this->commit_timer_.isActive() || this->updating_ui_)
         return;
     this->updating_ui_ = true;
-    this->text_->setPlainText(annotation->text);
+    // Same text (the field may hold trailing whitespace the model trims):
+    // keep the field and its cursor.
+    if (annotation->text != this->text_->toPlainText().trimmed())
+        this->text_->setPlainText(annotation->text);
     const std::optional<CoordinateWGS84> resolved = MapAnnotationPosition::resolve(
         this->data_->networkHydraulicDistribution(), *annotation);
     const CoordinateWGS84 &position = resolved ? *resolved : annotation->position_wgs84;
@@ -448,6 +479,9 @@ void EntityInspectorAnnotation::commit()
             anchor = positioned.anchor;
         }
         QUuid id;
+        // The creation joins the editing session: it and the typing after it
+        // are recorded together when the session ends.
+        this->data_->beginMapAnnotationEdit(QUuid());
         // signalMapAnnotationsChanged is emitted synchronously. Do not let
         // that refresh erase the unsaved text/caret before creation completes.
         this->updating_ui_ = true;
@@ -456,6 +490,9 @@ void EntityInspectorAnnotation::commit()
         this->updating_ui_ = false;
         if (!created)
         {
+            // Close the session begun for this creation: an unrelated later
+            // creation must not join it.
+            this->data_->finishMapAnnotationEdit();
             this->message_->setText(tr("Annotation could not be recorded in the working copy."));
             return;
         }
@@ -509,7 +546,13 @@ void EntityInspectorAnnotation::commit()
     updated.style.text_size = static_cast<MapAnnotationTextSize>(this->size_->currentIndex());
     updated.style.show_background = this->background_->isChecked();
     updated.style.visible = this->visible_->isChecked();
-    if (!this->data_->updateMapAnnotation(updated))
+    // Live on the map now, recorded as one event when the session ends.
+    this->data_->beginMapAnnotationEdit(this->annotation_uuid_);
+    // The synchronous refresh must not reset the text cursor while typing.
+    this->updating_ui_ = true;
+    const bool updated_ok = this->data_->updateMapAnnotation(updated);
+    this->updating_ui_ = false;
+    if (!updated_ok)
         this->message_->setText(tr("Invalid annotation or failed working-copy transaction."));
     else
     {
