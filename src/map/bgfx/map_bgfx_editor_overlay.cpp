@@ -346,23 +346,28 @@ void MapBgfxEditorOverlay::buildOnce()
 void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
                                            const MapBgfxHudPoint &position, bool selected)
 {
-    if (!annotation.style.visible || annotation.text.trimmed().isEmpty()
-        || this->canvas == nullptr || this->cache == nullptr)
+    if (!annotation.style.visible || this->canvas == nullptr || this->cache == nullptr)
+        return;
+    const bool empty_draft = annotation.text.trimmed().isEmpty();
+    if (empty_draft && !selected)
         return;
     const int point_size = annotation.style.text_size == MapAnnotationTextSize::Small ? 10
         : annotation.style.text_size == MapAnnotationTextSize::Large ? 16 : 12;
     QFont font;
     font.setPointSize(point_size);
     QFontMetrics metrics(font);
-    const QString flat_text = annotation.text.simplified();
+    // Blank text is only allowed for the transient on-map placement preview;
+    // MODEL/DVMDB continue to reject a blank persisted annotation.
+    const QString flat_text = empty_draft ? QStringLiteral("…") : annotation.text.simplified();
     const QString text = metrics.elidedText(flat_text, Qt::ElideRight, 330);
-    const int width = metrics.horizontalAdvance(text) + 18;
+    const int width = empty_draft ? 72 : metrics.horizontalAdvance(text) + 18;
     const int height = metrics.height() + 10;
     const QSizeF logical(width, height);
     const QByteArray digest = QCryptographicHash::hash(
         (QString::number(point_size) + QLatin1Char('|')
         + QString::number(annotation.style.show_background) + QLatin1Char('|')
-        + QString::number(selected) + QLatin1Char('|') + text).toUtf8(),
+        + QString::number(selected) + QLatin1Char('|')
+        + QString::number(empty_draft) + QLatin1Char('|') + text).toUtf8(),
         QCryptographicHash::Sha256).toHex();
     const QString key = QStringLiteral("map-annotation|") + QString::fromLatin1(digest);
     MapBgfxHudSprite sprite = this->cache->cachedImage(key, logical);
@@ -377,7 +382,9 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
         painter.scale(ratio, ratio);
         if (annotation.style.show_background || selected)
         {
-            painter.setPen(selected ? QColor(0, 155, 235) : QColor(45, 55, 65, 175));
+            painter.setPen(empty_draft ? QPen(QColor(0, 155, 235), 1.5, Qt::DashLine)
+                                       : QPen(selected ? QColor(0, 155, 235)
+                                                       : QColor(45, 55, 65, 175)));
             painter.setBrush(QColor(245, 248, 252, 230));
             painter.drawRoundedRect(QRectF(0.5, 0.5, width - 1.0, height - 1.0), 4, 4);
         }

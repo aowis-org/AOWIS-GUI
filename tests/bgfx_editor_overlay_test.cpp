@@ -346,6 +346,36 @@ void testMapManagementOverlay()
         "distribution editor restores retained entity icons after management");
 }
 
+void testEmptyAnnotationDraft()
+{
+    Harness harness;
+    Scene current = scene();
+    MapAnnotation draft;
+    draft.uuid = QUuid::createUuid();
+    draft.position_wgs84 = coordinate(9.0, 47.0);
+    draft.style.visible = true;
+    draft.style.show_background = true;
+    QList<MapAnnotation> annotations{draft};
+    const MapBgfx2d::Camera view = camera();
+    const MapBgfxHudPoint target = project(view, 9.0, 47.0);
+
+    MapBgfxEditorOverlay::Inputs inputs;
+    inputs.viewport = QSizeF(ViewportWidth, ViewportHeight);
+    inputs.camera = view;
+    inputs.snapshot = &current.snapshot;
+    inputs.visual_state = &current.state;
+    inputs.viewport_state = &current.viewport;
+    inputs.annotations = &annotations;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    const int unselected_sprites = spriteVerticesNear(harness.canvas, harness.cache,
+                                                       target.x, target.y, 90.0);
+    inputs.selected_annotation_uuid = draft.uuid;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 90.0)
+            > unselected_sprites,
+        "blank selected annotation draft draws a visible placeholder in 2D");
+}
+
 void testReadOnlyMonitorAnnotations()
 {
     Harness harness;
@@ -1372,6 +1402,7 @@ int main(int argc, char **argv)
     QGuiApplication application(argc, argv);
 
     testMapManagementOverlay();
+    testEmptyAnnotationDraft();
     testReadOnlyMonitorAnnotations();
     testStaticDetails();
     testSelection();

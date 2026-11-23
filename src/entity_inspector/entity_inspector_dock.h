@@ -35,6 +35,8 @@ public:
     
 signals:
     void mapAnnotationSelected(const QUuid &uuid);
+    void mapAnnotationDraftUpdated(const MapAnnotation &annotation);
+    void mapAnnotationDraftCleared();
 
 private:
     HydraulicData *hydraulic_data = nullptr;
@@ -52,6 +54,8 @@ public slots:
     
 public slots:
     void beginMapAnnotation(const CoordinateWGS84 &coordinate);
+    void focusPendingMapAnnotation();
+    void movePendingMapAnnotation(const CoordinateWGS84 &position);
     void showMapAnnotation(const QUuid &uuid);
     void showEntityTank(const HydraulicNodeTank &tank);
     void showEntityJunction(const HydraulicNodeJunction &junction);

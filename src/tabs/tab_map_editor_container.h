@@ -244,10 +244,12 @@ private:
     std::optional<CoordinateWGS84> annotationCoordinateAt(const QPointF &screen) const;
     std::optional<QUuid> annotationAt(const QPointF &screen) const;
     void refreshAnnotationOverlay();
+    std::optional<MapAnnotation> draft_annotation; // UI-only until valid nonblank text is entered.
     QUuid selected_annotation_uuid;
     QUuid pressed_annotation_uuid;
     QPointF annotation_press_point;
     bool annotation_mouse_pressed = false;
+    Qt::MouseButton annotation_press_button = Qt::NoButton;
     bool annotation_drag_started = false;
     std::optional<CoordinateWGS84> annotation_drag_preview;
     // HUD first for pointer, wheel and Escape on the canvas (desktop: the

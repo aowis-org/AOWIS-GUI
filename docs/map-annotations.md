@@ -7,9 +7,16 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
 ## Use in the GUI
 
 1. Open a verified, writable personal working copy of a Distribution network.
-2. In **Maps → Distribution Editor**, select **Annotation**, then left-click
-   an empty map position in 2D or 3D. The right-hand **Annotation Inspector**
-   opens. Enter text and choose **Create annotation**.
+2. In **Maps → Distribution Editor**, select **Annotation**, then right-click
+   an empty map position in 2D or 3D. A selected, empty annotation outline
+   appears immediately at that location and the **Annotation Inspector** opens
+   with the text field focused. Type normally: the first nonblank text is
+   automatically created as a canonical MODEL edit after a short debounce.
+   All subsequent edits autosave; there is **no Create or Save button**.
+   A still-blank outline is a temporary GUI preview, not a DVMDB record, and
+   disappears when abandoned. MODEL deliberately rejects blank persisted text.
+   If the inspector says **Read-only**, open a verified writable private
+   working copy first; a read-only revision cannot create annotations.
 3. Select an existing annotation on the map (or use the Inspector's annotation
    selector). Edit text, WGS84 coordinates, text size, visibility and background.
    Move it by dragging in the map, or attach it to a junction, reservoir, tank

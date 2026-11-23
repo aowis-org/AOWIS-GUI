@@ -60,7 +60,10 @@ void EntityInspectorDock::clearEntity()
     // debounced text edit, commit it against its original UUID NOW, before
     // selection changes or its owning draft/network can be replaced.
     if (this->widget_annotation)
+    {
         this->widget_annotation->flushPendingEdit();
+        emit mapAnnotationDraftCleared();
+    }
     if (this->widget_current)
         this->widget_current->deleteLater();
     if (this->widget_annotation)
@@ -92,13 +95,29 @@ void EntityInspectorDock::beginMapAnnotation(const CoordinateWGS84 &coordinate)
     this->widget_annotation = new EntityInspectorAnnotation(
         this->hydraulic_data, std::nullopt, coordinate, this);
     connect(this->widget_annotation, &EntityInspectorAnnotation::annotationCreated,
-            this, &EntityInspectorDock::showMapAnnotation);
+            this, [this](const QUuid &id) { emit mapAnnotationSelected(id); });
+    connect(this->widget_annotation, &EntityInspectorAnnotation::draftPreviewChanged,
+            this, &EntityInspectorDock::mapAnnotationDraftUpdated);
+    connect(this->widget_annotation, &EntityInspectorAnnotation::draftPreviewCleared,
+            this, &EntityInspectorDock::mapAnnotationDraftCleared);
     connect(this->widget_annotation, &EntityInspectorAnnotation::annotationSelected,
             this, &EntityInspectorDock::showMapAnnotation);
     setWidget(this->widget_annotation);
     setVisible(true);
-    emit mapAnnotationSelected(QUuid());
+    this->widget_annotation->publishDraftPreview();
     this->widget_annotation->focusText();
+}
+
+void EntityInspectorDock::focusPendingMapAnnotation()
+{
+    if (this->widget_annotation && this->widget_annotation->isCreating())
+        this->widget_annotation->focusText();
+}
+
+void EntityInspectorDock::movePendingMapAnnotation(const CoordinateWGS84 &position)
+{
+    if (this->widget_annotation && this->widget_annotation->isCreating())
+        this->widget_annotation->moveDraft(position);
 }
 
 void EntityInspectorDock::showMapAnnotation(const QUuid &uuid)

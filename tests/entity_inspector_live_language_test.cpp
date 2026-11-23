@@ -15,6 +15,7 @@
 #include <QEvent>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTabWidget>
 
 #include <array>
@@ -51,6 +52,99 @@ int runAnnotationInspectorAcceptance(QApplication &app)
     second.text = QStringLiteral("Second annotation");
     second.position_wgs84.latitude_deg = 50.1;
     second.position_wgs84.longitude_deg = 8.1;
+
+    // A right-click starts a visible, empty GUI placeholder immediately.
+    // MODEL requires nonblank text, so no persisted event may be created yet.
+    {
+        HydraulicData draft_data;
+        draft_data.replaceNetworkHydraulicDistribution(network, {});
+        QList<QByteArray> draft_events;
+        QObject::connect(&draft_data, &HydraulicData::signalLogicalEditRecorded,
+                         &draft_data, [&draft_events](const QByteArray &event)
+        {
+            draft_events.append(event);
+        });
+        draft_data.setLogicalEditCaptureEnabled(true);
+        EntityInspectorDock draft_dock(&draft_data);
+        QList<MapAnnotation> previews;
+        int clears = 0;
+        QUuid selected_uuid;
+        QObject::connect(&draft_dock, &EntityInspectorDock::mapAnnotationDraftUpdated,
+                         &draft_dock, [&previews](const MapAnnotation &value)
+        {
+            previews.append(value);
+        });
+        QObject::connect(&draft_dock, &EntityInspectorDock::mapAnnotationDraftCleared,
+                         &draft_dock, [&clears] { ++clears; });
+        QObject::connect(&draft_dock, &EntityInspectorDock::mapAnnotationSelected,
+                         &draft_dock, [&selected_uuid](const QUuid &id)
+        {
+            selected_uuid = id;
+        });
+        CoordinateWGS84 position;
+        position.latitude_deg = 50.2;
+        position.longitude_deg = 8.3;
+        draft_dock.beginMapAnnotation(position);
+        EntityInspectorAnnotation *draft_inspector =
+            qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        QPlainTextEdit *draft_text = draft_inspector
+            ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
+        bool has_create_button = false;
+        if (draft_inspector)
+            for (QPushButton *button : draft_inspector->findChildren<QPushButton *>())
+                has_create_button |= button->text() == QStringLiteral("Create annotation");
+        if (!expect(draft_text && !draft_text->isReadOnly() && !has_create_button &&
+                    previews.size() == 1 && previews.last().text.isEmpty() &&
+                    previews.last().style.visible && !previews.last().uuid.isNull() &&
+                    draft_data.mapAnnotations().isEmpty() && draft_events.isEmpty(),
+                    check, "right-click did not show an editable, blank unsaved draft"))
+            return 28;
+
+        // Abandon a blank draft: it must disappear without an invalid empty
+        // annotation being inserted into revision History.
+        draft_dock.clearEntity();
+        if (!expect(clears > 0 && draft_events.isEmpty() &&
+                    draft_data.mapAnnotations().isEmpty(), check,
+                    "abandoning blank draft wrote an annotation"))
+            return 29;
+        draft_dock.beginMapAnnotation(position);
+        draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        draft_text = draft_inspector ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
+        if (!expect(draft_text && !draft_text->isReadOnly(), check,
+                    "reopening blank draft did not restore the text editor"))
+            return 30;
+        const QWidget *original_inspector = draft_inspector;
+        draft_text->setPlainText(QStringLiteral("Annotation created automatically"));
+        draft_inspector->flushPendingEdit();
+        const QUuid persisted_uuid = selected_uuid;
+        const std::optional<MapAnnotation> created = draft_data.mapAnnotation(persisted_uuid);
+        if (!expect(draft_events.size() == 1 && created &&
+                    created->text == QStringLiteral("Annotation created automatically") &&
+                    draft_dock.widget() == original_inspector &&
+                    !draft_inspector->isCreating() && !draft_text->isReadOnly(), check,
+                    "typing did not auto-create a persisted annotation in-place"))
+            return 31;
+        draft_text->setPlainText(QStringLiteral("Edited again"));
+        draft_inspector->flushPendingEdit();
+        const std::optional<MapAnnotation> edited = draft_data.mapAnnotation(persisted_uuid);
+        if (!expect(draft_events.size() == 2 && edited &&
+                    edited->text == QStringLiteral("Edited again"), check,
+                    "in-place auto-created inspector could not keep editing"))
+            return 32;
+
+        draft_data.setLogicalEditCaptureEnabled(false);
+        draft_dock.beginMapAnnotation(position);
+        draft_inspector = qobject_cast<EntityInspectorAnnotation *>(draft_dock.widget());
+        draft_text = draft_inspector ? draft_inspector->findChild<QPlainTextEdit *>() : nullptr;
+        const int preview_count_before = previews.size();
+        if (draft_inspector)
+            draft_inspector->publishDraftPreview();
+        if (!expect(draft_text && draft_text->isReadOnly() &&
+                    preview_count_before == previews.size() &&
+                    draft_events.size() == 2, check,
+                    "read-only History position exposed a fake writable draft"))
+            return 33;
+    }
 
     HydraulicData data;
     data.replaceNetworkHydraulicDistribution(network, {}, {first, second});

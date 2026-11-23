@@ -14,6 +14,7 @@
 #include "map/bgfx/map_bgfx_surface.h"
 #include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_canvas_entities.h"
+#include "map/editor/map_annotation_input_policy.h"
 #include "tabs/tab_map_monitor_container.h"
 #include "tabs/map_workspace_mode.h"
 #include "map/render/map_entity_pixmap_renderer.h"
@@ -177,9 +178,26 @@ MapEditorContainer::MapEditorContainer(MapModel *map_model, MapTileRepository *t
     sync_network_present();
     connect(this->hydraulic_data, &HydraulicData::signalMapAnnotationsChanged,
             this, &MapEditorContainer::refreshAnnotationOverlay);
+    connect(this->map_inspector, &EntityInspectorDock::mapAnnotationDraftUpdated,
+            this, [this](const MapAnnotation &preview)
+    {
+        this->draft_annotation = preview;
+        this->selected_annotation_uuid = preview.uuid;
+        refreshAnnotationOverlay();
+    });
+    connect(this->map_inspector, &EntityInspectorDock::mapAnnotationDraftCleared,
+            this, [this]
+    {
+        if (this->draft_annotation &&
+            this->selected_annotation_uuid == this->draft_annotation->uuid)
+            this->selected_annotation_uuid = QUuid();
+        this->draft_annotation.reset();
+        refreshAnnotationOverlay();
+    });
     connect(this->map_inspector, &EntityInspectorDock::mapAnnotationSelected,
             this, [this](const QUuid &uuid)
     {
+        this->draft_annotation.reset();
         this->selected_annotation_uuid = uuid;
         refreshAnnotationOverlay();
     });
@@ -667,9 +685,11 @@ void MapEditorContainer::setupBgfxEditor()
             MapBgfxPanReuse::Build build = overlay_frame->pan.begin(camera, viewport, ratio, pannable);
             inputs.viewport = build.viewport;
             inputs.camera = build.camera;
-            const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+            QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
                 this->hydraulic_data->networkHydraulicDistribution(),
                 this->hydraulic_data->mapAnnotations());
+            if (this->draft_annotation)
+                annotations.append(*this->draft_annotation);
             inputs.annotations = &annotations;
             inputs.selected_annotation_uuid = this->selected_annotation_uuid;
             inputs.dragged_annotation_uuid = this->pressed_annotation_uuid;
@@ -735,9 +755,11 @@ void MapEditorContainer::setupBgfxEditor()
                         return std::nullopt;
                     return projected;
                 });
-            const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+            QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
                 this->hydraulic_data->networkHydraulicDistribution(),
                 this->hydraulic_data->mapAnnotations());
+            if (this->draft_annotation)
+                annotations.append(*this->draft_annotation);
             overlay->buildGlobe(canvas, cache, viewport_state, projector,
                                 snapshot, width, viewport, frustum,
                                 snapshot != nullptr ? &this->bgfx_visual_state : nullptr,
@@ -833,6 +855,7 @@ void MapEditorContainer::activateSharedSurface(bool active)
         this->map_canvas->mapCanvasEntities()->cancelActiveMove();
         this->editor_controller->cancelRectangleSelection();
         this->annotation_mouse_pressed = false;
+        this->annotation_press_button = Qt::NoButton;
         this->annotation_drag_started = false;
         this->pressed_annotation_uuid = QUuid();
         this->annotation_drag_preview.reset();
@@ -1055,9 +1078,11 @@ std::optional<CoordinateWGS84> MapEditorContainer::annotationCoordinateAt(
 
 std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
 {
-    const QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
+    QList<MapAnnotation> annotations = MapAnnotationPosition::drawable(
         this->hydraulic_data->networkHydraulicDistribution(),
         this->hydraulic_data->mapAnnotations());
+    if (this->draft_annotation)
+        annotations.append(*this->draft_annotation);
     for (qsizetype i = annotations.size(); i > 0; --i)
     {
         const MapAnnotation &annotation = annotations.at(i - 1);
@@ -1080,7 +1105,8 @@ std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) con
         font.setPointSize(annotation.style.text_size == MapAnnotationTextSize::Small ? 10
             : annotation.style.text_size == MapAnnotationTextSize::Large ? 16 : 12);
         const QFontMetrics metrics(font);
-        const double width = qMin(330, metrics.horizontalAdvance(annotation.text.simplified())) + 18.0;
+        const double width = annotation.text.trimmed().isEmpty() ? 72.0
+            : qMin(330, metrics.horizontalAdvance(annotation.text.simplified())) + 18.0;
         const double height = metrics.height() + 10.0;
         if (QRectF(position.x() - 5.0, position.y() - height - 4.0,
                    width, height + 8.0).contains(screen))
@@ -1092,6 +1118,7 @@ std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) con
 void MapEditorContainer::refreshAnnotationOverlay()
 {
     if (!this->selected_annotation_uuid.isNull()
+        && !(this->draft_annotation && this->selected_annotation_uuid == this->draft_annotation->uuid)
         && !this->hydraulic_data->mapAnnotation(this->selected_annotation_uuid))
         this->selected_annotation_uuid = QUuid();
     this->bgfx_visual_state_dirty = true;
@@ -1102,19 +1129,30 @@ void MapEditorContainer::refreshAnnotationOverlay()
 
 bool MapEditorContainer::handleAnnotationInput(QEvent *event)
 {
+    const bool annotation_tool = this->map_menu->isAnnotationToolActive();
+    const bool select_tool = this->map_menu->isSelectToolActive();
+    if (!annotation_tool && !select_tool)
+        return false;
+    if (event->type() == QEvent::ContextMenu && annotation_tool)
+        return true; // The right click belongs to annotation placement, not a context menu.
     if (event->type() != QEvent::MouseButtonPress
         && event->type() != QEvent::MouseMove
         && event->type() != QEvent::MouseButtonRelease)
         return false;
-    if (!this->map_menu->isAnnotationToolActive() && !this->map_menu->isSelectToolActive())
-        return false;
+
     QMouseEvent *mouse = static_cast<QMouseEvent *>(event);
-    if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton)
+    if (event->type() == QEvent::MouseButtonPress)
     {
         const std::optional<QUuid> hit = annotationAt(mouse->position());
-        if (!hit && !this->map_menu->isAnnotationToolActive())
-            return false;
+        const MapAnnotationInput::Button button = mouse->button() == Qt::LeftButton
+            ? MapAnnotationInput::Button::Left : mouse->button() == Qt::RightButton
+            ? MapAnnotationInput::Button::Right : MapAnnotationInput::Button::Other;
+        const MapAnnotationInput::PressAction action = MapAnnotationInput::classifyPress(
+            annotation_tool, select_tool, hit.has_value(), button);
+        if (action == MapAnnotationInput::PressAction::PassThrough)
+            return false; // Left-drag on empty map still pans; Select right-drag still selects.
         this->annotation_mouse_pressed = true;
+        this->annotation_press_button = mouse->button();
         this->annotation_drag_started = false;
         this->annotation_drag_preview.reset();
         this->annotation_press_point = mouse->position();
@@ -1127,7 +1165,10 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
     {
         if ((mouse->position() - this->annotation_press_point).manhattanLength() > 5.0)
             this->annotation_drag_started = true;
-        if (this->annotation_drag_started && !this->pressed_annotation_uuid.isNull()
+        // Left drag moves an existing annotation. Right click places/opens it,
+        // but right-drag must never accidentally place an annotation.
+        if (this->annotation_press_button == Qt::LeftButton
+            && this->annotation_drag_started && !this->pressed_annotation_uuid.isNull()
             && this->hydraulic_data->logicalEditCaptureEnabled())
         {
             this->annotation_drag_preview = annotationCoordinateAt(mouse->position());
@@ -1135,16 +1176,35 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
         }
         return true;
     }
-    if (event->type() != QEvent::MouseButtonRelease || mouse->button() != Qt::LeftButton)
+    if (event->type() != QEvent::MouseButtonRelease
+        || mouse->button() != this->annotation_press_button)
         return false;
+
+    const Qt::MouseButton completed_button = this->annotation_press_button;
     this->annotation_mouse_pressed = false;
+    this->annotation_press_button = Qt::NoButton;
     const std::optional<CoordinateWGS84> dropped_position = this->annotation_drag_preview;
     this->annotation_drag_preview.reset();
     if (!this->pressed_annotation_uuid.isNull())
     {
         const QUuid chosen = this->pressed_annotation_uuid;
         this->pressed_annotation_uuid = QUuid();
-        if (this->annotation_drag_started && this->hydraulic_data->logicalEditCaptureEnabled())
+        if (this->draft_annotation && this->draft_annotation->uuid == chosen)
+        {
+            if (completed_button == Qt::LeftButton && this->annotation_drag_started
+                && this->hydraulic_data->logicalEditCaptureEnabled())
+            {
+                const std::optional<CoordinateWGS84> position = dropped_position
+                    ? dropped_position : annotationCoordinateAt(mouse->position());
+                if (position)
+                    this->map_inspector->movePendingMapAnnotation(*position);
+            }
+            this->map_inspector->focusPendingMapAnnotation();
+            refreshAnnotationOverlay();
+            return true;
+        }
+        if (completed_button == Qt::LeftButton && this->annotation_drag_started
+            && this->hydraulic_data->logicalEditCaptureEnabled())
         {
             const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(chosen);
             const std::optional<CoordinateWGS84> position = dropped_position
@@ -1163,12 +1223,18 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
         refreshAnnotationOverlay();
         return true;
     }
-    if (!this->annotation_drag_started && this->map_menu->isAnnotationToolActive()
-        && this->hydraulic_data->logicalEditCaptureEnabled())
+    this->pressed_annotation_uuid = QUuid();
+    if (completed_button == Qt::RightButton && !this->annotation_drag_started
+        && annotation_tool)
     {
         const std::optional<CoordinateWGS84> position = annotationCoordinateAt(mouse->position());
         if (position)
+        {
+            // Even in read-only mode, show the Inspector's explanation instead
+            // of silently ignoring a placement attempt. Creation remains gated
+            // by the canonical writable-session check inside the Inspector.
             this->map_inspector->beginMapAnnotation(*position);
+        }
     }
     return true;
 }

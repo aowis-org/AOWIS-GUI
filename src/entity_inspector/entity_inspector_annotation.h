@@ -29,6 +29,9 @@ public:
                                        QWidget *parent = nullptr);
     ~EntityInspectorAnnotation() override;
     void focusText();
+    bool isCreating() const;
+    void publishDraftPreview();
+    void moveDraft(const CoordinateWGS84 &position);
     // Synchronously publish a pending, debounced edit before changing
     // inspector selection or ending the verified private editing session.
     void flushPendingEdit();
@@ -40,6 +43,9 @@ signals:
     void annotationCreated(const QUuid &uuid);
     void annotationDeleted();
     void annotationSelected(const QUuid &uuid);
+    // Local-only placeholder; it is never sent to MODEL/DVMDB while blank.
+    void draftPreviewChanged(const MapAnnotation &annotation);
+    void draftPreviewCleared();
 
 private:
     void refreshPermission();
@@ -48,10 +54,13 @@ private:
     void refreshAnchorChoices(const std::optional<MapAnnotation> &current);
     void retranslate();
     void commit();
+    CoordinateWGS84 enteredPosition() const;
 
     HydraulicData *data_ = nullptr;
     QUuid annotation_uuid_;
+    QUuid draft_uuid_ = QUuid::createUuid(); // Transient UI identity; never persisted.
     bool creating_ = false;
+    bool draft_initialized_ = false;
     bool updating_ui_ = false;
     CoordinateWGS84 initial_position_;
     QLabel *heading_ = nullptr;
@@ -68,7 +77,6 @@ private:
     // A node may move while text is being edited. Only rewrite offset fields
     // when the user actually changes the annotation's geographic position.
     bool position_dirty_ = false;
-    QPushButton *create_ = nullptr;
     QPushButton *delete_ = nullptr;
     QTimer commit_timer_;
 };

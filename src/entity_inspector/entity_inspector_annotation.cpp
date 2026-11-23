@@ -78,29 +78,27 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
 
     this->message_ = new QLabel(this);
     this->message_->setWordWrap(true);
-    layout->addWidget(this->message_);
-    this->create_ = new QPushButton(tr("Create annotation"), this);
+    // Place the writable/read-only explanation ABOVE the form, where a
+    // narrow dock cannot hide it below the latitude/longitude controls.
+    layout->insertWidget(2, this->message_);
     this->delete_ = new QPushButton(tr("Delete annotation"), this);
-    layout->addWidget(this->create_);
     layout->addWidget(this->delete_);
     layout->addStretch();
 
     this->commit_timer_.setSingleShot(true);
     this->commit_timer_.setInterval(350);
     connect(&this->commit_timer_, &QTimer::timeout, this, &EntityInspectorAnnotation::commit);
-    connect(this->text_, &QPlainTextEdit::textChanged, this, [this]
-    {
-        if (!this->updating_ui_ && !this->creating_)
-            this->commit_timer_.start();
-        if (this->creating_)
-            this->create_->setEnabled(this->data_->logicalEditCaptureEnabled()
-                                      && !this->text_->toPlainText().trimmed().isEmpty());
-    });
     const std::function<void()> changed = [this]
     {
-        if (!this->updating_ui_ && !this->creating_)
-            this->commit_timer_.start();
+        if (this->updating_ui_ || !this->data_->logicalEditCaptureEnabled())
+            return;
+        // A blank new annotation is a visible local draft. MODEL rejects
+        // blank persisted text, so the first valid text automatically creates
+        // the real record through the existing durable MODEL edit event.
+        publishDraftPreview();
+        this->commit_timer_.start();
     };
+    connect(this->text_, &QPlainTextEdit::textChanged, this, changed);
     connect(this->latitude_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
             [this, changed](double)
     {
@@ -121,42 +119,6 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     connect(this->visible_, &QCheckBox::toggled, this, [changed](bool) { changed(); });
     connect(this->anchor_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             [changed](int) { changed(); });
-    connect(this->create_, &QPushButton::clicked, this, [this]
-    {
-        if (!this->creating_ || !this->data_->logicalEditCaptureEnabled())
-            return;
-        CoordinateWGS84 coordinate = this->initial_position_;
-        coordinate.latitude_deg = this->latitude_->value();
-        coordinate.longitude_deg = this->longitude_->value();
-        QUuid id;
-        MapAnnotationStyle style;
-        style.text_size = static_cast<MapAnnotationTextSize>(this->size_->currentIndex());
-        style.show_background = this->background_->isChecked();
-        style.visible = this->visible_->isChecked();
-        std::optional<MapAnnotationAnchor> anchor;
-        const QUuid selected(this->anchor_->currentData().toString());
-        if (!selected.isNull())
-        {
-            anchor = MapAnnotationAnchor{selected,
-                this->anchor_->currentData(Qt::UserRole + 1).toString()};
-            MapAnnotation positioned;
-            positioned.anchor = anchor;
-            if (!MapAnnotationPosition::place(
-                    this->data_->networkHydraulicDistribution(), positioned, coordinate))
-            {
-                this->message_->setText(tr("Invalid annotation or failed working-copy transaction."));
-                return;
-            }
-            anchor = positioned.anchor;
-        }
-        if (!this->data_->createMapAnnotation(this->text_->toPlainText().trimmed(),
-                                               coordinate, &id, style, anchor))
-        {
-            this->message_->setText(tr("Annotation could not be recorded in the working copy."));
-            return;
-        }
-        emit annotationCreated(id);
-    });
     connect(this->delete_, &QPushButton::clicked, this, [this]
     {
         if (this->creating_ || !this->data_->logicalEditCaptureEnabled())
@@ -215,7 +177,6 @@ void EntityInspectorAnnotation::retranslate()
     this->size_->setItemText(2, tr("Large"));
     this->background_->setText(tr("Show background"));
     this->visible_->setText(tr("Visible on map"));
-    this->create_->setText(tr("Create annotation"));
     this->delete_->setText(tr("Delete annotation"));
     refreshFromModel();
     refreshPermission();
@@ -257,6 +218,44 @@ void EntityInspectorAnnotation::refreshAnnotationChoices()
     }
 }
 
+bool EntityInspectorAnnotation::isCreating() const
+{
+    return this->creating_;
+}
+
+CoordinateWGS84 EntityInspectorAnnotation::enteredPosition() const
+{
+    CoordinateWGS84 coordinate = this->initial_position_;
+    coordinate.latitude_deg = this->latitude_->value();
+    coordinate.longitude_deg = this->longitude_->value();
+    return coordinate;
+}
+
+void EntityInspectorAnnotation::publishDraftPreview()
+{
+    if (!this->creating_ || this->updating_ui_ ||
+        !this->data_->logicalEditCaptureEnabled())
+        return;
+    MapAnnotation preview;
+    preview.uuid = this->draft_uuid_;
+    preview.position_wgs84 = enteredPosition();
+    preview.text = this->text_->toPlainText();
+    preview.style.text_size = static_cast<MapAnnotationTextSize>(this->size_->currentIndex());
+    // A pending placement remains visible even if the eventual style is hidden.
+    preview.style.visible = true;
+    preview.style.show_background = true;
+    emit draftPreviewChanged(preview);
+}
+
+void EntityInspectorAnnotation::moveDraft(const CoordinateWGS84 &position)
+{
+    if (!this->creating_ || !this->data_->logicalEditCaptureEnabled())
+        return;
+    this->latitude_->setValue(position.latitude_deg);
+    this->longitude_->setValue(position.longitude_deg);
+    publishDraftPreview();
+}
+
 void EntityInspectorAnnotation::focusText()
 {
     this->text_->setFocus(Qt::OtherFocusReason);
@@ -273,12 +272,16 @@ void EntityInspectorAnnotation::refreshPermission()
     this->background_->setEnabled(writable);
     this->visible_->setEnabled(writable);
     this->anchor_->setEnabled(writable);
-    this->create_->setVisible(this->creating_);
     this->delete_->setVisible(!this->creating_);
-    this->create_->setEnabled(writable && !this->text_->toPlainText().trimmed().isEmpty());
     this->delete_->setEnabled(writable);
     if (!writable)
+    {
         this->message_->setText(tr("Read-only: open a writable private working copy to edit."));
+        if (this->creating_)
+            emit draftPreviewCleared();
+    }
+    else if (this->creating_)
+        this->message_->setText(tr("Enter annotation text"));
     else
         this->message_->clear();
 }
@@ -321,13 +324,14 @@ void EntityInspectorAnnotation::refreshFromModel()
     refreshAnnotationChoices();
     if (this->creating_)
     {
-        if (this->updating_ui_)
-            return;
+        if (this->updating_ui_ || this->draft_initialized_)
+            return; // Network updates must not erase a moved, unsaved draft.
         this->updating_ui_ = true;
         this->latitude_->setValue(this->initial_position_.latitude_deg);
         this->longitude_->setValue(this->initial_position_.longitude_deg);
         refreshAnchorChoices(std::nullopt);
         this->position_dirty_ = false;
+        this->draft_initialized_ = true;
         this->updating_ui_ = false;
         return;
     }
@@ -359,13 +363,64 @@ void EntityInspectorAnnotation::refreshFromModel()
 
 void EntityInspectorAnnotation::commit()
 {
-    if (this->creating_ || !this->data_->logicalEditCaptureEnabled())
+    if (!this->data_->logicalEditCaptureEnabled())
         return;
+    if (this->creating_)
+    {
+        const QString value = this->text_->toPlainText().trimmed();
+        if (value.isEmpty())
+            return; // Blank placeholder stays local; no invalid MODEL event.
+        MapAnnotationStyle style;
+        style.text_size = static_cast<MapAnnotationTextSize>(this->size_->currentIndex());
+        style.show_background = this->background_->isChecked();
+        style.visible = this->visible_->isChecked();
+        std::optional<MapAnnotationAnchor> anchor;
+        const QUuid selected(this->anchor_->currentData().toString());
+        if (!selected.isNull())
+        {
+            MapAnnotation positioned;
+            positioned.anchor = MapAnnotationAnchor{
+                selected, this->anchor_->currentData(Qt::UserRole + 1).toString()};
+            if (!MapAnnotationPosition::place(
+                    this->data_->networkHydraulicDistribution(), positioned, enteredPosition()))
+            {
+                this->message_->setText(tr("Invalid annotation or failed working-copy transaction."));
+                return;
+            }
+            anchor = positioned.anchor;
+        }
+        QUuid id;
+        // signalMapAnnotationsChanged is emitted synchronously. Do not let
+        // that refresh erase the unsaved text/caret before creation completes.
+        this->updating_ui_ = true;
+        const bool created = this->data_->createMapAnnotation(
+            value, enteredPosition(), &id, style, anchor);
+        this->updating_ui_ = false;
+        if (!created)
+        {
+            this->message_->setText(tr("Annotation could not be recorded in the working copy."));
+            return;
+        }
+        this->annotation_uuid_ = id;
+        this->creating_ = false;
+        this->position_dirty_ = false;
+        refreshAnnotationChoices();
+        refreshPermission();
+        // Keep this QWidget and its focused text cursor alive. Replacing the
+        // inspector during typing loses keystrokes and visibly interrupts UX.
+        emit annotationCreated(id);
+        return;
+    }
     const std::optional<MapAnnotation> current = this->data_->mapAnnotation(this->annotation_uuid_);
     if (!current)
         return;
     MapAnnotation updated = *current;
     updated.text = this->text_->toPlainText().trimmed();
+    if (updated.text.isEmpty())
+    {
+        this->message_->setText(tr("Enter annotation text"));
+        return;
+    }
     const QUuid selected_anchor(this->anchor_->currentData().toString());
     const QString selected_type = this->anchor_->currentData(Qt::UserRole + 1).toString();
     const bool anchor_changed = (!current->anchor && !selected_anchor.isNull()) ||
