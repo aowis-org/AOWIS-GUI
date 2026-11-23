@@ -17,6 +17,7 @@
 #include <QUuid>
 
 #include <functional>
+#include <map>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -183,23 +184,79 @@ inline bool applyEntities(QList<T> &collection, const std::vector<const EntityEd
     return true;
 }
 
-template<typename T>
-inline bool moveEntity(QList<T> &collection, const QUuid &id,
-                       qsizetype position, QString *message)
+struct MembershipMove
 {
-    if (position < 0 || position >= collection.size())
-        return error(message, QStringLiteral("Invalid History membership position"));
-    qsizetype from = -1;
-    for (qsizetype index = 0; index < collection.size(); ++index)
+    QUuid id;
+    qsizetype position = 0;
+};
+
+// Applies the moves of ONE collection in one pass (D5). DVMDB places members
+// forward: positions ascend, and each move takes a member that no earlier
+// position holds yet. For such a list the result equals applying the moves
+// one by one; any other list is refused. A moved member is fetched through a
+// UUID table instead of a linear search per move.
+template<typename T>
+inline bool applyMoves(QList<T> &collection, const std::vector<MembershipMove> &moves,
+                       QString *message)
+{
+    if (moves.empty()) return true;
+    const qsizetype count = collection.size();
+    QHash<QUuid, qsizetype> location;
+    location.reserve(count);
+    for (qsizetype index = 0; index < count; ++index)
     {
-        if (collection.at(index).uuid != id) continue;
-        if (from != -1)
+        if (location.contains(collection.at(index).uuid))
             return error(message, QStringLiteral("Duplicate History move entity UUID"));
-        from = index;
+        location.insert(collection.at(index).uuid, index);
     }
-    if (from < 0)
-        return error(message, QStringLiteral("History move refers to missing entity"));
-    collection.move(from, position);
+    QHash<QUuid, qsizetype> order; // moved member -> index of its move
+    order.reserve(static_cast<qsizetype>(moves.size()));
+    qsizetype previous = -1;
+    for (std::size_t index = 0; index < moves.size(); ++index)
+    {
+        const MembershipMove &move = moves[index];
+        if (move.position <= previous || move.position >= count)
+            return error(message, QStringLiteral("Invalid History membership position"));
+        if (!location.contains(move.id))
+            return error(message, QStringLiteral("History move refers to missing entity"));
+        if (order.contains(move.id))
+            return error(message, QStringLiteral("Duplicate History move entity UUID"));
+        order.insert(move.id, static_cast<qsizetype>(index));
+        previous = move.position;
+    }
+    QList<T> result;
+    result.reserve(count);
+    qsizetype next = 0;
+    // Fill up to `limit` with members not moved, skipping members already
+    // moved (or moved now, `current`). A member whose move comes later sits
+    // before its final position: not a forward placement.
+    const std::function<bool(qsizetype, qsizetype)> fill =
+        [&collection, &order, &result, &next, count](qsizetype limit, qsizetype current)
+    {
+        while (result.size() < limit)
+        {
+            while (next < count)
+            {
+                const qsizetype moved = order.value(collection.at(next).uuid, -1);
+                if (moved < 0 || moved > current) break;
+                ++next;
+            }
+            if (next >= count || order.contains(collection.at(next).uuid)) return false;
+            result.append(std::move(collection[next]));
+            ++next;
+        }
+        return true;
+    };
+    for (std::size_t index = 0; index < moves.size(); ++index)
+    {
+        if (!fill(moves[index].position, static_cast<qsizetype>(index)))
+            return error(message, QStringLiteral("History moves are not a forward placement"));
+        // Copied: the skip loop above may still read this member's UUID.
+        result.append(collection.at(location.value(moves[index].id)));
+    }
+    if (!fill(count, static_cast<qsizetype>(moves.size())))
+        return error(message, QStringLiteral("History moves are not a forward placement"));
+    collection = std::move(result);
     return true;
 }
 
@@ -300,6 +357,7 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
     }
     AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(APPLY_HISTORY_ENTITIES)
 #undef APPLY_HISTORY_ENTITIES
+    std::map<QString, std::vector<MembershipMove>> movesByType;
     for (const QJsonValue &value : moves)
     {
         if (!value.isObject())
@@ -316,21 +374,24 @@ inline bool apply(const QJsonObject &delta, const NetworkHydraulicDistribution &
             return error(message, QStringLiteral("Invalid History membership UUID"));
         if (!membershipTypes.contains(type))
             return error(message, QStringLiteral("History move outside orderedTypes"));
+        if (!typeOrdinal(type))
+            return error(message, QStringLiteral("Unknown History membership kind"));
         const double requested = move.value(QStringLiteral("position")).toDouble(-1);
         if (requested < 0 || requested > 2000000 ||
             requested != static_cast<int>(requested))
             return error(message, QStringLiteral("Invalid History membership index"));
-        bool recognized = false;
-#define MOVE_HISTORY_ENTITY(name, entity_type, storage_kind, ordinal) \
-        if (!recognized && type == QStringLiteral(#entity_type)) { \
-            recognized = true; \
-            if (!moveEntity(next.name, id, static_cast<qsizetype>(requested), message)) return false; \
-        }
-        AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(MOVE_HISTORY_ENTITY)
-#undef MOVE_HISTORY_ENTITY
-        if (!recognized)
-            return error(message, QStringLiteral("Unknown History membership kind"));
+        movesByType[type].push_back(MembershipMove{id, static_cast<qsizetype>(requested)});
     }
+    // Collections are independent, so each one's moves apply in one pass.
+#define MOVE_HISTORY_ENTITIES(name, entity_type, storage_kind, ordinal) \
+    { \
+        const std::map<QString, std::vector<MembershipMove>>::const_iterator found = \
+            movesByType.find(QStringLiteral(#entity_type)); \
+        if (found != movesByType.end() && !applyMoves(next.name, found->second, message)) \
+            return false; \
+    }
+    AOWIS_HYDRAULIC_DRAFT_ENTITY_TYPES(MOVE_HISTORY_ENTITIES)
+#undef MOVE_HISTORY_ENTITIES
     if (orderDigest(next, orderedTypes) != to)
         return error(message, QStringLiteral("History destination digest mismatch"));
     destination = std::move(next);

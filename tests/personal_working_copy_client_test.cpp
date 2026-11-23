@@ -31,6 +31,7 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QUrl>
+#include <QRandomGenerator>
 #include <QUrlQuery>
 #include <QThread>
 #include <QtEndian>
@@ -1324,6 +1325,117 @@ bool testVerifiedHistoryDeltaCollections()
                  "History delta updated a duplicated local member");
 }
 
+// DVMDB's forward placement (docs/history-transport.md): move each desired
+// member in turn from its later index to its final index.
+QJsonArray forwardMoves(QList<QUuid> projected, const QList<QUuid> &desired)
+{
+    QJsonArray moves;
+    for (qsizetype index = 0; index < desired.size(); ++index)
+    {
+        if (projected.at(index) == desired.at(index)) continue;
+        projected.move(projected.indexOf(desired.at(index), index + 1), index);
+        moves.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+                                 {QStringLiteral("id"), historyUuid(desired.at(index))},
+                                 {QStringLiteral("position"), static_cast<int>(index)}});
+    }
+    return moves;
+}
+
+QJsonObject junctionMove(const QUuid &id, int position)
+{
+    return QJsonObject{{QStringLiteral("type"), QStringLiteral("HydraulicNodeJunction")},
+                       {QStringLiteral("id"), historyUuid(id)},
+                       {QStringLiteral("position"), position}};
+}
+
+// D5: moves of one collection are applied in one pass. Every forward
+// placement gives the same result as applying its moves one by one; other
+// move lists are refused; a large reversal stays fast.
+bool testHistoryDeltaForwardMoves()
+{
+    const QStringList junctions{QStringLiteral("HydraulicNodeJunction")};
+    QRandomGenerator random(20261123);
+    QString error;
+    NetworkHydraulicDistribution actual;
+    for (int round = 0; round < 300; ++round)
+    {
+        NetworkHydraulicDistribution source;
+        source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+        const int count = static_cast<int>(random.bounded(1, 14));
+        for (int index = 0; index < count; ++index)
+            source.nodes_junctions.append(historyJunction(QStringLiteral("R%1").arg(index)));
+        NetworkHydraulicDistribution desired = source;
+        const int shuffles = static_cast<int>(random.bounded(0, 4));
+        for (int step = 0; step < shuffles; ++step)
+            desired.nodes_junctions.move(random.bounded(count), random.bounded(count));
+        if (round % 5 == 0)
+            for (qsizetype index = desired.nodes_junctions.size() - 1; index > 0; --index)
+                desired.nodes_junctions.swapItemsAt(index, random.bounded(static_cast<int>(index) + 1));
+        QList<QUuid> from;
+        QList<QUuid> to;
+        for (const HydraulicNodeJunction &junction : source.nodes_junctions) from.append(junction.uuid);
+        for (const HydraulicNodeJunction &junction : desired.nodes_junctions) to.append(junction.uuid);
+        const QJsonObject delta = historyDeltaV2(source, desired, junctions, QJsonArray{},
+                                                 forwardMoves(from, to));
+        if (!check(HydraulicHistoryDelta::apply(delta, source, actual, &error) &&
+                   HydraulicHistoryDelta::digest(actual) == HydraulicHistoryDelta::digest(desired),
+                   "a forward placement was not applied like its moves one by one")) return false;
+    }
+
+    // A, B, C, D: moving B to 2, then A to 3 is valid one by one ([C, B, D, A]),
+    // but A already sits before its final position: not a forward placement.
+    NetworkHydraulicDistribution source;
+    source.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    for (int index = 0; index < 4; ++index)
+        source.nodes_junctions.append(historyJunction(QStringLiteral("F%1").arg(index)));
+    const QList<HydraulicNodeJunction> &f = source.nodes_junctions;
+    NetworkHydraulicDistribution backward = source;
+    backward.nodes_junctions = {f.at(2), f.at(1), f.at(3), f.at(0)};
+    const std::function<bool(const NetworkHydraulicDistribution &, const QJsonArray &)> refused =
+        [&](const NetworkHydraulicDistribution &desired, const QJsonArray &moves)
+    {
+        NetworkHydraulicDistribution untouched = source;
+        const bool applied = HydraulicHistoryDelta::apply(
+            historyDeltaV2(source, desired, junctions, QJsonArray{}, moves), source, untouched, &error);
+        return !applied && HydraulicHistoryDelta::digest(untouched) == HydraulicHistoryDelta::digest(source);
+    };
+    NetworkHydraulicDistribution swapped = source;
+    swapped.nodes_junctions.swapItemsAt(1, 2);
+    if (!check(refused(backward, QJsonArray{junctionMove(f.at(1).uuid, 2), junctionMove(f.at(0).uuid, 3)}) &&
+               error.contains(QStringLiteral("forward placement")) &&
+               refused(swapped, QJsonArray{junctionMove(f.at(2).uuid, 1), junctionMove(f.at(2).uuid, 2)}) &&
+               refused(swapped, QJsonArray{junctionMove(f.at(2).uuid, 2), junctionMove(f.at(3).uuid, 1)}) &&
+               refused(swapped, QJsonArray{junctionMove(f.at(2).uuid, 4)}) &&
+               refused(swapped, QJsonArray{junctionMove(
+                   QUuid(PersonalWorkingCopyClient::newSessionUuidV7()), 1)}),
+               "a move list that is not a forward placement was applied")) return false;
+    // The valid list for the same swap still works.
+    if (!check(HydraulicHistoryDelta::apply(historyDeltaV2(source, swapped, junctions, QJsonArray{},
+                   QJsonArray{junctionMove(f.at(2).uuid, 1)}), source, actual, &error) &&
+               HydraulicHistoryDelta::digest(actual) == HydraulicHistoryDelta::digest(swapped),
+               "a one-move forward placement was refused")) return false;
+
+    // 50,000 members reversed: 49,999 moves. One by one this was quadratic.
+    NetworkHydraulicDistribution large;
+    large.uuid = QUuid(PersonalWorkingCopyClient::newSessionUuidV7());
+    for (int index = 0; index < 50000; ++index)
+        large.nodes_junctions.append(historyJunction(QStringLiteral("L%1").arg(index)));
+    NetworkHydraulicDistribution reversed = large;
+    std::reverse(reversed.nodes_junctions.begin(), reversed.nodes_junctions.end());
+    QJsonArray reversal;
+    for (qsizetype index = 0; index + 1 < reversed.nodes_junctions.size(); ++index)
+        reversal.append(junctionMove(reversed.nodes_junctions.at(index).uuid, static_cast<int>(index)));
+    QElapsedTimer timer;
+    timer.start();
+    const bool reversedOk = HydraulicHistoryDelta::apply(
+        historyDeltaV2(large, reversed, junctions, QJsonArray{}, reversal), large, actual, &error);
+    const qint64 elapsed = timer.elapsed();
+    return check(reversedOk &&
+                     HydraulicHistoryDelta::digest(actual) == HydraulicHistoryDelta::digest(reversed) &&
+                     elapsed < 10000,
+                 "a 50,000-member reversal was not applied in one pass");
+}
+
 // An archived selection is writable only after the server verifies that a
 // new MODEL edit can safely branch the active History at this coordinate.
 // Navigation and cursor refresh must never invent a synthetic MODEL event.
@@ -2261,6 +2373,7 @@ int main(int argc, char **argv)
     QCoreApplication application(argc, argv);
     if (!testVerifiedHistoryDelta()) return 1;
     if (!testVerifiedHistoryDeltaCollections()) return 1;
+    if (!testHistoryDeltaForwardMoves()) return 1;
     if (!testVerifiedAnnotationHistoryDelta()) return 1;
     if (!testAnnotationLayerPages(application)) return 1;
     if (!testArchivedHistoryCaptureGate(application)) return 1;

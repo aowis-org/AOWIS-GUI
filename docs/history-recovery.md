@@ -41,7 +41,9 @@ when the designated server is unreachable.
    GUI verifies the source digest and every before-image, applies the changes
    to a temporary model, then checks the destination digest before publishing
    it to the editor. Membership changes and moves outside `orderedTypes` are
-   refused. The same reply carries `annotationDelta` (version 1) for the
+   refused. Moves are applied in one pass per collection and must be the
+   server's forward placement (positions ascending, each member moved once,
+   forward). The same reply carries `annotationDelta` (version 1) for the
    network's annotation layer: changed annotation images, insertion positions
    or the complete member order, and order digests. The GUI applies it to a
    copy of its verified annotations the same way (`map_annotation_history_delta.h`).
