@@ -654,6 +654,31 @@ void testRenderedAnnotationPicking()
         QSize(int(ViewportWidth), int(ViewportHeight)));
     req(reverse_drag == drag_from_annotation,
         "screen selection handles backward drags without geo projection roundtrip");
+    const QSize screen_size(int(ViewportWidth), int(ViewportHeight));
+    const QPointF drag_top_left(120.0, 160.0);
+    const QPointF drag_bottom_right(310.0, 290.0);
+    const QRect expected_drag(QPoint(120, 160), QPoint(310, 290));
+    req(MapScreenSelectionRectangle::bounded(drag_top_left, drag_bottom_right,
+        screen_size) == expected_drag,
+        "screen rectangle includes the exact mouse endpoints");
+    req(MapScreenSelectionRectangle::bounded(drag_bottom_right, drag_top_left,
+        screen_size) == expected_drag,
+        "backward screen drag includes the same endpoints without an off-by-one shift");
+    req(MapScreenSelectionRectangle::bounded(QPointF(120.0, 290.0),
+        QPointF(310.0, 160.0), screen_size) == expected_drag,
+        "diagonal screen drag with reversed Y remains symmetric");
+    req(MapScreenSelectionRectangle::bounded(QPointF(310.0, 160.0),
+        QPointF(120.0, 290.0), screen_size) == expected_drag,
+        "diagonal screen drag with reversed X remains symmetric");
+    const QRect viewport_rect(QPoint(0, 0), screen_size);
+    req(MapScreenSelectionRectangle::bounded(QPointF(-20.0, -20.0),
+        QPointF(ViewportWidth + 20.0, ViewportHeight + 20.0), screen_size)
+        == viewport_rect,
+        "selection rectangle clips to viewport bounds");
+    req(MapScreenSelectionRectangle::bounded(
+        QPointF(ViewportWidth + 20.0, ViewportHeight + 20.0),
+        QPointF(-20.0, -20.0), screen_size) == viewport_rect,
+        "reversed out-of-bounds selection clips identically");
     req(!harness.overlay.hitTestAnnotation(QPointF(a.x - 160.0, a.y + 75.0)),
         "click on empty map is not an annotation hit");
     const QRectF first_rect(first_callout.x() - 4.0, first_callout.y() - 4.0, 8.0, 8.0);
