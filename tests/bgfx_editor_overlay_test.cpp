@@ -654,7 +654,7 @@ void testRenderedAnnotationPicking()
         QSize(int(ViewportWidth), int(ViewportHeight)));
     req(reverse_drag == drag_from_annotation,
         "screen selection handles backward drags without geo projection roundtrip");
-    const QSize screen_size(int(ViewportWidth), int(ViewportHeight));
+    const QSize screen_size{int(ViewportWidth), int(ViewportHeight)};
     const QPointF drag_top_left(120.0, 160.0);
     const QPointF drag_bottom_right(310.0, 290.0);
     const QRect expected_drag(QPoint(120, 160), QPoint(310, 290));
