@@ -2992,6 +2992,89 @@ void testRevisionedMapAnnotationDraftEditing()
         "annotation deletion is staged, replayed and acknowledged independently");
 }
 
+void testAnnotationMultiSelectionBatchIsAtomic()
+{
+    QTemporaryDir directory;
+    test_harness.expectTrue(directory.isValid(), "multi-selection draft directory exists");
+    if (!directory.isValid())
+        return;
+    NetworkHydraulicDistribution network;
+    network.uuid = createUuidV7();
+    network.id = QStringLiteral("Annotation group test");
+    HydraulicData data;
+    data.replaceNetworkHydraulicDistribution(network, {});
+    data.setLogicalEditCaptureEnabled(true);
+    QList<QByteArray> events;
+    QObject::connect(&data, &HydraulicData::signalLogicalEditRecorded,
+        &data, [&events](const QByteArray &bytes) { events.append(bytes); });
+    QUuid first;
+    QUuid second;
+    test_harness.expectTrue(data.createMapAnnotation(QStringLiteral("A"),
+        coordinate(50.0, 8.0), &first) &&
+        data.createMapAnnotation(QStringLiteral("B"), coordinate(50.1, 8.1), &second),
+        "two annotations are created for group editing");
+    if (!data.mapAnnotation(first) || !data.mapAnnotation(second))
+        return;
+    const QList<MapAnnotation> baseline = data.mapAnnotations();
+    events.clear();
+    MapAnnotation a = *data.mapAnnotation(first);
+    MapAnnotation b = *data.mapAnnotation(second);
+    a.position_wgs84 = coordinate(50.2, 8.2);
+    b.position_wgs84 = coordinate(50.3, 8.3);
+    test_harness.expectTrue(data.updateMapAnnotations({a, b}) && events.size() == 1 &&
+        data.mapAnnotations().size() == 2,
+        "multi-selection movement emits one canonical event");
+    if (events.size() != 1)
+        return;
+    const std::optional<aowis::model::ModelEditTransaction> update =
+        decoded(events.last());
+    test_harness.expectTrue(update && update->edits.size() == 2 &&
+        update->edits.at(0).before && update->edits.at(0).after &&
+        update->edits.at(1).before && update->edits.at(1).after,
+        "both updated records are reversible within one event");
+    MapAnnotation invalid = b;
+    invalid.uuid = createUuidV7();
+    test_harness.expectTrue(!data.updateMapAnnotations({a, invalid}) && events.size() == 1 &&
+        data.mapAnnotations().at(1).uuid == second,
+        "failed group edit leaves the entire network candidate untouched");
+    if (!update)
+        return;
+    PersonalDraftEditStage stage;
+    const QUuid repository = createUuidV7();
+    const QUuid draft = createUuidV7();
+    QString error;
+    test_harness.expectTrue(stage.open(directory.path(), repository, draft, network,
+        {}, &error, baseline) && stage.append(events.first(), &error) &&
+        stage.pendingCount() == 1 && stage.visibleAnnotations().size() == 2,
+        "group move stages atomically in the durable edit queue");
+    NetworkHydraulicDistribution candidate;
+    QList<PersonalWorkingCopyChange> changes;
+    QList<HydraulicDraftMembershipEdit> membership;
+    QUuid layer_id;
+    test_harness.expectTrue(stage.prepareOldest(candidate, changes, membership,
+        &error, &layer_id) && changes.isEmpty() && membership.isEmpty() &&
+        stage.acknowledgeOldest(events.first(), &error),
+        "group move is replayed and acknowledged as one annotation-only event");
+    stage.close();
+    events.clear();
+    test_harness.expectTrue(data.deleteMapAnnotations(QSet<QUuid>{first, second}) &&
+        data.mapAnnotations().isEmpty() && events.size() == 1,
+        "multi-selection Delete Selected emits one reversible event");
+    if (events.size() != 1)
+        return;
+    const std::optional<aowis::model::ModelEditTransaction> deletion =
+        decoded(events.last());
+    test_harness.expectTrue(deletion && deletion->edits.size() == 2 &&
+        !deletion->edits.at(0).after && !deletion->edits.at(1).after,
+        "both deletions share the same history entry");
+    PersonalDraftEditStage deletion_stage;
+    test_harness.expectTrue(deletion_stage.open(directory.path(), repository,
+        createUuidV7(), network, {}, &error, {a, b}) &&
+        deletion_stage.append(events.last(), &error) &&
+        deletion_stage.visibleAnnotations().isEmpty(),
+        "group deletion is replayed atomically without orphaned records");
+}
+
 // All four anchorable network entity types use the same atomic path. The
 // direct delete functions must not leave an annotation pointing at a removed
 // target, or generate one transaction per changed domain.
@@ -3247,6 +3330,7 @@ int main(int argc, char **argv)
     test_harness.runCase("Map annotations travel with the network", testMapAnnotationsTravelWithTheNetwork);
     test_harness.runCase("Revisioned map annotations: stage, acknowledgement and restart",
                          testRevisionedMapAnnotationDraftEditing);
+    test_harness.runCase("Atomic annotation group move and delete", testAnnotationMultiSelectionBatchIsAtomic);
     test_harness.runCase("Atomic annotation detach: mixed queue, restart and fail-closed replay",
                          testAtomicAnnotationDetachmentDraftReplay);
     test_harness.runCase("Annotation detachment across all four supported entity types",

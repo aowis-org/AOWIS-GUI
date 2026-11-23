@@ -17,6 +17,7 @@
 #include "map/editor/map_canvas_entities.h"
 #include "map/editor/map_annotation_input_policy.h"
 #include "map/editor/map_annotation_hit_area.h"
+#include "map/editor/map_annotation_selection.h"
 #include "tabs/tab_map_monitor_container.h"
 #include "tabs/map_workspace_mode.h"
 #include "map/render/map_entity_pixmap_renderer.h"
@@ -188,8 +189,31 @@ MapEditorContainer::MapEditorContainer(MapModel *map_model, MapTileRepository *t
     connect(this->map_inspector, &EntityInspectorDock::mapAnnotationSelected,
             this, [this](const QUuid &uuid)
     {
+        // Choosing one annotation is an ordinary replace-selection operation.
+        // An old network selection must not be deleted by the same Delete click.
+        this->map_canvas->mapCanvasEntities()->clearSelectedEntities();
         this->selected_annotation_uuid = uuid;
+        this->selected_annotation_uuids = {uuid};
+        updateAnnotationDeleteAvailability();
         refreshAnnotationOverlay();
+    });
+    connect(this->editor_controller, &MapEditorController::signalEntitySelectionChanged,
+            this, [this](bool selected)
+    {
+        if (!selected || this->selected_annotation_uuids.isEmpty()
+            || this->editor_controller->rectangleDragging())
+            return;
+        this->selected_annotation_uuids.clear();
+        this->selected_annotation_uuid = QUuid();
+        refreshAnnotationOverlay();
+    });
+    connect(this->editor_controller, &MapEditorController::signalEntityRectangleScreenSelected,
+            this, &MapEditorContainer::selectAnnotationsInRectangle);
+    connect(this->map_menu, &MapEditorMenuWidget::signalDeleteSelectionRequested,
+            this, [this]()
+    {
+        if (deleteSelectedAnnotations())
+            this->editor_controller->deleteSelectedEntities();
     });
     connect(this->map_menu, &MapEditorMenuWidget::signalMapEditorGuideVisibilityChanged, this, &MapEditorContainer::signalMapEditorGuideVisibilityChanged);
     connect(this->map_menu, &MapEditorMenuWidget::signalEditNetworkSectionActive, this, &MapEditorContainer::signalEditNetworkSectionActive);
@@ -687,15 +711,12 @@ void MapEditorContainer::setupBgfxEditor()
             MapBgfxPanReuse::Build build = overlay_frame->pan.begin(camera, viewport, ratio, pannable);
             inputs.viewport = build.viewport;
             inputs.camera = build.camera;
-            QList<MapAnnotation> annotations = this->hydraulic_data->mapAnnotations();
-            annotations.append(this->map_inspector->pendingMapAnnotations());
-            annotations = MapAnnotationPosition::drawable(
-                this->hydraulic_data->networkHydraulicDistribution(), annotations);
-            if (this->annotation_press_preview)
-                annotations.append(*this->annotation_press_preview);
+            QList<MapAnnotation> annotations = editorAnnotations();
             inputs.annotations = &annotations;
             inputs.annotation_scale_percent = this->annotation_scale_percent;
             inputs.selected_annotation_uuid = this->selected_annotation_uuid;
+            inputs.selected_annotation_uuids = &this->selected_annotation_uuids;
+            inputs.dragged_annotation_positions = &this->annotation_drag_previews;
             inputs.dragged_annotation_uuid = this->pressed_annotation_uuid;
             inputs.dragged_annotation_position = this->annotation_drag_preview;
             overlay->build(canvas, cache, inputs);
@@ -759,12 +780,7 @@ void MapEditorContainer::setupBgfxEditor()
                         return std::nullopt;
                     return projected;
                 });
-            QList<MapAnnotation> annotations = this->hydraulic_data->mapAnnotations();
-            annotations.append(this->map_inspector->pendingMapAnnotations());
-            annotations = MapAnnotationPosition::drawable(
-                this->hydraulic_data->networkHydraulicDistribution(), annotations);
-            if (this->annotation_press_preview)
-                annotations.append(*this->annotation_press_preview);
+            QList<MapAnnotation> annotations = editorAnnotations();
             overlay->buildGlobe(canvas, cache, viewport_state, projector,
                                 snapshot, width, viewport, frustum,
                                 snapshot != nullptr ? &this->bgfx_visual_state : nullptr,
@@ -773,7 +789,9 @@ void MapEditorContainer::setupBgfxEditor()
                                 this->selected_annotation_uuid,
                                 this->pressed_annotation_uuid,
                                 this->annotation_drag_preview,
-                                this->annotation_scale_percent);
+                                this->annotation_scale_percent,
+                                &this->selected_annotation_uuids,
+                                &this->annotation_drag_previews);
         };
     connect(this->map_canvas, &MapCanvasWidget::signalRenderUpdateRequested, this, [this]()
     {
@@ -1085,20 +1103,101 @@ std::optional<CoordinateWGS84> MapEditorContainer::annotationCoordinateAt(
     return this->map_model->wgs84FromScreen(screen.toPoint(), viewport_size);
 }
 
-std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
+QList<MapAnnotation> MapEditorContainer::editorAnnotations() const
 {
     QList<MapAnnotation> annotations = this->hydraulic_data->mapAnnotations();
     annotations.append(this->map_inspector->pendingMapAnnotations());
     annotations = MapAnnotationPosition::drawable(
         this->hydraulic_data->networkHydraulicDistribution(), annotations);
-    // Mouse-down feedback belongs to the map even before the Inspector opens.
     if (this->annotation_press_preview)
         annotations.append(*this->annotation_press_preview);
+    return MapAnnotationSelection::editorVisible(annotations);
+}
+
+void MapEditorContainer::updateAnnotationDeleteAvailability()
+{
+    bool deletable = false;
+    for (const QUuid &uuid : this->selected_annotation_uuids)
+    {
+        if (this->map_inspector->pendingMapAnnotation(uuid)
+            || (this->hydraulic_data->logicalEditCaptureEnabled()
+                && this->hydraulic_data->mapAnnotation(uuid)))
+        {
+            deletable = true;
+            break;
+        }
+    }
+    this->map_menu->setAnnotationSelectionAvailable(deletable);
+}
+
+void MapEditorContainer::selectAnnotationsInRectangle(const QRect &rectangle)
+{
+    if (!this->map_menu->isSelectToolActive())
+        return;
+    const QSize viewport_size = this->map->size().isEmpty()
+        ? this->map_canvas->size() : this->map->size();
+    const std::function<bool(const MapAnnotation &, QPointF *)> project =
+        [this, viewport_size](const MapAnnotation &annotation, QPointF *position)
+    {
+        if (this->map_model->viewMode() == MapViewMode::Globe)
+            return this->bgfx_surface != nullptr
+                && this->bgfx_surface->globeCoordinateToScreen(annotation.position_wgs84,
+                                                               position);
+        *position = this->map_model->screenFromWgs84(annotation.position_wgs84,
+            viewport_size, this->map_canvas->visualState().wrap_reference_longitude);
+        return true;
+    };
+    QSet<QUuid> selected = MapAnnotationSelection::inRectangle(
+        editorAnnotations(), QRectF(rectangle), this->annotation_scale_percent, project);
+    if (selected.size() != 1
+        && qobject_cast<EntityInspectorAnnotation *>(this->map_inspector->widget()))
+    {
+        // Finish any debounced Inspector edit BEFORE replacing the selection.
+        // The flush can create an annotation with a new UUID, so re-select
+        // from the resulting authoritative visible set.
+        this->map_inspector->clearEntity();
+        this->map_inspector->setVisible(false);
+        selected = MapAnnotationSelection::inRectangle(
+            editorAnnotations(), QRectF(rectangle), this->annotation_scale_percent, project);
+    }
+    this->selected_annotation_uuids = selected;
+    this->selected_annotation_uuid = selected.size() == 1
+        ? *selected.cbegin() : QUuid();
+    if (!this->selected_annotation_uuid.isNull())
+        this->map_inspector->showMapAnnotation(this->selected_annotation_uuid);
+    updateAnnotationDeleteAvailability();
+    refreshAnnotationOverlay();
+}
+
+bool MapEditorContainer::deleteSelectedAnnotations()
+{
+    // Copy first: deleting a draft can close its Inspector and emit selection
+    // signals while the list is being traversed. Persisted deletes use the
+    // same canonical MODEL events as the single-item Inspector action.
+    const QSet<QUuid> selected = this->selected_annotation_uuids;
+    QSet<QUuid> persisted;
+    for (const QUuid &uuid : selected)
+        if (!this->map_inspector->pendingMapAnnotation(uuid)
+            && this->hydraulic_data->mapAnnotation(uuid))
+            persisted.insert(uuid);
+    if (!persisted.isEmpty() && !this->hydraulic_data->deleteMapAnnotations(persisted))
+        return false; // Do not also delete hydraulic entities after a failed batch.
+    for (const QUuid &uuid : selected)
+        if (this->map_inspector->pendingMapAnnotation(uuid))
+            this->map_inspector->removePendingMapAnnotation(uuid);
+    this->selected_annotation_uuids.clear();
+    this->selected_annotation_uuid = QUuid();
+    updateAnnotationDeleteAvailability();
+    refreshAnnotationOverlay();
+    return true;
+}
+
+std::optional<QUuid> MapEditorContainer::annotationAt(const QPointF &screen) const
+{
+    const QList<MapAnnotation> annotations = editorAnnotations();
     for (qsizetype i = annotations.size(); i > 0; --i)
     {
         const MapAnnotation &annotation = annotations.at(i - 1);
-        if (!annotation.style.visible)
-            continue;
         QPointF position;
         if (this->map_model->viewMode() == MapViewMode::Globe)
         {
@@ -1134,12 +1233,24 @@ void MapEditorContainer::setAnnotationScalePercent(int percent)
 
 void MapEditorContainer::refreshAnnotationOverlay()
 {
+    for (QSet<QUuid>::iterator it = this->selected_annotation_uuids.begin();
+         it != this->selected_annotation_uuids.end();)
+    {
+        const QUuid uuid = *it;
+        if (this->map_inspector->pendingMapAnnotation(uuid)
+            || this->hydraulic_data->mapAnnotation(uuid)
+            || (this->annotation_press_preview && this->annotation_press_preview->uuid == uuid))
+            ++it;
+        else
+            it = this->selected_annotation_uuids.erase(it);
+    }
     if (!this->selected_annotation_uuid.isNull()
         && !(this->annotation_press_preview
              && this->selected_annotation_uuid == this->annotation_press_preview->uuid)
         && !this->map_inspector->pendingMapAnnotation(this->selected_annotation_uuid)
         && !this->hydraulic_data->mapAnnotation(this->selected_annotation_uuid))
         this->selected_annotation_uuid = QUuid();
+    updateAnnotationDeleteAvailability();
     this->bgfx_visual_state_dirty = true;
     this->map_canvas->requestRenderUpdate();
     if (this->shared_editor_mode && this->bgfx_surface != nullptr)
@@ -1170,6 +1281,7 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
             this->annotation_mouse_pressed = false;
             this->annotation_press_preview.reset();
             this->annotation_drag_preview.reset();
+            this->annotation_drag_previews.clear();
             this->pressed_annotation_uuid = QUuid();
         }
         const std::optional<QUuid> hit = annotationAt(mouse->position());
@@ -1184,8 +1296,16 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
         this->annotation_press_button = mouse->button();
         this->annotation_drag_started = false;
         this->annotation_drag_preview.reset();
+        this->annotation_drag_previews.clear();
         this->annotation_press_point = mouse->position();
         this->pressed_annotation_uuid = hit.value_or(QUuid());
+        const bool preserve_group = select_tool && mouse->button() == Qt::LeftButton
+            && hit && this->selected_annotation_uuids.contains(*hit)
+            && this->selected_annotation_uuids.size() > 1;
+        if (hit)
+            this->map_canvas->mapCanvasEntities()->clearSelectedEntities();
+        if (!preserve_group && hit)
+            this->selected_annotation_uuids = {*hit};
         if (action == MapAnnotationInput::PressAction::Place)
         {
             // Show the empty annotation at the point of right-button press,
@@ -1201,6 +1321,7 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
                 preview.style.show_background = true;
                 this->annotation_press_preview = preview;
                 this->selected_annotation_uuid = preview.uuid;
+                this->selected_annotation_uuids = {preview.uuid};
                 refreshAnnotationOverlay();
             }
         }
@@ -1226,6 +1347,10 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
                 || this->map_inspector->pendingMapAnnotation(this->pressed_annotation_uuid)))
         {
             this->annotation_drag_preview = annotationCoordinateAt(mouse->position());
+            if (this->annotation_drag_preview)
+                this->annotation_drag_previews = MapAnnotationSelection::translatedPositions(
+                    editorAnnotations(), this->selected_annotation_uuids,
+                    this->pressed_annotation_uuid, *this->annotation_drag_preview);
             refreshAnnotationOverlay();
         }
         return true;
@@ -1240,42 +1365,57 @@ bool MapEditorContainer::handleAnnotationInput(QEvent *event)
     this->annotation_mouse_pressed = false;
     this->annotation_press_button = Qt::NoButton;
     const std::optional<CoordinateWGS84> dropped_position = this->annotation_drag_preview;
+    const QHash<QUuid, CoordinateWGS84> moved_positions = this->annotation_drag_previews;
     this->annotation_drag_preview.reset();
+    this->annotation_drag_previews.clear();
     if (!this->pressed_annotation_uuid.isNull())
     {
         const QUuid chosen = this->pressed_annotation_uuid;
         this->pressed_annotation_uuid = QUuid();
-        if (this->map_inspector->pendingMapAnnotation(chosen))
+        const bool moving = completed_button == Qt::LeftButton
+            && this->annotation_drag_started && dropped_position;
+        const bool group = this->selected_annotation_uuids.size() > 1
+            && this->selected_annotation_uuids.contains(chosen);
+        if (moving && !moved_positions.isEmpty())
         {
-            if (completed_button == Qt::LeftButton && this->annotation_drag_started)
+            QList<MapAnnotation> persisted_updates;
+            bool valid = true;
+            for (QHash<QUuid, CoordinateWGS84>::const_iterator it = moved_positions.cbegin();
+                 it != moved_positions.cend(); ++it)
             {
-                const std::optional<CoordinateWGS84> position = dropped_position
-                    ? dropped_position : annotationCoordinateAt(mouse->position());
-                if (position)
-                    this->map_inspector->movePendingMapAnnotation(chosen, *position);
-            }
-            this->selected_annotation_uuid = chosen;
-            this->map_inspector->selectPendingMapAnnotation(chosen);
-            refreshAnnotationOverlay();
-            return true;
-        }
-        if (completed_button == Qt::LeftButton && this->annotation_drag_started
-            && this->hydraulic_data->logicalEditCaptureEnabled())
-        {
-            const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(chosen);
-            const std::optional<CoordinateWGS84> position = dropped_position
-                ? dropped_position : annotationCoordinateAt(mouse->position());
-            if (existing && position)
-            {
+                if (this->map_inspector->pendingMapAnnotation(it.key()))
+                    continue;
+                const std::optional<MapAnnotation> existing = this->hydraulic_data->mapAnnotation(it.key());
+                if (!existing || !this->hydraulic_data->logicalEditCaptureEnabled())
+                {
+                    valid = false;
+                    break;
+                }
                 MapAnnotation updated = *existing;
-                if (MapAnnotationPosition::place(
-                        this->hydraulic_data->networkHydraulicDistribution(),
-                        updated, *position))
-                    this->hydraulic_data->updateMapAnnotation(updated);
+                if (!MapAnnotationPosition::place(
+                        this->hydraulic_data->networkHydraulicDistribution(), updated,
+                        it.value()))
+                {
+                    valid = false;
+                    break;
+                }
+                persisted_updates.append(updated);
+            }
+            if (valid && (persisted_updates.isEmpty()
+                || this->hydraulic_data->updateMapAnnotations(persisted_updates)))
+            {
+                for (QHash<QUuid, CoordinateWGS84>::const_iterator it = moved_positions.cbegin();
+                     it != moved_positions.cend(); ++it)
+                    if (this->map_inspector->pendingMapAnnotation(it.key()))
+                        this->map_inspector->movePendingMapAnnotation(it.key(), it.value());
             }
         }
-        this->selected_annotation_uuid = chosen;
-        this->map_inspector->showMapAnnotation(chosen);
+        if (!group)
+        {
+            this->selected_annotation_uuids = {chosen};
+            this->selected_annotation_uuid = chosen;
+            this->map_inspector->showMapAnnotation(chosen);
+        }
         refreshAnnotationOverlay();
         return true;
     }
@@ -1412,6 +1552,15 @@ void MapEditorContainer::setMapEditorGuideChecked(bool checked)
     this->map_menu->setMapEditorGuideChecked(checked);
 }
 
+void MapEditorMenuWidget::setAnnotationSelectionAvailable(bool available)
+{
+    this->annotation_delete_selection_available = available;
+    if (this->button_edit_delete != nullptr)
+        this->button_edit_delete->setEnabled(
+            available || (this->editor_delete_selection_available
+                          && this->map->model()->viewMode() != MapViewMode::Globe));
+}
+
 void MapEditorMenuWidget::setAnnotationScalePercent(int percent)
 {
     if (this->annotation_scale_slider != nullptr)
@@ -1470,7 +1619,9 @@ void MapEditorMenuWidget::applyViewMode(MapViewMode view_mode)
     if (this->edit_tools != nullptr)
         this->edit_tools->setEnabled(true);
     if (this->button_edit_delete != nullptr)
-        this->button_edit_delete->setEnabled(!globe && this->editor_delete_selection_available);
+        this->button_edit_delete->setEnabled(
+            this->annotation_delete_selection_available
+            || (!globe && this->editor_delete_selection_available));
 } 
 
 void MapEditorMenuWidget::applyTerrainDataset()
@@ -2022,10 +2173,11 @@ void MapEditorMenuWidget::createEditControls()
     {
         this->editor_delete_selection_available = selected;
         this->button_edit_delete->setEnabled(
-            selected && this->map->model()->viewMode() != MapViewMode::Globe);
+            this->annotation_delete_selection_available
+            || (selected && this->map->model()->viewMode() != MapViewMode::Globe));
     });
-    connect(this->button_edit_delete, &QPushButton::clicked, this->editor_controller,
-            &MapEditorController::deleteSelectedEntities);
+    connect(this->button_edit_delete, &QPushButton::clicked, this,
+            &MapEditorMenuWidget::signalDeleteSelectionRequested);
     
     QLabel *label_add = LiveUiText::caption<QLabel>(QT_TRANSLATE_NOOP("LiveUiText", "Add:"), this);
     lay->addWidget(label_add);

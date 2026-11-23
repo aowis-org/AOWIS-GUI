@@ -73,7 +73,7 @@ EntityInspectorAnnotation::EntityInspectorAnnotation(HydraulicData *data,
     this->background_ = new QCheckBox(tr("Show background"), this);
     this->background_->setObjectName(QStringLiteral("mapAnnotationBackground"));
     this->form_->addRow(QString(), this->background_);
-    this->visible_ = new QCheckBox(tr("Visible on map"), this);
+    this->visible_ = new QCheckBox(tr("Visible on monitor map"), this);
     this->visible_->setObjectName(QStringLiteral("mapAnnotationVisible"));
     this->form_->addRow(QString(), this->visible_);
     this->anchor_ = new QComboBox(this);
@@ -190,7 +190,7 @@ void EntityInspectorAnnotation::retranslate()
     this->size_->setItemText(1, tr("Normal"));
     this->size_->setItemText(2, tr("Large"));
     this->background_->setText(tr("Show background"));
-    this->visible_->setText(tr("Visible on map"));
+    this->visible_->setText(tr("Visible on monitor map"));
     this->delete_->setText(this->creating_ ? tr("Discard draft") : tr("Delete annotation"));
     refreshFromModel();
     refreshPermission();

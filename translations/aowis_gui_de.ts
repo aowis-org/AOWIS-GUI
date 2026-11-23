@@ -9472,8 +9472,8 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
       <translation>Hintergrund anzeigen</translation>
     </message>
     <message>
-      <source>Visible on map</source>
-      <translation>Auf Karte sichtbar</translation>
+      <source>Visible on monitor map</source>
+      <translation>Auf Monitor-Karte sichtbar</translation>
     </message>
     <message>
       <source>Attached to</source>

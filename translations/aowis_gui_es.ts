@@ -9472,8 +9472,8 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
       <translation>Mostrar fondo</translation>
     </message>
     <message>
-      <source>Visible on map</source>
-      <translation>Visible en el mapa</translation>
+      <source>Visible on monitor map</source>
+      <translation>Visible en el mapa del monitor</translation>
     </message>
     <message>
       <source>Attached to</source>

@@ -1,6 +1,7 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
 #include "map/editor/map_canvas_projection.h"
 #include "map/editor/map_annotation_hit_area.h"
+#include "map/editor/map_annotation_selection.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
@@ -475,7 +476,7 @@ void testAnnotationVisibilityBackgroundAndScale()
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
                                        view, viewport, &annotations, 100);
     req(harness.canvas.vertices().isEmpty(),
-        "per-annotation Visible on map hides a record at nonzero scale");
+        "per-annotation Monitor visibility hides a record at nonzero scale");
     annotations[0].style.visible = true;
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
                                        view, viewport, &annotations, 50);
@@ -515,6 +516,91 @@ void testAnnotationVisibilityBackgroundAndScale()
         harness.canvas, harness.cache, area);
     req(without_background == 0 && with_background > 150,
         "Show background actually changes the selected annotation sprite alpha");
+}
+
+void testEditorAnnotationsCanAlwaysBeSelected()
+{
+    Harness harness;
+    MapAnnotation hidden;
+    hidden.uuid = QUuid::createUuid();
+    hidden.text = QStringLiteral("Monitor hidden but editable");
+    hidden.position_wgs84 = coordinate(9.0, 47.0);
+    hidden.style.visible = false;
+    MapAnnotation second;
+    second.uuid = QUuid::createUuid();
+    second.text = QStringLiteral("Second annotation");
+    second.position_wgs84 = coordinate(9.0010, 47.0);
+    second.style.visible = true;
+    const QList<MapAnnotation> original{hidden, second};
+    const QList<MapAnnotation> editor = MapAnnotationSelection::editorVisible(original);
+    req(!original.first().style.visible && editor.first().style.visible,
+        "monitor visibility remains stored and Editor displays its own copy");
+
+    const MapBgfx2d::Camera view = camera();
+    const MapBgfxHudPoint a = project(view, 9.0, 47.0);
+    const MapBgfxHudPoint b = project(view, 9.0010, 47.0);
+    const std::function<bool(const MapAnnotation &, QPointF *)> two_d =
+        [&view](const MapAnnotation &annotation, QPointF *point)
+    {
+        const MapBgfxHudPoint projected = project(view,
+            annotation.position_wgs84.longitude_deg,
+            annotation.position_wgs84.latitude_deg);
+        *point = QPointF(projected.x, projected.y);
+        return true;
+    };
+    const QRectF around_a(QPointF(a.x - 50.0, a.y - 60.0), QSizeF(130.0, 100.0));
+    const QSet<QUuid> only_a = MapAnnotationSelection::inRectangle(
+        editor, around_a, 100, two_d);
+    req(only_a.contains(hidden.uuid) && !only_a.contains(second.uuid),
+        "rectangle selection includes monitor-hidden annotation in Editor");
+    const QRectF both(QPointF(a.x - 50.0, a.y - 80.0),
+                      QSizeF(b.x - a.x + 180.0, 140.0));
+    const QSet<QUuid> selected = MapAnnotationSelection::inRectangle(
+        editor, both, 100, two_d);
+    req(selected.size() == 2 && selected.contains(hidden.uuid)
+        && selected.contains(second.uuid),
+        "2D rectangle selection selects multiple annotation callouts");
+    req(MapAnnotationSelection::inRectangle(editor, both, 0, two_d).isEmpty(),
+        "annotation-size Off excludes annotation hits");
+    const std::function<bool(const MapAnnotation &, QPointF *)> globe =
+        [&two_d](const MapAnnotation &annotation, QPointF *point)
+    {
+        return two_d(annotation, point);
+    };
+    req(MapAnnotationSelection::inRectangle(editor, both, 100, globe) == selected,
+        "same rectangle-selection policy accepts terrain-projected 3D positions");
+
+    const MapBgfxHudPoint target = project(view, 9.0001, 47.0001);
+    const QHash<QUuid, CoordinateWGS84> shifted = MapAnnotationSelection::translatedPositions(
+        editor, selected, hidden.uuid, coordinate(9.0001, 47.0001));
+    req(shifted.size() == 2 &&
+        std::fabs(shifted.value(hidden.uuid).longitude_deg - 9.0001) < 1e-7 &&
+        shifted.value(second.uuid).longitude_deg > second.position_wgs84.longitude_deg,
+        "group drag translates all selected annotations along geodesics");
+    QHash<QUuid, CoordinateWGS84> previews;
+    previews.insert(hidden.uuid, coordinate(9.0001, 47.0001));
+
+    NetworkRenderSnapshot snapshot;
+    MapEditorVisualState state;
+    MapEditorViewportRenderState viewport_state;
+    MapBgfxEditorOverlay::Inputs inputs;
+    inputs.snapshot = &snapshot;
+    inputs.visual_state = &state;
+    inputs.viewport_state = &viewport_state;
+    inputs.viewport = QSizeF(ViewportWidth, ViewportHeight);
+    inputs.camera = view;
+    QList<MapAnnotation> visible = editor;
+    inputs.annotations = &visible;
+    inputs.selected_annotation_uuids = &selected;
+    inputs.dragged_annotation_positions = &previews;
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 100.0) > 0,
+        "selected monitor-hidden annotation remains GPU-rendered while dragging in Editor");
+    // A persisted hidden annotation remains hidden in the read-only Monitor.
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache, view,
+        QSizeF(ViewportWidth, ViewportHeight), &original);
+    req(spriteVerticesNear(harness.canvas, harness.cache, b.x, b.y, 80.0) > 0,
+        "Monitor still renders annotations whose visibility is enabled");
 }
 
 void testReadOnlyMonitorAnnotations()
@@ -1546,6 +1632,7 @@ int main(int argc, char **argv)
     testEmptyAnnotationDraft();
     testReadOnlyMonitorAnnotations();
     testAnnotationVisibilityBackgroundAndScale();
+    testEditorAnnotationsCanAlwaysBeSelected();
     testStaticDetails();
     testSelection();
     testPlacement();

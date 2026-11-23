@@ -457,14 +457,19 @@ void MapBgfxEditorOverlay::drawAnnotations2d()
         if (annotation.anchor)
             continue; // unresolved anchors must never display at a stale geographic position
         const CoordinateWGS84 &coordinate =
-            annotation.uuid == this->inputs->dragged_annotation_uuid
+            this->inputs->dragged_annotation_positions
+                && this->inputs->dragged_annotation_positions->contains(annotation.uuid)
+            ? this->inputs->dragged_annotation_positions->value(annotation.uuid)
+            : annotation.uuid == this->inputs->dragged_annotation_uuid
                 && this->inputs->dragged_annotation_position
             ? *this->inputs->dragged_annotation_position : annotation.position_wgs84;
         const MapBgfxHudPoint position = screen(coordinate);
         if (onScreen(position.x, position.y, 330.0 * MapAnnotationDisplayScale::factor(this->annotation_scale_percent),
                      60.0 * MapAnnotationDisplayScale::factor(this->annotation_scale_percent)))
             drawAnnotation(annotation, position,
-                           annotation.uuid == this->inputs->selected_annotation_uuid);
+                           annotation.uuid == this->inputs->selected_annotation_uuid
+                           || (this->inputs->selected_annotation_uuids
+                               && this->inputs->selected_annotation_uuids->contains(annotation.uuid)));
     }
 }
 
@@ -954,7 +959,9 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const QUuid &selected_annotation_uuid,
                                       const QUuid &dragged_annotation_uuid,
                                       const std::optional<CoordinateWGS84> &dragged_annotation_position,
-                                      int annotation_scale_percent)
+                                      int annotation_scale_percent,
+                                      const QSet<QUuid> *selected_annotation_uuids,
+                                      const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions)
 {
     canvas->clear();
     this->globe_icon_hit_areas.clear();
@@ -983,7 +990,9 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                          &viewport_size, &frustum, editor_state,
                                          editor_projection, &elevated_projector,
                                          annotations, &selected_annotation_uuid,
-                                         &dragged_annotation_uuid, &dragged_annotation_position]()
+                                         &dragged_annotation_uuid, &dragged_annotation_position,
+                                         selected_annotation_uuids,
+                                         dragged_annotation_positions]()
     {
         // The atlas can be reset and this frame rebuilt: never retain hit
         // areas from sprites discarded by the rebuild.
@@ -1010,13 +1019,17 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                     continue;
                 QPointF projected;
                 const CoordinateWGS84 &coordinate =
-                    annotation.uuid == dragged_annotation_uuid && dragged_annotation_position
+                    dragged_annotation_positions && dragged_annotation_positions->contains(annotation.uuid)
+                    ? dragged_annotation_positions->value(annotation.uuid)
+                    : annotation.uuid == dragged_annotation_uuid && dragged_annotation_position
                     ? *dragged_annotation_position : annotation.position_wgs84;
                 if (!projector(coordinate.longitude_deg,
                                coordinate.latitude_deg, &projected, nullptr))
                     continue;
                 drawAnnotation(annotation, MapBgfxHudPoint{projected.x(), projected.y()},
-                               annotation.uuid == selected_annotation_uuid);
+                               annotation.uuid == selected_annotation_uuid
+                               || (selected_annotation_uuids
+                                   && selected_annotation_uuids->contains(annotation.uuid)));
             }
         }
     };

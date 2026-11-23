@@ -1829,6 +1829,15 @@ void MapCanvasEntities::startSelectedMarkerMove(
     updateCanvas();
 }
 
+void MapCanvasEntities::clearSelectedEntities()
+{
+    if (this->selection == nullptr || !this->selection->hasSelection())
+        return;
+    this->selection->clear();
+    updateCanvas();
+    emit signalEntityMarkerSelected(false);
+}
+
 void MapCanvasEntities::onMarkerSelectedDeleteRequested()
 {
     const QList<QUuid> marker_uuids_to_delete = this->selection->selectedMarkerUuids();

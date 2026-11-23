@@ -74,6 +74,9 @@ public:
                              const std::optional<MapAnnotationAnchor> &anchor = std::nullopt);
     bool updateMapAnnotation(const MapAnnotation &annotation);
     bool deleteMapAnnotation(const QUuid &uuid);
+    // One reversible canonical event for a multi-selection move or delete.
+    bool updateMapAnnotations(const QList<MapAnnotation> &annotations);
+    bool deleteMapAnnotations(const QSet<QUuid> &uuids);
     // Canonical, reversible edit of all network-wide metadata (not collections).
     // A private draft emits one MODEL event; server owns the manifest bytes.
     // operation/description label the captured event (history dock).

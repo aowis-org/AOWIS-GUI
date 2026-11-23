@@ -93,6 +93,8 @@ public:
         const QList<MapAnnotation> *annotations = nullptr;
         int annotation_scale_percent = 100;
         QUuid selected_annotation_uuid;
+        const QSet<QUuid> *selected_annotation_uuids = nullptr;
+        const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions = nullptr;
         QUuid dragged_annotation_uuid;
         std::optional<CoordinateWGS84> dragged_annotation_position;
         // The whole network is being moved: the GPU network is drawn
@@ -143,7 +145,9 @@ public:
                     const QUuid &selected_annotation_uuid = QUuid(),
                     const QUuid &dragged_annotation_uuid = QUuid(),
                     const std::optional<CoordinateWGS84> &dragged_annotation_position = std::nullopt,
-                    int annotation_scale_percent = 100);
+                    int annotation_scale_percent = 100,
+                    const QSet<QUuid> *selected_annotation_uuids = nullptr,
+                    const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions = nullptr);
     // The rectangles are recorded while painting the actual 3D Editor sprites.
     // Query them before the globe network geometry hit-test so clicking an
     // icon (including through terrain) selects the entity the user sees.

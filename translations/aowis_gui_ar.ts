@@ -9532,8 +9532,8 @@ Valve settings have different physical units. Sorting groups compatible quantiti
       <translation>إظهار الخلفية</translation>
     </message>
     <message>
-      <source>Visible on map</source>
-      <translation>مرئي على الخريطة</translation>
+      <source>Visible on monitor map</source>
+      <translation>مرئي على خريطة المراقبة</translation>
     </message>
     <message>
       <source>Attached to</source>

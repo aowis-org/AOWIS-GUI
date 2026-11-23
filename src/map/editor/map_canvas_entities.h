@@ -74,6 +74,9 @@ public:
 
     // Common selection entry point for 2D marker/pipe hits and 3D renderer
     // hits. The renderer identifies a candidate; only this editor selects it.
+    // An annotation selected directly replaces an older hydraulic selection.
+    // Rectangle selection can still collect both groups in one gesture.
+    void clearSelectedEntities();
     bool selectEntityAt(const QPointF &position);
     bool isEntityAt(const QPointF &position) const;
     bool selectMarkerAt(const QPointF &position);

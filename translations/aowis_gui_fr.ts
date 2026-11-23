@@ -9472,8 +9472,8 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
       <translation>Afficher l’arrière-plan</translation>
     </message>
     <message>
-      <source>Visible on map</source>
-      <translation>Visible sur la carte</translation>
+      <source>Visible on monitor map</source>
+      <translation>Visible sur la carte du moniteur</translation>
     </message>
     <message>
       <source>Attached to</source>

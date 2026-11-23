@@ -99,6 +99,8 @@ signals:
     void signalStateChanged();
     void signalFocusRequested();
     void signalRectangleSelected(const CoordinateWGS84Rect &rect);
+    // Finished entity-selection rectangle in screen pixels (2D and 3D).
+    void signalEntityRectangleScreenSelected(const QRect &rect);
     void signalRectangleSelectionCanceled();
     void signalEntitySelectionChanged(bool selected);
 

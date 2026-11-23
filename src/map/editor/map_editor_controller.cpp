@@ -459,6 +459,7 @@ bool MapEditorController::mouseRelease(const QPointF &position, Qt::MouseButton 
         if (this->rectangle_selection_interacts_with_entities)
         {
             this->map_canvas_entities->onRectangleSelect(selected_rect, RectangleSelectMode::Replace);
+            emit signalEntityRectangleScreenSelected(selected_rect);
             emit signalRectangleSelected(selectionRectWgs84(selected_rect, viewport_size));
         }
         else
@@ -666,6 +667,7 @@ bool MapEditorController::globeMouseRelease(const QPointF &position, Qt::MouseBu
         {
             this->map_canvas_entities->onRectangleSelect(
                 selected_rect, RectangleSelectMode::Replace);
+            emit signalEntityRectangleScreenSelected(selected_rect);
         }
         else
         {

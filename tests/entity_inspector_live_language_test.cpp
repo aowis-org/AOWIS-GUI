@@ -331,13 +331,13 @@ int runAnnotationInspectorAcceptance(QApplication &app)
         style_inspector->flushPendingEdit();
         updated = style_data.mapAnnotation(first.uuid);
         if (!expect(updated && !updated->style.visible, check,
-                    "Visible on map did not persist the hidden annotation"))
+                    "Visible on monitor map did not persist the hidden annotation"))
             return 30;
         visible->setChecked(true);
         style_inspector->flushPendingEdit();
         updated = style_data.mapAnnotation(first.uuid);
         if (!expect(updated && updated->style.visible, check,
-                    "Visible on map could not restore the hidden annotation"))
+                    "Visible on monitor map could not restore the hidden annotation"))
             return 31;
         style_dock.clearEntity();
         app.processEvents();

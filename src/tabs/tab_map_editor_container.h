@@ -44,6 +44,8 @@
 #include "common/_enums_structs.h"
 
 #include <QDebug>
+#include <QHash>
+#include <QSet>
 #include <optional>
 
 // The map editor draws with bgfx only (roadmap Phase 2; the QPainter editor
@@ -77,6 +79,7 @@ public:
     bool isEditNetworkSectionActive() const;
     bool isAnnotationToolActive() const;
     void setAnnotationScalePercent(int percent);
+    void setAnnotationSelectionAvailable(bool available);
     bool isSelectToolActive() const;
     // Map fullscreen: the left menu is not visible, so its buttons' window
     // shortcuts (tools, map providers) cannot fire. The map forwards key
@@ -125,6 +128,7 @@ private:
     QToolButton *button_edit_delete = nullptr;
     MapAnnotationScaleSlider *annotation_scale_slider = nullptr;
     bool editor_delete_selection_available = false;
+    bool annotation_delete_selection_available = false;
 
     // Terrain Cache section.
     QLabel *label_terrain_dataset = nullptr;
@@ -156,6 +160,7 @@ signals:
     void signalMapEditorGuideVisibilityChanged(bool visible);
     void signalAnnotationScalePercentChanged(int percent);
     void signalEditNetworkSectionActive(bool active);
+    void signalDeleteSelectionRequested();
 };
 
 
@@ -249,10 +254,15 @@ private:
     bool handleAnnotationInput(QEvent *event);
     std::optional<CoordinateWGS84> annotationCoordinateAt(const QPointF &screen) const;
     std::optional<QUuid> annotationAt(const QPointF &screen) const;
+    QList<MapAnnotation> editorAnnotations() const;
+    void selectAnnotationsInRectangle(const QRect &rectangle);
+    bool deleteSelectedAnnotations();
+    void updateAnnotationDeleteAvailability();
     void refreshAnnotationOverlay();
     // Immediate right-press marker; never persisted, discarded on drag/cancel.
     std::optional<MapAnnotation> annotation_press_preview;
     QUuid selected_annotation_uuid;
+    QSet<QUuid> selected_annotation_uuids;
     int annotation_scale_percent = 100;
     QUuid pressed_annotation_uuid;
     QPointF annotation_press_point;
@@ -260,6 +270,7 @@ private:
     Qt::MouseButton annotation_press_button = Qt::NoButton;
     bool annotation_drag_started = false;
     std::optional<CoordinateWGS84> annotation_drag_preview;
+    QHash<QUuid, CoordinateWGS84> annotation_drag_previews;
     // HUD first for pointer, wheel and Escape on the canvas (desktop: the
     // events forwarded from the native window; WASM: the canvas' own).
     bool routeBgfxHudEvent(QEvent *event);

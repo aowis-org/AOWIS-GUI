@@ -42,12 +42,23 @@ flows, etc.). They are not personal GUI preferences or unversioned notes.
    250% of their normal screen size. The slider is synchronized between the
    two views and changes **presentation only**, not the revisioned MODEL
    style. Right-click the slider to reset it to 100%.
-7. In the **Annotation Inspector**, **Visible on map** hides or shows only
-   that annotation in both views; it remains in the Inspector's list when
-   hidden. **Show background** toggles the text callout's filled background;
+7. In the **Annotation Inspector**, **Visible on monitor map** controls only
+   whether an annotation appears in Distribution Monitor. **Distribution Editor
+   always displays it**, even with this flag turned off, so it remains
+   selectable, movable and recoverable. The separate display-size slider's
+   **Off** position can temporarily hide annotations in either view.
+   **Show background** toggles the text callout's filled background;
    a selected annotation can still have an outline without a fill. These
    style changes are revisioned when editing a writable working copy. For
    unfinished local drafts, the preview follows the checkboxes immediately.
+
+8. The regular **Select** tool also handles annotations: left-click selects,
+   left-drag moves, and right-drag selects every annotation whose visible
+   callout intersects the selection rectangle (in 2D and 3D). The standard
+   **Delete Selected** action removes the selected annotations, including
+   unfinished local placeholders. A group move or deletion of persistent
+   annotations is recorded as **one reversible MODEL transaction**, not one
+   transaction per annotation. Selecting a group highlights all of its members.
 
 The Inspector debounces edits while typing; changing annotation selection,
 explicitly closing writable editing, or replacing the network flushes a pending

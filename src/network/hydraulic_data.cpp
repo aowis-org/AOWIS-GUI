@@ -693,6 +693,110 @@ bool HydraulicData::deleteMapAnnotation(const QUuid &uuid)
     return true;
 }
 
+bool HydraulicData::updateMapAnnotations(const QList<MapAnnotation> &changes)
+{
+    if (!this->logical_edit_capture_enabled ||
+        this->network_hydraulic_distribution.uuid.isNull() || changes.isEmpty())
+        return false;
+    QList<MapAnnotation> next = this->map_annotations;
+    QSet<QUuid> seen;
+    aowis::model::ModelEditTransaction transaction;
+    transaction.transactionId = createUuidV7();
+    transaction.operation = QStringLiteral("map.annotation.batch.update");
+    transaction.description = QStringLiteral("Move map annotations");
+    const QUuid layer = distributionMapAnnotationLayerId(
+        this->network_hydraulic_distribution.uuid);
+    if (layer.isNull())
+        return false;
+    for (const MapAnnotation &updated : changes)
+    {
+        if (updated.uuid.isNull() || seen.contains(updated.uuid)
+            || !aowis::model::validateMapAnnotation(updated).valid()
+            || (updated.anchor && !MapAnnotationPosition::targetPosition(
+                this->network_hydraulic_distribution, *updated.anchor)))
+            return false;
+        seen.insert(updated.uuid);
+        qsizetype index = -1;
+        for (qsizetype i = 0; i < next.size(); ++i)
+            if (next.at(i).uuid == updated.uuid)
+            {
+                if (index >= 0)
+                    return false;
+                index = i;
+            }
+        if (index < 0)
+            return false;
+        const QByteArray before = aowis::model::ModelCodec<MapAnnotation>::encode(next.at(index));
+        const QByteArray after = aowis::model::ModelCodec<MapAnnotation>::encode(updated);
+        if (before.isEmpty() || after.isEmpty())
+            return false;
+        if (before == after)
+            continue;
+        aowis::model::ModelEntityEdit edit;
+        edit.entityId = updated.uuid;
+        edit.entityType = QString::fromLatin1(aowis::model::mapAnnotationEditType);
+        edit.ownerLayerId = layer;
+        edit.before = before;
+        edit.after = after;
+        transaction.edits.append(edit);
+        next[index] = updated;
+    }
+    if (transaction.edits.isEmpty())
+        return true;
+    const QByteArray event = aowis::model::ModelEditTransactionCodec::encode(transaction);
+    if (event.isEmpty())
+        return false;
+    this->map_annotations = std::move(next);
+    emit signalMapAnnotationsChanged();
+    emit signalLogicalEditRecorded(event);
+    return true;
+}
+
+bool HydraulicData::deleteMapAnnotations(const QSet<QUuid> &uuids)
+{
+    if (!this->logical_edit_capture_enabled || uuids.isEmpty()
+        || this->network_hydraulic_distribution.uuid.isNull())
+        return false;
+    QList<MapAnnotation> next = this->map_annotations;
+    aowis::model::ModelEditTransaction transaction;
+    transaction.transactionId = createUuidV7();
+    transaction.operation = QStringLiteral("map.annotation.batch.delete");
+    transaction.description = QStringLiteral("Delete map annotations");
+    const QUuid layer = distributionMapAnnotationLayerId(
+        this->network_hydraulic_distribution.uuid);
+    if (layer.isNull())
+        return false;
+    for (const QUuid &uuid : uuids)
+    {
+        qsizetype index = -1;
+        for (qsizetype i = 0; i < next.size(); ++i)
+            if (next.at(i).uuid == uuid)
+            {
+                if (index >= 0)
+                    return false;
+                index = i;
+            }
+        if (uuid.isNull() || index < 0)
+            return false;
+        aowis::model::ModelEntityEdit edit;
+        edit.entityId = uuid;
+        edit.entityType = QString::fromLatin1(aowis::model::mapAnnotationEditType);
+        edit.ownerLayerId = layer;
+        edit.before = aowis::model::ModelCodec<MapAnnotation>::encode(next.at(index));
+        if (!edit.before || edit.before->isEmpty())
+            return false;
+        transaction.edits.append(edit);
+        next.removeAt(index);
+    }
+    const QByteArray event = aowis::model::ModelEditTransactionCodec::encode(transaction);
+    if (event.isEmpty())
+        return false;
+    this->map_annotations = std::move(next);
+    emit signalMapAnnotationsChanged();
+    emit signalLogicalEditRecorded(event);
+    return true;
+}
+
 bool HydraulicData::setNetworkRootMetadata(const NetworkHydraulicDistribution &metadata,
                                            const QString &operation,
                                            const QString &description)
