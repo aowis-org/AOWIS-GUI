@@ -36,51 +36,86 @@ bool currentImage(const QList<T> &collection, const QUuid &uuid,
 }
 
 // Annotation membership is materialized by DVMDB, never by the hydraulic
-// registry. One MODEL event contains one annotation edit; both client and
-// server verify the exact before-image and immutable layer ownership.
-bool prepareAnnotationEvent(const QByteArray &encoded_event,
+// registry. Apply ALL annotation subedits to a scratch candidate: a mixed
+// operation must not advance either candidate if one before-image is stale.
+bool prepareAnnotationEdits(const QList<aowis::model::ModelEntityEdit> &edits,
                             const QUuid &layer_id, QList<MapAnnotation> &annotations,
                             QString *error)
 {
-    const std::optional<aowis::model::ModelEditTransaction> transaction =
-        aowis::model::ModelEditTransactionCodec::decode(encoded_event, error);
-    if (!transaction || transaction->edits.size() != 1 || layer_id.isNull())
+    if (edits.isEmpty() || layer_id.isNull())
         return fail(error, QStringLiteral("Invalid annotation transaction or owner layer"));
-    const aowis::model::ModelEntityEdit &edit = transaction->edits.first();
-    if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType) ||
-        !edit.ownerLayerId || *edit.ownerLayerId != layer_id || edit.entityId.isNull())
-        return fail(error, QStringLiteral("Annotation owner or identity mismatch"));
-    qsizetype index = -1;
-    for (qsizetype at = 0; at < annotations.size(); ++at)
-        if (annotations.at(at).uuid == edit.entityId)
-        {
-            if (index >= 0)
-                return fail(error, QStringLiteral("Duplicate annotation UUID"));
-            index = at;
-        }
-    const bool exists = index >= 0;
-    if (edit.before.has_value() != exists ||
-        (exists && aowis::model::ModelCodec<MapAnnotation>::encode(annotations.at(index)) !=
-                       *edit.before))
-        return fail(error, QStringLiteral("Stale annotation before-image"));
-    if (!edit.after)
+    QList<MapAnnotation> next = annotations;
+    QSet<QUuid> touched;
+    for (const aowis::model::ModelEntityEdit &edit : edits)
     {
-        if (!exists)
-            return fail(error, QStringLiteral("Cannot delete missing annotation"));
-        annotations.removeAt(index);
-        return true;
+        if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType) ||
+            !edit.ownerLayerId || *edit.ownerLayerId != layer_id || edit.entityId.isNull() ||
+            touched.contains(edit.entityId))
+            return fail(error, QStringLiteral("Annotation owner or identity mismatch"));
+        touched.insert(edit.entityId);
+        qsizetype index = -1;
+        for (qsizetype at = 0; at < next.size(); ++at)
+            if (next.at(at).uuid == edit.entityId)
+            {
+                if (index >= 0)
+                    return fail(error, QStringLiteral("Duplicate annotation UUID"));
+                index = at;
+            }
+        const bool exists = index >= 0;
+        if (edit.before.has_value() != exists ||
+            (exists && aowis::model::ModelCodec<MapAnnotation>::encode(next.at(index)) !=
+                           *edit.before))
+            return fail(error, QStringLiteral("Stale annotation before-image"));
+        if (!edit.after)
+        {
+            if (!exists)
+                return fail(error, QStringLiteral("Cannot delete missing annotation"));
+            next.removeAt(index);
+            continue;
+        }
+        QString codec_error;
+        const std::optional<MapAnnotation> decoded =
+            aowis::model::ModelCodec<MapAnnotation>::decode(*edit.after, &codec_error);
+        if (!decoded || decoded->uuid != edit.entityId ||
+            aowis::model::ModelCodec<MapAnnotation>::encode(*decoded) != *edit.after ||
+            !aowis::model::validateMapAnnotation(*decoded).valid())
+            return fail(error, QStringLiteral("Invalid annotation after-image: ") + codec_error);
+        if (exists)
+            next[index] = *decoded;
+        else
+            next.append(*decoded);
     }
-    QString codec_error;
-    const std::optional<MapAnnotation> decoded =
-        aowis::model::ModelCodec<MapAnnotation>::decode(*edit.after, &codec_error);
-    if (!decoded || decoded->uuid != edit.entityId ||
-        aowis::model::ModelCodec<MapAnnotation>::encode(*decoded) != *edit.after ||
-        !aowis::model::validateMapAnnotation(*decoded).valid())
-        return fail(error, QStringLiteral("Invalid annotation after-image: ") + codec_error);
-    if (exists)
-        annotations[index] = *decoded;
-    else
-        annotations.append(*decoded);
+    annotations = std::move(next);
+    return true;
+}
+
+// The layer and hydraulic network are one final candidate. A deletion without
+// its detach subedit is invalid, including on crash recovery / replay.
+bool annotationAnchorsValid(const NetworkHydraulicDistribution &network,
+                            const QList<MapAnnotation> &annotations)
+{
+    for (const MapAnnotation &annotation : annotations)
+    {
+        if (!annotation.anchor)
+            continue;
+        const MapAnnotationAnchor &anchor = *annotation.anchor;
+        int matches = 0;
+        bool type_match = false;
+#define MATCH_ANCHOR(collection, type_name) \
+        for (const type_name &node : network.collection) \
+            if (node.uuid == anchor.entity_uuid) \
+            { \
+                ++matches; \
+                if (anchor.entity_type == QStringLiteral(#type_name)) type_match = true; \
+            }
+        MATCH_ANCHOR(nodes_junctions, HydraulicNodeJunction)
+        MATCH_ANCHOR(nodes_reservoirs, HydraulicNodeReservoir)
+        MATCH_ANCHOR(nodes_tanks, HydraulicNodeTank)
+        MATCH_ANCHOR(demand_points, HydraulicDemandPoint)
+#undef MATCH_ANCHOR
+        if (matches != 1 || !type_match)
+            return false;
+    }
     return true;
 }
 
@@ -95,16 +130,45 @@ bool prepareAnyEvent(const QByteArray &encoded_event,
         aowis::model::ModelEditTransactionCodec::decode(encoded_event, error);
     if (!decoded || decoded->edits.isEmpty())
         return fail(error, QStringLiteral("Invalid staged event"));
-    if (decoded->edits.first().entityType ==
-        QString::fromLatin1(aowis::model::mapAnnotationEditType))
+
+    aowis::model::ModelEditTransaction hydraulic = *decoded;
+    hydraulic.edits.clear();
+    QList<aowis::model::ModelEntityEdit> annotation_edits;
+    QSet<QUuid> identities;
+    for (const aowis::model::ModelEntityEdit &edit : decoded->edits)
     {
-        for (const aowis::model::ModelEntityEdit &edit : decoded->edits)
-            if (edit.entityType != QString::fromLatin1(aowis::model::mapAnnotationEditType))
-                return fail(error, QStringLiteral("Mixed annotation and hydraulic event unsupported"));
-        return prepareAnnotationEvent(encoded_event, layer_id, annotations, error);
+        if (edit.entityId.isNull() || identities.contains(edit.entityId))
+            return fail(error, QStringLiteral("Duplicate or null mixed event identity"));
+        identities.insert(edit.entityId);
+        if (edit.entityType == QString::fromLatin1(aowis::model::mapAnnotationEditType))
+            annotation_edits.append(edit);
+        else
+            hydraulic.edits.append(edit);
     }
-    return HydraulicDraftEventAdapter::prepareWithMembership(
-        encoded_event, network, records, membership, error);
+
+    NetworkHydraulicDistribution next_network = network;
+    QList<MapAnnotation> next_annotations = annotations;
+    QList<PersonalWorkingCopyChange> next_records;
+    QList<HydraulicDraftMembershipEdit> next_membership;
+    if (!hydraulic.edits.isEmpty())
+    {
+        const QByteArray hydraulic_event =
+            aowis::model::ModelEditTransactionCodec::encode(hydraulic, error);
+        if (hydraulic_event.isEmpty() || !HydraulicDraftEventAdapter::prepareWithMembership(
+                hydraulic_event, next_network, next_records, next_membership, error))
+            return false;
+    }
+    if (!annotation_edits.isEmpty() &&
+        !prepareAnnotationEdits(annotation_edits, layer_id, next_annotations, error))
+        return false;
+    if (!annotationAnchorsValid(next_network, next_annotations))
+        return fail(error, QStringLiteral("Annotation anchor is missing from the final network candidate"));
+
+    network = std::move(next_network);
+    annotations = std::move(next_annotations);
+    records = std::move(next_records);
+    membership = std::move(next_membership);
+    return true;
 }
 
 // True when the candidate already holds every after-image of the event (and
@@ -340,10 +404,14 @@ bool PersonalDraftEditStage::prepareOldest(
     {
         const std::optional<aowis::model::ModelEditTransaction> decoded =
             aowis::model::ModelEditTransactionCodec::decode(encoded);
-        *annotation_layer_id = decoded && !decoded->edits.isEmpty() &&
-            decoded->edits.first().entityType ==
-                QString::fromLatin1(aowis::model::mapAnnotationEditType)
-            ? this->annotation_layer_id_ : QUuid();
+        *annotation_layer_id = QUuid();
+        if (decoded)
+            for (const aowis::model::ModelEntityEdit &edit : decoded->edits)
+                if (edit.entityType == QString::fromLatin1(aowis::model::mapAnnotationEditType))
+                {
+                    *annotation_layer_id = this->annotation_layer_id_;
+                    break;
+                }
     }
     return true;
 }
@@ -357,10 +425,12 @@ bool PersonalDraftEditStage::acknowledgeOldest(const QByteArray &confirmed_event
     const PersonalEditQueue::Entry first = this->queue_.pending().first();
     if (first.encoded_transaction != confirmed_event)
         return fail(error, QStringLiteral("Server confirmation does not match oldest local event"));
-    NetworkHydraulicDistribution next;
+    NetworkHydraulicDistribution next = this->persisted_;
+    QList<MapAnnotation> next_annotations = this->persisted_annotations_;
     QList<PersonalWorkingCopyChange> records;
     QList<HydraulicDraftMembershipEdit> membership;
-    if (!prepareOldest(next, records, membership, error))
+    if (!prepareAnyEvent(confirmed_event, next, next_annotations,
+                         this->annotation_layer_id_, records, membership, error))
     {
         this->blocked_ = true;
         return false;
@@ -371,21 +441,7 @@ bool PersonalDraftEditStage::acknowledgeOldest(const QByteArray &confirmed_event
         return false;
     }
     this->persisted_ = std::move(next);
-    // Hydraulic-only events leave annotations untouched. The server owns
-    // membership changes of annotation events (empty typed records).
-    const std::optional<aowis::model::ModelEditTransaction> decoded =
-        aowis::model::ModelEditTransactionCodec::decode(confirmed_event);
-    if (decoded && !decoded->edits.isEmpty() &&
-        decoded->edits.first().entityType ==
-            QString::fromLatin1(aowis::model::mapAnnotationEditType))
-    {
-        if (!prepareAnnotationEvent(confirmed_event, this->annotation_layer_id_,
-                                    this->persisted_annotations_, error))
-        {
-            this->blocked_ = true;
-            return false;
-        }
-    }
+    this->persisted_annotations_ = std::move(next_annotations);
     return true;
 }
 

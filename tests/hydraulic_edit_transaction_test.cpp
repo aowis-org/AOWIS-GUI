@@ -868,7 +868,7 @@ void testOrderedHydraulicDraftRecordMapping()
         return;
     test_harness.expectTrue(records.size() == 1 &&
                             records.at(0).uuid == a.toString(QUuid::WithoutBraces) &&
-                            records.at(0).kind == 1 && records.at(0).references.isEmpty(),
+                            records.at(0).kind == 201 && records.at(0).references.isEmpty(),
                             "junction uses native DVMDB kind and no outgoing entity references");
     const QByteArray first_payload = records.isEmpty() ? QByteArray() : records.first().payload;
     const bool second_prepared = HydraulicDraftEventAdapter::prepare(
@@ -882,7 +882,7 @@ void testOrderedHydraulicDraftRecordMapping()
     endpoints.sort(Qt::CaseSensitive);
     test_harness.expectTrue(records.size() == 1 &&
                             records.at(0).uuid == pipe.toString(QUuid::WithoutBraces) &&
-                            records.at(0).kind == 4 && records.at(0).references == endpoints,
+                            records.at(0).kind == 204 && records.at(0).references == endpoints,
                             "pipe's canonical references are sorted endpoint UUIDs");
     test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
                             aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(data.networkHydraulicDistribution()),
@@ -961,14 +961,14 @@ void testHydraulicDraftMembershipIntents()
     if (!created)
         return;
     test_harness.expectTrue(records.size() == 1 &&
-                            !records.first().deleted && records.first().kind == 1 &&
+                            !records.first().deleted && records.first().kind == 201 &&
                             records.first().uuid == new_junction.toString(QUuid::WithoutBraces) &&
                             !records.first().payload.isEmpty(),
                             "created entity has one canonical insert record");
     test_harness.expectTrue(membership.size() == 1 && membership.first().inserted &&
                             membership.first().network_id == staged.uuid &&
                             membership.first().entity_id == new_junction &&
-                            membership.first().kind == 1 &&
+                            membership.first().kind == 201 &&
                             membership.first().collection_index == 9,
                             "insertion carries network ownership and canonical collection ordinal");
     test_harness.expectTrue(aowis::model::ModelCodec<NetworkHydraulicDistribution>::encode(staged) ==
@@ -1013,11 +1013,11 @@ void testHydraulicDraftMembershipIntents()
     for (const PersonalWorkingCopyChange &record : records)
     {
         if (record.uuid == first.toString(QUuid::WithoutBraces))
-            removed_junction = record.deleted && record.kind == 1;
+            removed_junction = record.deleted && record.kind == 201;
         else if (record.uuid == pipe.toString(QUuid::WithoutBraces))
-            removed_pipe = record.deleted && record.kind == 4;
+            removed_pipe = record.deleted && record.kind == 204;
         else if (record.uuid == demand.toString(QUuid::WithoutBraces))
-            updated_demand = !record.deleted && record.kind == 7 &&
+            updated_demand = !record.deleted && record.kind == 207 &&
                              !record.payload.isEmpty();
     }
     test_harness.expectTrue(records.size() == 3 && removed_junction &&
@@ -1257,28 +1257,31 @@ void testLibraryCrud(const char *name, quint16 kind, quint16 ordinal,
 
 void testHydraulicLibraryCrud()
 {
-    testLibraryCrud<HydraulicPipeMaterial>("HydraulicPipeMaterial", 8, 0,
+    // Native member kinds match the DVMDB hydraulic manifest (201..217).
+    // Keep explicit expected kinds independent of the GUI registry, so an
+    // accidental registry change fails these end-to-end CRUD/replay checks.
+    testLibraryCrud<HydraulicPipeMaterial>("HydraulicPipeMaterial", 208, 0,
         &NetworkHydraulicDistribution::pipe_materials, &HydraulicData::addPipeMaterial,
         &HydraulicData::updatePipeMaterial, &HydraulicData::removePipeMaterial);
-    testLibraryCrud<HydraulicPatternTime>("HydraulicPatternTime", 9, 1,
+    testLibraryCrud<HydraulicPatternTime>("HydraulicPatternTime", 209, 1,
         &NetworkHydraulicDistribution::patterns_time, &HydraulicData::addPatternTime,
         &HydraulicData::updatePatternTime, &HydraulicData::removePatternTime);
-    testLibraryCrud<HydraulicCurveTankVolume>("HydraulicCurveTankVolume", 10, 2,
+    testLibraryCrud<HydraulicCurveTankVolume>("HydraulicCurveTankVolume", 210, 2,
         &NetworkHydraulicDistribution::curves_tank_volume, &HydraulicData::addCurveTankVolume,
         &HydraulicData::updateCurveTankVolume, &HydraulicData::removeCurveTankVolume);
-    testLibraryCrud<HydraulicCurvePumpHead>("HydraulicCurvePumpHead", 11, 3,
+    testLibraryCrud<HydraulicCurvePumpHead>("HydraulicCurvePumpHead", 211, 3,
         &NetworkHydraulicDistribution::curves_pump_head, &HydraulicData::addCurvePumpHead,
         &HydraulicData::updateCurvePumpHead, &HydraulicData::removeCurvePumpHead);
-    testLibraryCrud<HydraulicCurvePumpEfficiency>("HydraulicCurvePumpEfficiency", 12, 4,
+    testLibraryCrud<HydraulicCurvePumpEfficiency>("HydraulicCurvePumpEfficiency", 212, 4,
         &NetworkHydraulicDistribution::curves_pump_efficiency, &HydraulicData::addCurvePumpEfficiency,
         &HydraulicData::updateCurvePumpEfficiency, &HydraulicData::removeCurvePumpEfficiency);
-    testLibraryCrud<HydraulicCurveValveHeadloss>("HydraulicCurveValveHeadloss", 13, 5,
+    testLibraryCrud<HydraulicCurveValveHeadloss>("HydraulicCurveValveHeadloss", 213, 5,
         &NetworkHydraulicDistribution::curves_valve_headloss, &HydraulicData::addCurveValveHeadloss,
         &HydraulicData::updateCurveValveHeadloss, &HydraulicData::removeCurveValveHeadloss);
-    testLibraryCrud<HydraulicCurveValveCharacteristic>("HydraulicCurveValveCharacteristic", 14, 6,
+    testLibraryCrud<HydraulicCurveValveCharacteristic>("HydraulicCurveValveCharacteristic", 214, 6,
         &NetworkHydraulicDistribution::curves_valve_characteristic, &HydraulicData::addCurveValveCharacteristic,
         &HydraulicData::updateCurveValveCharacteristic, &HydraulicData::removeCurveValveCharacteristic);
-    testLibraryCrud<HydraulicCurveGeneric>("HydraulicCurveGeneric", 15, 7,
+    testLibraryCrud<HydraulicCurveGeneric>("HydraulicCurveGeneric", 215, 7,
         &NetworkHydraulicDistribution::curves_generic, &HydraulicData::addCurveGeneric,
         &HydraulicData::updateCurveGeneric, &HydraulicData::removeCurveGeneric);
 }
@@ -1575,7 +1578,7 @@ void testStructuralDraftRecoveryAcrossRestart()
     }
     const QString first_reference = first.toString(QUuid::WithoutBraces);
     const QString second_reference = second.toString(QUuid::WithoutBraces);
-    test_harness.expectTrue(changes.size() == 1 && changes.first().kind == 4 &&
+    test_harness.expectTrue(changes.size() == 1 && changes.first().kind == 204 &&
                             changes.first().references.contains(first_reference) &&
                             changes.first().references.contains(second_reference) &&
                             membership.size() == 1 && membership.first().inserted &&
@@ -2169,7 +2172,7 @@ void testRuleControlCrud()
             tx->edits.first().after.has_value() == (index < 2);
         const bool membership_expected = index != 1;
         const bool correct_membership = membership_expected ?
-            (membership.size() == 1 && membership.first().kind == 17 &&
+            (membership.size() == 1 && membership.first().kind == 217 &&
              membership.first().inserted == expected_inserted[index]) : membership.isEmpty();
         const QByteArray message = QStringLiteral("HC02 rule replay event %1: %2")
             .arg(index).arg(error).toUtf8();
@@ -2265,15 +2268,33 @@ void testMapAnnotationAnchorGeodesyAndEvents()
     test_harness.expectTrue(MapAnnotationPosition::place(now, dragged, dragged_position) &&
         data.updateMapAnnotation(dragged),
         "dragging anchored annotation updates the revisioned offset");
-    test_harness.expectTrue(!data.deleteJunction(junction.uuid),
-        "deleting an anchor target is blocked until detachment is durable");
     const std::optional<CoordinateWGS84> last_position =
         MapAnnotationPosition::resolve(data.networkHydraulicDistribution(), dragged);
-    dragged.anchor.reset();
-    dragged.position_wgs84 = *last_position;
-    test_harness.expectTrue(data.updateMapAnnotation(dragged) &&
-        data.deleteJunction(junction.uuid) && !data.mapAnnotation(uuid)->anchor,
-        "detachment preserves last visible WGS84 position before target deletion");
+    const qsizetype before_deletion_events = events.size();
+    test_harness.expectTrue(data.deleteJunction(junction.uuid) &&
+        events.size() == before_deletion_events + 1 &&
+        data.mapAnnotation(uuid).has_value() && !data.mapAnnotation(uuid)->anchor &&
+        last_position &&
+        std::abs(data.mapAnnotation(uuid)->position_wgs84.latitude_deg -
+                 last_position->latitude_deg) < 1e-9 &&
+        std::abs(data.mapAnnotation(uuid)->position_wgs84.longitude_deg -
+                 last_position->longitude_deg) < 1e-9,
+        "one mixed deletion detaches the annotation at its current resolved WGS84 position");
+    const std::optional<aowis::model::ModelEditTransaction> deleted = decoded(events.last());
+    bool hydraulic_deleted = false;
+    bool annotation_detached = false;
+    if (deleted)
+        for (const aowis::model::ModelEntityEdit &edit : deleted->edits)
+        {
+            if (edit.entityType == QStringLiteral("HydraulicNodeJunction") &&
+                edit.entityId == junction.uuid && edit.before && !edit.after)
+                hydraulic_deleted = true;
+            if (edit.entityType == QStringLiteral("map.annotation") &&
+                edit.entityId == uuid && edit.ownerLayerId && edit.before && edit.after)
+                annotation_detached = true;
+        }
+    test_harness.expectTrue(hydraulic_deleted && annotation_detached,
+        "target deletion and anchor detachment share one canonical MODEL transaction");
 }
 
 void testMapAnnotationsTravelWithTheNetwork()
@@ -2323,8 +2344,6 @@ void testMapAnnotationsTravelWithTheNetwork()
                             !exported.at(2).anchor,
                             "A3 export keeps every resolvable anchor");
 
-    test_harness.expectTrue(!data.deleteJunction(removed.uuid),
-        "attached annotations prevent non-atomic target deletion");
     NetworkHydraulicDistribution orphaned = data.networkHydraulicDistribution();
     orphaned.nodes_junctions.removeAt(1); // simulate an inconsistent external import
     exported = exportableMapAnnotations(orphaned, data.mapAnnotations());
@@ -2338,14 +2357,21 @@ void testMapAnnotationsTravelWithTheNetwork()
                             "A3 export frees only the annotation whose anchor node was deleted");
     test_harness.expectTrue(data.mapAnnotations().at(1).anchor.has_value(),
                             "A3 export does not change the stored annotations");
-    // A user may detach a label first, which is one canonical annotation
-    // event. A subsequent hydraulic deletion can then proceed safely.
+    // A read-only network cannot automatically detach annotations, but a
+    // verified editable HEAD combines the detachment with the node removal.
+    test_harness.expectTrue(!data.deleteJunction(removed.uuid) &&
+        data.mapAnnotations().at(1).anchor.has_value(),
+        "read-only target deletion fails closed without mutating annotations");
     data.setLogicalEditCaptureEnabled(true);
-    MapAnnotation detached = on_removed;
-    detached.anchor.reset();
-    test_harness.expectTrue(data.updateMapAnnotation(detached) &&
-        data.deleteJunction(removed.uuid),
-        "manually detached annotation allows node deletion");
+    const std::optional<CoordinateWGS84> last_position =
+        MapAnnotationPosition::resolve(data.networkHydraulicDistribution(), on_removed);
+    test_harness.expectTrue(data.deleteJunction(removed.uuid) &&
+        data.mapAnnotations().size() == 3 && !data.mapAnnotations().at(1).anchor &&
+        last_position &&
+        std::abs(data.mapAnnotations().at(1).position_wgs84.latitude_deg -
+                 last_position->latitude_deg) < 1e-9 &&
+        data.mapAnnotations().at(0).anchor.has_value(),
+        "deleting a target detaches only its annotations at their resolved positions");
 
     NetworkHydraulicDistribution other = baseline;
     other.uuid = createUuidV7();
@@ -2925,6 +2951,230 @@ void testRevisionedMapAnnotationDraftEditing()
         "annotation deletion is staged, replayed and acknowledged independently");
 }
 
+// All four anchorable network entity types use the same atomic path. The
+// direct delete functions must not leave an annotation pointing at a removed
+// target, or generate one transaction per changed domain.
+void testAnnotationDetachmentForAllTargetTypes()
+{
+    for (int kind = 0; kind < 4; ++kind)
+    {
+        NetworkHydraulicDistribution network;
+        network.uuid = createUuidV7();
+        network.id = QStringLiteral("All annotation anchor types");
+        const QUuid target_id = createUuidV7();
+        const CoordinateWGS84 position = coordinate(50.01, 8.02);
+        QString type;
+        if (kind == 0)
+        {
+            HydraulicNodeJunction entity;
+            entity.uuid = target_id;
+            entity.id = QStringLiteral("J1");
+            entity.coordinate_wgs84 = position;
+            network.nodes_junctions.append(entity);
+            type = QStringLiteral("HydraulicNodeJunction");
+        }
+        else if (kind == 1)
+        {
+            HydraulicNodeReservoir entity;
+            entity.uuid = target_id;
+            entity.id = QStringLiteral("R1");
+            entity.coordinate_wgs84 = position;
+            network.nodes_reservoirs.append(entity);
+            type = QStringLiteral("HydraulicNodeReservoir");
+        }
+        else if (kind == 2)
+        {
+            HydraulicNodeTank entity;
+            entity.uuid = target_id;
+            entity.id = QStringLiteral("T1");
+            entity.coordinate_wgs84 = position;
+            network.nodes_tanks.append(entity);
+            type = QStringLiteral("HydraulicNodeTank");
+        }
+        else
+        {
+            HydraulicDemandPoint entity;
+            entity.uuid = target_id;
+            entity.id = QStringLiteral("DP1");
+            entity.coordinate_wgs84 = position;
+            network.demand_points.append(entity);
+            type = QStringLiteral("HydraulicDemandPoint");
+        }
+        MapAnnotation annotation;
+        annotation.uuid = createUuidV7();
+        annotation.text = type;
+        annotation.position_wgs84 = position;
+        MapAnnotationAnchor anchor;
+        anchor.entity_uuid = target_id;
+        anchor.entity_type = type;
+        anchor.offset_east_m = 10.0;
+        annotation.anchor = anchor;
+        HydraulicData live;
+        live.replaceNetworkHydraulicDistribution(network, {}, {annotation});
+        live.setLogicalEditCaptureEnabled(true);
+        QList<QByteArray> events;
+        QObject::connect(&live, &HydraulicData::signalLogicalEditRecorded, &live,
+            [&events](const QByteArray &event) { events.append(event); });
+        const bool deleted = kind == 0 ? live.deleteJunction(target_id)
+            : kind == 1 ? live.deleteReservoir(target_id)
+            : kind == 2 ? live.deleteTank(target_id)
+            : live.deleteDemandPoint(target_id);
+        const std::optional<aowis::model::ModelEditTransaction> transaction =
+            events.size() == 1 ? decoded(events.first()) : std::nullopt;
+        test_harness.expectTrue(deleted && events.size() == 1 && transaction &&
+            transaction->edits.size() == 2 && live.mapAnnotations().size() == 1 &&
+            !live.mapAnnotations().first().anchor,
+            "each node/demand target deletion is paired with one annotation detachment");
+    }
+}
+
+// A single event may delete a hydraulic member AND update multiple annotations.
+// The local queue, restart recovery, and fenced save request must keep those
+// changes inseparable; a missing detachment is invalid even if hydraulic edits
+// alone would have a valid network candidate.
+void testAtomicAnnotationDetachmentDraftReplay()
+{
+    NetworkHydraulicDistribution baseline;
+    baseline.uuid = createUuidV7();
+    baseline.id = QStringLiteral("Mixed deletion network");
+    HydraulicNodeJunction junction;
+    junction.uuid = createUuidV7();
+    junction.id = QStringLiteral("J1");
+    junction.coordinate_wgs84 = coordinate(50.0, 8.0);
+    baseline.nodes_junctions.append(junction);
+
+    QList<MapAnnotation> attached;
+    for (int index = 0; index < 2; ++index)
+    {
+        MapAnnotation annotation;
+        annotation.uuid = createUuidV7();
+        annotation.text = QStringLiteral("Annotation %1").arg(index);
+        annotation.position_wgs84 = coordinate(50.0001, 8.0001);
+        MapAnnotationAnchor anchor;
+        anchor.entity_uuid = junction.uuid;
+        anchor.entity_type = QStringLiteral("HydraulicNodeJunction");
+        anchor.offset_east_m = 12.0 + index * 15.0;
+        anchor.offset_north_m = -8.0;
+        annotation.anchor = anchor;
+        attached.append(annotation);
+    }
+    MapAnnotation free_standing;
+    free_standing.uuid = createUuidV7();
+    free_standing.text = QStringLiteral("Unattached");
+    free_standing.position_wgs84 = coordinate(49.9, 8.1);
+    attached.append(free_standing);
+
+    HydraulicData live;
+    live.replaceNetworkHydraulicDistribution(baseline, {}, attached);
+    QList<QByteArray> events;
+    QObject::connect(&live, &HydraulicData::signalLogicalEditRecorded, &live,
+        [&events](const QByteArray &event) { events.append(event); });
+    test_harness.expectTrue(!live.deleteJunction(junction.uuid) && events.isEmpty(),
+        "read-only network cannot perform an implicit annotation detachment");
+    live.setLogicalEditCaptureEnabled(true);
+    test_harness.expectTrue(live.deleteJunction(junction.uuid) && events.size() == 1 &&
+        live.mapAnnotations().size() == 3 &&
+        live.networkHydraulicDistribution().nodes_junctions.isEmpty(),
+        "one captured deletion detaches two labels and removes one junction");
+    if (events.size() != 1)
+        return;
+    const QByteArray event_bytes = events.first();
+    const std::optional<aowis::model::ModelEditTransaction> transaction = decoded(event_bytes);
+    int detach_edits = 0;
+    int member_deletions = 0;
+    if (transaction)
+        for (const aowis::model::ModelEntityEdit &edit : transaction->edits)
+        {
+            if (edit.entityType == QStringLiteral("map.annotation") &&
+                edit.before && edit.after && edit.ownerLayerId)
+                ++detach_edits;
+            if (edit.entityType == QStringLiteral("HydraulicNodeJunction") &&
+                edit.before && !edit.after)
+                ++member_deletions;
+        }
+    test_harness.expectTrue(transaction && detach_edits == 2 && member_deletions == 1,
+        "one MODEL event contains the hydraulic delete and both annotation updates");
+    for (int index = 0; index < 2; ++index)
+    {
+        const std::optional<CoordinateWGS84> expected =
+            MapAnnotationPosition::resolve(baseline, attached.at(index));
+        const MapAnnotation &stored = live.mapAnnotations().at(index);
+        test_harness.expectTrue(expected && !stored.anchor &&
+            std::abs(stored.position_wgs84.latitude_deg - expected->latitude_deg) < 1e-9 &&
+            std::abs(stored.position_wgs84.longitude_deg - expected->longitude_deg) < 1e-9,
+            "detached annotation retains its last resolved geographic position");
+    }
+    test_harness.expectTrue(live.mapAnnotations().at(2).uuid == free_standing.uuid &&
+        !live.mapAnnotations().at(2).anchor,
+        "unrelated annotations remain unchanged");
+
+    QTemporaryDir directory;
+    const QUuid repository_id = createUuidV7();
+    const QUuid draft_id = createUuidV7();
+    PersonalDraftEditStage stage;
+    QString error;
+    test_harness.expectTrue(directory.isValid() &&
+        stage.open(directory.path(), repository_id, draft_id, baseline, {}, &error, attached) &&
+        stage.append(event_bytes, &error) && stage.pendingCount() == 1 &&
+        stage.visibleNetwork().nodes_junctions.isEmpty() &&
+        !stage.visibleAnnotations().at(0).anchor &&
+        stage.persistedNetwork().nodes_junctions.size() == 1 &&
+        stage.persistedAnnotations().at(0).anchor.has_value(),
+        "mixed delete stages both domains in exactly one durable queue record");
+    if (!stage.isOpen())
+        return;
+    NetworkHydraulicDistribution proposed;
+    QList<PersonalWorkingCopyChange> changes;
+    QList<HydraulicDraftMembershipEdit> membership;
+    QUuid layer;
+    test_harness.expectTrue(stage.prepareOldest(proposed, changes, membership, &error, &layer) &&
+        !layer.isNull() && proposed.nodes_junctions.isEmpty() &&
+        changes.size() == 1 && changes.first().deleted &&
+        membership.size() == 1 && !membership.first().inserted,
+        "one fenced DVMDB Save carries both the layer and hydraulic membership intent");
+    stage.close();
+
+    PersonalDraftEditStage resumed;
+    test_harness.expectTrue(resumed.open(directory.path(), repository_id, draft_id,
+        baseline, {}, &error, attached, layer) && resumed.pendingCount() == 1 &&
+        resumed.visibleNetwork().nodes_junctions.isEmpty() &&
+        resumed.visibleAnnotations().size() == attached.size() &&
+        !resumed.visibleAnnotations().first().anchor &&
+        resumed.persistedAnnotations().first().anchor.has_value(),
+        "mixed event replays both domains after crash before acknowledgement");
+    test_harness.expectTrue(resumed.acknowledgeOldest(event_bytes, &error) &&
+        resumed.pendingCount() == 0 &&
+        resumed.persistedNetwork().nodes_junctions.isEmpty() &&
+        !resumed.persistedAnnotations().at(0).anchor &&
+        !resumed.persistedAnnotations().at(1).anchor,
+        "acknowledgement advances both persisted candidates together");
+    resumed.close();
+
+    // Removing only the first annotation update must not allow a dangling
+    // anchor to be queued, including when the hydraulic deletion is otherwise
+    // a valid standalone operation.
+    if (transaction)
+    {
+        aowis::model::ModelEditTransaction incomplete = *transaction;
+        for (qsizetype index = 0; index < incomplete.edits.size(); ++index)
+            if (incomplete.edits.at(index).entityType == QStringLiteral("map.annotation"))
+            {
+                incomplete.edits.removeAt(index);
+                break;
+            }
+        const QByteArray invalid = aowis::model::ModelEditTransactionCodec::encode(incomplete);
+        PersonalDraftEditStage rejected;
+        const QUuid other_draft = createUuidV7();
+        test_harness.expectTrue(!invalid.isEmpty() &&
+            rejected.open(directory.path(), repository_id, other_draft,
+                          baseline, {}, &error, attached) &&
+            !rejected.append(invalid, &error) && rejected.pendingCount() == 0 &&
+            rejected.visibleNetwork().nodes_junctions.size() == 1 &&
+            rejected.visibleAnnotations().at(0).anchor.has_value(),
+            "a partial detach transaction is rejected without changing the local draft");
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
@@ -2956,6 +3206,10 @@ int main(int argc, char **argv)
     test_harness.runCase("Map annotations travel with the network", testMapAnnotationsTravelWithTheNetwork);
     test_harness.runCase("Revisioned map annotations: stage, acknowledgement and restart",
                          testRevisionedMapAnnotationDraftEditing);
+    test_harness.runCase("Atomic annotation detach: mixed queue, restart and fail-closed replay",
+                         testAtomicAnnotationDetachmentDraftReplay);
+    test_harness.runCase("Annotation detachment across all four supported entity types",
+                         testAnnotationDetachmentForAllTargetTypes);
     test_harness.runCase("Hydraulic library reference guards", testHydraulicLibraryReferenceValidation);
     test_harness.runCase("Hydraulic library CRUD and draft replay", testHydraulicLibraryCrud);
     test_harness.runCase("Hydraulic library deletion dependency guards", testHydraulicLibraryDeleteReferences);

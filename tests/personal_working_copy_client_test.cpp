@@ -2865,12 +2865,12 @@ int main(int argc, char **argv)
     const QByteArray creation_bytes = aowis::model::ModelEditTransactionCodec::encode(creation);
     PersonalWorkingCopyChange created_record;
     created_record.uuid = junction_uuid.toString(QUuid::WithoutBraces);
-    created_record.kind = 1;
+    created_record.kind = 201;
     created_record.payload = *creation.edits.first().after;
     HydraulicDraftMembershipEdit insertion;
     insertion.network_id = network_uuid;
     insertion.entity_id = junction_uuid;
-    insertion.kind = 1;
+    insertion.kind = 201;
     insertion.collection_index = 9;
     insertion.inserted = true;
     bool batch_recovered = false;
@@ -2954,7 +2954,7 @@ int main(int argc, char **argv)
                    == network_uuid.toString(QUuid::WithoutBraces) &&
                sent_intent.value(QStringLiteral("entityId")).toString()
                    == junction_uuid.toString(QUuid::WithoutBraces) &&
-               sent_intent.value(QStringLiteral("kind")).toInt() == 1 &&
+               sent_intent.value(QStringLiteral("kind")).toInt() == 201 &&
                sent_intent.value(QStringLiteral("collectionIndex")).toInt() == 9 &&
                sent_intent.value(QStringLiteral("inserted")) == QJsonValue(true),
                "membership intent was not sent with the creation event")) return 1;

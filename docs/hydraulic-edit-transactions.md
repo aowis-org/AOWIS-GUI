@@ -13,7 +13,7 @@ outstanding. See [History](history-contract.md) and the
 
 ## Model scope
 
-`NetworkHydraulicDistribution` has 18 top-level typed collections, plus persistent root
+`NetworkHydraulicDistribution` has 17 top-level typed collections, plus persistent root
 metadata (network identity, titles, simulation options and timing,
 energy/quality/report settings, MSX configuration and map backdrop). The
 single registry `src/projects/hydraulic_draft_entity_registry.h` maps
@@ -21,27 +21,27 @@ collection ordinal to MODEL type and DVMDB native record kind:
 
 | Ordinal | Collection | MODEL entity | Kind |
 |---:|---|---|---:|
-| 0 | `pipe_materials` | `HydraulicPipeMaterial` | 8 |
-| 1 | `patterns_time` | `HydraulicPatternTime` | 9 |
-| 2 | `curves_tank_volume` | `HydraulicCurveTankVolume` | 10 |
-| 3 | `curves_pump_head` | `HydraulicCurvePumpHead` | 11 |
-| 4 | `curves_pump_efficiency` | `HydraulicCurvePumpEfficiency` | 12 |
-| 5 | `curves_valve_headloss` | `HydraulicCurveValveHeadloss` | 13 |
-| 6 | `curves_valve_characteristic` | `HydraulicCurveValveCharacteristic` | 14 |
-| 7 | `curves_generic` | `HydraulicCurveGeneric` | 15 |
-| 8 | `nodes_reservoirs` | `HydraulicNodeReservoir` | 2 |
-| 9 | `nodes_junctions` | `HydraulicNodeJunction` | 1 |
-| 10 | `nodes_tanks` | `HydraulicNodeTank` | 3 |
-| 11 | `demand_points` | `HydraulicDemandPoint` | 7 |
-| 12 | `links_pipes` | `HydraulicLinkPipe` | 4 |
-| 13 | `links_pumps` | `HydraulicLinkPump` | 5 |
-| 14 | `links_valves` | `HydraulicLinkValve` | 6 |
-| 15 | `controls_simple` | `HydraulicControlSimple` | 16 |
-| 16 | `controls_rules` | `HydraulicControlRule` | 17 |
+| 0 | `pipe_materials` | `HydraulicPipeMaterial` | 208 |
+| 1 | `patterns_time` | `HydraulicPatternTime` | 209 |
+| 2 | `curves_tank_volume` | `HydraulicCurveTankVolume` | 210 |
+| 3 | `curves_pump_head` | `HydraulicCurvePumpHead` | 211 |
+| 4 | `curves_pump_efficiency` | `HydraulicCurvePumpEfficiency` | 212 |
+| 5 | `curves_valve_headloss` | `HydraulicCurveValveHeadloss` | 213 |
+| 6 | `curves_valve_characteristic` | `HydraulicCurveValveCharacteristic` | 214 |
+| 7 | `curves_generic` | `HydraulicCurveGeneric` | 215 |
+| 8 | `nodes_reservoirs` | `HydraulicNodeReservoir` | 202 |
+| 9 | `nodes_junctions` | `HydraulicNodeJunction` | 201 |
+| 10 | `nodes_tanks` | `HydraulicNodeTank` | 203 |
+| 11 | `demand_points` | `HydraulicDemandPoint` | 207 |
+| 12 | `links_pipes` | `HydraulicLinkPipe` | 204 |
+| 13 | `links_pumps` | `HydraulicLinkPump` | 205 |
+| 14 | `links_valves` | `HydraulicLinkValve` | 206 |
+| 15 | `controls_simple` | `HydraulicControlSimple` | 216 |
+| 16 | `controls_rules` | `HydraulicControlRule` | 217 |
 
 Map labels are no longer a hydraulic collection: MODEL A3 replaced
 `HydraulicMapLabel` with map annotations (`MapAnnotation`) in a separate
-per-network annotation layer. Editing annotations in the GUI is phase C.
+per-network annotation layer. The GUI persists annotations as separate, per-network layer members.
 
 MODEL owns canonical `ModelCodec<T>`, `ModelEditTransaction`, and reversible
 entity/root images. The GUI's `HydraulicEditTransactionCapture` watches model
@@ -56,7 +56,13 @@ have other UUID versions, such as deterministic EPANET-import UUIDv5.
 Network membership preserves canonical collection order. The same event
 can contain network-root metadata and typed entity/membership changes;
 this **mixed-event** path exists in source and must be qualified with real
-HTTP/Standalone acceptance tests before it is considered finished.
+HTTP/Standalone acceptance tests before it is considered finished. A node
+removal with anchored map annotations creates ONE mixed event containing the
+hydraulic deletion and each annotation's detached, last-resolved position;
+local staging validates the combined network/layer candidate before writing
+the durable queue. A save uses `annotationLayerId` and the hydraulic membership
+intents in the same fenced `/save-events` request. A failed edit cannot be
+silently split into separate hydraulic and annotation transactions.
 
 ## Current editor mutation paths
 
@@ -82,9 +88,11 @@ agreed integration requirement.
 2. Acquire a fenced writer lease and install the canonical model into the
    editor, then enable logical edit capture. Loading itself is not an edit.
 3. Append the canonical event to `PersonalEditQueue` **before** an HTTP Save.
-4. `HydraulicDraftEventAdapter` creates changes and membership intents from
-   the previous state; DVMDB validates and applies them atomically with
-   expected generation, session and fencing token.
+4. `HydraulicDraftEventAdapter` creates hydraulic changes and membership
+   intents. For mixed events, the local stage also replays each annotation
+   before/after image against the same previous candidate. DVMDB materializes
+   annotation records itself and validates the combined candidate atomically
+   under the same generation, session and fencing token.
 5. Acknowledge only the event verified as persisted. For a lost response,
    inspect authoritative candidate/journal before removing the queue entry.
 6. If in-memory and staged canonical networks diverge, block the session
