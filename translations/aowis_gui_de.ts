@@ -2447,6 +2447,18 @@ Der Klon behält die Identität des Projekts: Beide Datenbanken enthalten dann d
       <source>What was copied is kept. Choose Update clone on '%1' to continue.</source>
       <translation>Bereits Kopiertes bleibt erhalten. Wählen Sie „Klon aktualisieren“ auf „%1“, um fortzufahren.</translation>
     </message>
+    <message>
+      <source>Branch · no commits yet</source>
+      <translation>Zweig · noch keine Commits</translation>
+    </message>
+    <message>
+      <source>Edit branch '%1' (checked out into your personal database)</source>
+      <translation>Zweig '%1' bearbeiten (in Ihre persönliche Datenbank ausgecheckt)</translation>
+    </message>
+    <message>
+      <source>The branch moved since this dialog was opened. Select its new tip.</source>
+      <translation>Der Zweig wurde seit dem Öffnen dieses Dialogs verschoben. Wählen Sie seine neue Spitze.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

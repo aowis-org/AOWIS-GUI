@@ -37,7 +37,9 @@ struct ProjectGraphNode
     QString branch;
     // Text-only language refresh must never rerun the layout, drop expanded
     // revision paths or move the camera. These are language-neutral inputs.
-    enum class CaptionKind { Custom, Project, Revision, Head, LocalServer, PendingServer, RestServer };
+    // UnbornBranch: a branch without commits outside the personal database,
+    // which has no HEAD (working state) there and no tip revision to label.
+    enum class CaptionKind { Custom, Project, Revision, Head, UnbornBranch, LocalServer, PendingServer, RestServer };
     CaptionKind caption_kind = CaptionKind::Custom;
     QStringList caption_branch_names;
     int caption_branch_count = 0;

@@ -2360,16 +2360,30 @@ void ProjectsWidget::rebuildGraph()
                 nodes.append(node);
             }
             // A branch has one writable HEAD even before its first commit.
-            // HEAD is a working state, not an immutable revision node.
+            // HEAD is a working state, not an immutable revision node, and
+            // exists only in the personal database: elsewhere a branch with
+            // commits is its tip revision, and one without commits gets a
+            // plain branch card.
+            const bool with_heads = branchHasHead(project);
             for (const ProjectPreviewBranch &branch : project.branches)
             {
+                if (!with_heads && !branch.head.isEmpty()) continue;
                 ProjectGraphNode head;
                 head.kind = ProjectGraphNode::Kind::Branch; // Graph HEAD node.
                 head.id = QStringLiteral("group:branch:") + branch.id;
-                head.title = tr("HEAD");
-                head.caption_kind = ProjectGraphNode::CaptionKind::Head;
                 head.caption_branch_names = {branch.name};
-                head.branch = tr("Branch: %1").arg(branch.name);
+                if (with_heads)
+                {
+                    head.title = tr("HEAD");
+                    head.caption_kind = ProjectGraphNode::CaptionKind::Head;
+                    head.branch = tr("Branch: %1").arg(branch.name);
+                }
+                else
+                {
+                    head.title = branch.name;
+                    head.caption_kind = ProjectGraphNode::CaptionKind::UnbornBranch;
+                    head.branch = tr("Branch · no commits yet");
+                }
                 head.project_group_id = project_node_id;
                 if (!branch.head.isEmpty() && loaded_revisions.contains(branch.head))
                     head.head_revision_id = preview ? branch.head
@@ -2415,7 +2429,7 @@ void ProjectsWidget::rebuildGraph()
         graph_selection = QStringLiteral("group:project:") + this->selected_id;
     else if (this->selection_kind == SelectionKind::Branch
              || this->selection_kind == SelectionKind::Head)
-        graph_selection = QStringLiteral("group:branch:") + this->selected_id;
+        graph_selection = branchGraphCard(this->selected_id);
     else if (this->selection_kind == SelectionKind::Revision && currentProject() != nullptr)
         graph_selection = isPreviewSource() ? this->selected_id
             : this->project_id + QStringLiteral("|") + this->selected_id;
@@ -2447,8 +2461,37 @@ void ProjectsWidget::selectTreeItem(QTreeWidget *tree, const QString &key, bool 
     }
 }
 
+bool ProjectsWidget::branchHasHead(const ProjectPreviewData &project) const
+{
+    if (!project.database_backed) return true; // The UI preview shows HEADs.
+    for (const ProjectServerProfile &server : this->servers)
+        if (server.id == project.server_id) return server.personal;
+    return false;
+}
+
+bool ProjectsWidget::branchHasHead(const QString &branch_id) const
+{
+    for (const ProjectPreviewData &project : this->projects)
+        for (const ProjectPreviewBranch &branch : project.branches)
+            if (branch.id == branch_id) return branchHasHead(project);
+    return true;
+}
+
+QString ProjectsWidget::branchGraphCard(const QString &branch_id) const
+{
+    for (const ProjectPreviewData &project : this->projects)
+        for (const ProjectPreviewBranch &branch : project.branches)
+            if (branch.id == branch_id && !branchHasHead(project) && !branch.head.isEmpty())
+                return project.id + QStringLiteral("|") + branch.head;
+    return QStringLiteral("group:branch:") + branch_id;
+}
+
 void ProjectsWidget::select(SelectionKind kind, const QString &id)
 {
+    // Outside the personal database there is no HEAD to inspect, commit or
+    // discard: the same branch is inspected as a Branch.
+    if (kind == SelectionKind::Head && !branchHasHead(id))
+        kind = SelectionKind::Branch;
     if (this->creation_kind != CreationKind::None
         && (kind != this->selection_kind || id != this->selected_id))
     {
@@ -2586,7 +2629,7 @@ void ProjectsWidget::select(SelectionKind kind, const QString &id)
     else if (kind == SelectionKind::Project)
         graph_selection = QStringLiteral("group:project:") + id;
     else if (kind == SelectionKind::Branch || kind == SelectionKind::Head)
-        graph_selection = QStringLiteral("group:branch:") + id;
+        graph_selection = branchGraphCard(id);
     else if (kind == SelectionKind::Revision)
         graph_selection = isPreviewSource() ? id : this->project_id + QStringLiteral("|") + id;
     this->graph->setSelection(graph_selection);
@@ -4521,12 +4564,29 @@ void ProjectsWidget::openInspectedNetwork()
     context->setWordWrap(true);
     context->setTextInteractionFlags(Qt::TextSelectableByMouse);
     column->addWidget(context);
+    // Outside the personal database a branch has no HEAD card: its tip
+    // revision is where its network is opened for editing, which checks the
+    // branch out into the personal database first.
+    QList<QRadioButton *> edit_branches;
+    if (const ProjectPreviewData *project = currentProject())
+        if (project->database_backed && !branchHasHead(*project))
+            for (const ProjectPreviewBranch &branch : project->branches)
+                if (branch.head == this->selected_id)
+                {
+                    QRadioButton *option = new QRadioButton(
+                        tr("Edit branch '%1' (checked out into your personal database)").arg(branch.name), dialog);
+                    option->setObjectName(QStringLiteral("projectsRevisionOpenEditBranch"));
+                    option->setProperty("branchId", branch.id);
+                    column->addWidget(option);
+                    edit_branches.append(option);
+                }
     QRadioButton *read_only = new QRadioButton(tr("Open read-only in Distribution Monitor"), dialog);
     QRadioButton *new_branch = new QRadioButton(tr("Create branch and open for full editing"), dialog);
     column->addWidget(read_only);
     column->addWidget(new_branch);
     read_only->setEnabled(this->network_summary_count == 1);
-    if (read_only->isEnabled()) read_only->setChecked(true);
+    if (!edit_branches.isEmpty()) edit_branches.first()->setChecked(true);
+    else if (read_only->isEnabled()) read_only->setChecked(true);
     else new_branch->setChecked(true);
     QLineEdit *branch_name = new QLineEdit(dialog);
     branch_name->setObjectName(QStringLiteral("projectsRevisionOpenBranchName"));
@@ -4551,11 +4611,27 @@ void ProjectsWidget::openInspectedNetwork()
     const QString selected_project = this->project_id;
     const QString selected_revision = this->selected_id;
     connect(buttons, &QDialogButtonBox::accepted, dialog,
-            [this, dialog, read_only, branch_name, selected_project, selected_revision] {
+            [this, dialog, read_only, branch_name, selected_project, selected_revision, edit_branches] {
         if (this->project_id != selected_project
             || this->selected_id != selected_revision
             || this->selection_kind != SelectionKind::Revision) {
             dialog->reject();
+            return;
+        }
+        for (QRadioButton *option : edit_branches)
+        {
+            if (!option->isChecked()) continue;
+            const QString branch_id = option->property("branchId").toString();
+            const ProjectPreviewData *project = currentProject();
+            dialog->accept();
+            if (project != nullptr)
+                for (const ProjectPreviewBranch &branch : project->branches)
+                    if (branch.id == branch_id && branch.head == selected_revision)
+                    {
+                        requestNetworkOpen(*project, branch);
+                        return;
+                    }
+            emit networkOpenProgress(tr("The branch moved since this dialog was opened. Select its new tip."), true);
             return;
         }
         if (read_only->isChecked())

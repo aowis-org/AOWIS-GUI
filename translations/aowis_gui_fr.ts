@@ -2447,6 +2447,18 @@ Le clone conserve l’identité du projet : les deux bases de données contienne
       <source>What was copied is kept. Choose Update clone on '%1' to continue.</source>
       <translation>Ce qui a été copié est conservé. Choisissez « Mettre à jour le clone » sur « %1 » pour continuer.</translation>
     </message>
+    <message>
+      <source>Branch · no commits yet</source>
+      <translation>Branche · aucun commit pour l'instant</translation>
+    </message>
+    <message>
+      <source>Edit branch '%1' (checked out into your personal database)</source>
+      <translation>Modifier la branche '%1' (extraite dans votre base de données personnelle)</translation>
+    </message>
+    <message>
+      <source>The branch moved since this dialog was opened. Select its new tip.</source>
+      <translation>La branche a avancé depuis l'ouverture de cette boîte de dialogue. Sélectionnez sa nouvelle pointe.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>

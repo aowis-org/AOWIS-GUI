@@ -561,6 +561,10 @@ void ProjectRevisionGraph::retranslateCaptions()
                 node.branch = QCoreApplication::translate("ProjectsWidget", "Branch: %1")
                     .arg(names.value(0));
                 break;
+            case ProjectGraphNode::CaptionKind::UnbornBranch:
+                node.title = names.value(0);
+                node.branch = QCoreApplication::translate("ProjectsWidget", "Branch · no commits yet");
+                break;
             case ProjectGraphNode::CaptionKind::LocalServer:
                 node.branch = QCoreApplication::translate("ProjectsWidget", "LOCAL DATABASE");
                 break;

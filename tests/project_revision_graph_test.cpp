@@ -1111,7 +1111,17 @@ int main(int argc, char **argv)
     locale_head.caption_kind = ProjectGraphNode::CaptionKind::Head;
     locale_head.caption_branch_names = {QStringLiteral("main")};
     locale_head.position = QPointF(250.0, 0.0);
-    localized_graph.setNodes({locale_project, locale_head});
+    // Outside the personal database a branch without commits has no HEAD:
+    // its card keeps the branch name as title and only the caption localizes.
+    ProjectGraphNode locale_unborn;
+    locale_unborn.kind = ProjectGraphNode::Kind::Branch;
+    locale_unborn.id = QStringLiteral("group:branch:localization-unborn");
+    locale_unborn.title = QStringLiteral("draft");
+    locale_unborn.branch = QStringLiteral("Branch · no commits yet");
+    locale_unborn.caption_kind = ProjectGraphNode::CaptionKind::UnbornBranch;
+    locale_unborn.caption_branch_names = {QStringLiteral("draft")};
+    locale_unborn.position = QPointF(250.0, 200.0);
+    localized_graph.setNodes({locale_project, locale_head, locale_unborn});
     localized_graph.setSelection(locale_head.id);
     waitFor(110);
     const QPointF project_center = localized_graph.nodeViewportPosition(locale_project.id);
@@ -1129,6 +1139,10 @@ int main(int argc, char **argv)
             || !require(localized_graph.nodeBranchCaption(locale_head.id)
                          == QStringLiteral("TEST: Branch: main"),
                         "graph HEAD caption was not updated in place")
+            || !require(localized_graph.nodeBranchCaption(locale_unborn.id)
+                            == QStringLiteral("TEST: Branch · no commits yet")
+                        && localized_graph.nodeTitle(locale_unborn.id) == QStringLiteral("draft"),
+                        "graph branch card without commits was not localized in place")
             || !require(localized_graph.nodeViewportPosition(locale_project.id) == project_center
                         && localized_graph.nodeViewportPosition(locale_head.id) == head_center
                         && localized_graph.zoomFactor() == original_zoom
@@ -1154,6 +1168,8 @@ int main(int argc, char **argv)
                     == QStringLiteral("PROJECT · 2 branch(es)")
                  && localized_graph.nodeBranchCaption(locale_head.id)
                     == QStringLiteral("Branch: main")
+                 && localized_graph.nodeBranchCaption(locale_unborn.id)
+                    == QStringLiteral("Branch · no commits yet")
                  && localized_graph.nodeViewportPosition(locale_project.id) == project_center
                  && localized_graph.zoomFactor() == original_zoom,
                  "graph did not restore English without altering geometry")) return 1;

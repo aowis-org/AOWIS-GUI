@@ -11,6 +11,8 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHostAddress>
@@ -27,6 +29,7 @@
 #include <QTemporaryFile>
 #include <QTcpSocket>
 #include <QTemporaryDir>
+#include <QRadioButton>
 #include <QTreeWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -509,20 +512,17 @@ int main(int argc, char **argv)
     if (!require(!graph->revisionViewportPosition(first_graph_id).isNull()
                  && !graph->revisionViewportPosition(second_graph_id).isNull(),
                  "aggregate graph omitted a source or merged same-hash revisions")) return 1;
-    // Branch UUIDs are independently selectable reference cards, not revision
-    // duplicates. Even when two databases have identical revision content,
-    // each source's HEAD must point to its own revision card.
+    // Neither database is personal, so neither has a HEAD card: each source's
+    // branch reference resolves to its own tip revision card, even when two
+    // databases have identical revision content.
     const QString first_branch = QStringLiteral("group:branch:") + first.repository_id + QStringLiteral("|") + first.project_id
         + QStringLiteral(":") + first.branch_id;
     const QString second_branch = QStringLiteral("group:branch:") + second.repository_id + QStringLiteral("|") + second.project_id
         + QStringLiteral(":") + second.branch_id;
-    if (!require(!graph->nodeViewportPosition(first_branch).isNull()
-                 && !graph->nodeViewportPosition(second_branch).isNull()
-                 && graph->nodeViewportPosition(first_branch).y()
-                     > graph->revisionViewportPosition(first_graph_id).y()
-                 && graph->nodeViewportPosition(second_branch).y()
-                     > graph->revisionViewportPosition(second_graph_id).y(),
-                 "distinct branch reference cards are missing below their HEAD revisions")) return 1;
+    if (!require(graph->nodeTitle(first_branch).isEmpty() && graph->nodeTitle(second_branch).isEmpty()
+                 && graph->nodeViewportPosition(first_branch) == graph->revisionViewportPosition(first_graph_id)
+                 && graph->nodeViewportPosition(second_branch) == graph->revisionViewportPosition(second_graph_id),
+                 "non-personal branches must resolve to their own tip revision cards")) return 1;
     const QPointF first_server = graph->nodeViewportPosition(QStringLiteral("group:server:") + first.repository_id);
     const QPointF second_server = graph->nodeViewportPosition(QStringLiteral("group:server:") + second.repository_id);
     const QPointF first_project = graph->nodeViewportPosition(
@@ -807,6 +807,128 @@ int main(int argc, char **argv)
                      "double-click on a personal HEAD did not use the standard network open path")) return 1;
         if (!require(personal_backend.catalogue_requests == catalogue_requests,
                      "shortcut navigation triggered an unnecessary catalogue refresh")) return 1;
+    }
+
+    // A HEAD is the writable working state of the personal database only.
+    // Elsewhere a branch with commits is its tip revision (labelled
+    // "Branch: <name>"), a branch without commits is a plain branch card, and
+    // selecting either inspects the Branch: no Commit, no Discard. Editing the
+    // tip still opens the branch, checked out into the personal database.
+    {
+        FakeDvmdb own;
+        own.repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d0a1");
+        own.role = QStringLiteral("private");
+        FakeDvmdb shared;
+        shared.repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d0a2");
+        shared.role = QStringLiteral("shared");
+        shared.include_unborn_branch = true;
+        if (!require(own.start() && shared.start(), "HEAD visibility fixtures failed")) return 1;
+        ProjectServerProfile own_profile = a;
+        own_profile.id = own.repository_id;
+        own_profile.name = QStringLiteral("Own");
+        own_profile.endpoint = own.endpoint();
+        own_profile.wireguard_profile_id.clear();
+        own_profile.personal = true;
+        ProjectServerProfile shared_profile = a;
+        shared_profile.id = shared.repository_id;
+        shared_profile.name = QStringLiteral("Team");
+        shared_profile.endpoint = shared.endpoint();
+        shared_profile.wireguard_profile_id.clear();
+        shared_profile.personal = false;
+        if (!require(saveProjectServerProfiles({own_profile, shared_profile}),
+                     "HEAD visibility profile setup failed")) return 1;
+        ProjectsWidget heads_widget;
+        heads_widget.resize(1200, 740);
+        heads_widget.show();
+        ProjectRevisionGraph *heads_graph = heads_widget.findChild<ProjectRevisionGraph *>(
+            QStringLiteral("projectRevisionGraph"));
+        const QString own_project = own.repository_id + QStringLiteral("|") + own.project_id;
+        const QString shared_project = shared.repository_id + QStringLiteral("|") + shared.project_id;
+        const QString own_tip = own_project + QStringLiteral("|") + own.hash;
+        const QString shared_tip = shared_project + QStringLiteral("|") + shared.hash;
+        const QString own_main = own_project + QStringLiteral(":") + own.branch_id;
+        const QString shared_main = shared_project + QStringLiteral(":") + shared.branch_id;
+        const QString shared_unborn = shared_project + QStringLiteral(":") + shared.unborn_branch_id;
+        if (!require(waitUntil(app, [&] {
+                return heads_graph != nullptr
+                    && !heads_graph->nodeTitle(own_tip).isEmpty()
+                    && !heads_graph->nodeTitle(shared_tip).isEmpty();
+            }), "HEAD visibility graph did not load both databases")) return 1;
+        if (!require(heads_graph->nodeTitle(QStringLiteral("group:branch:") + own_main) == QStringLiteral("HEAD"),
+                     "the personal database lost its HEAD card")) return 1;
+        if (!require(heads_graph->nodeTitle(QStringLiteral("group:branch:") + shared_main).isEmpty()
+                         && heads_graph->nodeBranchCaption(shared_tip) == QStringLiteral("Branch: main"),
+                     "a shared database still shows a HEAD card instead of labelling the tip")) return 1;
+        if (!require(heads_graph->nodeTitle(QStringLiteral("group:branch:") + shared_unborn) == QStringLiteral("unborn")
+                         && heads_graph->nodeBranchCaption(QStringLiteral("group:branch:") + shared_unborn)
+                             == QStringLiteral("Branch · no commits yet"),
+                     "a shared branch without commits is not a plain branch card")) return 1;
+        // The branch reference resolves to the tip card, so navigation and
+        // a later Push can address the branch without a HEAD.
+        if (!require(heads_graph->nodeViewportPosition(QStringLiteral("group:branch:") + shared_main)
+                         == heads_graph->revisionViewportPosition(shared_tip),
+                     "a shared branch reference does not resolve to its tip revision")) return 1;
+        QPushButton *commit = heads_widget.findChild<QPushButton *>(QStringLiteral("projectsHeadInspectorCommit"));
+        emit heads_graph->headActivated(shared_unborn);
+        app.processEvents();
+        if (!require(heads_graph->selectionId() == QStringLiteral("group:branch:") + shared_unborn
+                         && commit != nullptr && !commit->isVisible(),
+                     "a shared branch card opened a HEAD inspector with Commit")) return 1;
+        emit heads_graph->headActivated(shared_main);
+        app.processEvents();
+        if (!require(heads_graph->selectionId() == shared_tip && !commit->isVisible(),
+                     "selecting a shared branch did not select its tip revision")) return 1;
+        emit heads_graph->headActivated(own_main);
+        app.processEvents();
+        if (!require(heads_graph->selectionId() == QStringLiteral("group:branch:") + own_main,
+                     "the personal HEAD is no longer selectable")) return 1;
+
+        // Opening the shared tip offers editing the branch itself.
+        heads_graph->revisionActivated(shared_tip);
+        app.processEvents();
+        if (!require(heads_graph->selectionId() == shared_tip, "shared tip revision was not selectable")) return 1;
+        QPushButton *open_network = heads_widget.findChild<QPushButton *>(
+            QStringLiteral("projectsNetworkOverviewOpen"));
+        if (!require(open_network != nullptr, "shared tip lacks Open network")) return 1;
+        open_network->setEnabled(true); // The fixture has no hydraulic summary.
+        open_network->click();
+        app.processEvents();
+        QDialog *open_dialog = heads_widget.findChild<QDialog *>(QStringLiteral("projectsRevisionOpenDialog"));
+        QRadioButton *edit_branch = open_dialog == nullptr ? nullptr
+            : open_dialog->findChild<QRadioButton *>(QStringLiteral("projectsRevisionOpenEditBranch"));
+        QDialogButtonBox *open_buttons = open_dialog == nullptr ? nullptr
+            : open_dialog->findChild<QDialogButtonBox *>(QStringLiteral("projectsRevisionOpenButtons"));
+        if (!require(edit_branch != nullptr && edit_branch->isChecked()
+                         && edit_branch->text().contains(QStringLiteral("main"))
+                         && open_buttons != nullptr,
+                     "a shared tip does not offer editing its branch")) return 1;
+        QString opened_branch;
+        bool checkout = false;
+        QObject::connect(&heads_widget, &ProjectsWidget::networkOpenRequested, &heads_widget,
+            [&opened_branch, &checkout](const QString &, const QString &branch_id,
+                const QString &, const QString &, const QString &, bool remote)
+            { opened_branch = branch_id; checkout = remote; });
+        open_buttons->accepted();
+        app.processEvents();
+        if (!require(opened_branch == shared_main && checkout,
+                     "editing a shared branch did not check it out into the personal database")) return 1;
+
+        // An older tip, or the personal database, keeps the original choices.
+        heads_graph->revisionActivated(own_tip);
+        app.processEvents();
+        if (!require(heads_graph->selectionId() == own_tip, "personal tip revision was not selectable")) return 1;
+        open_network->setEnabled(true);
+        open_network->click();
+        app.processEvents();
+        QDialog *own_dialog = nullptr;
+        for (QDialog *dialog : heads_widget.findChildren<QDialog *>(QStringLiteral("projectsRevisionOpenDialog")))
+            if (dialog->isVisible()) own_dialog = dialog;
+        if (!require(own_dialog != nullptr
+                         && own_dialog->findChild<QRadioButton *>(
+                             QStringLiteral("projectsRevisionOpenEditBranch")) == nullptr,
+                     "a personal revision offers a checkout edit instead of its HEAD")) return 1;
+        own_dialog->reject();
+        app.processEvents();
     }
 
     // Adding a connection that is already configured must explain why in a

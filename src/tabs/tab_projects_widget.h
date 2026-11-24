@@ -203,6 +203,16 @@ private:
     bool isPreviewSource() const;
     void broadcastContext();
     void select(SelectionKind kind, const QString &id);
+    // A HEAD is a writable working state: it exists only in the personal
+    // database (drafts need it) and in the UI preview. Elsewhere a branch is
+    // shown by the "Branch:" caption of its tip revision; only a branch
+    // without commits gets a card of its own, and selecting it inspects the
+    // Branch. Push will advance exactly these tips.
+    bool branchHasHead(const ProjectPreviewData &project) const;
+    bool branchHasHead(const QString &branch_id) const;
+    // The graph card standing for a branch: its HEAD card, its tip
+    // revision, or the card of a branch without commits.
+    QString branchGraphCard(const QString &branch_id) const;
     void selectTreeItem(QTreeWidget *tree, const QString &key, bool reveal = true);
     void createServer();
     void saveNewSource();
