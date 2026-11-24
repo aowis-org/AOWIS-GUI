@@ -313,6 +313,12 @@ int main(int argc, char **argv)
                  && graph->cloneLinks().first().second.startsWith(QStringLiteral("group:project:"))
                  && graph->cloneLinks().first().first != graph->cloneLinks().first().second,
                  "the same project on two databases is not linked as a clone")) return 1;
+    // Both fixtures hold the same revision: the dotted sync line joins them.
+    if (!require(waitUntil(app, [&] { return graph->cloneSyncLinks().size() == 1; })
+                 && graph->cloneSyncLinks().first().first.endsWith(QStringLiteral("|") + first.hash)
+                 && graph->cloneSyncLinks().first().second.endsWith(QStringLiteral("|") + first.hash)
+                 && graph->cloneSyncLinks().first().first != graph->cloneSyncLinks().first().second,
+                 "the last common commit of the two clones is not linked")) return 1;
     // Clone project / Paste clone: the in-app clipboard drives Paste's state,
     // label and tooltip. Both fixtures hold the same project UUIDv7, so B
     // already has the clone and Paste becomes Update clone.

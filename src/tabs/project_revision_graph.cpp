@@ -197,7 +197,10 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
                 visible.insert(node.id);
                 continue;
             }
-            if (!node.heads.isEmpty() || this->expanded_revisions.contains(node.id))
+            // The last commit two clones share stays visible like a HEAD:
+            // it is where their dotted sync line ends.
+            if (!node.heads.isEmpty() || !node.clone_sync_keys.isEmpty()
+                || this->expanded_revisions.contains(node.id))
                 visible.insert(node.id);
             const int count = descendant_head_counts.value(node.id);
             if (count < 2)
@@ -761,6 +764,15 @@ QVector<QPair<QString, QString>> ProjectRevisionGraph::cloneLinks() const
     return result;
 }
 
+QVector<QPair<QString, QString>> ProjectRevisionGraph::cloneSyncLinks() const
+{
+    QVector<QPair<QString, QString>> result;
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::computeSync(this->nodes,
+             [this](const ProjectGraphNode &node) { return nodeRect(node); }))
+        result.append(qMakePair(this->nodes.at(link.first).id, this->nodes.at(link.second).id));
+    return result;
+}
+
 QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
 {
     if (node.kind == ProjectGraphNode::Kind::Revision)
@@ -1035,14 +1047,24 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
     for (const ProjectGraphNode &node : this->nodes)
         visible_by_id.insert(node.id, &node);
     const double structural_sign = this->top_down ? 1.0 : -1.0;
-    // Clones of one project on different databases, below every other edge.
-    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes,
-             [this](const ProjectGraphNode &node) { return nodeRect(node); }))
+    // Clones of one project on different databases, below every other edge:
+    // dashed between the project cards, in their colour; dotted between the
+    // last commit both copies have, in the revision card colour.
+    const ProjectGraphCloneLinks::Bounds clone_bounds =
+        [this](const ProjectGraphNode &node) { return nodeRect(node); };
+    painter.setBrush(Qt::NoBrush);
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes, clone_bounds))
     {
         QPainterPath path(link.route.at(0));
         path.cubicTo(link.route.at(1), link.route.at(2), link.route.at(3));
-        painter.setPen(QPen(tint(ProjectGraphCloneLinks::color(), 200), 2.2, Qt::DashLine, Qt::RoundCap));
-        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(tint(accent, 200), 2.2, Qt::DashLine, Qt::RoundCap));
+        painter.drawPath(path);
+    }
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::computeSync(this->nodes, clone_bounds))
+    {
+        QPainterPath path(link.route.at(0));
+        path.cubicTo(link.route.at(1), link.route.at(2), link.route.at(3));
+        painter.setPen(QPen(tint(muted, 220), 2.4, Qt::DotLine, Qt::RoundCap));
         painter.drawPath(path);
     }
     for (const ProjectGraphNode &node : this->nodes)

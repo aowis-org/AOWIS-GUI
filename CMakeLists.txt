@@ -386,6 +386,8 @@ qt_add_executable(aowis-server-gui
     src/projects/personal_draft_edit_stage.h
     src/projects/personal_history_navigation_intent_store.cpp
     src/projects/personal_history_navigation_intent_store.h
+    src/projects/draft_lease_handover.cpp
+    src/projects/draft_lease_handover.h
     src/projects/personal_draft_edit_session.cpp
     src/projects/personal_draft_edit_session.h
     src/network/hydraulic_entity_table_widget.cpp
@@ -977,6 +979,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     target_link_libraries(aowis-project-clone-transfer-tests PRIVATE Qt6::Core Qt6::Network)
     add_test(NAME aowis-project-clone-transfer COMMAND aowis-project-clone-transfer-tests)
     set_tests_properties(aowis-project-clone-transfer PROPERTIES LABELS "aowis" TIMEOUT 60)
+
+    # Writer-lease handover from the open editor to a Commit and back.
+    add_executable(aowis-draft-lease-handover-tests
+        tests/draft_lease_handover_test.cpp
+        src/projects/draft_lease_handover.cpp
+        src/projects/draft_lease_handover.h)
+    target_include_directories(aowis-draft-lease-handover-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-draft-lease-handover-tests PRIVATE Qt6::Core)
+    add_test(NAME aowis-draft-lease-handover COMMAND aowis-draft-lease-handover-tests)
+    set_tests_properties(aowis-draft-lease-handover PROPERTIES LABELS "aowis")
 
     # Actual GUI writer -> cpp-httplib -> DVMDB roundtrip against the real
     # server executable, including a persisted working-copy and restart.

@@ -4792,6 +4792,10 @@ This cannot be undone.</source>
       <source>Annotations [%]</source>
       <translation>التعليقات التوضيحية [%]</translation>
     </message>
+    <message>
+      <source>Committing · Editing paused</source>
+      <translation>جارٍ الإيداع · التحرير متوقف مؤقتًا</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -5927,6 +5931,14 @@ The remote branch will first be checked out into %1.</source>
     <message>
       <source>Live model differs from durably staged MODEL transactions.</source>
       <translation>يختلف النموذج النشط عن معاملات MODEL المخزنة بشكل دائم في قائمة الانتظار.</translation>
+    </message>
+    <message>
+      <source>Committing…</source>
+      <translation>جارٍ الإيداع…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>فشل الفتح</translation>
     </message>
   </context>
   <context>
@@ -9935,6 +9947,45 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>the reply is larger than expected</source>
       <translation>الرد أكبر من المتوقع</translation>
+    </message>
+  </context>
+  <context>
+    <name>DraftLeaseHandover</name>
+    <message>
+      <source>Editing of this draft is blocked. Close the blocked private draft, then commit.</source>
+      <translation>تحرير هذه المسودة محظور. أغلق المسودة الخاصة المحظورة ثم أودِع.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved.</source>
+      <translation>توقف التحرير قبل حفظ التعديلات المنتظرة.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved: %1</source>
+      <translation>توقف التحرير قبل حفظ التعديلات المنتظرة: %1</translation>
+    </message>
+    <message>
+      <source>Saving the queued edits failed, so the Commit was not started: %1</source>
+      <translation>فشل حفظ التعديلات المنتظرة، لذلك لم يبدأ الإيداع: %1</translation>
+    </message>
+    <message>
+      <source>The draft is still being opened for editing. Try again in a moment.</source>
+      <translation>لا تزال المسودة قيد الفتح للتحرير. أعد المحاولة بعد قليل.</translation>
+    </message>
+    <message>
+      <source>The editor could not release the draft: %1</source>
+      <translation>تعذّر على المحرر تحرير المسودة: %1</translation>
+    </message>
+    <message>
+      <source>The editor did not release the draft in time.</source>
+      <translation>لم يحرر المحرر المسودة في الوقت المناسب.</translation>
+    </message>
+    <message>
+      <source>The editor is closing this draft. Try again in a moment.</source>
+      <translation>المحرر يغلق هذه المسودة. أعد المحاولة بعد قليل.</translation>
+    </message>
+    <message>
+      <source>The queued edits were not saved in time, so the Commit was not started.</source>
+      <translation>لم تُحفظ التعديلات المنتظرة في الوقت المناسب، لذلك لم يبدأ الإيداع.</translation>
     </message>
   </context>
 </TS>

@@ -155,6 +155,17 @@ or inconsistent edits block the session rather than pretending to save.
 | Fetch/Clone | Transfer a specific remote branch into personal working repository | Branch-level checkout exists; whole-project **Clone project / Paste clone** between any two databases is implemented (fast-forward only); Fetch tracking workflow incomplete |
 | Merge/reconcile | Resolve divergent committed histories without losing drafts | Complete end-to-end UI not available |
 
+**Commit while the network is open for editing.** The editor's writer
+session holds the draft's lease and keeps renewing it, and DVMDB refuses a
+second writer ("draft held by another writer session"). Commit therefore asks
+the editor to hand the lease over (`DraftLeaseHandover`): edit capture pauses
+(status *Committing · Editing paused*), every queued edit is saved, the editor
+releases its lease, the Commit takes it, releases it again (also after a
+failure) and editing reopens on the same draft without leaving the Projects
+page. Nothing is handed over while editing is blocked, closing or still
+opening, and a queue that does not drain within 30 s cancels the Commit and
+resumes editing.
+
 After Commit the saved draft overlay can be empty, but the network still
 exists in its committed **base** revision. The HEAD loader and summary must
 read the full saved draft view, not just pending changed records.

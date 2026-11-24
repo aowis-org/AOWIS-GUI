@@ -4768,6 +4768,10 @@ Cette action est irréversible.</translation>
       <source>Annotations [%]</source>
       <translation>Annotations [%]</translation>
     </message>
+    <message>
+      <source>Committing · Editing paused</source>
+      <translation>Validation en cours · Modification en pause</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -5903,6 +5907,14 @@ La branche distante sera d’abord extraite vers %1.</translation>
     <message>
       <source>Live model differs from durably staged MODEL transactions.</source>
       <translation>Le modèle actif diffère des transactions MODEL enregistrées durablement en attente.</translation>
+    </message>
+    <message>
+      <source>Committing…</source>
+      <translation>Validation…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>Échec de l’ouverture</translation>
     </message>
   </context>
   <context>
@@ -9871,6 +9883,45 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>the reply is larger than expected</source>
       <translation>la réponse est plus grande que prévu</translation>
+    </message>
+  </context>
+  <context>
+    <name>DraftLeaseHandover</name>
+    <message>
+      <source>Editing of this draft is blocked. Close the blocked private draft, then commit.</source>
+      <translation>La modification de ce brouillon est bloquée. Fermez le brouillon privé bloqué, puis validez.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved.</source>
+      <translation>La modification s’est arrêtée avant l’enregistrement des modifications en attente.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved: %1</source>
+      <translation>La modification s’est arrêtée avant l’enregistrement des modifications en attente : %1</translation>
+    </message>
+    <message>
+      <source>Saving the queued edits failed, so the Commit was not started: %1</source>
+      <translation>L’enregistrement des modifications en attente a échoué, la validation n’a donc pas été lancée : %1</translation>
+    </message>
+    <message>
+      <source>The draft is still being opened for editing. Try again in a moment.</source>
+      <translation>Le brouillon est encore en cours d’ouverture pour modification. Réessayez dans un instant.</translation>
+    </message>
+    <message>
+      <source>The editor could not release the draft: %1</source>
+      <translation>L’éditeur n’a pas pu libérer le brouillon : %1</translation>
+    </message>
+    <message>
+      <source>The editor did not release the draft in time.</source>
+      <translation>L’éditeur n’a pas libéré le brouillon à temps.</translation>
+    </message>
+    <message>
+      <source>The editor is closing this draft. Try again in a moment.</source>
+      <translation>L’éditeur est en train de fermer ce brouillon. Réessayez dans un instant.</translation>
+    </message>
+    <message>
+      <source>The queued edits were not saved in time, so the Commit was not started.</source>
+      <translation>Les modifications en attente n’ont pas été enregistrées à temps, la validation n’a donc pas été lancée.</translation>
     </message>
   </context>
 </TS>

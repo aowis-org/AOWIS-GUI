@@ -46,6 +46,157 @@ QRectF bounds(const ProjectGraphNode &node)
 
 const QString first_uuid = QStringLiteral("019aabbc-2222-7222-8222-123456789abc");
 const QString second_uuid = QStringLiteral("019aabbc-3333-7333-8333-123456789abc");
+
+// A revision card as the Projects widget builds it: "<project>|<revision>".
+ProjectGraphNode revisionCard(const QString &project_card, const QString &project, const QString &revision,
+                              const QStringList &parents, const QPointF &position)
+{
+    ProjectGraphNode node;
+    node.kind = ProjectGraphNode::Kind::Revision;
+    node.id = project + QLatin1Char('|') + revision;
+    node.display_id = revision;
+    node.project_group_id = project_card;
+    node.position = position;
+    for (const QString &parent : parents) node.parents.append(project + QLatin1Char('|') + parent);
+    return node;
+}
+
+// Appends one copy of a project: its card and a history given as
+// "revision:parent,parent" entries.
+void addCopy(QVector<ProjectGraphNode> &nodes, const QString &card, const QString &identity, double x,
+             const QStringList &history)
+{
+    nodes.append(projectCard(card, QStringLiteral("server-") + card, QPointF(x, 0), identity));
+    double y = 150;
+    for (const QString &entry : history)
+    {
+        const QString revision = entry.section(QLatin1Char(':'), 0, 0);
+        const QString parents = entry.section(QLatin1Char(':'), 1);
+        nodes.append(revisionCard(card, QStringLiteral("p-") + card, revision,
+                                  parents.split(QLatin1Char(','), Qt::SkipEmptyParts), QPointF(x, y)));
+        y += 120;
+    }
+}
+
+QStringList syncedRevisions(const QVector<ProjectGraphNode> &nodes)
+{
+    QStringList result;
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::computeSync(nodes, bounds))
+    {
+        const ProjectGraphNode &first = nodes.at(link.first);
+        const ProjectGraphNode &second = nodes.at(link.second);
+        if (first.display_id != second.display_id || first.project_group_id == second.project_group_id)
+            return {QStringLiteral("invalid link")};
+        result.append(first.display_id);
+    }
+    result.sort();
+    return result;
+}
+
+void testSyncFrontiers()
+{
+    // One copy is behind: the line ends at the last commit both have.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("r3:r2"),
+                 QStringLiteral("r4:r3"), QStringLiteral("r5:r4")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("r3:r2")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList{QStringLiteral("r3")},
+                "a copy that is behind is not linked at its last common commit");
+        const QVector<ProjectGraphCloneLinks::Link> links = ProjectGraphCloneLinks::computeSync(nodes, bounds);
+        require(links.size() == 1 && links.first().route.size() == 4
+                    && near(links.first().route.first(), QPointF(100, 390))
+                    && near(links.first().route.last(), QPointF(500, 390)),
+                "the sync line does not join the two revision cards side by side");
+        int marked = 0;
+        for (const ProjectGraphNode &node : nodes) marked += node.clone_sync_keys.size();
+        require(marked == 2, "more than the two last common revisions were marked");
+        // Re-running replaces the marks instead of adding to them.
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        marked = 0;
+        for (const ProjectGraphNode &node : nodes) marked += node.clone_sync_keys.size();
+        require(marked == 2, "marking twice duplicated the sync marks");
+    }
+    // Equal copies: the line is at HEAD.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0, {QStringLiteral("r1:"), QStringLiteral("r2:r1")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600, {QStringLiteral("r1:"), QStringLiteral("r2:r1")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList{QStringLiteral("r2")}, "equal copies are not linked at HEAD");
+    }
+    // Diverged copies: the line is at the fork point.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("x3:r2")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("y3:r2"), QStringLiteral("y4:y3")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList{QStringLiteral("r2")},
+                "diverged copies are not linked where they split");
+    }
+    // Two lines of history (a feature branch) both shared: one line each.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("r3:r2"),
+                 QStringLiteral("f1:r2"), QStringLiteral("f2:f1")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("r3:r2"), QStringLiteral("f1:r2")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList({QStringLiteral("f1"), QStringLiteral("r3")}),
+                "each shared line of history does not get its own sync line");
+    }
+    // A merge both have: its merged parents are behind it, not separate lines.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0,
+                {QStringLiteral("r1:"), QStringLiteral("s1:r1"), QStringLiteral("r2:r1"), QStringLiteral("m:r2,s1")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600,
+                {QStringLiteral("r1:"), QStringLiteral("s1:r1"), QStringLiteral("r2:r1"), QStringLiteral("m:r2,s1")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList{QStringLiteral("m")},
+                "a shared merge left its parents marked as separate sync points");
+    }
+    // Nothing shared, or not clones at all: no sync line.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0, {QStringLiteral("r1:")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600, {QStringLiteral("q1:")});
+        addCopy(nodes, QStringLiteral("c"), second_uuid, 1200, {QStringLiteral("r1:")});
+        addCopy(nodes, QStringLiteral("d"), QString(), 1800, {QStringLiteral("r1:")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes).isEmpty(), "copies without a common commit, or non-clones, were linked");
+    }
+    // Three copies: every pair shows where it agrees.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0,
+                {QStringLiteral("r1:"), QStringLiteral("r2:r1"), QStringLiteral("r3:r2")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600, {QStringLiteral("r1:"), QStringLiteral("r2:r1")});
+        addCopy(nodes, QStringLiteral("c"), first_uuid, 1200, {QStringLiteral("r1:")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        require(syncedRevisions(nodes) == QStringList({QStringLiteral("r1"), QStringLiteral("r1"), QStringLiteral("r2")}),
+                "three copies do not show the last common commit of every pair");
+    }
+    // A sync card that is not displayed (folded away) draws no line.
+    {
+        QVector<ProjectGraphNode> nodes;
+        addCopy(nodes, QStringLiteral("a"), first_uuid, 0, {QStringLiteral("r1:"), QStringLiteral("r2:r1")});
+        addCopy(nodes, QStringLiteral("b"), first_uuid, 600, {QStringLiteral("r1:")});
+        ProjectGraphCloneLinks::markSyncFrontiers(nodes);
+        QVector<ProjectGraphNode> displayed;
+        for (const ProjectGraphNode &node : nodes)
+            if (!(node.project_group_id == QStringLiteral("b") && node.display_id == QStringLiteral("r1")))
+                displayed.append(node);
+        require(ProjectGraphCloneLinks::computeSync(displayed, bounds).isEmpty(),
+                "a sync line was drawn to a card that is not displayed");
+    }
+}
 }
 
 int main()
@@ -135,7 +286,7 @@ int main()
                 "clones at the same x are not ordered top to bottom");
     }
 
-    require(ProjectGraphCloneLinks::color().isValid(), "clone link colour is invalid");
+    testSyncFrontiers();
 
     if (failures != 0) return 1;
     std::puts("Project graph clone link tests passed");

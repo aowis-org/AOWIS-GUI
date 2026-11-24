@@ -1,4 +1,5 @@
 #include "tabs/project_graph_bgfx_scene.h"
+#include "tabs/project_graph_clone_links.h"
 
 #include <QApplication>
 #include <QFont>
@@ -330,6 +331,32 @@ int main(int argc, char **argv)
                      "cloned project cards are not joined by exactly one link")) return 1;
         if (!require(canvas.vertices().size() > unlinked_vertices,
                      "the clone link has no rendered geometry")) return 1;
+        // The last commit both copies have gets a dotted line of its own.
+        ProjectGraphNode original_revision;
+        original_revision.kind = ProjectGraphNode::Kind::Revision;
+        original_revision.id = QStringLiteral("p-original|r1");
+        original_revision.display_id = QStringLiteral("r1");
+        original_revision.project_group_id = original.id;
+        original_revision.position = QPointF(0, 300);
+        ProjectGraphNode clone_revision = original_revision;
+        clone_revision.id = QStringLiteral("p-clone|r1");
+        clone_revision.project_group_id = clone.id;
+        clone_revision.position = QPointF(420, 300);
+        QVector<ProjectGraphNode> synced{server, other_server, original, clone, unrelated,
+                                         original_revision, clone_revision};
+        ProjectGraphCloneLinks::markSyncFrontiers(synced);
+        const qsizetype unsynced_vertices = [&] {
+            QVector<ProjectGraphNode> plain = synced;
+            for (ProjectGraphNode &node : plain) node.clone_sync_keys.clear();
+            ProjectGraphBgfxScene::build(&canvas, &atlas, text_target, plain, {}, view);
+            return canvas.vertices().size();
+        }();
+        const ProjectGraphBgfxScene::Stats sync = ProjectGraphBgfxScene::build(
+            &canvas, &atlas, text_target, synced, {}, view);
+        if (!require(sync.clone_edges == 1 && sync.clone_sync_edges == 1,
+                     "the last common commit of two clones has no dotted line")) return 1;
+        if (!require(canvas.vertices().size() > unsynced_vertices,
+                     "the dotted sync line has no rendered geometry")) return 1;
         // A dashed link stays indexed when only its middle is in view.
         ProjectGraphBgfxScene::Index clone_index;
         clone_index.rebuild(cloned, {}, true);

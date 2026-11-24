@@ -75,18 +75,20 @@ QPointF cubicPoint(const QPointF &a, const QPointF &b, const QPointF &c,
 // Screen-space subdivision limits visual differences between the two paths.
 void cubic(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
            const QPointF &a, const QPointF &b, const QPointF &c, const QPointF &d,
-           double width, quint32 color, bool dashed)
+           double width, quint32 color, bool dashed, bool dotted = false)
 {
     const double span = QLineF(screenPoint(a, view), screenPoint(b, view)).length()
         + QLineF(screenPoint(b, view), screenPoint(c, view)).length()
         + QLineF(screenPoint(c, view), screenPoint(d, view)).length();
-    const int segments = std::clamp(int(std::ceil(span / 9.0)), 4, 96);
+    // Dotted: short segments, every other one drawn (like Qt::DotLine).
+    const int segments = dotted ? std::clamp(int(std::ceil(span / 4.0)), 8, 400)
+                                : std::clamp(int(std::ceil(span / 9.0)), 4, 96);
     QPointF previous = screenPoint(a, view);
     for (int index = 1; index <= segments; ++index)
     {
         const QPointF next = screenPoint(cubicPoint(a, b, c, d,
             double(index) / double(segments)), view);
-        if (!dashed || (index % 4) < 2)
+        if (dotted ? (index % 2) == 1 : (!dashed || (index % 4) < 2))
             line(canvas, previous, next, width, color);
         previous = next;
     }
@@ -95,7 +97,7 @@ void cubic(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
 void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
            const QPointF &begin, const QPointF &end,
            const QVector<QPointF> &control_points, double bend,
-           double width, quint32 color, bool dashed = false)
+           double width, quint32 color, bool dashed = false, bool dotted = false)
 {
     // A cubic Bezier stays inside the convex hull of its control points.
     // Reject wholly offscreen routes BEFORE tessellation: on long histories,
@@ -135,7 +137,7 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
         for (int i = 1; i + 2 < control_points.size(); i += 3)
             cubic(canvas, view, control_points.at(i - 1), control_points.at(i),
                   control_points.at(i + 1), control_points.at(i + 2),
-                  width, color, dashed);
+                  width, color, dashed, dotted);
         return;
     }
     if (std::fabs(begin.x() - end.x()) < 0.01)
@@ -222,11 +224,12 @@ void ProjectGraphBgfxScene::Index::clear()
     this->ancestry_edges = 0;
     this->head_edges = 0;
     this->clone_edges = 0;
+    this->clone_sync_edges = 0;
 }
 
 void ProjectGraphBgfxScene::Index::appendEdge(
     const QPointF &begin, const QPointF &end, const QVector<QPointF> &controls,
-    double bend, bool dashed, Type type)
+    double bend, bool dashed, Type type, bool dotted)
 {
     double min_x = std::min(begin.x(), end.x());
     double min_y = std::min(begin.y(), end.y());
@@ -257,7 +260,7 @@ void ProjectGraphBgfxScene::Index::appendEdge(
     const QRectF bounds(min_x - 0.001, min_y - 0.001,
                         max_x - min_x + 0.002, max_y - min_y + 0.002);
     const int index = this->edges.size();
-    this->edges.append({begin, end, controls, bend, dashed});
+    this->edges.append({begin, end, controls, bend, dashed, dotted});
     this->items.append({bounds, type, index});
 }
 
@@ -358,6 +361,11 @@ void ProjectGraphBgfxScene::Index::rebuild(
     {
         appendEdge(link.route.first(), link.route.last(), link.route, 0.0, true, Type::CloneLink);
         ++this->clone_edges;
+    }
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::computeSync(this->nodes, cardBounds))
+    {
+        appendEdge(link.route.first(), link.route.last(), link.route, 0.0, false, Type::CloneSync, true);
+        ++this->clone_sync_edges;
     }
     for (const ProjectGraphNode &node : this->nodes)
     {
@@ -513,6 +521,7 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
     stats.ancestry_edges = index.ancestry_edges;
     stats.head_edges = index.head_edges;
     stats.clone_edges = index.clone_edges;
+    stats.clone_sync_edges = index.clone_sync_edges;
     const QColor flow_green(57, 184, 145);
     for (const int item_index : visible_items)
     {
@@ -524,13 +533,17 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         const bool fold_edge = item.type == Index::Type::FoldEdge;
         const bool head = item.type == Index::Type::Head;
         const bool clone = item.type == Index::Type::CloneLink;
-        const double width = (clone ? 2.2 : structural || fold_edge || head ? 2.5 : 3.0)
-            * view.zoom;
-        const quint32 color = clone ? tinted(ProjectGraphCloneLinks::color(), 200)
+        const bool clone_sync = item.type == Index::Type::CloneSync;
+        const double width = (clone ? 2.2 : clone_sync ? 2.4
+                              : structural || fold_edge || head ? 2.5 : 3.0) * view.zoom;
+        // Clone links take the colour of the cards they join: project cards
+        // (accent) and revision cards (muted border).
+        const quint32 color = clone ? tinted(accent, 200)
+            : clone_sync ? tinted(muted, 220)
             : head ? tinted(flow_green, 190)
             : tinted(accent, structural || fold_edge ? 145 : 115);
         route(canvas, view, edge.begin, edge.end, edge.controls, edge.bend,
-              width, color, edge.dashed);
+              width, color, edge.dashed, edge.dotted);
     }
 
     for (const int item_index : visible_items)

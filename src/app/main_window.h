@@ -27,6 +27,8 @@
 #include <QTime>
 #include <QDateTime>
 
+#include <functional>
+
 #include "app/footer_statusbar.h"
 #include "services/rest_client.h"
 #include "app/menubar.h"
@@ -62,6 +64,7 @@
 #include "widgets/main_navigation_widget.h"
 
 #include "network/hydraulic_data.h"
+#include "projects/draft_lease_handover.h"
 #include "projects/personal_draft_edit_session.h"
 
 #ifdef Q_OS_WASM
@@ -128,6 +131,8 @@ private:
     void blockPersonalDraftEditing(const QString &reason);
     void checkPersonalDraftModel();
     void synchronizePersonalHistoryEditMode();
+    void startPersonalDraftEditing(const QString &draft_id, const QString &network_id);
+    void setupPersonalDraftHandover();
 
     HydraulicData *hydraulic_data = nullptr;
     PersonalDraftEditSession *personal_edit_session = nullptr;
@@ -136,6 +141,9 @@ private:
     bool personal_edit_active = false;
     bool personal_edit_blocked = false;
     bool personal_edit_closing = false;
+    // Gives the draft's writer lease to a Commit from the Projects page and
+    // reopens editing afterwards.
+    DraftLeaseHandover *personal_edit_handover = nullptr;
     bool network_open_pending = false;
     bool network_confirmation_visible = false;
     QString opened_project_name;

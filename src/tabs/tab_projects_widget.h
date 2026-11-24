@@ -126,6 +126,17 @@ public:
     HistoryDockContext historyContext(const QString &project_id = QString(),
                                       const QString &branch_id = QString()) const;
 
+    // Lets Commit take over the writer lease of a draft this GUI is editing.
+    // release(draft, done) saves the editor's queued edits and releases its
+    // lease, then calls done(error) (at once when that draft is not being
+    // edited). resume(draft) reopens editing after the Commit finished.
+    struct DraftWriterHandoff
+    {
+        std::function<void(const QString &draft_id, std::function<void(const QString &error)> done)> release;
+        std::function<void(const QString &draft_id)> resume;
+    };
+    void setDraftWriterHandoff(DraftWriterHandoff handoff);
+
 signals:
     void languageChanged();
     void networkOpenRequested(const QString &project_id, const QString &branch_id,
@@ -349,4 +360,5 @@ private:
     bool updating_ui = false;
     std::optional<CloneClipboard> clone_clipboard;
     ProjectCloneTransfer *clone_transfer = nullptr;
+    DraftWriterHandoff draft_writer_handoff;
 };

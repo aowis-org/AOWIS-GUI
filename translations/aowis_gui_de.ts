@@ -4768,6 +4768,10 @@ Dies kann nicht rückgängig gemacht werden.</translation>
       <source>Annotations [%]</source>
       <translation>Anmerkungen [%]</translation>
     </message>
+    <message>
+      <source>Committing · Editing paused</source>
+      <translation>Commit läuft · Bearbeitung pausiert</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -5903,6 +5907,14 @@ Der entfernte Branch wird zuerst nach %1 ausgecheckt.</translation>
     <message>
       <source>Live model differs from durably staged MODEL transactions.</source>
       <translation>Das aktive Modell weicht von den dauerhaft bereitgestellten MODEL-Transaktionen ab.</translation>
+    </message>
+    <message>
+      <source>Committing…</source>
+      <translation>Commit läuft…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>Öffnen fehlgeschlagen</translation>
     </message>
   </context>
   <context>
@@ -9871,6 +9883,45 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>the reply is larger than expected</source>
       <translation>die Antwort ist größer als erwartet</translation>
+    </message>
+  </context>
+  <context>
+    <name>DraftLeaseHandover</name>
+    <message>
+      <source>Editing of this draft is blocked. Close the blocked private draft, then commit.</source>
+      <translation>Die Bearbeitung dieses Entwurfs ist blockiert. Schließen Sie den blockierten privaten Entwurf und committen Sie dann.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved.</source>
+      <translation>Die Bearbeitung wurde beendet, bevor die anstehenden Änderungen gespeichert waren.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved: %1</source>
+      <translation>Die Bearbeitung wurde beendet, bevor die anstehenden Änderungen gespeichert waren: %1</translation>
+    </message>
+    <message>
+      <source>Saving the queued edits failed, so the Commit was not started: %1</source>
+      <translation>Das Speichern der anstehenden Änderungen ist fehlgeschlagen, daher wurde der Commit nicht gestartet: %1</translation>
+    </message>
+    <message>
+      <source>The draft is still being opened for editing. Try again in a moment.</source>
+      <translation>Der Entwurf wird noch zur Bearbeitung geöffnet. Versuchen Sie es gleich noch einmal.</translation>
+    </message>
+    <message>
+      <source>The editor could not release the draft: %1</source>
+      <translation>Der Editor konnte den Entwurf nicht freigeben: %1</translation>
+    </message>
+    <message>
+      <source>The editor did not release the draft in time.</source>
+      <translation>Der Editor hat den Entwurf nicht rechtzeitig freigegeben.</translation>
+    </message>
+    <message>
+      <source>The editor is closing this draft. Try again in a moment.</source>
+      <translation>Der Editor schließt diesen Entwurf gerade. Versuchen Sie es gleich noch einmal.</translation>
+    </message>
+    <message>
+      <source>The queued edits were not saved in time, so the Commit was not started.</source>
+      <translation>Die anstehenden Änderungen wurden nicht rechtzeitig gespeichert, daher wurde der Commit nicht gestartet.</translation>
     </message>
   </context>
 </TS>

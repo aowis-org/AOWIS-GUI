@@ -46,6 +46,7 @@ KNOWN_DIRECT = {
     'src/projects/project_source_reader.cpp': 'ProjectSourceReader',
     'src/projects/project_source_writer.cpp': 'ProjectSourceWriter',
     'src/projects/project_clone_transfer.cpp': 'ProjectCloneTransfer',
+    'src/projects/draft_lease_handover.cpp': 'DraftLeaseHandover',
     'src/tabs/tab_projects_widget.cpp': 'ProjectsWidget',  # ProjectsWidget declares Q_OBJECT.
     'src/simulation/simulation_manager.cpp': 'SimulationManager',
     'src/settings/personal_repository_settings_widget.cpp': 'PersonalRepositorySettingsWidget',

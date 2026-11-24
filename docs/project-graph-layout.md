@@ -46,11 +46,13 @@ explicit unreferenced status.
 - **Project → unborn HEAD:** organizational connection where no committed
   base exists.
 - **Server → Project:** organization, not model ancestry.
-- **Project ⇢ Project (dashed, violet):** the same DVMDB project UUIDv7 on
+- **Project ⇢ Project (dashed, project card colour):** the same DVMDB project UUIDv7 on
   two databases, i.e. a clone. Copies are chained left to right (then top to
   bottom), so N copies draw N−1 links; the link is drawn below every other
   edge and is not ancestry. `ProjectGraphCloneLinks` computes the geometry
   once for the QPainter and the bgfx paths.
+- **Revision ⋯ Revision (dotted, revision card colour):** the last commit two
+  clones both have, so it shows how far they agree.
 
 Never invent a branch-creation ancestry revision or duplicate immutable
 shared ancestors. Branch names are mutable display metadata; UUIDv7s are

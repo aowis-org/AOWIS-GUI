@@ -36,6 +36,7 @@
 #include <qapplication.h>
 
 #include <limits>
+#include <memory>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -419,7 +420,10 @@ MainWindow::MainWindow(QWidget *parent)
         // Keep the Distribution Editor active while browsing History.
         // Logical edit capture is enabled only after cursor verification.
         this->map_workspace->setCurrentMode(MapWorkspaceWidget::DistributionEditor);
-        this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
+        // Resuming after a Commit keeps the user where they committed.
+        if (!this->personal_edit_handover->isResuming())
+            this->main_navigation->setCurrentIndex(this->map_workspace_page_index);
+        this->personal_edit_handover->clearResuming();
         this->hydraulic_data->setLogicalEditCaptureEnabled(false);
         this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
         this->personal_edit_guard->start();
@@ -515,6 +519,13 @@ MainWindow::MainWindow(QWidget *parent)
         this->personal_edit_closing = false;
         this->personal_edit_stop_button->hide();
         this->personal_edit_stop_button->setText(tr("Stop private editing"));
+        if (this->personal_edit_handover->stopped(error))
+        {
+            // The lease went to a Commit; the Projects page reports the result
+            // and asks to resume editing.
+            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Committing · Editing paused"));
+            return;
+        }
         if (this->network_open_pending)
         {
             if (!error.isEmpty())
@@ -712,43 +723,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this->simulation_manager, &SimulationManager::signalPrivateHeadNetworkImported,
             this->projects_workspace, &ProjectsWidget::importNetworkIntoSelectedHead);
     connect(this->projects_workspace, &ProjectsWidget::draftNetworkEditRequested,
-            this, [this](const QString &draft_id, const QString &network_id)
-    {
-        if (this->personal_edit_active)
-        {
-            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Save failed · Previous editing session still active"));
-            this->network_open_pending = false;
-            restoreOpenedNetworkSelection();
-            return;
-        }
-        const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
-        if ((target.kind != PersonalRepositoryTarget::Kind::Http &&
-             target.kind != PersonalRepositoryTarget::Kind::Embedded) ||
-            !DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(network_id))
-        {
-            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Personal database or UUIDv7 missing"));
-            this->network_open_pending = false;
-            restoreOpenedNetworkSelection();
-            return;
-        }
-        const QString directory = PersonalEditQueue::defaultRoot();
-        if (directory.isEmpty())
-        {
-            this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Durable edit queue unavailable"));
-            this->network_open_pending = false;
-            restoreOpenedNetworkSelection();
-            return;
-        }
-        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Opening network…"));
-        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
-        this->personal_edit_active = true;
-        this->personal_edit_blocked = false;
-        this->personal_edit_closing = false;
-        this->personal_edit_stop_button->setEnabled(false);
-        this->personal_edit_stop_button->setText(tr("Opening private draft…"));
-        this->personal_edit_stop_button->show();
-        this->personal_edit_session->start(target, draft_id, network_id, directory);
-    });
+            this, &MainWindow::startPersonalDraftEditing);
+    setupPersonalDraftHandover();
     connect(this->projects_workspace, &ProjectsWidget::networkOpenProgress,
             this, [this](const QString &message, bool failed)
     {
@@ -1744,6 +1720,96 @@ void MainWindow::restoreOpenedNetworkSelection()
     this->top_control_bar->restoreOpenedContext();
 }
 
+void MainWindow::startPersonalDraftEditing(const QString &draft_id, const QString &network_id)
+{
+    if (this->personal_edit_active)
+    {
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Save failed · Previous editing session still active"));
+        this->network_open_pending = false;
+        if (this->personal_edit_handover != nullptr) this->personal_edit_handover->clearResuming();
+        restoreOpenedNetworkSelection();
+        return;
+    }
+    const PersonalRepositoryTarget target = resolvePersonalRepositoryTarget();
+    if ((target.kind != PersonalRepositoryTarget::Kind::Http &&
+         target.kind != PersonalRepositoryTarget::Kind::Embedded) ||
+        !DvmdbIdentity::isUuidV7(draft_id) || !DvmdbIdentity::isUuidV7(network_id))
+    {
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Personal database or UUIDv7 missing"));
+        this->network_open_pending = false;
+        if (this->personal_edit_handover != nullptr) this->personal_edit_handover->clearResuming();
+        restoreOpenedNetworkSelection();
+        return;
+    }
+    const QString directory = PersonalEditQueue::defaultRoot();
+    if (directory.isEmpty())
+    {
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Cannot open · Durable edit queue unavailable"));
+        this->network_open_pending = false;
+        if (this->personal_edit_handover != nullptr) this->personal_edit_handover->clearResuming();
+        restoreOpenedNetworkSelection();
+        return;
+    }
+    this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Opening network…"));
+    this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+    this->personal_edit_active = true;
+    this->personal_edit_blocked = false;
+    this->personal_edit_closing = false;
+    this->personal_edit_stop_button->setEnabled(false);
+    this->personal_edit_stop_button->setText(tr("Opening private draft…"));
+    this->personal_edit_stop_button->show();
+    this->personal_edit_session->start(target, draft_id, network_id, directory);
+}
+
+void MainWindow::setupPersonalDraftHandover()
+{
+    DraftLeaseHandover::Editor editor;
+    editor.active = [this] { return this->personal_edit_active; };
+    editor.ready = [this] { return this->personal_edit_session->isReady(); };
+    editor.blocked = [this] { return this->personal_edit_blocked; };
+    editor.closing = [this] { return this->personal_edit_closing; };
+    editor.draft_id = [this] { return this->personal_edit_session->draftId(); };
+    editor.network_id = [this] { return this->personal_edit_session->networkId(); };
+    editor.pending = [this] { return this->personal_edit_session->pendingCount(); };
+    editor.pause = [this]
+    {
+        // No new edits while the queue drains and the lease changes hands;
+        // the capture guard is quiet meanwhile (isHandingOver()).
+        this->hydraulic_data->setLogicalEditCaptureEnabled(false);
+        this->personal_edit_guard->stop();
+        this->personal_edit_stop_button->setEnabled(false);
+        this->personal_edit_stop_button->setText(tr("Committing…"));
+        this->top_control_bar->setNetworkStatus(QT_TRANSLATE_NOOP("LiveUiText", "Committing · Editing paused"));
+    };
+    editor.unpause = [this]
+    {
+        this->personal_edit_stop_button->setEnabled(true);
+        refreshPersonalEditButtonText();
+        this->personal_edit_last_checked_revision = std::numeric_limits<quint64>::max();
+        synchronizePersonalHistoryEditMode();
+    };
+    editor.stop = [this]
+    {
+        this->personal_edit_closing = true;
+        this->personal_edit_session->stop();
+    };
+    editor.reopen = [this](const QString &draft_id, const QString &network_id)
+    {
+        startPersonalDraftEditing(draft_id, network_id);
+    };
+    this->personal_edit_handover = new DraftLeaseHandover(std::move(editor), this);
+    connect(this->personal_edit_session, &PersonalDraftEditSession::pendingCountChanged,
+            this->personal_edit_handover, &DraftLeaseHandover::pendingCountChanged);
+    connect(this->personal_edit_session, &PersonalDraftEditSession::blocked,
+            this->personal_edit_handover, &DraftLeaseHandover::blocked);
+    this->projects_workspace->setDraftWriterHandoff(ProjectsWidget::DraftWriterHandoff{
+        [this](const QString &draft_id, std::function<void(const QString &)> done)
+        {
+            this->personal_edit_handover->release(draft_id, std::move(done));
+        },
+        [this](const QString &draft_id) { this->personal_edit_handover->resume(draft_id); }});
+}
+
 void MainWindow::stopPersonalDraftEditing()
 {
     if (!this->personal_edit_active) return;
@@ -1788,6 +1854,7 @@ void MainWindow::blockPersonalDraftEditing(const QString &reason)
 void MainWindow::synchronizePersonalHistoryEditMode()
 {
     if (!this->personal_edit_active || this->personal_edit_blocked ||
+        (this->personal_edit_handover != nullptr && this->personal_edit_handover->isHandingOver()) ||
         this->personal_edit_session == nullptr || this->map_workspace == nullptr)
         return;
     if (!this->personal_edit_session->canCaptureHistoryEdits())
@@ -1814,7 +1881,8 @@ void MainWindow::synchronizePersonalHistoryEditMode()
 
 void MainWindow::checkPersonalDraftModel()
 {
-    if (!this->personal_edit_active || this->personal_edit_blocked)
+    if (!this->personal_edit_active || this->personal_edit_blocked
+        || (this->personal_edit_handover != nullptr && this->personal_edit_handover->isHandingOver()))
         return;
     // Capture is guarded by the verified History cursor. It must
     // equal the session's authoritative permission; compare canonical states

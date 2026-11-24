@@ -37,6 +37,9 @@ public:
 
     bool isReady() const;
     bool isBlocked() const;
+    // The draft and network being edited; empty when idle.
+    QString draftId() const;
+    QString networkId() const;
     int pendingCount() const;
     QString currentGeneration() const;
     const NetworkHydraulicDistribution &visibleNetwork() const;

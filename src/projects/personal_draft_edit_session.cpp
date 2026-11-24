@@ -1031,6 +1031,16 @@ void PersonalDraftEditSession::resetLocal()
     this->request_in_flight_ = false;
 }
 
+QString PersonalDraftEditSession::draftId() const
+{
+    return this->draft_id_;
+}
+
+QString PersonalDraftEditSession::networkId() const
+{
+    return this->network_id_;
+}
+
 bool PersonalDraftEditSession::isReady() const
 {
     return this->state_ == State::Ready || this->state_ == State::Submitting ||

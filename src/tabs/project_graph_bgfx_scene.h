@@ -57,6 +57,7 @@ public:
         int ancestry_edges = 0;
         int head_edges = 0;
         int clone_edges = 0;
+        int clone_sync_edges = 0;
         int fold_markers = 0;
         int culled_cards = 0;
         int text_runs = 0;
@@ -80,7 +81,7 @@ public:
 
     private:
         friend class ProjectGraphBgfxScene;
-        enum class Type { CloneLink, Structural, FoldEdge, Ancestry, Head, Card, FoldCard };
+        enum class Type { CloneLink, CloneSync, Structural, FoldEdge, Ancestry, Head, Card, FoldCard };
         struct Edge
         {
             QPointF begin;
@@ -88,6 +89,7 @@ public:
             QVector<QPointF> controls;
             double bend = 0.0;
             bool dashed = false;
+            bool dotted = false;
         };
         struct Item
         {
@@ -106,7 +108,7 @@ public:
 
         void appendEdge(const QPointF &begin, const QPointF &end,
                         const QVector<QPointF> &controls, double bend,
-                        bool dashed, Type type);
+                        bool dashed, Type type, bool dotted = false);
         int buildBranch(int begin, int end);
         void visibleItems(const QRectF &bounds, QVector<int> *result) const;
 
@@ -121,6 +123,7 @@ public:
         int ancestry_edges = 0;
         int head_edges = 0;
         int clone_edges = 0;
+        int clone_sync_edges = 0;
     };
 
     // Where text goes: its own canvas (cleared by build()) and glyph atlas.

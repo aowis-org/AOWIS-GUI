@@ -62,6 +62,11 @@ struct ProjectGraphNode
     // Project cards only: the DVMDB project UUIDv7. Cards on different
     // databases with the same value are clones, joined by a dashed line.
     QString clone_identity;
+    // Revision cards only: set on the newest revisions that two clones both
+    // have (their last common commit per line of history). One key per
+    // pair of clones; the two cards sharing a key are joined by a dotted
+    // line. See ProjectGraphCloneLinks::markSyncFrontiers().
+    QStringList clone_sync_keys;
     QVector<ProjectGraphBranchHead> heads; // Real HEAD pointers; the GUI gives each its own reference card.
     // Layered-DAG cubic routes keyed by immutable parent revision ID.
     // Coordinates are the same canonical graph-space units as position.
@@ -116,6 +121,8 @@ public:
     // Project card IDs joined as clones (same DVMDB project UUIDv7), in
     // drawing order. For tests and inspection; drawing computes the same.
     QVector<QPair<QString, QString>> cloneLinks() const;
+    // Revision card IDs joined as the last common commit of two clones.
+    QVector<QPair<QString, QString>> cloneSyncLinks() const;
 
 signals:
     void revisionActivated(const QString &revision_id);

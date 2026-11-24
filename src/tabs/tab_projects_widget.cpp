@@ -5,6 +5,7 @@
 #include "config/personal_repository_storage.h"
 #include "projects/embedded_dvmdb_host.h"
 #include "projects/personal_edit_queue.h"
+#include "tabs/project_graph_clone_links.h"
 #include "tabs/project_graph_placement.h"
 #include "tabs/personal_working_copy_dialog.h"
 #include "tabs/projects_inspector_panels.h"
@@ -2404,6 +2405,8 @@ void ProjectsWidget::rebuildGraph()
     const double aspect = double(qMax(1, this->graph->width()))
         / double(qMax(1, this->graph->height()));
     ProjectGraphPlacement::place(nodes, aspect);
+    // Where two clones last agree: a dotted line between those revisions.
+    ProjectGraphCloneLinks::markSyncFrontiers(nodes);
     this->graph->setNodes(nodes);
     QString graph_selection;
     if (this->selection_kind == SelectionKind::Server)
@@ -5712,14 +5715,28 @@ void ProjectsWidget::commitSelectedHead()
                 : tr("Multiple modified drafts exist. Resolve the competing drafts before committing."));
             client->deleteLater(); return;
         }
+        // The editor of this GUI may hold the draft's writer lease (it keeps
+        // renewing it while the network is open). Let it save its queue and
+        // hand the lease over, commit, then reopen editing.
+        const std::function<void()> resume = [this, draft_id]
+        {
+            if (this->draft_writer_handoff.resume) this->draft_writer_handoff.resume(draft_id);
+        };
+        const std::function<void(const QString &)> commit = [this, client, target, project_id, branch_id,
+            source_id, selected_branch, message, draft_id, resume](const QString &handoff_error)
+        {
+        if (!handoff_error.isEmpty()) {
+            QMessageBox::warning(this, tr("Draft is being edited"), handoff_error);
+            client->deleteLater(); resume(); return;
+        }
         client->reopen(target, draft_id,
-            [this, client, target, project_id, branch_id, source_id, selected_branch, message]
+            [this, client, target, project_id, branch_id, source_id, selected_branch, message, resume]
             (const PersonalWorkingCopyInfo &draft, const QString &reopen_error) {
             if (!reopen_error.isEmpty() || draft.project_id != project_id
                 || draft.branch_id != branch_id || !draft.dirty || draft.changes.isEmpty()) {
                 QMessageBox::warning(this, tr("Cannot commit draft"), reopen_error.isEmpty()
                     ? tr("The saved working copy is no longer valid or has no changes.") : reopen_error);
-                client->deleteLater(); return;
+                client->deleteLater(); resume(); return;
             }
             // Edits still in this device's queue are not part of the saved
             // draft yet; committing now would leave them out of the revision.
@@ -5731,38 +5748,38 @@ void ProjectsWidget::commitSelectedHead()
                     : tr("%n edit(s) of this draft are queued on this device but not yet saved "
                          "to DVMDB. Open the network for editing so they are saved, stop "
                          "editing, then commit.", nullptr, queued));
-                client->deleteLater(); return;
+                client->deleteLater(); resume(); return;
             }
             // A fresh writer session must acquire the lease, fencing out edits
             // from another GUI session. Never commit a stale editor session.
             const QString session_id = DvmdbIdentity::newUuidV7();
             client->acquireLease(target, draft.id, session_id, 120,
-                [this, client, target, draft, session_id, source_id, selected_branch, message]
+                [this, client, target, draft, session_id, source_id, selected_branch, message, resume]
                 (const PersonalWorkingCopyLease &lease, const QString &lease_error) {
                 if (!lease_error.isEmpty()) {
                     QMessageBox::warning(this, tr("Draft is being edited"), lease_error);
-                    client->deleteLater(); return;
+                    client->deleteLater(); resume(); return;
                 }
                 client->commitSavedDraft(target, draft, session_id, lease, message,
-                    [this, client, target, draft, session_id, lease, source_id, selected_branch]
+                    [this, client, target, draft, session_id, lease, source_id, selected_branch, resume]
                     (const QString &revision, const QString &commit_error) {
+                    // Give the draft back at once, also after a failure:
+                    // otherwise reopening it for editing fails for up to two
+                    // minutes ("draft held by another writer session"). An
+                    // unconfirmed Commit is reconciled from its durable intent,
+                    // not from this lease.
+                    client->releaseLease(target, draft.id, session_id, lease.token,
+                        [client, resume](const QString &release_error) {
+                            if (!release_error.isEmpty())
+                                qWarning() << "Commit lease release not confirmed:" << release_error;
+                            client->deleteLater();
+                            resume();
+                        });
                     if (!commit_error.isEmpty()) {
-                        // An unconfirmed Commit may still finish on the server;
-                        // its lease then expires on its own (120 s).
-                        client->deleteLater();
                         QMessageBox::warning(this, tr("Commit not confirmed"), commit_error);
                         updateButtons();
                         return;
                     }
-                    // Give the draft back at once, before the modal message:
-                    // otherwise reopening it for editing fails for up to two
-                    // minutes ("draft held by another writer session").
-                    client->releaseLease(target, draft.id, session_id, lease.token,
-                        [client](const QString &release_error) {
-                            if (!release_error.isEmpty())
-                                qWarning() << "Commit lease release not confirmed:" << release_error;
-                            client->deleteLater();
-                        });
                     this->head_commit_drafts.remove(selected_branch);
                     if (this->server_id == source_id) loadSource(source_id);
                     QMessageBox::information(this, tr("Committed"),
@@ -5774,7 +5791,17 @@ void ProjectsWidget::commitSelectedHead()
                 });
             });
         });
+        };
+        if (this->draft_writer_handoff.release)
+            this->draft_writer_handoff.release(draft_id, commit);
+        else
+            commit({});
     });
+}
+
+void ProjectsWidget::setDraftWriterHandoff(DraftWriterHandoff handoff)
+{
+    this->draft_writer_handoff = std::move(handoff);
 }
 
 void ProjectsWidget::applyInspectorEdits()

@@ -4768,6 +4768,10 @@ Esta acción no se puede deshacer.</translation>
       <source>Annotations [%]</source>
       <translation>Anotaciones [%]</translation>
     </message>
+    <message>
+      <source>Committing · Editing paused</source>
+      <translation>Confirmando · Edición en pausa</translation>
+    </message>
   </context>
   <context>
     <name>HistoryDock</name>
@@ -5903,6 +5907,14 @@ La rama remota se obtendrá primero en %1.</translation>
     <message>
       <source>Live model differs from durably staged MODEL transactions.</source>
       <translation>El modelo activo difiere de las transacciones MODEL preparadas de forma persistente.</translation>
+    </message>
+    <message>
+      <source>Committing…</source>
+      <translation>Confirmando…</translation>
+    </message>
+    <message>
+      <source>Open failed</source>
+      <translation>Error al abrir</translation>
     </message>
   </context>
   <context>
@@ -9871,6 +9883,45 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>the reply is larger than expected</source>
       <translation>la respuesta es mayor de lo esperado</translation>
+    </message>
+  </context>
+  <context>
+    <name>DraftLeaseHandover</name>
+    <message>
+      <source>Editing of this draft is blocked. Close the blocked private draft, then commit.</source>
+      <translation>La edición de este borrador está bloqueada. Cierre el borrador privado bloqueado y luego confirme.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved.</source>
+      <translation>La edición se detuvo antes de guardar los cambios en cola.</translation>
+    </message>
+    <message>
+      <source>Editing stopped before the queued edits were saved: %1</source>
+      <translation>La edición se detuvo antes de guardar los cambios en cola: %1</translation>
+    </message>
+    <message>
+      <source>Saving the queued edits failed, so the Commit was not started: %1</source>
+      <translation>Error al guardar los cambios en cola, por lo que no se inició la confirmación: %1</translation>
+    </message>
+    <message>
+      <source>The draft is still being opened for editing. Try again in a moment.</source>
+      <translation>El borrador aún se está abriendo para editarlo. Inténtelo de nuevo en un momento.</translation>
+    </message>
+    <message>
+      <source>The editor could not release the draft: %1</source>
+      <translation>El editor no pudo liberar el borrador: %1</translation>
+    </message>
+    <message>
+      <source>The editor did not release the draft in time.</source>
+      <translation>El editor no liberó el borrador a tiempo.</translation>
+    </message>
+    <message>
+      <source>The editor is closing this draft. Try again in a moment.</source>
+      <translation>El editor está cerrando este borrador. Inténtelo de nuevo en un momento.</translation>
+    </message>
+    <message>
+      <source>The queued edits were not saved in time, so the Commit was not started.</source>
+      <translation>Los cambios en cola no se guardaron a tiempo, por lo que no se inició la confirmación.</translation>
     </message>
   </context>
 </TS>
