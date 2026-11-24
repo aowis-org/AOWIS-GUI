@@ -135,20 +135,20 @@ void ProjectSourceWriter::sendPinned(const ProjectServerProfile &profile,
         // Project and branch metadata can be created before a new DVMDB has
         // chosen its one-time deployment role. Never silently initialize it
         // as shared: the user may still want to designate it as personal.
-        // Editing drafts still require an explicitly private repository.
+        // The personal database must be private (its drafts need that). Any
+        // other database may have any role: a database that used to be the
+        // personal one stays private forever (the role is one-time), and its
+        // projects must stay editable, deletable and clonable.
         if (profile.personal && role != QStringLiteral("private"))
         {
             finish({}, tr("DVMDB repository role is not private. Configure this database "
                           "as personal in the Server Inspector before writing. No write was sent."));
             return;
         }
-        if (!profile.personal && role != QStringLiteral("shared")
+        if (role != QStringLiteral("private") && role != QStringLiteral("shared")
             && role != QStringLiteral("unconfigured"))
         {
-            finish({}, role == QStringLiteral("private")
-                ? tr("DVMDB repository role is private, but this database is not designated "
-                     "as personal. Select it in the Server Inspector before writing. No write was sent.")
-                : tr("DVMDB reported an unknown repository role. No write was sent."));
+            finish({}, tr("DVMDB reported an unknown repository role. No write was sent."));
             return;
         }
         QNetworkRequest call(QUrl(root + path));

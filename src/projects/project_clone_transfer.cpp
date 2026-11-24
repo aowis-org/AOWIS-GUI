@@ -161,6 +161,11 @@ bool ProjectCloneTransfer::isBusy() const
     return this->busy;
 }
 
+bool ProjectCloneTransfer::wroteAnything() const
+{
+    return this->wrote;
+}
+
 bool ProjectCloneTransfer::resolve(const ProjectServerProfile &profile, Endpoint *endpoint,
                                    QString *error) const
 {
@@ -246,6 +251,7 @@ void ProjectCloneTransfer::send(const Endpoint &endpoint, const QByteArray &meth
         return;
     }
     this->reply = pending;
+    const bool target_write = method != "GET" && endpoint.profile.id == this->target.profile.id;
     // Stop reading a reply that is larger than it may be.
     const std::shared_ptr<bool> too_large = std::make_shared<bool>(false);
     connect(pending, &QNetworkReply::downloadProgress, this,
@@ -256,12 +262,13 @@ void ProjectCloneTransfer::send(const Endpoint &endpoint, const QByteArray &meth
         pending->abort();
     });
     connect(pending, &QNetworkReply::finished, this,
-            [this, pending, max_bytes, too_large, handler = std::move(handler)]()
+            [this, pending, max_bytes, too_large, target_write, handler = std::move(handler)]()
     {
         if (this->reply == pending) this->reply.clear();
         pending->deleteLater();
         Response response;
         response.status = pending->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (target_write && response.status >= 200 && response.status < 300) this->wrote = true;
         response.body = pending->readAll();
         response.bundle_head = pending->rawHeader("X-AOWIS-Bundle-Head");
         response.bundle_complete = pending->rawHeader("X-AOWIS-Bundle-Complete");
@@ -320,6 +327,7 @@ void ProjectCloneTransfer::start(const ProjectServerProfile &source, const QStri
     this->completion = std::move(completion);
     this->busy = true;
     this->cancelled = false;
+    this->wrote = false;
     this->project_id = project_id;
     this->project_name.clear();
     this->chunk_limit = 0;
@@ -412,8 +420,9 @@ void ProjectCloneTransfer::readSourceRepository()
 
 void ProjectCloneTransfer::readTargetRole()
 {
-    // The same role rules as every other GUI write: a personal database must
-    // be private, any other database shared (or not yet configured).
+    // Any known role may receive a clone: personal (private), shared, not yet
+    // configured, or a former personal database (private forever). Clones go
+    // personal to shared, shared to personal, or between any two others.
     send(this->target, "GET", QStringLiteral("/repository/tracking"), {}, {}, false, json_timeout_ms,
          json_reply_limit, [this](const Response &response)
     {
@@ -429,19 +438,10 @@ void ProjectCloneTransfer::readTargetRole()
             return;
         }
         const QString role = tracking.value(QStringLiteral("role")).toString();
-        if (this->target.profile.personal && role != QStringLiteral("private"))
-        {
-            finish(tr("The target database is your personal database, but DVMDB does not report it as "
-                      "private. Configure it in the Server Inspector. Nothing was copied."));
-            return;
-        }
-        if (!this->target.profile.personal && role != QStringLiteral("shared")
+        if (role != QStringLiteral("private") && role != QStringLiteral("shared")
             && role != QStringLiteral("unconfigured"))
         {
-            finish(role == QStringLiteral("private")
-                ? tr("The target database is private, but it is not your personal database. "
-                     "Nothing was copied.")
-                : tr("The target database reported an unknown role. Nothing was copied."));
+            finish(tr("The target database reported an unknown role. Nothing was copied."));
             return;
         }
         readSourceProject();

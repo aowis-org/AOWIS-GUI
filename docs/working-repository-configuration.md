@@ -23,9 +23,13 @@ branch **metadata** can be created there before choosing a repository role;
 this does not automatically set `shared` and does not make the database a
 personal editing target. If the repository is later designated personal,
 the Inspector explicitly configures it as `private`. Working-copy edits and
-local Commits still require that private designation. Metadata writes to an
-already-private repository that is not selected as personal are blocked by
-the GUI's repository-role preflight.
+local Commits still require that private designation.
+
+The role is one-time: a database that was once personal stays `private` after
+another database becomes personal. It is then an ordinary database: project
+and branch metadata writes, branch and revision deletion and clones in both
+directions work on it like on a `shared` one. The role preflight only refuses
+an unknown role, and a designated personal database that is not `private`.
 
 The sidebar shows a **♛** for the selected database. The corresponding
 Projects graph server card becomes **gold**, retaining its normal left-hand

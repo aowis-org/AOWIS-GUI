@@ -582,14 +582,11 @@ void testRefusals()
         wrong.id = uuid(3);
         expectNoWrites(target, runClone(transfer, profile(source, QStringLiteral("Local")), wrong),
                        "a changed target identity was not refused");
-        ProjectServerProfile personal = profile(target, QStringLiteral("Mine"));
-        personal.personal = true;
-        expectNoWrites(target, runClone(transfer, profile(source, QStringLiteral("Local")), personal),
-                       "a personal target that is not private was not refused");
-        target.role = QStringLiteral("private");
+        require(!transfer.wroteAnything(), "a refused clone claims it wrote to the target");
+        target.role = QStringLiteral("mirror");
         expectNoWrites(target, runClone(transfer, profile(source, QStringLiteral("Local")),
                                         profile(target, QStringLiteral("Shared"))),
-                       "a private target that is not personal was not refused");
+                       "a target with an unknown role was not refused");
         target.role = QStringLiteral("shared");
         target.codec = QString(64, QLatin1Char('0'));
         const Outcome codec = runClone(transfer, profile(source, QStringLiteral("Local")),
@@ -609,6 +606,52 @@ void testRefusals()
         pending.pending = true;
         expectNoWrites(target, runClone(transfer, profile(source, QStringLiteral("Local")), pending),
                        "an unverified target was not refused");
+    }
+}
+
+// Every pairing of personal and non-personal databases clones, whatever the
+// DVMDB role: into the personal database (private), into a former personal
+// database (private, no longer personal), into a shared or unconfigured one,
+// and out of the personal database.
+void testAnyRolePairing()
+{
+    struct Case
+    {
+        const char *name;
+        bool source_personal;
+        QString source_role;
+        bool target_personal;
+        QString target_role;
+    };
+    const QVector<Case> cases{
+        {"personal to shared", true, QStringLiteral("private"), false, QStringLiteral("shared")},
+        {"shared to personal", false, QStringLiteral("shared"), true, QStringLiteral("private")},
+        {"personal to former personal", true, QStringLiteral("private"), false, QStringLiteral("private")},
+        {"former personal to shared", false, QStringLiteral("private"), false, QStringLiteral("shared")},
+        {"shared to unconfigured", false, QStringLiteral("shared"), false, QStringLiteral("unconfigured")},
+    };
+    for (const Case &pairing : cases)
+    {
+        FakeDvmdb source;
+        FakeDvmdb target;
+        seedSource(source);
+        source.role = pairing.source_role;
+        target.repository_id = uuid(2);
+        target.role = pairing.target_role;
+        require(source.start() && target.start(), "fake servers did not start");
+        ProjectServerProfile from = profile(source, QStringLiteral("From"));
+        from.personal = pairing.source_personal;
+        ProjectServerProfile to = profile(target, QStringLiteral("To"));
+        to.personal = pairing.target_personal;
+        ProjectCloneTransfer transfer;
+        const Outcome outcome = runClone(transfer, from, to);
+        const bool copied = outcome.error.isEmpty() && transfer.wroteAnything()
+            && target.branch(project_id, main_id) != nullptr
+            && target.branch(project_id, main_id)->head == uuid(305)
+            && target.branch(project_id, feature_id) != nullptr;
+        if (!copied)
+            std::fprintf(stderr, "project_clone_transfer: %s: %s\n", pairing.name, qPrintable(outcome.error));
+        require(copied, "a clone between two configured databases was refused");
     }
 }
 
@@ -690,6 +733,7 @@ int main(int argc, char **argv)
     testCompleteClone();
     testResumeAfterFailure();
     testRefusals();
+    testAnyRolePairing();
     testForkFallbackAndWarnings();
     testDivergedBranch();
     testCancel();

@@ -117,8 +117,9 @@ offers **Update clone** instead.
 
 A clone is the *same* project: project, branch and revision UUIDv7s are kept,
 and the graph joins the copies with a dashed line. `ProjectCloneTransfer`
-verifies both repository identities and MODEL codecs and the target role
-(personal → private, otherwise shared/unconfigured), provisions the project
+verifies both repository identities and MODEL codecs, accepts any known
+target role (personal, former personal, shared or unconfigured; clones go
+personal → other, other → personal or between any two others), provisions the project
 (`clone-target`) and copies the branches in fork order:
 
 - an unborn branch is recreated by UUIDv7 with its description and tags;

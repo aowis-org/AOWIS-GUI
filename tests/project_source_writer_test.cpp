@@ -436,14 +436,14 @@ int main(int argc, char **argv)
                  && requested_paths.size() == before_identity_rejection,
                  "writer sent a write to a replaced repository")) return 1;
     observed_id = repository_id;
-    observed_role = QStringLiteral("private");
+    observed_role = QStringLiteral("mirror");
     done = false;
     writer.renameProject(profile, project_identity, QStringLiteral("Renamed Water Project"),
                          QStringLiteral("Should not happen"),
                          [&](const QString &, const QString &error) { failure = error; done = true; });
     if (!require(waitUntil(app, [&] { return done; }) && failure.contains("role")
                  && requested_paths.size() == before_identity_rejection,
-                 "writer sent a write to a repository with the wrong role")) return 1;
+                 "writer sent a write to a repository with an unknown role")) return 1;
     observed_role = QStringLiteral("shared");
     observed_fingerprint = QStringLiteral("incorrect");
     done = false;
@@ -474,5 +474,52 @@ int main(int argc, char **argv)
     if (!require(done && !writer.isBusy() && failure.contains(QStringLiteral("not implemented"))
                  && requested_paths.size() == requests_before_auth_rejection,
         "unsupported authentication was not rejected before POST")) return 1;
+    profile.auth_mode = QStringLiteral("None");
+
+    // A former personal database stays private forever (the DVMDB role is
+    // one-time), but it is an ordinary database now: writes must go through.
+    const int requests_before_former_personal = requested_paths.size();
+    observed_role = QStringLiteral("private");
+    profile.personal = false;
+    QString created_id;
+    failure.clear();
+    done = false;
+    writer.createProject(profile, QStringLiteral("Former personal"),
+                         [&](const QString &id, const QString &error)
+    {
+        created_id = id;
+        failure = error;
+        done = true;
+    });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty() && !created_id.isEmpty()
+                 && requested_paths.size() > requests_before_former_personal
+                 && requested_paths.last() == QStringLiteral("/dvmdb/v1/projects"),
+                 "a private database that is no longer personal refused a write")) return 1;
+    // ...including deleting a branch and truncating revision history.
+    const QString deleted_branch = QStringLiteral("018f84c0-0000-7000-8000-0000000000d1");
+    failure = QStringLiteral("unset");
+    done = false;
+    writer.deleteBranch(profile, project_identity, deleted_branch, branch_revision,
+                        [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty()
+                 && requested_paths.last().endsWith(QStringLiteral("/branch-ids/%1/delete").arg(deleted_branch))
+                 && pinned_headers.last() == repository_id,
+                 "a branch on a former personal database could not be deleted")) return 1;
+    failure = QStringLiteral("unset");
+    done = false;
+    writer.truncateBranch(profile, project_identity, deleted_branch, branch_revision, branch_revision,
+                          [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty()
+                 && requested_paths.last().endsWith(QStringLiteral("/branch-ids/%1/truncate").arg(deleted_branch)),
+                 "revisions on a former personal database could not be deleted")) return 1;
+    // The same deletion on a shared database.
+    observed_role = QStringLiteral("shared");
+    failure = QStringLiteral("unset");
+    done = false;
+    writer.deleteBranch(profile, project_identity, deleted_branch, QString(),
+                        [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty()
+                 && requested_paths.last().endsWith(QStringLiteral("/delete")),
+                 "a branch on a shared database could not be deleted")) return 1;
     return 0;
 }

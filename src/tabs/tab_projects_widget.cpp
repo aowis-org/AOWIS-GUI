@@ -3767,10 +3767,12 @@ void ProjectsWidget::pasteClone()
                 // which Update clone then completes.
                 loadSource(target.id);
                 updateButtons();
+                const bool partial = this->clone_transfer != nullptr && this->clone_transfer->wroteAnything();
                 if (!error.isEmpty())
-                    openSourceMessage(this, QMessageBox::Warning, tr("Clone not finished"),
-                        error + QStringLiteral("\n\n")
-                        + tr("What was copied is kept. Choose Update clone on '%1' to continue.").arg(target.name));
+                    openSourceMessage(this, QMessageBox::Warning, tr("Clone not finished"), partial
+                        ? error + QStringLiteral("\n\n")
+                            + tr("What was copied is kept. Choose Update clone on '%1' to continue.").arg(target.name)
+                        : error);
                 else if (!warnings.isEmpty())
                     openSourceMessage(this, QMessageBox::Warning, tr("Clone finished with warnings"),
                         tr("'%1' was cloned into '%2', except:").arg(copied.project_name, target.name)

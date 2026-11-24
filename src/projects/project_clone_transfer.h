@@ -89,6 +89,9 @@ public:
                const ProjectServerProfile &target, ProgressCallback progress, Completion completion);
     // Aborts the request in flight; the completion reports the cancel.
     void cancel();
+    // Whether the last clone changed the target at all, so a failure can say
+    // truthfully whether anything is there to continue from.
+    bool wroteAnything() const;
 
 private:
     struct Endpoint
@@ -154,4 +157,5 @@ private:
     Progress state;
     bool busy = false;
     bool cancelled = false;
+    bool wrote = false;
 };
