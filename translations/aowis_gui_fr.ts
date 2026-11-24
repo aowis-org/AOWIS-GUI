@@ -2320,6 +2320,133 @@ Cliquer pour examiner le HEAD ; double-cliquer pour ouvrir le réseau</translati
       <source>%1 Retrying in %2 s.</source>
       <translation>%1 Nouvelle tentative dans %2 s.</translation>
     </message>
+    <message numerus="yes">
+      <source>%n part(s) copied, %1 MiB</source>
+      <translation>
+        <numerusform>%n partie copiée, %1 Mio</numerusform>
+        <numerusform>%n parties copiées, %1 Mio</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>'%1' comes from this database. Select another database to paste its clone.</source>
+      <translation>« %1 » provient de cette base de données. Sélectionnez une autre base pour y coller son clone.</translation>
+    </message>
+    <message>
+      <source>'%1' is copied. Select another database and choose Paste clone.</source>
+      <translation>« %1 » est copié. Sélectionnez une autre base de données et choisissez « Coller le clone ».</translation>
+    </message>
+    <message>
+      <source>'%1' was cloned into '%2', except:</source>
+      <translation>« %1 » a été cloné dans « %2 », sauf :</translation>
+    </message>
+    <message>
+      <source>'%1' was cloned into '%2'.</source>
+      <translation>« %1 » a été cloné dans « %2 ».</translation>
+    </message>
+    <message>
+      <source>A clone is in progress.</source>
+      <translation>Un clonage est en cours.</translation>
+    </message>
+    <message>
+      <source>Another database write is in progress.</source>
+      <translation>Une autre écriture dans la base de données est en cours.</translation>
+    </message>
+    <message>
+      <source>Bring the clone of '%1' in '%3' up to date with '%2'?
+
+Branches are only fast-forwarded: work that exists only in '%3' is never overwritten, and a branch that changed on both databases is reported and left as it is.</source>
+      <translation>Mettre à jour le clone de « %1 » dans « %3 » à partir de « %2 » ?
+
+Les branches sont seulement avancées : le travail qui n’existe que dans « %3 » n’est jamais écrasé, et une branche modifiée dans les deux bases est signalée et laissée telle quelle.</translation>
+    </message>
+    <message>
+      <source>Clone '%1' from '%2' into '%3'?
+
+The clone keeps the project's identity: both databases then hold the same project, linked in the graph. All branches and their committed history are copied; uncommitted draft edits are not.</source>
+      <translation>Cloner « %1 » de « %2 » vers « %3 » ?
+
+Le clone conserve l’identité du projet : les deux bases de données contiennent alors le même projet, relié dans le graphe. Toutes les branches et leur historique validé sont copiés ; les modifications de brouillon non validées ne le sont pas.</translation>
+    </message>
+    <message>
+      <source>Clone finished</source>
+      <translation>Clonage terminé</translation>
+    </message>
+    <message>
+      <source>Clone finished with warnings</source>
+      <translation>Clonage terminé avec des avertissements</translation>
+    </message>
+    <message>
+      <source>Clone not finished</source>
+      <translation>Clonage non terminé</translation>
+    </message>
+    <message>
+      <source>Clone project</source>
+      <translation>Cloner le projet</translation>
+    </message>
+    <message>
+      <source>Cloning '%1' into '%2'…</source>
+      <translation>Clonage de « %1 » dans « %2 »…</translation>
+    </message>
+    <message>
+      <source>Copied. Select another database and choose Paste clone.</source>
+      <translation>Copié. Sélectionnez une autre base de données et choisissez « Coller le clone ».</translation>
+    </message>
+    <message>
+      <source>Copy this project, then select another database and choose Paste clone</source>
+      <translation>Copier ce projet, puis sélectionner une autre base de données et choisir « Coller le clone »</translation>
+    </message>
+    <message>
+      <source>Copying branch '%1' (%2 of %3)</source>
+      <translation>Copie de la branche « %1 » (%2 sur %3)</translation>
+    </message>
+    <message>
+      <source>Nothing to paste. Select a project, choose Clone project, then select another database.</source>
+      <translation>Rien à coller. Sélectionnez un projet, choisissez « Cloner le projet », puis sélectionnez une autre base de données.</translation>
+    </message>
+    <message>
+      <source>Only projects stored in a database can be cloned</source>
+      <translation>Seuls les projets stockés dans une base de données peuvent être clonés</translation>
+    </message>
+    <message>
+      <source>Paste a clone of '%1' from '%2' into this database</source>
+      <translation>Coller un clone de « %1 » provenant de « %2 » dans cette base de données</translation>
+    </message>
+    <message>
+      <source>Paste clone</source>
+      <translation>Coller le clone</translation>
+    </message>
+    <message>
+      <source>Select a database to paste the clone into.</source>
+      <translation>Sélectionnez une base de données où coller le clone.</translation>
+    </message>
+    <message>
+      <source>The database of the copied project '%1' is no longer configured.</source>
+      <translation>La base de données du projet copié « %1 » n’est plus configurée.</translation>
+    </message>
+    <message>
+      <source>The database of the copied project ('%1') is not connected.</source>
+      <translation>La base de données du projet copié (« %1 ») n’est pas connectée.</translation>
+    </message>
+    <message>
+      <source>This database already has '%1'. Bring its branches up to date with '%2' (fast-forward only; nothing here is overwritten).</source>
+      <translation>Cette base de données contient déjà « %1 ». Mettre ses branches à jour à partir de « %2 » (avance uniquement ; rien n’est écrasé ici).</translation>
+    </message>
+    <message>
+      <source>This database is not connected.</source>
+      <translation>Cette base de données n’est pas connectée.</translation>
+    </message>
+    <message>
+      <source>This database is not verified, so it cannot receive a clone.</source>
+      <translation>Cette base de données n’est pas vérifiée et ne peut donc pas recevoir de clone.</translation>
+    </message>
+    <message>
+      <source>Update clone</source>
+      <translation>Mettre à jour le clone</translation>
+    </message>
+    <message>
+      <source>What was copied is kept. Choose Update clone on '%1' to continue.</source>
+      <translation>Ce qui a été copié est conservé. Choisissez « Mettre à jour le clone » sur « %1 » pour continuer.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -9561,6 +9688,189 @@ Les réglages des vannes utilisent des unités physiques différentes. Le tri re
     <message>
       <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
       <translation>Taille d’affichage des annotations : %1. Tout à gauche, toutes les annotations sont masquées ; les autres positions ajustent leur taille. Clic droit pour réinitialiser.</translation>
+    </message>
+  </context>
+  <context>
+    <name>ProjectCloneTransfer</name>
+    <message>
+      <source>%1 (HTTP %2).</source>
+      <translation>%1 (HTTP %2).</translation>
+    </message>
+    <message>
+      <source>%1 (HTTP %2): %3</source>
+      <translation>%1 (HTTP %2) : %3</translation>
+    </message>
+    <message>
+      <source>%1: %2.</source>
+      <translation>%1 : %2.</translation>
+    </message>
+    <message>
+      <source>'%1' has an invalid database endpoint.</source>
+      <translation>« %1 » a un point de terminaison de base de données non valide.</translation>
+    </message>
+    <message>
+      <source>'%1' is not a verified database.</source>
+      <translation>« %1 » n’est pas une base de données vérifiée.</translation>
+    </message>
+    <message>
+      <source>A database does not support chunked project transfers. Update DVMDB on both databases and try again.</source>
+      <translation>Une base de données ne prend pas en charge le transfert de projet par parties. Mettez à jour DVMDB sur les deux bases et réessayez.</translation>
+    </message>
+    <message>
+      <source>A project cannot be cloned into the database it comes from.</source>
+      <translation>Un projet ne peut pas être cloné dans la base de données d’où il provient.</translation>
+    </message>
+    <message>
+      <source>Another clone is in progress.</source>
+      <translation>Un autre clonage est en cours.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' contains a step larger than the transfer limit of %2 MiB and was not copied.</source>
+      <translation>La branche « %1 » contient une étape plus grande que la limite de transfert de %2 Mio et n’a pas été copiée.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has changed on both databases and was left as it is on the target.</source>
+      <translation>La branche « %1 » a été modifiée dans les deux bases de données et reste inchangée dans la cible.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits and records the branch it came from; DVMDB cannot recreate that.</source>
+      <translation>La branche « %1 » n’a aucun commit et enregistre la branche dont elle provient ; DVMDB ne peut pas recréer cela.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits here but already has commits on the target database.</source>
+      <translation>La branche « %1 » n’a aucun commit ici mais en a déjà dans la base de données cible.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' is named '%2' on the target database and was not updated.</source>
+      <translation>La branche « %1 » s’appelle « %2 » dans la base de données cible et n’a pas été mise à jour.</translation>
+    </message>
+    <message>
+      <source>Checking branch '%1' on the target database failed</source>
+      <translation>La vérification de la branche « %1 » dans la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>Checking the target database for the project failed</source>
+      <translation>La recherche du projet dans la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>Copying branch '%1' to the target database failed</source>
+      <translation>La copie de la branche « %1 » vers la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>Creating branch '%1' on the target database failed</source>
+      <translation>La création de la branche « %1 » dans la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>Creating the project on the target database failed</source>
+      <translation>La création du projet dans la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>DVMDB REST authentication is not implemented; select 'None' for '%1'.</source>
+      <translation>L’authentification REST DVMDB n’est pas implémentée ; sélectionnez « None » pour « %1 ».</translation>
+    </message>
+    <message>
+      <source>Reading branch '%1' from the source database failed</source>
+      <translation>La lecture de la branche « %1 » depuis la base de données source a échoué</translation>
+    </message>
+    <message>
+      <source>Reading the project from the source database failed</source>
+      <translation>La lecture du projet depuis la base de données source a échoué</translation>
+    </message>
+    <message>
+      <source>Reading the project's branches failed</source>
+      <translation>La lecture des branches du projet a échoué</translation>
+    </message>
+    <message>
+      <source>Reading the source database identity failed</source>
+      <translation>La lecture de l’identité de la base de données source a échoué</translation>
+    </message>
+    <message>
+      <source>Reading the target database identity failed</source>
+      <translation>La lecture de l’identité de la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>Reading the target database role failed</source>
+      <translation>La lecture du rôle de la base de données cible a échoué</translation>
+    </message>
+    <message>
+      <source>The clone was cancelled.</source>
+      <translation>Le clonage a été annulé.</translation>
+    </message>
+    <message>
+      <source>The connection to '%1' is not open. Refresh it and try again.</source>
+      <translation>La connexion à « %1 » n’est pas ouverte. Actualisez-la et réessayez.</translation>
+    </message>
+    <message>
+      <source>The copied project has no DVMDB identity.</source>
+      <translation>Le projet copié n’a pas d’identité DVMDB.</translation>
+    </message>
+    <message>
+      <source>The description and tags of branch '%1' were not copied: %2</source>
+      <translation>La description et les étiquettes de la branche « %1 » n’ont pas été copiées : %2</translation>
+    </message>
+    <message>
+      <source>The embedded database '%1' could not start.</source>
+      <translation>La base de données intégrée « %1 » n’a pas pu démarrer.</translation>
+    </message>
+    <message>
+      <source>The project's branch provenance contains a cycle.</source>
+      <translation>La provenance des branches du projet contient un cycle.</translation>
+    </message>
+    <message>
+      <source>The source database did not list the project's branches.</source>
+      <translation>La base de données source n’a pas listé les branches du projet.</translation>
+    </message>
+    <message>
+      <source>The source database identity changed. Nothing was copied.</source>
+      <translation>L’identité de la base de données source a changé. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The source database reported an invalid branch.</source>
+      <translation>La base de données source a signalé une branche non valide.</translation>
+    </message>
+    <message>
+      <source>The source database returned a different project. Nothing was copied.</source>
+      <translation>La base de données source a renvoyé un autre projet. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The source database sent an invalid part of branch '%1'. Nothing more was copied.</source>
+      <translation>La base de données source a envoyé une partie non valide de la branche « %1 ». Rien de plus n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The target database identity changed. Nothing was copied.</source>
+      <translation>L’identité de la base de données cible a changé. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The target database identity changed. The clone stopped.</source>
+      <translation>L’identité de la base de données cible a changé. Le clonage s’est arrêté.</translation>
+    </message>
+    <message>
+      <source>The target database is private, but it is not your personal database. Nothing was copied.</source>
+      <translation>La base de données cible est privée, mais ce n’est pas votre base de données personnelle. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The target database is your personal database, but DVMDB does not report it as private. Configure it in the Server Inspector. Nothing was copied.</source>
+      <translation>La base de données cible est votre base personnelle, mais DVMDB ne la signale pas comme privée. Configurez-la dans l’inspecteur du serveur. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The target database reported an unknown role. Nothing was copied.</source>
+      <translation>La base de données cible a signalé un rôle inconnu. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>The target database returned a different project. Nothing was copied.</source>
+      <translation>La base de données cible a renvoyé un autre projet. Rien n’a été copié.</translation>
+    </message>
+    <message>
+      <source>This build does not include embedded DVMDB support.</source>
+      <translation>Cette version n’inclut pas la prise en charge de DVMDB intégré.</translation>
+    </message>
+    <message>
+      <source>the connection to '%1' is not open</source>
+      <translation>la connexion à « %1 » n’est pas ouverte</translation>
+    </message>
+    <message>
+      <source>the reply is larger than expected</source>
+      <translation>la réponse est plus grande que prévu</translation>
     </message>
   </context>
 </TS>

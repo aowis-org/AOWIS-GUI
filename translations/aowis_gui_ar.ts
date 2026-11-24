@@ -2340,6 +2340,137 @@ Click to inspect HEAD; double-click to open network</source>
       <source>%1 Retrying in %2 s.</source>
       <translation>%1 إعادة المحاولة خلال %2 ث.</translation>
     </message>
+    <message numerus="yes">
+      <source>%n part(s) copied, %1 MiB</source>
+      <translation>
+        <numerusform>لم يُنسخ أي جزء، %1 MiB</numerusform>
+        <numerusform>نُسخ جزء واحد، %1 MiB</numerusform>
+        <numerusform>نُسخ جزءان، %1 MiB</numerusform>
+        <numerusform>نُسخت %n أجزاء، %1 MiB</numerusform>
+        <numerusform>نُسخ %n جزءًا، %1 MiB</numerusform>
+        <numerusform>نُسخ %n جزء، %1 MiB</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>'%1' comes from this database. Select another database to paste its clone.</source>
+      <translation>«%1» جاء من قاعدة البيانات هذه. اختر قاعدة بيانات أخرى للصق نسخته.</translation>
+    </message>
+    <message>
+      <source>'%1' is copied. Select another database and choose Paste clone.</source>
+      <translation>نُسخ «%1». اختر قاعدة بيانات أخرى ثم «لصق النسخة».</translation>
+    </message>
+    <message>
+      <source>'%1' was cloned into '%2', except:</source>
+      <translation>استُنسخ «%1» في «%2»، باستثناء:</translation>
+    </message>
+    <message>
+      <source>'%1' was cloned into '%2'.</source>
+      <translation>استُنسخ «%1» في «%2».</translation>
+    </message>
+    <message>
+      <source>A clone is in progress.</source>
+      <translation>هناك استنساخ قيد التنفيذ.</translation>
+    </message>
+    <message>
+      <source>Another database write is in progress.</source>
+      <translation>هناك عملية كتابة أخرى في قاعدة البيانات قيد التنفيذ.</translation>
+    </message>
+    <message>
+      <source>Bring the clone of '%1' in '%3' up to date with '%2'?
+
+Branches are only fast-forwarded: work that exists only in '%3' is never overwritten, and a branch that changed on both databases is reported and left as it is.</source>
+      <translation>هل تريد تحديث نسخة «%1» في «%3» لتطابق «%2»؟
+
+تُقدَّم الفروع فقط: لا يُستبدل أبدًا عمل موجود في «%3» وحدها، ويُبلَّغ عن الفرع الذي تغيّر في القاعدتين ويُترك كما هو.</translation>
+    </message>
+    <message>
+      <source>Clone '%1' from '%2' into '%3'?
+
+The clone keeps the project's identity: both databases then hold the same project, linked in the graph. All branches and their committed history are copied; uncommitted draft edits are not.</source>
+      <translation>هل تريد استنساخ «%1» من «%2» إلى «%3»؟
+
+تحتفظ النسخة بهوية المشروع: ستضم القاعدتان المشروع نفسه، مرتبطًا في المخطط. تُنسخ جميع الفروع وسجلها المودَع؛ ولا تُنسخ تعديلات المسودات غير المودعة.</translation>
+    </message>
+    <message>
+      <source>Clone finished</source>
+      <translation>اكتمل الاستنساخ</translation>
+    </message>
+    <message>
+      <source>Clone finished with warnings</source>
+      <translation>اكتمل الاستنساخ مع تحذيرات</translation>
+    </message>
+    <message>
+      <source>Clone not finished</source>
+      <translation>لم يكتمل الاستنساخ</translation>
+    </message>
+    <message>
+      <source>Clone project</source>
+      <translation>استنساخ المشروع</translation>
+    </message>
+    <message>
+      <source>Cloning '%1' into '%2'…</source>
+      <translation>جارٍ استنساخ «%1» في «%2»…</translation>
+    </message>
+    <message>
+      <source>Copied. Select another database and choose Paste clone.</source>
+      <translation>نُسخ. اختر قاعدة بيانات أخرى ثم «لصق النسخة».</translation>
+    </message>
+    <message>
+      <source>Copy this project, then select another database and choose Paste clone</source>
+      <translation>انسخ هذا المشروع، ثم اختر قاعدة بيانات أخرى و«لصق النسخة»</translation>
+    </message>
+    <message>
+      <source>Copying branch '%1' (%2 of %3)</source>
+      <translation>جارٍ نسخ الفرع «%1» (%2 من %3)</translation>
+    </message>
+    <message>
+      <source>Nothing to paste. Select a project, choose Clone project, then select another database.</source>
+      <translation>لا شيء للصق. اختر مشروعًا ثم «استنساخ المشروع»، ثم اختر قاعدة بيانات أخرى.</translation>
+    </message>
+    <message>
+      <source>Only projects stored in a database can be cloned</source>
+      <translation>لا يمكن استنساخ إلا المشاريع المخزنة في قاعدة بيانات</translation>
+    </message>
+    <message>
+      <source>Paste a clone of '%1' from '%2' into this database</source>
+      <translation>الصق نسخة من «%1» من «%2» في قاعدة البيانات هذه</translation>
+    </message>
+    <message>
+      <source>Paste clone</source>
+      <translation>لصق النسخة</translation>
+    </message>
+    <message>
+      <source>Select a database to paste the clone into.</source>
+      <translation>اختر قاعدة بيانات للصق النسخة فيها.</translation>
+    </message>
+    <message>
+      <source>The database of the copied project '%1' is no longer configured.</source>
+      <translation>لم تعد قاعدة بيانات المشروع المنسوخ «%1» مهيأة.</translation>
+    </message>
+    <message>
+      <source>The database of the copied project ('%1') is not connected.</source>
+      <translation>قاعدة بيانات المشروع المنسوخ («%1») غير متصلة.</translation>
+    </message>
+    <message>
+      <source>This database already has '%1'. Bring its branches up to date with '%2' (fast-forward only; nothing here is overwritten).</source>
+      <translation>تضم قاعدة البيانات هذه «%1» بالفعل. حدّث فروعه لتطابق «%2» (تقديم فقط؛ لا يُستبدل شيء هنا).</translation>
+    </message>
+    <message>
+      <source>This database is not connected.</source>
+      <translation>قاعدة البيانات هذه غير متصلة.</translation>
+    </message>
+    <message>
+      <source>This database is not verified, so it cannot receive a clone.</source>
+      <translation>قاعدة البيانات هذه غير متحقَّق منها، لذا لا يمكنها استقبال نسخة.</translation>
+    </message>
+    <message>
+      <source>Update clone</source>
+      <translation>تحديث النسخة</translation>
+    </message>
+    <message>
+      <source>What was copied is kept. Choose Update clone on '%1' to continue.</source>
+      <translation>يُحتفظ بما نُسخ. اختر «تحديث النسخة» في «%1» للمتابعة.</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -9621,6 +9752,189 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>Annotation display size: %1. Far left hides all annotations; other positions scale their map size. Right-click to reset.</source>
       <translation>حجم عرض التعليقات التوضيحية: %1. يخفي أقصى اليسار جميع التعليقات؛ وتضبط المواضع الأخرى حجمها على الخريطة. انقر بزر الماوس الأيمن لإعادة الضبط.</translation>
+    </message>
+  </context>
+  <context>
+    <name>ProjectCloneTransfer</name>
+    <message>
+      <source>%1 (HTTP %2).</source>
+      <translation>%1 (HTTP %2).</translation>
+    </message>
+    <message>
+      <source>%1 (HTTP %2): %3</source>
+      <translation>%1 (HTTP %2): %3</translation>
+    </message>
+    <message>
+      <source>%1: %2.</source>
+      <translation>%1: %2.</translation>
+    </message>
+    <message>
+      <source>'%1' has an invalid database endpoint.</source>
+      <translation>نقطة اتصال قاعدة البيانات «%1» غير صالحة.</translation>
+    </message>
+    <message>
+      <source>'%1' is not a verified database.</source>
+      <translation>«%1» ليست قاعدة بيانات تم التحقق منها.</translation>
+    </message>
+    <message>
+      <source>A database does not support chunked project transfers. Update DVMDB on both databases and try again.</source>
+      <translation>إحدى قاعدتي البيانات لا تدعم نقل المشروع على أجزاء. حدّث DVMDB على القاعدتين ثم أعد المحاولة.</translation>
+    </message>
+    <message>
+      <source>A project cannot be cloned into the database it comes from.</source>
+      <translation>لا يمكن استنساخ مشروع في قاعدة البيانات التي جاء منها.</translation>
+    </message>
+    <message>
+      <source>Another clone is in progress.</source>
+      <translation>هناك استنساخ آخر قيد التنفيذ.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' contains a step larger than the transfer limit of %2 MiB and was not copied.</source>
+      <translation>يحتوي الفرع «%1» على خطوة أكبر من حد النقل البالغ %2 MiB ولم يُنسخ.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has changed on both databases and was left as it is on the target.</source>
+      <translation>تغيّر الفرع «%1» في قاعدتي البيانات وتُرك كما هو في الهدف.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits and records the branch it came from; DVMDB cannot recreate that.</source>
+      <translation>الفرع «%1» بلا إيداعات ويسجّل الفرع الذي جاء منه؛ لا يستطيع DVMDB إعادة إنشاء ذلك.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits here but already has commits on the target database.</source>
+      <translation>الفرع «%1» بلا إيداعات هنا لكن لديه إيداعات بالفعل في قاعدة البيانات الهدف.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' is named '%2' on the target database and was not updated.</source>
+      <translation>اسم الفرع «%1» في قاعدة البيانات الهدف هو «%2» ولم يُحدَّث.</translation>
+    </message>
+    <message>
+      <source>Checking branch '%1' on the target database failed</source>
+      <translation>فشل التحقق من الفرع «%1» في قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>Checking the target database for the project failed</source>
+      <translation>فشل البحث عن المشروع في قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>Copying branch '%1' to the target database failed</source>
+      <translation>فشل نسخ الفرع «%1» إلى قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>Creating branch '%1' on the target database failed</source>
+      <translation>فشل إنشاء الفرع «%1» في قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>Creating the project on the target database failed</source>
+      <translation>فشل إنشاء المشروع في قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>DVMDB REST authentication is not implemented; select 'None' for '%1'.</source>
+      <translation>مصادقة REST في DVMDB غير منفّذة؛ اختر «None» لـ «%1».</translation>
+    </message>
+    <message>
+      <source>Reading branch '%1' from the source database failed</source>
+      <translation>فشلت قراءة الفرع «%1» من قاعدة البيانات المصدر</translation>
+    </message>
+    <message>
+      <source>Reading the project from the source database failed</source>
+      <translation>فشلت قراءة المشروع من قاعدة البيانات المصدر</translation>
+    </message>
+    <message>
+      <source>Reading the project's branches failed</source>
+      <translation>فشلت قراءة فروع المشروع</translation>
+    </message>
+    <message>
+      <source>Reading the source database identity failed</source>
+      <translation>فشلت قراءة هوية قاعدة البيانات المصدر</translation>
+    </message>
+    <message>
+      <source>Reading the target database identity failed</source>
+      <translation>فشلت قراءة هوية قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>Reading the target database role failed</source>
+      <translation>فشلت قراءة دور قاعدة البيانات الهدف</translation>
+    </message>
+    <message>
+      <source>The clone was cancelled.</source>
+      <translation>أُلغي الاستنساخ.</translation>
+    </message>
+    <message>
+      <source>The connection to '%1' is not open. Refresh it and try again.</source>
+      <translation>الاتصال بـ «%1» غير مفتوح. حدّثه ثم أعد المحاولة.</translation>
+    </message>
+    <message>
+      <source>The copied project has no DVMDB identity.</source>
+      <translation>المشروع المنسوخ بلا هوية DVMDB.</translation>
+    </message>
+    <message>
+      <source>The description and tags of branch '%1' were not copied: %2</source>
+      <translation>لم يُنسخ وصف الفرع «%1» ووسومه: %2</translation>
+    </message>
+    <message>
+      <source>The embedded database '%1' could not start.</source>
+      <translation>تعذّر تشغيل قاعدة البيانات المضمّنة «%1».</translation>
+    </message>
+    <message>
+      <source>The project's branch provenance contains a cycle.</source>
+      <translation>يحتوي أصل فروع المشروع على حلقة.</translation>
+    </message>
+    <message>
+      <source>The source database did not list the project's branches.</source>
+      <translation>لم تسرد قاعدة البيانات المصدر فروع المشروع.</translation>
+    </message>
+    <message>
+      <source>The source database identity changed. Nothing was copied.</source>
+      <translation>تغيّرت هوية قاعدة البيانات المصدر. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The source database reported an invalid branch.</source>
+      <translation>أبلغت قاعدة البيانات المصدر عن فرع غير صالح.</translation>
+    </message>
+    <message>
+      <source>The source database returned a different project. Nothing was copied.</source>
+      <translation>أعادت قاعدة البيانات المصدر مشروعًا آخر. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The source database sent an invalid part of branch '%1'. Nothing more was copied.</source>
+      <translation>أرسلت قاعدة البيانات المصدر جزءًا غير صالح من الفرع «%1». لم يُنسخ شيء آخر.</translation>
+    </message>
+    <message>
+      <source>The target database identity changed. Nothing was copied.</source>
+      <translation>تغيّرت هوية قاعدة البيانات الهدف. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The target database identity changed. The clone stopped.</source>
+      <translation>تغيّرت هوية قاعدة البيانات الهدف. توقّف الاستنساخ.</translation>
+    </message>
+    <message>
+      <source>The target database is private, but it is not your personal database. Nothing was copied.</source>
+      <translation>قاعدة البيانات الهدف خاصة لكنها ليست قاعدة بياناتك الشخصية. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The target database is your personal database, but DVMDB does not report it as private. Configure it in the Server Inspector. Nothing was copied.</source>
+      <translation>قاعدة البيانات الهدف هي قاعدة بياناتك الشخصية، لكن DVMDB لا يبلّغ عنها بأنها خاصة. هيّئها في مفتش الخادم. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The target database reported an unknown role. Nothing was copied.</source>
+      <translation>أبلغت قاعدة البيانات الهدف عن دور غير معروف. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>The target database returned a different project. Nothing was copied.</source>
+      <translation>أعادت قاعدة البيانات الهدف مشروعًا آخر. لم يُنسخ شيء.</translation>
+    </message>
+    <message>
+      <source>This build does not include embedded DVMDB support.</source>
+      <translation>هذا الإصدار لا يتضمن دعم DVMDB المضمّن.</translation>
+    </message>
+    <message>
+      <source>the connection to '%1' is not open</source>
+      <translation>الاتصال بـ «%1» غير مفتوح</translation>
+    </message>
+    <message>
+      <source>the reply is larger than expected</source>
+      <translation>الرد أكبر من المتوقع</translation>
     </message>
   </context>
 </TS>

@@ -72,8 +72,8 @@ selection and source filtering never change saved history.
 ## Inspectors
 
 **Project Inspector:** Overview has editable **Name** (persisted project
-rename), Tags/Description display, **Create branch**, and **Import network**
-where that project-level action is available. Branches tab lists branches
+rename), Tags/Description display, **Create branch**, **Clone project** and
+**Import network** where that project-level action is available. Branches tab lists branches
 and offers another **Create branch** button at the bottom. The branch dialog
 asks for **name, tags, description**, then creates an independent unborn HEAD.
 No source revision selector is needed when invoked from a Project.
@@ -103,7 +103,38 @@ Do not present the duplicate editors as independent persisted fields.
 
 **Database Inspector:** `Overview | Connection | Projects`; server status and
 connection settings belong here. Keep repository UUID identity distinct from
-the editable database display name.
+the editable database display name. **Paste clone** sits next to **Create
+project** (Overview and Projects tab).
+
+## Cloning a project to another database
+
+**Clone project** (Project Inspector) puts the project on an in-app clipboard
+for the session. Selecting another database then enables **Paste clone**; it
+is greyed out with a tooltip that says why when nothing is copied, the
+database is the project's own, a database is unverified or not connected, or
+another clone or write is running. A database that already holds the project
+offers **Update clone** instead.
+
+A clone is the *same* project: project, branch and revision UUIDv7s are kept,
+and the graph joins the copies with a dashed line. `ProjectCloneTransfer`
+verifies both repository identities and MODEL codecs and the target role
+(personal → private, otherwise shared/unconfigured), provisions the project
+(`clone-target`) and copies the branches in fork order:
+
+- an unborn branch is recreated by UUIDv7 with its description and tags;
+- a forked branch is created at its fork revision on the already copied
+  origin, then receives only its own history;
+- history moves as bundle chunks no larger than the smaller of both
+  databases' `transferLimits.maxBundleBytes` (`GET .../bundle?maxBytes=`),
+  each imported before the next is requested;
+- branch description and tags are copied last.
+
+Every target write is pinned with `X-AOWIS-Expected-Repository-Id`. Every
+step is idempotent and import only fast-forwards: after a failure or a
+cancel, **Update clone** continues where it stopped; on a finished clone it
+brings branches up to date; a branch that changed on both databases is
+reported as a warning and left alone. Uncommitted drafts are never copied.
+Needs DVMDB with chunked bundle export on both databases.
 
 ## Open, Save, Commit, Publish
 
@@ -120,7 +151,7 @@ or inconsistent edits block the session rather than pretending to save.
 | Save / autosave | Durably record MODEL events in private draft; no immutable revision | Implemented for entity and root metadata events, including mixed transactions; full end-to-end acceptance outstanding |
 | Commit | Require a nonblank commit message, commit saved modified draft, advance only personal committed HEAD | Implemented via DVMDB Local Commit API; still requires valid saved draft/lease |
 | Publish | Conditionally advance shared history, separately from personal Commit | **Not implemented as complete GUI workflow** |
-| Fetch/Clone | Transfer a specific remote branch into personal working repository | Branch-level checkout exists; full-project Clone and Fetch tracking workflow incomplete |
+| Fetch/Clone | Transfer a specific remote branch into personal working repository | Branch-level checkout exists; whole-project **Clone project / Paste clone** between any two databases is implemented (fast-forward only); Fetch tracking workflow incomplete |
 | Merge/reconcile | Resolve divergent committed histories without losing drafts | Complete end-to-end UI not available |
 
 After Commit the saved draft overlay can be empty, but the network still
