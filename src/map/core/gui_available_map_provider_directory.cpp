@@ -1,10 +1,10 @@
 #include "map/core/gui_available_map_provider_directory.h"
 
 GuiAvailableMapProviderDirectory::GuiAvailableMapProviderDirectory(
-    MapProviderCatalog &local, MapInheritedProviderClient &inherited, QObject *parent)
+    GuiLocalMapProviderCatalog &local, MapInheritedProviderClient &inherited, QObject *parent)
     : QObject(parent), local_catalog(&local), inherited_catalog(&inherited)
 {
-    connect(&local, &MapProviderCatalog::catalogChanged,
+    connect(&local, &GuiLocalMapProviderCatalog::catalogChanged,
             this, &GuiAvailableMapProviderDirectory::rebuild);
     connect(&inherited, &MapInheritedProviderClient::catalogChanged,
             this, &GuiAvailableMapProviderDirectory::rebuild);

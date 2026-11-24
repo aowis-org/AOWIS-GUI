@@ -902,7 +902,7 @@ MainWindow::MainWindow(QWidget *parent)
     // provider are dropped (the repository is Render's, without the catalog).
     connect(&guiAvailableMapProviderDirectory(), &GuiAvailableMapProviderDirectory::catalogChanged,
             this->map_tile_repository, &MapTileRepository::invalidateProviderCatalog);
-    connect(&mapProviderCatalog(), &MapProviderCatalog::fallbackChanged,
+    connect(&mapProviderCatalog(), &GuiLocalMapProviderCatalog::fallbackChanged,
             this->map_model_monitor, &MapModel::providerFallbackChanged);
     const std::function<double()> orbit_sensitivity = []()
     {

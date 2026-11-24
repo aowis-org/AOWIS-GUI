@@ -136,8 +136,18 @@ public:
         this->create_project = new QPushButton(tr("Create project"), this);
         this->create_project->setObjectName(QStringLiteral("projectsInspectorCreateProject"));
         this->create_project->setToolTip(tr("Create a project in this database"));
-        column->insertWidget(column->indexOf(this->metadata),
-                             this->create_project, 0, Qt::AlignLeft);
+        // Paste clone sits next to Create project: both add a project here.
+        // Its tooltip (set by ProjectsWidget) says why it is unavailable.
+        this->paste_clone = new QPushButton(tr("Paste clone"), this);
+        this->paste_clone->setObjectName(QStringLiteral("projectsInspectorPasteClone"));
+        QWidget *project_actions = new QWidget(this);
+        project_actions->setObjectName(QStringLiteral("projectsInspectorProjectActions"));
+        QHBoxLayout *project_row = new QHBoxLayout(project_actions);
+        project_row->setContentsMargins(0, 0, 0, 0);
+        project_row->addWidget(this->create_project);
+        project_row->addWidget(this->paste_clone);
+        project_row->addStretch(1);
+        column->insertWidget(column->indexOf(this->metadata), project_actions);
         column->insertStretch(column->indexOf(this->metadata), 1);
         LiveUiText::bind(this, [this] {
             QFormLayout *form = static_cast<QFormLayout *>(this->fields->layout());
@@ -148,11 +158,13 @@ public:
             this->personal_banner->setText(tr("♛ Personal working database"));
             this->create_project->setText(tr("Create project"));
             this->create_project->setToolTip(tr("Create a project in this database"));
+            this->paste_clone->setText(tr("Paste clone"));
         });
     }
 
     QLabel *personal_banner = nullptr;
     QPushButton *create_project = nullptr;
+    QPushButton *paste_clone = nullptr;
 };
 class ProjectInspectorOverview final : public ProjectsInspectorOverview
 {
@@ -173,6 +185,11 @@ public:
         this->create_branch = new QPushButton(this);
         this->create_branch->setObjectName(QStringLiteral("projectsInspectorOverviewCreateBranch"));
         column->addWidget(this->create_branch, 0, Qt::AlignLeft);
+        // Copies the project to the in-app clone clipboard; Paste clone on
+        // another database creates the clone there.
+        this->clone_project = new QPushButton(this);
+        this->clone_project->setObjectName(QStringLiteral("projectsInspectorCloneProject"));
+        column->addWidget(this->clone_project, 0, Qt::AlignLeft);
         column->addWidget(this->preview_note);
         column->addStretch(1);
 
@@ -183,6 +200,7 @@ public:
         refreshLanguage();
     }
     QPushButton *create_branch = nullptr;
+    QPushButton *clone_project = nullptr;
     QPushButton *import_network = nullptr;
 protected:
     void changeEvent(QEvent *event) override
@@ -204,6 +222,7 @@ private:
         this->create_branch->setToolTip(tr("Create a named unborn branch in this project"));
         this->import_network->setText(tr("Import network…"));
         this->import_network->setToolTip(tr("Import a network into the selected project"));
+        this->clone_project->setText(tr("Clone project"));
     }
 };
 class BranchInspectorOverview final : public ProjectsInspectorOverview

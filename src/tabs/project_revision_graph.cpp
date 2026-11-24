@@ -6,6 +6,7 @@
 #include "projects/dvmdb_identity.h"
 #include "tabs/project_revision_card_geometry.h"
 #include "tabs/project_branch_visual_link.h"
+#include "tabs/project_graph_clone_links.h"
 
 #include "config/gui_configuration.h"
 #include "config/shortcut_registry.h"
@@ -751,6 +752,15 @@ void ProjectRevisionGraph::ensureNodeVisible(const QString &node_id)
     }
 }
 
+QVector<QPair<QString, QString>> ProjectRevisionGraph::cloneLinks() const
+{
+    QVector<QPair<QString, QString>> result;
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes,
+             [this](const ProjectGraphNode &node) { return nodeRect(node); }))
+        result.append(qMakePair(this->nodes.at(link.first).id, this->nodes.at(link.second).id));
+    return result;
+}
+
 QRectF ProjectRevisionGraph::nodeRect(const ProjectGraphNode &node) const
 {
     if (node.kind == ProjectGraphNode::Kind::Revision)
@@ -1025,6 +1035,16 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
     for (const ProjectGraphNode &node : this->nodes)
         visible_by_id.insert(node.id, &node);
     const double structural_sign = this->top_down ? 1.0 : -1.0;
+    // Clones of one project on different databases, below every other edge.
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes,
+             [this](const ProjectGraphNode &node) { return nodeRect(node); }))
+    {
+        QPainterPath path(link.route.at(0));
+        path.cubicTo(link.route.at(1), link.route.at(2), link.route.at(3));
+        painter.setPen(QPen(tint(ProjectGraphCloneLinks::color(), 200), 2.2, Qt::DashLine, Qt::RoundCap));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(path);
+    }
     for (const ProjectGraphNode &node : this->nodes)
     {
         const ProjectGraphNode *container = visible_by_id.value(node.container_id, nullptr);

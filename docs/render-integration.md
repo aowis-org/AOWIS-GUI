@@ -17,7 +17,7 @@ are drawn), `docs/host-integration.md` (hosting rules) and `docs/roadmap.md`.
 | `AOWIS::RenderGeo` | Links the GUI's `GeographicLib_STATIC` and `AOWIS::Model`, added before Render |
 | `AOWIS::RenderView` (`MapModel`) | `MainWindow` owns the one `MapModel`, forwards provider-catalog changes and injects the orbit sensitivity |
 | `AOWIS::RenderMapData` (tile and terrain repositories) | `guiMapServerTransport()` (`services/map_server_transport_factory.*`) creates the REST transport or the Standalone in-process one, with the Windows Standalone request limits |
-| `AOWIS::RenderMapRest` | `guiMapServerRestConfiguration()` builds the server configuration from the GUI settings; `mapProviderCatalog()` (`map/core/gui_map_provider_catalog.*`) is the process's catalog and stores fallbacks in the GUI configuration file |
+| `AOWIS::RenderMapRest` | `guiMapServerRestConfiguration()` builds the server configuration from the GUI settings; non-Standalone `mapProviderCatalog()` uses the REST catalog; personal fallbacks stay in GUI preferences |
 | `AOWIS::RenderGlobeNetwork` (network contract) | `network_render_snapshot_builder` fills `NetworkRenderSnapshot` from `HydraulicData`; `MapNetworkSymbologyResolver` fills the symbology from simulation results |
 | `AOWIS::RenderMap` (`MapBgfxMapView`) | `MapBgfxSurface` hosts it ([map host guide](../src/map/bgfx/README.md)), with the terrain detail setting, tank/reservoir textures, HUD images, shortcuts, the unit-aware scale bar, `MapBgfxGlobeHudController` and the legend content |
 | `AOWIS::RenderQtSurface` | `ProjectGraphBgfxViewport` captures its own window through it |
@@ -28,6 +28,21 @@ placement, hydraulic identity and elevations, units and locale, settings, the
 Standalone server. Render must not depend on any of it; do not move
 `MainWindow`, services, widgets or MODEL hydraulic types into Render to
 share a class.
+
+## Standalone MAP provider configuration
+
+Standalone uses `StandaloneMapProviderCatalog` in-process. The GUI's local
+provider adapter and inherited-provider client call its typed C++ API for
+provider definitions, availability, acquisition modes and upstream routing.
+The service uses MAP's `SettingsRepository` for validation, revision-checked
+persistence and `ProviderCatalog` for upstream discovery. The renderer sees the
+combined directory through its existing `MapImageryProviderDirectory`
+interface and uses Render's shared fallback resolution.
+
+There is no local HTTP endpoint, listening port or private API key for this
+configuration path. HTTP(S) remains in use for actual remote MAP servers and
+upstream discovery, including WireGuard routing. MAP owns its configuration
+records; the GUI stores only personal fallback choices.
 
 ## Build
 

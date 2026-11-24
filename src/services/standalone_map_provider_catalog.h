@@ -1,7 +1,5 @@
-#ifndef STANDALONE_MAP_PROVIDER_CATALOG_BRIDGE_H
-#define STANDALONE_MAP_PROVIDER_CATALOG_BRIDGE_H
-
-#include "services/map_server_rest_configuration.h"
+#ifndef STANDALONE_MAP_PROVIDER_CATALOG_H
+#define STANDALONE_MAP_PROVIDER_CATALOG_H
 
 #include <aowis/map/map_provider.h>
 #include <aowis/map/provider_catalog.h>
@@ -9,18 +7,23 @@
 #include <memory>
 
 #include <QObject>
-#include <QTcpServer>
 #include <QVector>
 
-// The renderer's provider catalog speaks GET/PUT /map/v1/providers. Standalone
-// has no public MAP HTTP server, so expose that *one* catalog endpoint on an
-// ephemeral authenticated loopback port, backed by AOWIS-CONFIG and MapTiles.
-class StandaloneMapProviderCatalogBridge final : public QObject
+// In-process owner of the embedded MAP provider catalog and cascade policy.
+// All persistence and upstream discovery use MAP library APIs. GUI thread only.
+class StandaloneMapProviderCatalog final : public QObject
 {
     Q_OBJECT
 public:
-    static StandaloneMapProviderCatalogBridge &instance();
-    MapServerRestConfiguration catalogServer() const;
+    static StandaloneMapProviderCatalog &instance();
+    QVector<Aowis::Map::AvailableMapProvider> availableEntries() const;
+    bool saveProviders(const QVector<Aowis::Map::MapProvider> &providers, QString *error);
+    bool setInheritedEnabled(const QString &id, bool enabled, QString *error);
+    bool setUpstreamRoute(const QString &id, const QStringList &names, QString *error);
+    bool setAcquisitionMode(const QString &id, Aowis::Map::MapProviderAcquisitionMode mode,
+                            QString *error);
+    void refreshAvailable();
+    QString errorMessage() const;
     const QVector<Aowis::Map::MapProvider> &providers() const { return this->map_providers; }
     QVector<Aowis::Map::MapProvider> availableProviders() const;
     QHash<QString, QSet<QString>> inheritedUpstreams() const;
@@ -41,19 +44,15 @@ public:
 
 signals:
     void providersChanged();
+    void localProvidersChanged();
     // cascade() changed: reloadCascade(), or a WireGuard upstream's tunnel
     // started.
     void cascadeChanged();
 
 private:
-    explicit StandaloneMapProviderCatalogBridge(QObject *parent);
-    void acceptConnections();
-    void respond(class QTcpSocket *socket, const QByteArray &request);
-    QByteArray catalogJson() const;
-    bool storeCatalog(const QByteArray &body, QString *error);
+    explicit StandaloneMapProviderCatalog(QObject *parent);
+    bool checkWritable(QString *error) const;
 
-    QTcpServer listener;
-    QByteArray access_token;
     QVector<Aowis::Map::MapProvider> map_providers;
     std::unique_ptr<Aowis::Map::SettingsRepository> repository;
     std::unique_ptr<Aowis::Map::ProviderCatalog> available_catalog;

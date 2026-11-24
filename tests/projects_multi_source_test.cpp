@@ -306,6 +306,44 @@ int main(int argc, char **argv)
     if (!require(tree->topLevelItem(0)->child(0)->data(0, Qt::UserRole).toString()
                  != tree->topLevelItem(1)->child(0)->data(0, Qt::UserRole).toString(),
                  "project identities collide across different databases")) return 1;
+    // Both fixtures serve the same project UUIDv7 from different
+    // repositories: the graph shows them as clones with one dashed link.
+    if (!require(waitUntil(app, [&] { return graph->cloneLinks().size() == 1; })
+                 && graph->cloneLinks().first().first.startsWith(QStringLiteral("group:project:"))
+                 && graph->cloneLinks().first().second.startsWith(QStringLiteral("group:project:"))
+                 && graph->cloneLinks().first().first != graph->cloneLinks().first().second,
+                 "the same project on two databases is not linked as a clone")) return 1;
+    // Clone project / Paste clone: the in-app clipboard drives Paste's state,
+    // label and tooltip. Both fixtures hold the same project UUIDv7, so B
+    // already has the clone and Paste becomes Update clone.
+    {
+        QPushButton *clone = projects.findChild<QPushButton *>(QStringLiteral("projectsInspectorCloneProject"));
+        QPushButton *paste = projects.findChild<QPushButton *>(QStringLiteral("projectsInspectorPasteClone"));
+        if (!require(clone != nullptr && paste != nullptr, "missing clone buttons")) return 1;
+        sources->setCurrentItem(sources->topLevelItem(1));
+        app.processEvents();
+        if (!require(!paste->isHidden() && !paste->isEnabled()
+                         && paste->text() == QStringLiteral("Paste clone")
+                         && paste->toolTip().contains(QStringLiteral("Nothing to paste")),
+                     "Paste clone is not greyed out with a reason while nothing is copied")) return 1;
+        sources->setCurrentItem(sources->topLevelItem(0)->child(0));
+        app.processEvents();
+        if (!require(!clone->isHidden() && clone->isEnabled() && paste->isHidden(),
+                     "a database project does not offer Clone project")) return 1;
+        clone->click();
+        app.processEvents();
+        if (!require(clone->toolTip().startsWith(QStringLiteral("Copied")),
+                     "Clone project does not confirm the copy")) return 1;
+        sources->setCurrentItem(sources->topLevelItem(0));
+        app.processEvents();
+        if (!require(!paste->isEnabled() && paste->toolTip().contains(QStringLiteral("comes from this database")),
+                     "Paste clone is offered on the copied project's own database")) return 1;
+        sources->setCurrentItem(sources->topLevelItem(1));
+        app.processEvents();
+        if (!require(paste->isEnabled() && paste->text() == QStringLiteral("Update clone")
+                         && paste->toolTip().contains(QStringLiteral("already has")),
+                     "a database that already holds the clone does not offer Update clone")) return 1;
+    }
     // The source profile name is not a globally unique repository identity.
     sources->setCurrentItem(sources->topLevelItem(0));
     app.processEvents();

@@ -1,6 +1,6 @@
 #include "services/interface_server_map_standalone.h"
 
-#include "services/standalone_map_provider_catalog_bridge.h"
+#include "services/standalone_map_provider_catalog.h"
 
 #include <aowis/map/terrain_dataset.h>
 
@@ -97,26 +97,26 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
       map_tiles(new MapTiles(this))
 #endif
 {
-    // Configuration is owned by MAP and read once by the provider bridge,
+    // Configuration is owned by MAP and read once by the provider catalog,
     // which also fails closed (no upstreams, no direct downloads) while any
     // MAP-owned routing or inherited-provider record is corrupt.
-    StandaloneMapProviderCatalogBridge &provider_bridge =
-        StandaloneMapProviderCatalogBridge::instance();
-    const Aowis::Map::MapCascadeConfig cascade = provider_bridge.cascade();
+    StandaloneMapProviderCatalog &provider_catalog =
+        StandaloneMapProviderCatalog::instance();
+    const Aowis::Map::MapCascadeConfig cascade = provider_catalog.cascade();
     // Configure before the Windows map downloader is moved to its own thread.
     this->map_tiles->setCascadeConfig(cascade);
-    this->map_tiles->configureProviders(provider_bridge.availableProviders(), {}, {},
-                                        provider_bridge.inheritedUpstreams(),
-                                        provider_bridge.upstreamRoutes(),
-                                        provider_bridge.acquisitionModes());
-    connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
-            this, [this, &provider_bridge]
+    this->map_tiles->configureProviders(provider_catalog.availableProviders(), {}, {},
+                                        provider_catalog.inheritedUpstreams(),
+                                        provider_catalog.upstreamRoutes(),
+                                        provider_catalog.acquisitionModes());
+    connect(&provider_catalog, &StandaloneMapProviderCatalog::providersChanged,
+            this, [this, &provider_catalog]
     {
-        const QVector<Aowis::Map::MapProvider> updated = provider_bridge.availableProviders();
-        const QHash<QString, QSet<QString>> inherited = provider_bridge.inheritedUpstreams();
-        const QHash<QString, QStringList> routes = provider_bridge.upstreamRoutes();
+        const QVector<Aowis::Map::MapProvider> updated = provider_catalog.availableProviders();
+        const QHash<QString, QSet<QString>> inherited = provider_catalog.inheritedUpstreams();
+        const QHash<QString, QStringList> routes = provider_catalog.upstreamRoutes();
         const QHash<QString, Aowis::Map::MapProviderAcquisitionMode> modes =
-            provider_bridge.acquisitionModes();
+            provider_catalog.acquisitionModes();
 #ifdef Q_OS_WIN
         // MapTiles lives on its dedicated thread in Windows Standalone.
         MapTiles *tiles = this->map_tiles;
@@ -134,10 +134,10 @@ InterfaceServerMapStandalone::InterfaceServerMapStandalone(QObject *parent)
     // upstreams, credentials, priority and options; downloads from the
     // previous upstream set are canceled (the repositories retry them).
     // Cached tiles stay valid. terrain_data is created below.
-    connect(&provider_bridge, &StandaloneMapProviderCatalogBridge::cascadeChanged,
-            this, [this, &provider_bridge]
+    connect(&provider_catalog, &StandaloneMapProviderCatalog::cascadeChanged,
+            this, [this, &provider_catalog]
     {
-        const Aowis::Map::MapCascadeConfig updated = provider_bridge.cascade();
+        const Aowis::Map::MapCascadeConfig updated = provider_catalog.cascade();
 #ifdef Q_OS_WIN
         MapTiles *tiles = this->map_tiles;
         QMetaObject::invokeMethod(tiles, [tiles, updated]

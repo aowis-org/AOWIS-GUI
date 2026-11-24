@@ -15,6 +15,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <optional>
 
 class QNetworkReply;
 class QNetworkRequest;
@@ -24,6 +25,7 @@ class QNetworkRequest;
 class GroupBoxCollapsible;
 struct BuiltinExampleRevision;
 struct ProjectServerDuplicate;
+class ProjectCloneTransfer;
 class QDockWidget;
 class QComboBox;
 class QCheckBox;
@@ -236,6 +238,20 @@ private:
     void fetchInspectedNetwork(bool export_requested);
     void createEditingBranchFromRevision(const QString &name);
     void reportServerSaveFailure();
+    // Clone project / Paste clone. The clipboard lives for the session.
+    struct CloneClipboard
+    {
+        QString server_id;    // database of the copied project (repository UUIDv7)
+        QString project_id;   // DVMDB project UUIDv7, kept by the clone
+        QString project_name;
+    };
+    void copyProjectForClone();
+    void pasteClone();
+    // Why Paste clone is unavailable for target, or empty. *update: target
+    // already holds the clone (complete or interrupted); pasting again brings
+    // its branches up to date by fast-forward only.
+    QString pasteCloneBlocker(const ProjectServerProfile *target, bool *update) const;
+    void updateCloneButtons(bool creating);
     void setPersonalServer(bool enabled);
     // Standalone: designates the built-in database personal when none is
     // (after the designation was removed in-session) and tells the user.
@@ -331,4 +347,6 @@ private:
     QTimer *revision_autosave_timer = nullptr;
     bool revision_rename_confirmation_pending = false;
     bool updating_ui = false;
+    std::optional<CloneClipboard> clone_clipboard;
+    ProjectCloneTransfer *clone_transfer = nullptr;
 };

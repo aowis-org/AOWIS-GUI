@@ -12,6 +12,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QtGlobal>
+#include <QPair>
 #include <QVector>
 #include <QWidget>
 
@@ -58,6 +59,9 @@ struct ProjectGraphNode
     // revision it points at, without adding an immutable ancestry edge.
     QString head_revision_id;
     QString origin_branch_node_id; // Creation provenance edge, NOT a revision parent.
+    // Project cards only: the DVMDB project UUIDv7. Cards on different
+    // databases with the same value are clones, joined by a dashed line.
+    QString clone_identity;
     QVector<ProjectGraphBranchHead> heads; // Real HEAD pointers; the GUI gives each its own reference card.
     // Layered-DAG cubic routes keyed by immutable parent revision ID.
     // Coordinates are the same canonical graph-space units as position.
@@ -109,6 +113,9 @@ public:
     QString nodeBranchCaption(const QString &node_id) const;
     QString nodeTitle(const QString &node_id) const;
     QRectF graphBounds() const;
+    // Project card IDs joined as clones (same DVMDB project UUIDv7), in
+    // drawing order. For tests and inspection; drawing computes the same.
+    QVector<QPair<QString, QString>> cloneLinks() const;
 
 signals:
     void revisionActivated(const QString &revision_id);

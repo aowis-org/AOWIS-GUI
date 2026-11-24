@@ -16,6 +16,7 @@
 #include "config/gui_configuration.h"
 #include "config/gui_config_store.h"
 #include "config/project_server_duplicates.h"
+#include "projects/project_clone_transfer.h"
 #include "common/_sizes.h"
 #include "widgets/group_box_collapsible.h"
 #include "services/http_health_monitor.h"
@@ -54,6 +55,7 @@
 #include <QIcon>
 #include <QPainter>
 #include <QPixmap>
+#include <QProgressDialog>
 #include <QSet>
 #include <QStandardItemModel>
 #include <QLabel>
@@ -75,6 +77,7 @@
 #include <QTreeWidgetItem>
 #include <QTreeWidgetItemIterator>
 #include <QToolButton>
+#include <QToolTip>
 #include <QUrl>
 #include <QUrlQuery>
 #include <QUuid>
@@ -229,6 +232,9 @@ struct ProjectsWidget::SourceSession
 
 ProjectsWidget::~ProjectsWidget()
 {
+    // Stops a running clone without calling back into this widget.
+    delete this->clone_transfer;
+    this->clone_transfer = nullptr;
     for (SourceSession *session : this->source_sessions)
     {
         if (session->health != nullptr) session->health->stop();
@@ -246,6 +252,9 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
 {
     setObjectName(QStringLiteral("projectsWorkspace"));
     this->source_writer = new ProjectSourceWriter(this, [this](const ProjectServerProfile &profile) {
+        return this->connectionFor(profile);
+    });
+    this->clone_transfer = new ProjectCloneTransfer(this, [this](const ProjectServerProfile &profile) {
         return this->connectionFor(profile);
     });
     seedPreview();
@@ -784,6 +793,11 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     for (QPushButton *button : {this->database_overview->create_project,
                                 this->database_relations->create_project})
         connect(button, &QPushButton::clicked, this, [this] { beginCreation(false); });
+    connect(this->project_overview->clone_project, &QPushButton::clicked,
+            this, &ProjectsWidget::copyProjectForClone);
+    for (QPushButton *button : {this->database_overview->paste_clone,
+                                this->database_relations->paste_clone})
+        connect(button, &QPushButton::clicked, this, &ProjectsWidget::pasteClone);
     for (QPushButton *button : {this->project_overview->create_branch,
                                 this->project_relations->create_branch,
                                 this->branch_inspector->create_branch,
@@ -2265,6 +2279,9 @@ void ProjectsWidget::rebuildGraph()
             project_node.kind = ProjectGraphNode::Kind::Project;
             project_node.id = project_node_id;
             project_node.title = project.name;
+            // The same DVMDB project UUIDv7 on another database is a clone.
+            if (project.database_backed && DvmdbIdentity::isUuidV7(project.backend_id))
+                project_node.clone_identity = project.backend_id;
             project_node.caption_kind = ProjectGraphNode::CaptionKind::Project;
             project_node.caption_branch_count = project.branches.size();
             project_node.branch = tr("PROJECT · %n branch(es)", nullptr, project.branches.size());
@@ -3010,6 +3027,7 @@ void ProjectsWidget::updateButtons()
         this->selection_kind == SelectionKind::Server && !creating);
     this->database_overview->create_project->setEnabled(ready);
     this->database_relations->create_project->setEnabled(ready);
+    updateCloneButtons(creating);
     this->project_overview->import_network->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
     this->project_overview->import_network->setEnabled(ready && project != nullptr);
@@ -3595,6 +3613,174 @@ void ProjectsWidget::reportDuplicateSource(const ProjectServerDuplicate &duplica
     }
     openSourceMessage(this, QMessageBox::Warning, title, message);
     if (focus != nullptr) focus->setFocus();
+}
+
+QString ProjectsWidget::pasteCloneBlocker(const ProjectServerProfile *target, bool *update) const
+{
+    *update = false;
+    if (!this->clone_clipboard)
+        return tr("Nothing to paste. Select a project, choose Clone project, then select another database.");
+    const CloneClipboard &copied = *this->clone_clipboard;
+    if (this->clone_transfer != nullptr && this->clone_transfer->isBusy())
+        return tr("A clone is in progress.");
+    if (this->source_writer->isBusy())
+        return tr("Another database write is in progress.");
+    if (target == nullptr)
+        return tr("Select a database to paste the clone into.");
+    const ProjectServerProfile *source = nullptr;
+    for (const ProjectServerProfile &server : this->servers)
+        if (server.id == copied.server_id) source = &server;
+    if (source == nullptr)
+        return tr("The database of the copied project '%1' is no longer configured.").arg(copied.project_name);
+    if (target->id == source->id)
+        return tr("'%1' comes from this database. Select another database to paste its clone.")
+            .arg(copied.project_name);
+    if (target->pending || target->id == QStringLiteral("preview-local")
+        || target->id == QStringLiteral("preview-remote"))
+        return tr("This database is not verified, so it cannot receive a clone.");
+    if (!isSourceReady(target->id))
+        return tr("This database is not connected.");
+    if (!isSourceReady(source->id))
+        return tr("The database of the copied project ('%1') is not connected.").arg(source->name);
+    for (const ProjectPreviewData &project : this->projects)
+        if (project.server_id == target->id && project.database_backed
+            && project.backend_id == copied.project_id)
+            *update = true;
+    return {};
+}
+
+void ProjectsWidget::updateCloneButtons(bool creating)
+{
+    const ProjectPreviewData *project = currentProject();
+    const bool cloneable = project != nullptr && project->database_backed
+        && DvmdbIdentity::isUuidV7(project->backend_id);
+    const bool copied = cloneable && this->clone_clipboard
+        && this->clone_clipboard->server_id == project->server_id
+        && this->clone_clipboard->project_id == project->backend_id;
+    QPushButton *clone = this->project_overview->clone_project;
+    clone->setVisible(this->selection_kind == SelectionKind::Project && !creating);
+    clone->setEnabled(cloneable);
+    clone->setToolTip(!cloneable ? tr("Only projects stored in a database can be cloned")
+        : copied ? tr("Copied. Select another database and choose Paste clone.")
+                 : tr("Copy this project, then select another database and choose Paste clone"));
+
+    bool update = false;
+    const QString blocker = pasteCloneBlocker(
+        this->selection_kind == SelectionKind::Server ? currentServer() : nullptr, &update);
+    QString source_name;
+    if (this->clone_clipboard)
+        for (const ProjectServerProfile &server : this->servers)
+            if (server.id == this->clone_clipboard->server_id) source_name = server.name;
+    for (QPushButton *paste : {this->database_overview->paste_clone, this->database_relations->paste_clone})
+    {
+        paste->setText(update ? tr("Update clone") : tr("Paste clone"));
+        paste->setEnabled(blocker.isEmpty());
+        // Disabled buttons still show their tooltip: it says what is missing.
+        paste->setToolTip(!blocker.isEmpty() ? blocker
+            : update ? tr("This database already has '%1'. Bring its branches up to date with '%2' "
+                          "(fast-forward only; nothing here is overwritten).")
+                           .arg(this->clone_clipboard->project_name, source_name)
+                     : tr("Paste a clone of '%1' from '%2' into this database")
+                           .arg(this->clone_clipboard->project_name, source_name));
+    }
+    this->database_overview->paste_clone->setVisible(
+        this->selection_kind == SelectionKind::Server && !creating);
+}
+
+void ProjectsWidget::copyProjectForClone()
+{
+    const ProjectPreviewData *project = currentProject();
+    if (this->selection_kind != SelectionKind::Project || project == nullptr
+        || !project->database_backed || !DvmdbIdentity::isUuidV7(project->backend_id)) return;
+    const QString name = project->name;
+    this->clone_clipboard = CloneClipboard{project->server_id, project->backend_id, name};
+    updateButtons();
+    QPushButton *button = this->project_overview->clone_project;
+    QToolTip::showText(button->mapToGlobal(QPoint(0, button->height())),
+        tr("'%1' is copied. Select another database and choose Paste clone.").arg(name), button);
+}
+
+void ProjectsWidget::pasteClone()
+{
+    bool update = false;
+    if (this->selection_kind != SelectionKind::Server
+        || !pasteCloneBlocker(currentServer(), &update).isEmpty()) return;
+    const CloneClipboard copied = *this->clone_clipboard;
+    ProjectServerProfile source;
+    for (const ProjectServerProfile &server : this->servers)
+        if (server.id == copied.server_id) source = server;
+    const ProjectServerProfile target = *currentServer();
+    const QString question = update
+        ? tr("Bring the clone of '%1' in '%3' up to date with '%2'?\n\nBranches are only fast-forwarded: "
+             "work that exists only in '%3' is never overwritten, and a branch that changed on both "
+             "databases is reported and left as it is.").arg(copied.project_name, source.name, target.name)
+        : tr("Clone '%1' from '%2' into '%3'?\n\nThe clone keeps the project's identity: both databases "
+             "then hold the same project, linked in the graph. All branches and their committed history "
+             "are copied; uncommitted draft edits are not.").arg(copied.project_name, source.name, target.name);
+    openSourceMessage(this, QMessageBox::Question, update ? tr("Update clone") : tr("Paste clone"), question,
+        QMessageBox::Yes | QMessageBox::No,
+        [this, copied, source, target](QMessageBox::StandardButton answer)
+    {
+        if (answer != QMessageBox::Yes) return;
+        // The answer may arrive after the selection, clipboard or catalogue changed.
+        const ProjectServerProfile *current = nullptr;
+        for (const ProjectServerProfile &server : this->servers)
+            if (server.id == target.id) current = &server;
+        bool still_update = false;
+        if (!this->clone_clipboard || this->clone_clipboard->server_id != copied.server_id
+            || this->clone_clipboard->project_id != copied.project_id
+            || !pasteCloneBlocker(current, &still_update).isEmpty()) return;
+        QProgressDialog *progress = new QProgressDialog(
+            tr("Cloning '%1' into '%2'…").arg(copied.project_name, target.name), tr("Cancel"), 0, 0, this);
+        progress->setObjectName(QStringLiteral("projectsCloneProgress"));
+        progress->setWindowTitle(tr("Paste clone"));
+        progress->setWindowModality(Qt::WindowModal);
+        progress->setMinimumDuration(0);
+        progress->setAutoClose(false);
+        progress->setAutoReset(false);
+        connect(progress, &QProgressDialog::canceled, this, [this] {
+            if (this->clone_transfer != nullptr) this->clone_transfer->cancel();
+        });
+        progress->show();
+        const QPointer<QProgressDialog> dialog(progress);
+        this->clone_transfer->start(source, copied.project_id, *current,
+            [dialog](const ProjectCloneTransfer::Progress &state)
+            {
+                if (!dialog) return;
+                dialog->setRange(0, qMax(1, state.branch_count));
+                dialog->setValue(qMax(0, state.branch_index - 1));
+                dialog->setLabelText(tr("Copying branch '%1' (%2 of %3)")
+                        .arg(state.branch).arg(state.branch_index).arg(state.branch_count)
+                    + QLatin1Char('\n')
+                    + tr("%n part(s) copied, %1 MiB", nullptr, state.chunks)
+                        .arg(double(state.bytes) / (1024.0 * 1024.0), 0, 'f', 1));
+            },
+            [this, dialog, copied, target](const QString &error, const QStringList &warnings)
+            {
+                if (dialog)
+                {
+                    dialog->disconnect(this);
+                    dialog->close();
+                    dialog->deleteLater();
+                }
+                // Also after a failure: the target may hold part of the clone,
+                // which Update clone then completes.
+                loadSource(target.id);
+                updateButtons();
+                if (!error.isEmpty())
+                    openSourceMessage(this, QMessageBox::Warning, tr("Clone not finished"),
+                        error + QStringLiteral("\n\n")
+                        + tr("What was copied is kept. Choose Update clone on '%1' to continue.").arg(target.name));
+                else if (!warnings.isEmpty())
+                    openSourceMessage(this, QMessageBox::Warning, tr("Clone finished with warnings"),
+                        tr("'%1' was cloned into '%2', except:").arg(copied.project_name, target.name)
+                            + QStringLiteral("\n\n") + warnings.join(QLatin1Char('\n')));
+                else
+                    openSourceMessage(this, QMessageBox::Information, tr("Clone finished"),
+                        tr("'%1' was cloned into '%2'.").arg(copied.project_name, target.name));
+            });
+        updateButtons();
+    });
 }
 
 void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString &repository_id)

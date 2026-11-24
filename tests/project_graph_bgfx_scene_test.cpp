@@ -295,5 +295,50 @@ int main(int argc, char **argv)
     if (!require(folded.fold_markers == 1 && folded.text_runs == 8,
                  "fold marker or its two labels not emitted")) return 1;
     if (!require(!glyphs.atlas().isNull(), "GPU glyph atlas unavailable")) return 1;
+
+    // Clones: project cards with the same DVMDB project UUIDv7 on two
+    // databases get one dashed link below the ownership edges; a third
+    // unrelated project gets none.
+    {
+        ProjectGraphNode other_server = server;
+        other_server.id = QStringLiteral("other-server");
+        other_server.personal_server = false;
+        other_server.position = QPointF(420, 0);
+        ProjectGraphNode original = project;
+        original.clone_identity = QStringLiteral("019aabbc-2222-7222-8222-123456789abc");
+        ProjectGraphNode clone = project;
+        clone.id = QStringLiteral("clone");
+        clone.container_id = other_server.id;
+        clone.position = QPointF(420, 150);
+        clone.clone_identity = original.clone_identity;
+        ProjectGraphNode unrelated = project;
+        unrelated.id = QStringLiteral("unrelated");
+        unrelated.container_id = other_server.id;
+        unrelated.position = QPointF(840, 150);
+        unrelated.clone_identity = QStringLiteral("019aabbc-3333-7333-8333-123456789abc");
+        const QVector<ProjectGraphNode> cloned{server, other_server, original, clone, unrelated};
+        view.offset = QPointF(200, 130);
+        view.zoom = 1.0;
+        const ProjectGraphBgfxScene::Stats without_links = ProjectGraphBgfxScene::build(
+            &canvas, &atlas, text_target, QVector<ProjectGraphNode>{server, other_server, project, clone, unrelated},
+            {}, view);
+        const qsizetype unlinked_vertices = canvas.vertices().size();
+        const ProjectGraphBgfxScene::Stats linked = ProjectGraphBgfxScene::build(
+            &canvas, &atlas, text_target, cloned, {}, view);
+        if (!require(without_links.clone_edges == 0 && linked.clone_edges == 1
+                         && linked.structural_edges == 3 && linked.cards == 5,
+                     "cloned project cards are not joined by exactly one link")) return 1;
+        if (!require(canvas.vertices().size() > unlinked_vertices,
+                     "the clone link has no rendered geometry")) return 1;
+        // A dashed link stays indexed when only its middle is in view.
+        ProjectGraphBgfxScene::Index clone_index;
+        clone_index.rebuild(cloned, {}, true);
+        view.viewport = QRectF(0, 0, 120, 120);
+        view.offset = QPointF(-150, -90);
+        const ProjectGraphBgfxScene::Stats middle = ProjectGraphBgfxScene::build(
+            &canvas, &atlas, text_target, clone_index, view);
+        if (!require(middle.clone_edges == 1 && middle.candidate_items >= 1,
+                     "a clone link between offscreen cards was culled")) return 1;
+    }
     return 0;
 }

@@ -195,6 +195,7 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/bgfx_qt_native_surface.cpp
         src/services/interface_server_map_rest.cpp
         src/map/core/map_provider_catalog.cpp
+        src/map/core/map_provider_fallback_resolution.h
         cmake/aowis_render_dependencies.cmake)
     if(NOT EXISTS "${AOWIS_RENDER_SOURCE_DIR}/${_aowis_render_required_file}")
         message(FATAL_ERROR
@@ -436,6 +437,8 @@ qt_add_executable(aowis-server-gui
     src/tabs/tab_projects_widget.h
     src/projects/project_source_reader.cpp
     src/projects/project_source_reader.h
+    src/projects/project_clone_transfer.cpp
+    src/projects/project_clone_transfer.h
     src/projects/project_source_writer.cpp
     src/projects/project_source_writer.h
     src/projects/personal_working_copy_client.cpp
@@ -446,6 +449,7 @@ qt_add_executable(aowis-server-gui
     src/tabs/personal_working_copy_dialog.h
     src/tabs/project_revision_graph.cpp
     src/tabs/project_revision_graph.h
+    src/tabs/project_graph_clone_links.h
     src/tabs/project_server_availability.h
     src/tabs/project_graph_bgfx_scene.cpp
     src/tabs/project_graph_bgfx_scene.h
@@ -582,8 +586,10 @@ if(AOWIS_STANDALONE_BUILD)
         PRIVATE
             src/services/interface_server_map_standalone.h
             src/services/interface_server_map_standalone.cpp
-            src/services/standalone_map_provider_catalog_bridge.h
-            src/services/standalone_map_provider_catalog_bridge.cpp
+            src/services/standalone_map_provider_catalog.h
+            src/services/standalone_map_provider_catalog.cpp
+            src/map/core/gui_local_map_provider_catalog.h
+            src/map/core/gui_local_map_provider_catalog.cpp
             src/services/map_upstream_tunnels.h
             src/services/map_upstream_tunnels.cpp
             src/config/map_upstream_wireguard_references.h
@@ -889,6 +895,17 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     # Pure CPU graph-to-bgfx draw-list contract. This test compiles the scene
     # and text atlas in isolation; no GPU or native surface is required.
     # This test needs neither a GPU nor a bgfx device initialization.
+    # Dashed links between clones (same DVMDB project UUIDv7 on several
+    # databases), shared by the QPainter and bgfx graph paths.
+    add_executable(aowis-project-graph-clone-links-tests
+        tests/project_graph_clone_links_test.cpp
+        src/tabs/project_graph_clone_links.h)
+    target_include_directories(aowis-project-graph-clone-links-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-graph-clone-links-tests PRIVATE Qt6::Widgets)
+    add_test(NAME aowis-project-graph-clone-links COMMAND aowis-project-graph-clone-links-tests)
+    set_tests_properties(aowis-project-graph-clone-links PROPERTIES LABELS "aowis")
+
     add_executable(aowis-project-graph-bgfx-scene-tests
         tests/project_graph_bgfx_scene_test.cpp
         src/tabs/project_graph_bgfx_scene.cpp
@@ -943,6 +960,23 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
     target_link_libraries(aowis-project-source-writer-tests PRIVATE Qt6::Core Qt6::Network)
     add_test(NAME aowis-project-source-writer COMMAND aowis-project-source-writer-tests)
     set_tests_properties(aowis-project-source-writer PROPERTIES LABELS "aowis")
+
+    # Whole-project clone between two databases ("Clone project" / "Paste
+    # clone") against scripted source and target DVMDB servers.
+    add_executable(aowis-project-clone-transfer-tests
+        tests/project_clone_transfer_test.cpp
+        src/projects/repository_probe.cpp
+        src/network/wireguard_tunnel_pool.cpp
+        src/network/wireguard_tunnel_pool.h
+        src/network/wireguard_runtime_status.cpp
+        src/network/wireguard_runtime_status.h
+        src/projects/project_clone_transfer.cpp
+        src/projects/project_clone_transfer.h)
+    target_include_directories(aowis-project-clone-transfer-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-clone-transfer-tests PRIVATE Qt6::Core Qt6::Network)
+    add_test(NAME aowis-project-clone-transfer COMMAND aowis-project-clone-transfer-tests)
+    set_tests_properties(aowis-project-clone-transfer PROPERTIES LABELS "aowis" TIMEOUT 60)
 
     # Actual GUI writer -> cpp-httplib -> DVMDB roundtrip against the real
     # server executable, including a persisted working-copy and restart.
@@ -1073,12 +1107,21 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         if(AOWIS_STANDALONE_BUILD AND TARGET AOWIS::Map)
             add_executable(aowis-standalone-map-provider-bridge-tests
                 tests/standalone_map_provider_bridge_test.cpp
-                src/services/standalone_map_provider_catalog_bridge.cpp
-                src/services/map_upstream_tunnels.cpp)
+                src/services/standalone_map_provider_catalog.cpp
+                src/services/standalone_map_provider_catalog.h
+                src/services/map_upstream_tunnels.cpp
+                src/services/map_upstream_tunnels.h
+                src/map/core/gui_local_map_provider_catalog.cpp
+                src/map/core/gui_local_map_provider_catalog.h
+                src/map/core/gui_available_map_provider_directory.cpp
+                src/map/core/gui_available_map_provider_directory.h
+                src/services/map_inherited_provider_client.cpp
+                src/services/map_inherited_provider_client.h)
+            target_compile_definitions(aowis-standalone-map-provider-bridge-tests PRIVATE AOWIS_STANDALONE)
             target_include_directories(aowis-standalone-map-provider-bridge-tests PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src)
             target_link_libraries(aowis-standalone-map-provider-bridge-tests PRIVATE
-                Qt6::Core Qt6::Network aowis::config AOWIS::Map)
+                Qt6::Core Qt6::Network aowis::config AOWIS::Map AOWIS::RenderMap AOWIS::RenderMapRest)
             add_test(NAME aowis-standalone-map-provider-bridge
                 COMMAND aowis-standalone-map-provider-bridge-tests)
             set_tests_properties(aowis-standalone-map-provider-bridge PROPERTIES LABELS "aowis")
@@ -1222,6 +1265,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
         src/projects/project_source_reader.h
+        src/projects/project_clone_transfer.cpp
+        src/projects/project_clone_transfer.h
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h
         src/projects/personal_working_copy_client.cpp
@@ -1273,6 +1318,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/tabs/tab_projects_widget.h
         src/projects/project_source_reader.cpp
         src/projects/project_source_reader.h
+        src/projects/project_clone_transfer.cpp
+        src/projects/project_clone_transfer.h
         src/projects/project_source_writer.cpp
         src/projects/project_source_writer.h
         src/projects/personal_working_copy_client.cpp

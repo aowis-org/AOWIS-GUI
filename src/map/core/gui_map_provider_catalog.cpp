@@ -5,7 +5,7 @@
 #include "config/gui_preferences.h"
 #include "services/map_server_transport_factory.h"
 #ifdef AOWIS_STANDALONE
-#include "services/standalone_map_provider_catalog_bridge.h"
+#include "services/standalone_map_provider_catalog.h"
 #endif
 
 #include <QHash>
@@ -14,14 +14,9 @@
 
 namespace
 {
-void configureCatalog(MapProviderCatalog *catalog)
+void configureCatalog(GuiLocalMapProviderCatalog *catalog)
 {
-#ifdef AOWIS_STANDALONE
-    // Standalone's provider editor uses a private, loopback-only catalog
-    // endpoint. Never use the unrelated remote MAP connection for local edits.
-    catalog->setServer(StandaloneMapProviderCatalogBridge::instance().catalogServer());
-    catalog->refresh();
-#else
+#ifndef AOWIS_STANDALONE
     // A WireGuard map-server connection may only become reachable later.
     whenGuiMapServerReachable(catalog, [catalog](const MapServerRestConfiguration &server)
     {
@@ -46,9 +41,13 @@ void configureCatalog(MapProviderCatalog *catalog)
 }
 }
 
-MapProviderCatalog &mapProviderCatalog()
+GuiLocalMapProviderCatalog &mapProviderCatalog()
 {
-    static MapProviderCatalog catalog;
+#ifdef AOWIS_STANDALONE
+    static GuiLocalMapProviderCatalog catalog(StandaloneMapProviderCatalog::instance());
+#else
+    static GuiLocalMapProviderCatalog catalog;
+#endif
     static bool configured = false;
     if (!configured)
     {
@@ -61,22 +60,18 @@ GuiAvailableMapProviderDirectory &guiAvailableMapProviderDirectory()
 {
     // Keep the editable catalog and the renderer's available-provider view
     // independent. Both obtain their data exclusively through MAP APIs.
-    MapProviderCatalog &local = mapProviderCatalog();
+    GuiLocalMapProviderCatalog &local = mapProviderCatalog();
     static MapInheritedProviderClient inherited;
     static GuiAvailableMapProviderDirectory directory(local, inherited);
-    MapInheritedProviderClient *client = &inherited;
     static bool configured = false;
     if (!configured)
     {
         configured = true;
 #ifdef AOWIS_STANDALONE
-        StandaloneMapProviderCatalogBridge &bridge =
-            StandaloneMapProviderCatalogBridge::instance();
-        inherited.setServer(bridge.catalogServer());
-        QObject::connect(&bridge, &StandaloneMapProviderCatalogBridge::providersChanged,
-                         &directory, [client]() { client->refresh(); });
+        inherited.setEmbeddedCatalog(StandaloneMapProviderCatalog::instance());
         inherited.refresh();
 #else
+        MapInheritedProviderClient *client = &inherited;
         whenGuiMapServerReachable(&directory,
             [client](const MapServerRestConfiguration &server)
         {

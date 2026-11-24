@@ -10,7 +10,7 @@
 #include "services/map_inherited_provider_client.h"
 #include "services/map_server_transport_factory.h"
 #ifdef AOWIS_STANDALONE
-#include "services/standalone_map_provider_catalog_bridge.h"
+#include "services/standalone_map_provider_catalog.h"
 #endif
 #include "config/map_server_client_configuration.h"
 #include "config/wireguard_profile_storage.h"
@@ -539,7 +539,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         if (this->inherited_provider_client != nullptr)
             this->inherited_provider_client->refresh();
     });
-    connect(&mapProviderCatalog(), &MapProviderCatalog::catalogChanged, this, [this, add, remove]
+    connect(&mapProviderCatalog(), &GuiLocalMapProviderCatalog::catalogChanged, this, [this, add, remove]
     {
         this->provider_save_in_flight = false;
         // New provider UUIDs and preferences made while zoom limits were being
@@ -563,11 +563,12 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
             if (focused == nullptr || !this->provider_table->isAncestorOf(focused))
                 refreshProviderTable();
         }
-        this->provider_table->setEnabled(true);
-        add->setEnabled(true);
-        remove->setEnabled(true);
+        const bool editable = mapProviderCatalog().serverLoaded();
+        this->provider_table->setEnabled(editable);
+        add->setEnabled(editable);
+        remove->setEnabled(editable);
     });
-    connect(&mapProviderCatalog(), &MapProviderCatalog::errorOccurred, this,
+    connect(&mapProviderCatalog(), &GuiLocalMapProviderCatalog::errorOccurred, this,
             [this](const QString &message)
     {
         if (this->provider_save_in_flight)
@@ -578,7 +579,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         this->provider_status->setProperty("aowisLocalizedSource", QVariant());
         this->provider_status->setText(message);
     });
-    connect(&mapProviderCatalog(), &MapProviderCatalog::providersSaved, this, [this]
+    connect(&mapProviderCatalog(), &GuiLocalMapProviderCatalog::providersSaved, this, [this]
     {
         this->setProviderStatus(QT_TRANSLATE_NOOP("MapSettingsWidget", "Provider changes saved."));
     });
@@ -614,13 +615,7 @@ void MapSettingsWidget::buildServerSection(QWidget *parent_widget)
         else guiAvailableMapProviderDirectory().refresh();
     });
 #ifdef AOWIS_STANDALONE
-    this->inherited_provider_client->setServer(
-        StandaloneMapProviderCatalogBridge::instance().catalogServer());
-    connect(&StandaloneMapProviderCatalogBridge::instance(),
-        &StandaloneMapProviderCatalogBridge::providersChanged, this, [this]
-    {
-        this->inherited_provider_client->refresh();
-    });
+    this->inherited_provider_client->setEmbeddedCatalog(StandaloneMapProviderCatalog::instance());
     this->inherited_provider_client->refresh();
 #else
     whenGuiMapServerReachable(this, [this](const MapServerRestConfiguration &server)
@@ -909,7 +904,7 @@ void MapSettingsWidget::saveEmbeddedCascadeSettings()
     this->cascade_revision = updated_revision;
     // Apply live: the embedded map server, terrain and provider discovery.
     QString apply_error;
-    if (!StandaloneMapProviderCatalogBridge::instance().reloadCascade(&apply_error))
+    if (!StandaloneMapProviderCatalog::instance().reloadCascade(&apply_error))
     {
         this->cascade_status->setProperty("aowisLocalizedSource", QByteArray());
         this->cascade_status->setText(

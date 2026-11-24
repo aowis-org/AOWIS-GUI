@@ -8,8 +8,11 @@
 #include <QStringList>
 #include <QVector>
 
-// A REST client for MAP's *read-only* available catalog and the local-only
-// inherited enablement endpoint. It does not read or write MAP configuration.
+// Available-provider view and policy editor. Remote builds use REST;
+// Standalone uses the embedded MAP library adapter directly.
+#ifdef AOWIS_STANDALONE
+class StandaloneMapProviderCatalog;
+#endif
 struct MapInheritedProviderEntry
 {
     QString id;
@@ -38,6 +41,9 @@ class MapInheritedProviderClient final : public QObject
 public:
     explicit MapInheritedProviderClient(QObject *parent = nullptr);
     void setServer(const MapServerRestConfiguration &server);
+#ifdef AOWIS_STANDALONE
+    void setEmbeddedCatalog(StandaloneMapProviderCatalog &catalog);
+#endif
     void refresh();
     void setEnabled(const QString &id, bool enabled);
     void setUpstreamRoute(const QString &id, const QStringList &upstream_names);
@@ -47,7 +53,7 @@ public:
     bool loaded() const { return this->has_catalog; }
     int localProviderCount() const { return this->local_provider_count; }
     int locallyDefinedWithUpstreams() const { return this->local_with_upstreams; }
-    bool canEdit() const { return this->map_server.configured() && !this->map_server.delete_api_key.isEmpty(); }
+    bool canEdit() const;
     bool updating() const { return this->change_pending; }
 
 signals:
@@ -56,6 +62,13 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
+#ifdef AOWIS_STANDALONE
+    void readEmbeddedCatalog();
+    void completeEmbeddedUpdate(bool success, const QString &error);
+    StandaloneMapProviderCatalog *embedded = nullptr;
+    QMetaObject::Connection embedded_connection;
+    QMetaObject::Connection embedded_local_connection;
+#endif
     MapServerRestConfiguration map_server;
     QNetworkAccessManager network;
     QVector<MapInheritedProviderEntry> entries;

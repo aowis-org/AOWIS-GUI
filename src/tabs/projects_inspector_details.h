@@ -315,14 +315,24 @@ public:
     {
         this->create_project = new QPushButton(this);
         this->create_project->setObjectName(QStringLiteral("projectsDatabaseProjectsCreateProject"));
+        this->paste_clone = new QPushButton(this);
+        this->paste_clone->setObjectName(QStringLiteral("projectsDatabaseProjectsPasteClone"));
         LiveUiText::bind(this->create_project, [this] {
             this->create_project->setText(tr("Create project"));
             this->create_project->setToolTip(tr("Create a project in this database"));
+            this->paste_clone->setText(tr("Paste clone"));
         });
+        QWidget *actions = new QWidget(this);
+        QHBoxLayout *row = new QHBoxLayout(actions);
+        row->setContentsMargins(0, 0, 0, 0);
+        row->addWidget(this->create_project);
+        row->addWidget(this->paste_clone);
+        row->addStretch(1);
         QVBoxLayout *column = qobject_cast<QVBoxLayout *>(this->layout());
-        column->addWidget(this->create_project, 0, Qt::AlignLeft);
+        column->addWidget(actions);
     }
     QPushButton *create_project = nullptr;
+    QPushButton *paste_clone = nullptr;
 
     void populate(const QList<ProjectPreviewData> &projects, const QString &server_id)
     {

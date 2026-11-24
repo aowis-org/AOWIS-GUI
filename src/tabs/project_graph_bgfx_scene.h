@@ -56,6 +56,7 @@ public:
         int structural_edges = 0;
         int ancestry_edges = 0;
         int head_edges = 0;
+        int clone_edges = 0;
         int fold_markers = 0;
         int culled_cards = 0;
         int text_runs = 0;
@@ -79,7 +80,7 @@ public:
 
     private:
         friend class ProjectGraphBgfxScene;
-        enum class Type { Structural, FoldEdge, Ancestry, Head, Card, FoldCard };
+        enum class Type { CloneLink, Structural, FoldEdge, Ancestry, Head, Card, FoldCard };
         struct Edge
         {
             QPointF begin;
@@ -119,6 +120,7 @@ public:
         int structural_edges = 0;
         int ancestry_edges = 0;
         int head_edges = 0;
+        int clone_edges = 0;
     };
 
     // Where text goes: its own canvas (cleared by build()) and glyph atlas.

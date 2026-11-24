@@ -1,4 +1,7 @@
 #include "services/map_inherited_provider_client.h"
+#ifdef AOWIS_STANDALONE
+#include "services/standalone_map_provider_catalog.h"
+#endif
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -7,6 +10,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSet>
+#include <QTimer>
 #include <QUuid>
 #include <QUrl>
 
@@ -39,6 +43,11 @@ MapInheritedProviderClient::MapInheritedProviderClient(QObject *parent)
 
 void MapInheritedProviderClient::setServer(const MapServerRestConfiguration &server)
 {
+#ifdef AOWIS_STANDALONE
+    QObject::disconnect(this->embedded_connection);
+    QObject::disconnect(this->embedded_local_connection);
+    this->embedded = nullptr;
+#endif
     ++this->request_generation;
     this->map_server = server;
     this->network.setProxy(server.proxy);
@@ -50,8 +59,94 @@ void MapInheritedProviderClient::setServer(const MapServerRestConfiguration &ser
     emit catalogChanged();
 }
 
+bool MapInheritedProviderClient::canEdit() const
+{
+#ifdef AOWIS_STANDALONE
+    if (this->embedded != nullptr) return this->embedded->isCatalogValid();
+#endif
+    return this->map_server.configured() && !this->map_server.delete_api_key.isEmpty();
+}
+
+#ifdef AOWIS_STANDALONE
+void MapInheritedProviderClient::setEmbeddedCatalog(StandaloneMapProviderCatalog &catalog)
+{
+    this->setServer(MapServerRestConfiguration());
+    this->embedded = &catalog;
+    this->embedded_connection = connect(&catalog, &StandaloneMapProviderCatalog::providersChanged,
+        this, [this]() { if (!this->change_pending) this->readEmbeddedCatalog(); },
+        Qt::QueuedConnection);
+    // A local change may also restore catalog validity without changing the
+    // advertised provider rows.
+    this->embedded_local_connection = connect(&catalog, &StandaloneMapProviderCatalog::localProvidersChanged,
+            this, &MapInheritedProviderClient::readEmbeddedCatalog, Qt::QueuedConnection);
+    this->readEmbeddedCatalog();
+}
+
+void MapInheritedProviderClient::readEmbeddedCatalog()
+{
+    if (this->embedded == nullptr) return;
+    QVector<MapInheritedProviderEntry> inherited;
+    QVector<MapProviderRouteEntry> routes;
+    int local_count = 0;
+    int local_with_upstreams = 0;
+    for (const Aowis::Map::AvailableMapProvider &value : this->embedded->availableEntries())
+    {
+        const Aowis::Map::MapProvider &provider = value.provider;
+        MapProviderRouteEntry route;
+        route.id = provider.id;
+        route.name = provider.name;
+        route.upstreams = value.upstream_names;
+        route.selected_upstreams = value.selected_upstreams;
+        route.inherited = value.inherited;
+        route.acquisition_mode = Aowis::Map::providerAcquisitionModeName(value.acquisition_mode);
+        route.direct_fetch_allowed = value.direct_fetch_allowed && !value.inherited;
+        routes.append(route);
+        if (!value.inherited)
+        {
+            ++local_count;
+            if (!route.upstreams.isEmpty()) ++local_with_upstreams;
+            continue;
+        }
+        MapInheritedProviderEntry entry;
+        entry.id = provider.id;
+        entry.name = provider.name;
+        entry.url = provider.url_template;
+        entry.enabled = provider.enabled;
+        entry.minimum_zoom = provider.minimum_zoom;
+        entry.maximum_zoom = provider.maximum_zoom;
+        entry.upstreams = route.upstreams;
+        inherited.append(entry);
+    }
+    this->entries = inherited;
+    this->route_entries = routes;
+    this->local_provider_count = local_count;
+    this->local_with_upstreams = local_with_upstreams;
+    this->has_catalog = true;
+    emit catalogChanged();
+}
+
+void MapInheritedProviderClient::completeEmbeddedUpdate(bool success, const QString &error)
+{
+    // Do not rebuild settings widgets from inside their itemChanged handler.
+    // The operation itself was a direct C++ call; deliver the result next turn.
+    QTimer::singleShot(0, this, [this, success, error]()
+    {
+        this->change_pending = false;
+        this->readEmbeddedCatalog();
+        emit updateFinished(success, error);
+    });
+}
+#endif
+
 void MapInheritedProviderClient::refresh()
 {
+#ifdef AOWIS_STANDALONE
+    if (this->embedded != nullptr)
+    {
+        this->readEmbeddedCatalog();
+        return;
+    }
+#endif
     if (!this->map_server.configured()) return;
     const quint64 generation = ++this->request_generation;
     QNetworkReply *reply = this->network.get(makeRequest(this->map_server,
@@ -190,6 +285,15 @@ void MapInheritedProviderClient::setEnabled(const QString &id, bool enabled)
         if (entry.id == id) found = true;
     if (!found) return;
     this->change_pending = true;
+#ifdef AOWIS_STANDALONE
+    if (this->embedded != nullptr)
+    {
+        QString error;
+        const bool success = this->embedded->setInheritedEnabled(id, enabled, &error);
+        this->completeEmbeddedUpdate(success, error);
+        return;
+    }
+#endif
     const QByteArray body = QJsonDocument(QJsonObject{
         {QStringLiteral("id"), id}, {QStringLiteral("enabled"), enabled}
     }).toJson(QJsonDocument::Compact);
@@ -217,15 +321,24 @@ void MapInheritedProviderClient::setUpstreamRoute(const QString &id,
     for (const MapProviderRouteEntry &candidate : this->route_entries)
         if (candidate.id == id) { entry = &candidate; break; }
     if (entry == nullptr) return;
-    QJsonArray names;
     QSet<QString> unique;
     for (const QString &name : upstream_names)
     {
         if (!entry->upstreams.contains(name) || unique.contains(name)) return;
         unique.insert(name);
-        names.append(name);
     }
     this->change_pending = true;
+#ifdef AOWIS_STANDALONE
+    if (this->embedded != nullptr)
+    {
+        QString error;
+        const bool success = this->embedded->setUpstreamRoute(id, upstream_names, &error);
+        this->completeEmbeddedUpdate(success, error);
+        return;
+    }
+#endif
+    QJsonArray names;
+    for (const QString &name : upstream_names) names.append(name);
     const QByteArray body = QJsonDocument(QJsonObject{
         {QStringLiteral("id"), id}, {QStringLiteral("upstreams"), names}
     }).toJson(QJsonDocument::Compact);
@@ -257,6 +370,17 @@ void MapInheritedProviderClient::setAcquisitionMode(const QString &id, const QSt
          mode != QStringLiteral("direct")) ||
         (mode == QStringLiteral("direct") && !found->direct_fetch_allowed)) return;
     this->change_pending = true;
+#ifdef AOWIS_STANDALONE
+    if (this->embedded != nullptr)
+    {
+        QString error;
+        Aowis::Map::MapProviderAcquisitionMode parsed;
+        const bool success = Aowis::Map::parseProviderAcquisitionMode(mode, &parsed) &&
+            this->embedded->setAcquisitionMode(id, parsed, &error);
+        this->completeEmbeddedUpdate(success, error);
+        return;
+    }
+#endif
     const QByteArray body = QJsonDocument(QJsonObject{
         {QStringLiteral("id"), id}, {QStringLiteral("mode"), mode}
     }).toJson(QJsonDocument::Compact);

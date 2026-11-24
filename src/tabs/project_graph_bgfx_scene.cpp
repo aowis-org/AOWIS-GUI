@@ -1,6 +1,7 @@
 #include "tabs/project_graph_bgfx_scene.h"
 
 #include "projects/dvmdb_identity.h"
+#include "tabs/project_graph_clone_links.h"
 #include "tabs/project_revision_card_geometry.h"
 
 #include <QCoreApplication>
@@ -220,6 +221,7 @@ void ProjectGraphBgfxScene::Index::clear()
     this->structural_edges = 0;
     this->ancestry_edges = 0;
     this->head_edges = 0;
+    this->clone_edges = 0;
 }
 
 void ProjectGraphBgfxScene::Index::appendEdge(
@@ -351,6 +353,12 @@ void ProjectGraphBgfxScene::Index::rebuild(
         by_id.insert(this->nodes.at(i).id, i);
     const double sign = top_down ? 1.0 : -1.0;
     // Build in draw order, so visibility queries can preserve layering.
+    // Clone links go first: below every ownership, ancestry and HEAD edge.
+    for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes, cardBounds))
+    {
+        appendEdge(link.route.first(), link.route.last(), link.route, 0.0, true, Type::CloneLink);
+        ++this->clone_edges;
+    }
     for (const ProjectGraphNode &node : this->nodes)
     {
         const int parent_index = by_id.value(node.container_id, -1);
@@ -504,6 +512,7 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
     stats.structural_edges = index.structural_edges;
     stats.ancestry_edges = index.ancestry_edges;
     stats.head_edges = index.head_edges;
+    stats.clone_edges = index.clone_edges;
     const QColor flow_green(57, 184, 145);
     for (const int item_index : visible_items)
     {
@@ -514,9 +523,11 @@ ProjectGraphBgfxScene::Stats ProjectGraphBgfxScene::build(
         const bool structural = item.type == Index::Type::Structural;
         const bool fold_edge = item.type == Index::Type::FoldEdge;
         const bool head = item.type == Index::Type::Head;
-        const double width = (structural || fold_edge || head ? 2.5 : 3.0)
+        const bool clone = item.type == Index::Type::CloneLink;
+        const double width = (clone ? 2.2 : structural || fold_edge || head ? 2.5 : 3.0)
             * view.zoom;
-        const quint32 color = head ? tinted(flow_green, 190)
+        const quint32 color = clone ? tinted(ProjectGraphCloneLinks::color(), 200)
+            : head ? tinted(flow_green, 190)
             : tinted(accent, structural || fold_edge ? 145 : 115);
         route(canvas, view, edge.begin, edge.end, edge.controls, edge.bend,
               width, color, edge.dashed);
