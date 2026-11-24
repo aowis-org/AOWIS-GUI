@@ -40,6 +40,11 @@ public:
     void createUnbornBranch(const ProjectServerProfile &profile, const QString &project_id,
                             const QString &name, const QStringList &tags,
                             const QString &description, Completion completion);
+    // Delete the whole project (branches, revisions, saved working copies).
+    // The expected name is the one the user confirmed: a project renamed
+    // meanwhile is not deleted.
+    void deleteProject(const ProjectServerProfile &profile, const QString &project_id,
+                       const QString &expected_name, Completion completion);
     void deleteBranch(const ProjectServerProfile &profile, const QString &project_id,
                       const QString &branch_id, const QString &expected_head, Completion completion);
     void truncateBranch(const ProjectServerProfile &profile, const QString &project_id,

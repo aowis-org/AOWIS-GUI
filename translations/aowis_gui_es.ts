@@ -2459,6 +2459,209 @@ El clon conserva la identidad del proyecto: ambas bases de datos contendrán el 
       <source>The branch moved since this dialog was opened. Select its new tip.</source>
       <translation>La rama se movió desde que se abrió este diálogo. Seleccione su nueva punta.</translation>
     </message>
+    <message numerus="yes">
+      <source>%n part(s) sent, %1 MiB</source>
+      <translation>
+        <numerusform>%n parte enviada, %1 MiB</numerusform>
+        <numerusform>%n partes enviadas, %1 MiB</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>'%1' (%2)</source>
+      <translation>'%1' (%2)</translation>
+    </message>
+    <message>
+      <source>A clone or push is in progress.</source>
+      <translation>Hay una clonación o publicación en curso.</translation>
+    </message>
+    <message>
+      <source>Already in %1.</source>
+      <translation>Ya está en %1.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' to '%2'</source>
+      <translation>Rama '%1' a '%2'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2', except:</source>
+      <translation>La rama '%1' se publicó en '%2', excepto:</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2'.</source>
+      <translation>La rama '%1' se publicó en '%2'.</translation>
+    </message>
+    <message>
+      <source>No other database has '%1'. Clone the project there first, then push.</source>
+      <translation>Ninguna otra base de datos tiene '%1'. Clone primero el proyecto allí y luego publique.</translation>
+    </message>
+    <message>
+      <source>Not connected: %1.</source>
+      <translation>Sin conexión: %1.</translation>
+    </message>
+    <message>
+      <source>Nothing on '%1' is overwritten: if its branch changed there, the push stops.</source>
+      <translation>No se sobrescribe nada en '%1': si su rama cambió allí, la publicación se detiene.</translation>
+    </message>
+    <message>
+      <source>Push</source>
+      <translation>Publicar</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to '%2'?
+
+Every commit of '%1' that '%2' does not have yet is sent. Uncommitted working changes stay in your personal database.</source>
+      <translation>¿Publicar la rama '%1' en '%2'?
+
+Se envía cada revisión de '%1' que '%2' todavía no tiene. Los cambios de trabajo sin registrar permanecen en su base de datos personal.</translation>
+    </message>
+    <message>
+      <source>Push finished</source>
+      <translation>Publicación terminada</translation>
+    </message>
+    <message>
+      <source>Push finished with warnings</source>
+      <translation>Publicación terminada con advertencias</translation>
+    </message>
+    <message>
+      <source>Push not finished</source>
+      <translation>Publicación no terminada</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to '%3'?
+
+This revision and every earlier one that '%3' does not have yet are sent, and '%2' on '%3' then ends at this revision. Later revisions stay only here.</source>
+      <translation>¿Publicar la revisión %1 de la rama '%2' en '%3'?
+
+Se envían esta revisión y cada una anterior que '%3' todavía no tiene, y '%2' en '%3' termina entonces en esta revisión. Las revisiones posteriores quedan solo aquí.</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'</source>
+      <translation>Publicando la rama '%1'</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2'…</source>
+      <translation>Publicando la rama '%1' en '%2'…</translation>
+    </message>
+    <message>
+      <source>Push…</source>
+      <translation>Publicar…</translation>
+    </message>
+    <message>
+      <source>Select a HEAD or revision in your personal database to push.</source>
+      <translation>Seleccione un HEAD o una revisión de su base de datos personal para publicar.</translation>
+    </message>
+    <message>
+      <source>Send every commit of this branch that the other database does not have yet</source>
+      <translation>Enviar cada revisión de esta rama que la otra base de datos aún no tiene</translation>
+    </message>
+    <message>
+      <source>Send this revision and every earlier one that the other database does not have yet</source>
+      <translation>Enviar esta revisión y cada una anterior que la otra base de datos aún no tiene</translation>
+    </message>
+    <message>
+      <source>This branch has no commits yet. Commit first, then push.</source>
+      <translation>Esta rama aún no tiene revisiones. Registre primero una revisión y luego publique.</translation>
+    </message>
+    <message>
+      <source>This revision is not on a branch's own history (it came in by a merge). Select a revision of the branch to push.</source>
+      <translation>Esta revisión no está en el historial propio de una rama (llegó por una fusión). Seleccione una revisión de la rama para publicar.</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes…</source>
+      <translation>Descartar los cambios sin registrar…</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes</source>
+      <translation>Descartar los cambios sin registrar</translation>
+    </message>
+    <message>
+      <source>Throw away the changes made since the last commit; HEAD returns to its last commit. Committed revisions remain unchanged.</source>
+      <translation>Descartar los cambios hechos desde la última revisión; HEAD vuelve a su última revisión. Las revisiones registradas no cambian.</translation>
+    </message>
+    <message>
+      <source>Nothing to discard: this HEAD has no uncommitted changes.</source>
+      <translation>Nada que descartar: este HEAD no tiene cambios sin registrar.</translation>
+    </message>
+    <message>
+      <source>Throw away the uncommitted changes of branch '%1', including their Undo/Redo history? HEAD returns to its last commit; committed revisions and other branches remain unchanged. This cannot be undone.</source>
+      <translation>¿Descartar los cambios sin registrar de la rama '%1', incluido su historial de Deshacer/Rehacer? HEAD vuelve a su última revisión; las revisiones registradas y las demás ramas no cambian. Esto no se puede deshacer.</translation>
+    </message>
+    <message>
+      <source>'%1': %2</source>
+      <translation>'%1': %2</translation>
+    </message>
+    <message>
+      <source>Branch '%1'</source>
+      <translation>Rama '%1'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to %2.</source>
+      <translation>La rama '%1' se publicó en %2.</translation>
+    </message>
+    <message>
+      <source>Not pushed (cancelled): %1</source>
+      <translation>No publicada (cancelado): %1</translation>
+    </message>
+    <message>
+      <source>Nothing is overwritten: where the branch changed on its own, the push to that database stops.</source>
+      <translation>No se sobrescribe nada: donde la rama cambió por su cuenta, la publicación a esa base de datos se detiene.</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to %2?
+
+Every commit of '%1' that a database does not have yet is sent to it. Uncommitted working changes stay in your personal database.</source>
+      <translation>¿Publicar la rama '%1' en %2?
+
+Cada revisión de '%1' que una base de datos todavía no tiene se le envía. Los cambios de trabajo sin registrar permanecen en su base de datos personal.</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to %3?
+
+This revision and every earlier one that a database does not have yet are sent to it, and '%2' there then ends at this revision. Later revisions stay only here.</source>
+      <translation>¿Publicar la revisión %1 de la rama '%2' en %3?
+
+Esta revisión y cada una anterior que una base de datos todavía no tiene se le envían, y '%2' termina allí en esta revisión. Las revisiones posteriores quedan solo aquí.</translation>
+    </message>
+    <message>
+      <source>Pushed to: %1</source>
+      <translation>Publicada en: %1</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2' (%3 of %4)…</source>
+      <translation>Publicando la rama '%1' en '%2' (%3 de %4)…</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'…</source>
+      <translation>Publicando la rama '%1'…</translation>
+    </message>
+    <message>
+      <source>Tick at least one database to push to.</source>
+      <translation>Marque al menos una base de datos a la que publicar.</translation>
+    </message>
+    <message>
+      <source>Delete project</source>
+      <translation>Eliminar proyecto</translation>
+    </message>
+    <message>
+      <source>Its clones in %1 are not touched.</source>
+      <translation>Sus clones en %1 no se modifican.</translation>
+    </message>
+    <message>
+      <source>Permanently delete project '%1' from '%2'?
+
+All its branches (%3), revisions and networks, and its saved working copies with uncommitted changes, are removed from this database. This cannot be undone.</source>
+      <translation>¿Eliminar definitivamente el proyecto '%1' de '%2'?
+
+Todas sus ramas (%3), revisiones y redes, y sus copias de trabajo guardadas con cambios sin registrar, se eliminan de esta base de datos. Esto no se puede deshacer.</translation>
+    </message>
+    <message>
+      <source>Permanently delete this project from its database: all branches, revisions and saved working copies</source>
+      <translation>Eliminar definitivamente este proyecto de su base de datos: todas las ramas, revisiones y copias de trabajo guardadas</translation>
+    </message>
+    <message>
+      <source>Project deletion failed</source>
+      <translation>Error al eliminar el proyecto</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -8272,6 +8475,10 @@ Pulse para desplegar</numerusform>
       <source>Unsupported database connection type.</source>
       <translation>Tipo de conexión de base de datos no admitido.</translation>
     </message>
+    <message>
+      <source>Invalid project deletion identity.</source>
+      <translation>Identidad de eliminación de proyecto no válida.</translation>
+    </message>
   </context>
   <context>
     <name>SimulationManager</name>
@@ -9895,6 +10102,42 @@ Los ajustes de las válvulas usan unidades físicas diferentes. La ordenación a
     <message>
       <source>the reply is larger than expected</source>
       <translation>la respuesta es mayor de lo esperado</translation>
+    </message>
+    <message>
+      <source>'%1' is not in '%2'. Clone the project there first, then push.</source>
+      <translation>'%1' no está en '%2'. Clone primero el proyecto allí y luego publique.</translation>
+    </message>
+    <message>
+      <source>A branch cannot be pushed to the database it is in.</source>
+      <translation>Una rama no se puede publicar en la base de datos en la que está.</translation>
+    </message>
+    <message>
+      <source>Another clone or push is in progress.</source>
+      <translation>Hay otra clonación o publicación en curso.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' changed on '%2' during the push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>La rama '%1' cambió en '%2' durante la publicación. Actualice primero el clon desde '%2' y vuelva a publicar. No se sobrescribió nada.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits yet. Commit first, then push.</source>
+      <translation>La rama '%1' aún no tiene revisiones. Registre primero una revisión y luego publique.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' on '%2' already has revisions that are not in this push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>La rama '%1' en '%2' ya tiene revisiones que no están en esta publicación. Actualice primero el clon desde '%2' y vuelva a publicar. No se sobrescribió nada.</translation>
+    </message>
+    <message>
+      <source>The branch or revision to push has no DVMDB identity.</source>
+      <translation>La rama o revisión que se va a publicar no tiene identidad DVMDB.</translation>
+    </message>
+    <message>
+      <source>The branch to push no longer exists in '%1'.</source>
+      <translation>La rama que se va a publicar ya no existe en '%1'.</translation>
+    </message>
+    <message>
+      <source>The push was cancelled.</source>
+      <translation>La publicación se canceló.</translation>
     </message>
   </context>
   <context>

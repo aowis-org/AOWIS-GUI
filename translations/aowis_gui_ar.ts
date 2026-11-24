@@ -2483,6 +2483,213 @@ The clone keeps the project's identity: both databases then hold the same projec
       <source>The branch moved since this dialog was opened. Select its new tip.</source>
       <translation>تحرّك الفرع منذ فتح مربع الحوار هذا. اختر طرفه الجديد.</translation>
     </message>
+    <message numerus="yes">
+      <source>%n part(s) sent, %1 MiB</source>
+      <translation>
+        <numerusform>لم يُرسل أي جزء، %1 MiB</numerusform>
+        <numerusform>أُرسل جزء واحد، %1 MiB</numerusform>
+        <numerusform>أُرسل جزءان، %1 MiB</numerusform>
+        <numerusform>أُرسلت %n أجزاء، %1 MiB</numerusform>
+        <numerusform>أُرسل %n جزءًا، %1 MiB</numerusform>
+        <numerusform>أُرسل %n جزء، %1 MiB</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>'%1' (%2)</source>
+      <translation>'%1' (%2)</translation>
+    </message>
+    <message>
+      <source>A clone or push is in progress.</source>
+      <translation>هناك عملية استنساخ أو نشر قيد التنفيذ.</translation>
+    </message>
+    <message>
+      <source>Already in %1.</source>
+      <translation>موجود بالفعل في %1.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' to '%2'</source>
+      <translation>الفرع '%1' إلى '%2'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2', except:</source>
+      <translation>نُشر الفرع '%1' إلى '%2'، باستثناء:</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2'.</source>
+      <translation>نُشر الفرع '%1' إلى '%2'.</translation>
+    </message>
+    <message>
+      <source>No other database has '%1'. Clone the project there first, then push.</source>
+      <translation>لا توجد قاعدة بيانات أخرى تحتوي على '%1'. استنسخ المشروع هناك أولًا ثم انشر.</translation>
+    </message>
+    <message>
+      <source>Not connected: %1.</source>
+      <translation>غير متصلة: %1.</translation>
+    </message>
+    <message>
+      <source>Nothing on '%1' is overwritten: if its branch changed there, the push stops.</source>
+      <translation>لا يُستبدل أي شيء على '%1': إذا تغيّر الفرع هناك يتوقف النشر.</translation>
+    </message>
+    <message>
+      <source>Push</source>
+      <translation>نشر</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to '%2'?
+
+Every commit of '%1' that '%2' does not have yet is sent. Uncommitted working changes stay in your personal database.</source>
+      <translation>هل تريد نشر الفرع '%1' إلى '%2'؟
+
+تُرسل كل مراجعة من '%1' غير موجودة بعد في '%2'. تبقى تغييرات العمل غير المسجّلة في قاعدة بياناتك الشخصية.</translation>
+    </message>
+    <message>
+      <source>Push finished</source>
+      <translation>اكتمل النشر</translation>
+    </message>
+    <message>
+      <source>Push finished with warnings</source>
+      <translation>اكتمل النشر مع تحذيرات</translation>
+    </message>
+    <message>
+      <source>Push not finished</source>
+      <translation>لم يكتمل النشر</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to '%3'?
+
+This revision and every earlier one that '%3' does not have yet are sent, and '%2' on '%3' then ends at this revision. Later revisions stay only here.</source>
+      <translation>هل تريد نشر المراجعة %1 من الفرع '%2' إلى '%3'؟
+
+تُرسل هذه المراجعة وكل مراجعة سابقة غير موجودة بعد في '%3'، وينتهي '%2' على '%3' عندها عند هذه المراجعة. تبقى المراجعات اللاحقة هنا فقط.</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'</source>
+      <translation>جارٍ نشر الفرع '%1'</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2'…</source>
+      <translation>جارٍ نشر الفرع '%1' إلى '%2'…</translation>
+    </message>
+    <message>
+      <source>Push…</source>
+      <translation>نشر…</translation>
+    </message>
+    <message>
+      <source>Select a HEAD or revision in your personal database to push.</source>
+      <translation>اختر HEAD أو مراجعة في قاعدة بياناتك الشخصية لنشرها.</translation>
+    </message>
+    <message>
+      <source>Send every commit of this branch that the other database does not have yet</source>
+      <translation>إرسال كل مراجعة من هذا الفرع غير موجودة بعد في قاعدة البيانات الأخرى</translation>
+    </message>
+    <message>
+      <source>Send this revision and every earlier one that the other database does not have yet</source>
+      <translation>إرسال هذه المراجعة وكل مراجعة سابقة غير موجودة بعد في قاعدة البيانات الأخرى</translation>
+    </message>
+    <message>
+      <source>This branch has no commits yet. Commit first, then push.</source>
+      <translation>لا يحتوي هذا الفرع على مراجعات بعد. سجّل مراجعة أولًا ثم انشر.</translation>
+    </message>
+    <message>
+      <source>This revision is not on a branch's own history (it came in by a merge). Select a revision of the branch to push.</source>
+      <translation>هذه المراجعة ليست ضمن التاريخ الخاص لأي فرع (أتت عبر دمج). اختر مراجعة من الفرع لنشرها.</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes…</source>
+      <translation>تجاهل التغييرات غير المسجّلة…</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes</source>
+      <translation>تجاهل التغييرات غير المسجّلة</translation>
+    </message>
+    <message>
+      <source>Throw away the changes made since the last commit; HEAD returns to its last commit. Committed revisions remain unchanged.</source>
+      <translation>تجاهل التغييرات التي أُجريت منذ آخر مراجعة؛ يعود HEAD إلى آخر مراجعة له. تبقى المراجعات المسجّلة دون تغيير.</translation>
+    </message>
+    <message>
+      <source>Nothing to discard: this HEAD has no uncommitted changes.</source>
+      <translation>لا شيء لتجاهله: لا يحتوي HEAD هذا على تغييرات غير مسجّلة.</translation>
+    </message>
+    <message>
+      <source>Throw away the uncommitted changes of branch '%1', including their Undo/Redo history? HEAD returns to its last commit; committed revisions and other branches remain unchanged. This cannot be undone.</source>
+      <translation>هل تريد تجاهل التغييرات غير المسجّلة للفرع '%1' بما في ذلك سجل التراجع/الإعادة؟ يعود HEAD إلى آخر مراجعة له؛ وتبقى المراجعات المسجّلة والفروع الأخرى دون تغيير. لا يمكن التراجع عن ذلك.</translation>
+    </message>
+    <message>
+      <source>'%1': %2</source>
+      <translation>'%1': %2</translation>
+    </message>
+    <message>
+      <source>Branch '%1'</source>
+      <translation>الفرع '%1'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to %2.</source>
+      <translation>نُشر الفرع '%1' إلى %2.</translation>
+    </message>
+    <message>
+      <source>Not pushed (cancelled): %1</source>
+      <translation>لم يُنشر (أُلغي): %1</translation>
+    </message>
+    <message>
+      <source>Nothing is overwritten: where the branch changed on its own, the push to that database stops.</source>
+      <translation>لا يُستبدل أي شيء: حيث تغيّر الفرع بشكل مستقل يتوقف النشر إلى قاعدة البيانات تلك.</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to %2?
+
+Every commit of '%1' that a database does not have yet is sent to it. Uncommitted working changes stay in your personal database.</source>
+      <translation>هل تريد نشر الفرع '%1' إلى %2؟
+
+تُرسل كل مراجعة من '%1' غير موجودة بعد في قاعدة بيانات إليها. تبقى تغييرات العمل غير المسجّلة في قاعدة بياناتك الشخصية.</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to %3?
+
+This revision and every earlier one that a database does not have yet are sent to it, and '%2' there then ends at this revision. Later revisions stay only here.</source>
+      <translation>هل تريد نشر المراجعة %1 من الفرع '%2' إلى %3؟
+
+تُرسل هذه المراجعة وكل مراجعة سابقة غير موجودة بعد في قاعدة بيانات إليها، وينتهي '%2' هناك عند هذه المراجعة. تبقى المراجعات اللاحقة هنا فقط.</translation>
+    </message>
+    <message>
+      <source>Pushed to: %1</source>
+      <translation>نُشر إلى: %1</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2' (%3 of %4)…</source>
+      <translation>جارٍ نشر الفرع '%1' إلى '%2' (%3 من %4)…</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'…</source>
+      <translation>جارٍ نشر الفرع '%1'…</translation>
+    </message>
+    <message>
+      <source>Tick at least one database to push to.</source>
+      <translation>حدّد قاعدة بيانات واحدة على الأقل للنشر إليها.</translation>
+    </message>
+    <message>
+      <source>Delete project</source>
+      <translation>حذف المشروع</translation>
+    </message>
+    <message>
+      <source>Its clones in %1 are not touched.</source>
+      <translation>لا تتأثر نسخه في %1.</translation>
+    </message>
+    <message>
+      <source>Permanently delete project '%1' from '%2'?
+
+All its branches (%3), revisions and networks, and its saved working copies with uncommitted changes, are removed from this database. This cannot be undone.</source>
+      <translation>هل تريد حذف المشروع '%1' نهائيًا من '%2'؟
+
+تُزال من قاعدة البيانات هذه كل فروعه (%3) ومراجعاته وشبكاته ونسخ العمل المحفوظة ذات التغييرات غير المسجّلة. لا يمكن التراجع عن ذلك.</translation>
+    </message>
+    <message>
+      <source>Permanently delete this project from its database: all branches, revisions and saved working copies</source>
+      <translation>حذف هذا المشروع نهائيًا من قاعدة بياناته: كل الفروع والمراجعات ونسخ العمل المحفوظة</translation>
+    </message>
+    <message>
+      <source>Project deletion failed</source>
+      <translation>فشل حذف المشروع</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -8328,6 +8535,10 @@ Click to unfold</source>
       <source>Unsupported database connection type.</source>
       <translation>نوع اتصال قاعدة البيانات غير مدعوم.</translation>
     </message>
+    <message>
+      <source>Invalid project deletion identity.</source>
+      <translation>هوية حذف المشروع غير صالحة.</translation>
+    </message>
   </context>
   <context>
     <name>SimulationManager</name>
@@ -9959,6 +10170,42 @@ Valve settings have different physical units. Sorting groups compatible quantiti
     <message>
       <source>the reply is larger than expected</source>
       <translation>الرد أكبر من المتوقع</translation>
+    </message>
+    <message>
+      <source>'%1' is not in '%2'. Clone the project there first, then push.</source>
+      <translation>'%1' غير موجود في '%2'. استنسخ المشروع هناك أولًا ثم انشر.</translation>
+    </message>
+    <message>
+      <source>A branch cannot be pushed to the database it is in.</source>
+      <translation>لا يمكن نشر فرع إلى قاعدة البيانات الموجود فيها.</translation>
+    </message>
+    <message>
+      <source>Another clone or push is in progress.</source>
+      <translation>هناك عملية استنساخ أو نشر أخرى قيد التنفيذ.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' changed on '%2' during the push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>تغيّر الفرع '%1' على '%2' أثناء النشر. حدّث النسخة من '%2' أولًا ثم انشر مجددًا. لم يُستبدل أي شيء.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits yet. Commit first, then push.</source>
+      <translation>لا يحتوي الفرع '%1' على مراجعات بعد. سجّل مراجعة أولًا ثم انشر.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' on '%2' already has revisions that are not in this push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>يحتوي الفرع '%1' على '%2' بالفعل على مراجعات ليست ضمن هذا النشر. حدّث النسخة من '%2' أولًا ثم انشر مجددًا. لم يُستبدل أي شيء.</translation>
+    </message>
+    <message>
+      <source>The branch or revision to push has no DVMDB identity.</source>
+      <translation>الفرع أو المراجعة المراد نشرها بلا هوية DVMDB.</translation>
+    </message>
+    <message>
+      <source>The branch to push no longer exists in '%1'.</source>
+      <translation>لم يعد الفرع المراد نشره موجودًا في '%1'.</translation>
+    </message>
+    <message>
+      <source>The push was cancelled.</source>
+      <translation>أُلغي النشر.</translation>
     </message>
   </context>
   <context>

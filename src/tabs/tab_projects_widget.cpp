@@ -91,6 +91,26 @@
 
 namespace
 {
+// Whether `revision` is `head` or on its first-parent history, stopping at a
+// forked branch's fork revision (older revisions belong to the origin): the
+// part of the history a push of that branch can carry. Unloaded history ends
+// the walk.
+bool onFirstParentHistory(const QList<ProjectPreviewRevision> &revisions, const QString &head,
+                          const QString &revision, const QString &fork_revision)
+{
+    QHash<QString, QString> first_parent;
+    for (const ProjectPreviewRevision &entry : revisions)
+        first_parent.insert(entry.id, entry.parents.value(0));
+    QString current = head;
+    for (int steps = 0; !current.isEmpty() && steps <= revisions.size(); ++steps)
+    {
+        if (current == revision) return true;
+        if (current == fork_revision) return false;
+        current = first_parent.value(current);
+    }
+    return false;
+}
+
 // Qt WebAssembly cannot run nested event loops without Asyncify/JSPI.
 // QMessageBox's static question/warning helpers enter QDialog::exec(), so
 // database creation must use open() even for its error and confirmation paths.
@@ -1041,7 +1061,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     connect(this->database_connection->delete_connection, &QPushButton::clicked,
             this, &ProjectsWidget::deleteConnection);
     connect(this->project_inspector->delete_project, &QPushButton::clicked,
-            this, &ProjectsWidget::deleteSelection);
+            this, &ProjectsWidget::deleteInspectedProject);
     connect(this->branch_inspector->delete_branch, &QPushButton::clicked,
             this, &ProjectsWidget::deleteInspectedBranch);
     connect(this->revision_branch_page->delete_branch, &QPushButton::clicked,
@@ -1133,6 +1153,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     });
     connect(this->revision_inspector->commit_head, &QPushButton::clicked,
             this, &ProjectsWidget::commitSelectedHead);
+    connect(this->revision_inspector->push, &QPushButton::clicked,
+            this, &ProjectsWidget::pushSelection);
     connect(this->revision_overview->commit_message, &QPlainTextEdit::textChanged,
             this, [this] {
         if (this->updating_ui || (this->selection_kind != SelectionKind::Head
@@ -3074,6 +3096,7 @@ void ProjectsWidget::updateButtons()
     this->database_overview->create_project->setEnabled(ready);
     this->database_relations->create_project->setEnabled(ready);
     updateCloneButtons(creating);
+    updatePushButton(creating);
     this->project_overview->import_network->setVisible(
         this->selection_kind == SelectionKind::Project && !creating);
     this->project_overview->import_network->setEnabled(ready && project != nullptr);
@@ -3086,7 +3109,7 @@ void ProjectsWidget::updateButtons()
     this->database_connection->delete_connection->setVisible(removable_connection);
     this->database_connection->delete_connection->setEnabled(removable_connection && !busy);
     this->project_inspector->update(creating && this->selection_kind == SelectionKind::Project,
-        busy, preview && project != nullptr, valid);
+        busy || (backed && !ready), preview && project != nullptr, valid, backed);
     this->branch_inspector->update(creating && this->selection_kind == SelectionKind::Branch,
         busy, ready && project != nullptr, backed, preview && currentBranch() != nullptr, valid);
     QString saved_commit_state;
@@ -3114,9 +3137,14 @@ void ProjectsWidget::updateButtons()
     this->revision_network_overview->delete_revision->setVisible(
         this->selection_kind == SelectionKind::Revision
         || this->selection_kind == SelectionKind::Head);
+    // A committed HEAD without uncommitted changes has nothing to discard.
+    const ProjectPreviewBranch *inspected_branch = inspectedRevisionBranch();
+    const bool unborn_head_selected = this->selection_kind == SelectionKind::Head
+        && inspected_branch != nullptr && inspected_branch->head.isEmpty();
     this->revision_network_overview->delete_revision->setEnabled(
         may_delete && (this->selection_kind == SelectionKind::Revision
-            || this->selection_kind == SelectionKind::Head));
+            || (this->selection_kind == SelectionKind::Head
+                && (unborn_head_selected || this->head_has_uncommitted))));
     this->displayed_commit_state = saved_commit_state;
     refreshCommitLabels();
     if (saved_commit_state == QStringLiteral("pending") && project != nullptr
@@ -3187,11 +3215,14 @@ void ProjectsWidget::refreshNetworkActionText()
     this->revision_network_overview->delete_revision->setText(
         this->selection_kind == SelectionKind::Head
             ? deletion_unborn_head ? tr("Delete unborn HEAD and branch…")
-                                   : tr("Delete HEAD working changes…")
+                                   : tr("Discard uncommitted changes…")
             : tr("Delete revision and later history…"));
     this->revision_network_overview->delete_revision->setToolTip(
         this->selection_kind == SelectionKind::Head && !deletion_unborn_head
-            ? tr("Discard this HEAD's saved private working copy; immutable revisions remain unchanged.")
+            ? this->head_has_uncommitted
+                ? tr("Throw away the changes made since the last commit; HEAD returns to its last commit. "
+                     "Committed revisions remain unchanged.")
+                : tr("Nothing to discard: this HEAD has no uncommitted changes.")
             : QString());
     this->revision_network_overview->import_network->setToolTip(this->revision_network_overview->import_network->isEnabledTo(this->revision_network_overview)
         ? tr("Import an EPANET project into this empty unborn private HEAD")
@@ -3733,6 +3764,347 @@ void ProjectsWidget::updateCloneButtons(bool creating)
         this->selection_kind == SelectionKind::Server && !creating);
 }
 
+QString ProjectsWidget::pushRevisionId() const
+{
+    if (this->selection_kind == SelectionKind::Revision) return this->selected_id;
+    if (this->selection_kind != SelectionKind::Head) return {};
+    if (const ProjectPreviewData *project = currentProject())
+        for (const ProjectPreviewBranch &branch : project->branches)
+            if (branch.id == this->selected_id) return branch.head;
+    return {};
+}
+
+QString ProjectsWidget::pushBlocker(QList<PushChoice> *choices) const
+{
+    choices->clear();
+    const ProjectPreviewData *project = currentProject();
+    if (project == nullptr || !project->database_backed
+        || (this->selection_kind != SelectionKind::Head && this->selection_kind != SelectionKind::Revision))
+        return tr("Select a HEAD or revision in your personal database to push.");
+    if (this->clone_transfer != nullptr && this->clone_transfer->isBusy())
+        return tr("A clone or push is in progress.");
+    if (this->source_writer->isBusy())
+        return tr("Another database write is in progress.");
+    const QString revision = pushRevisionId();
+    if (revision.isEmpty())
+        return tr("This branch has no commits yet. Commit first, then push.");
+    // The branches the push can carry: the selected HEAD's, or each branch
+    // whose first-parent history holds the selected revision.
+    QList<const ProjectPreviewBranch *> branches;
+    for (const ProjectPreviewBranch &branch : project->branches)
+        if (this->selection_kind == SelectionKind::Head ? branch.id == this->selected_id
+            : onFirstParentHistory(project->revisions, branch.head, revision, branch.fork_revision_id))
+            branches.append(&branch);
+    if (branches.isEmpty())
+        return tr("This revision is not on a branch's own history (it came in by a merge). "
+                  "Select a revision of the branch to push.");
+    QStringList unconnected;
+    QStringList already;
+    bool has_clone = false;
+    for (const ProjectPreviewData &other : this->projects)
+    {
+        if (other.server_id == project->server_id || !other.database_backed
+            || other.backend_id != project->backend_id) continue;
+        const ProjectServerProfile *target = nullptr;
+        for (const ProjectServerProfile &server : this->servers)
+            if (server.id == other.server_id) target = &server;
+        if (target == nullptr) continue;
+        has_clone = true;
+        if (!isSourceReady(target->id))
+        {
+            unconnected.append(target->name);
+            continue;
+        }
+        for (const ProjectPreviewBranch *branch : branches)
+        {
+            const QString backend_branch = branch->id.mid(project->id.size() + 1);
+            bool pushed = false;
+            for (const ProjectPreviewBranch &there : other.branches)
+                if (there.id.mid(other.id.size() + 1) == backend_branch)
+                    pushed = onFirstParentHistory(other.revisions, there.head, revision,
+                                                  there.fork_revision_id);
+            if (pushed)
+            {
+                already.append(target->name);
+                continue;
+            }
+            choices->append(PushChoice{branch->id, branch->name, target->id, target->name});
+        }
+    }
+    // In the order of the configured databases, as the Explorer lists them.
+    const std::function<int(const QString &)> server_index = [this](const QString &id) {
+        for (int i = 0; i < this->servers.size(); ++i)
+            if (this->servers.at(i).id == id) return i;
+        return int(this->servers.size());
+    };
+    std::stable_sort(choices->begin(), choices->end(),
+        [&server_index](const PushChoice &left, const PushChoice &right) {
+            return server_index(left.target_id) < server_index(right.target_id);
+        });
+    if (!choices->isEmpty()) return {};
+    if (!has_clone)
+        return tr("No other database has '%1'. Clone the project there first, then push.").arg(project->name);
+    if (!already.isEmpty())
+        return tr("Already in %1.").arg(already.join(QStringLiteral(", ")));
+    return tr("Not connected: %1.").arg(unconnected.join(QStringLiteral(", ")));
+}
+
+void ProjectsWidget::updatePushButton(bool creating)
+{
+    const ProjectPreviewData *project = currentProject();
+    bool personal = false;
+    if (project != nullptr && project->database_backed)
+        for (const ProjectServerProfile &server : this->servers)
+            if (server.id == project->server_id) personal = server.personal;
+    const bool visible = personal && !creating
+        && (this->selection_kind == SelectionKind::Head || this->selection_kind == SelectionKind::Revision);
+    QList<PushChoice> choices;
+    const QString blocker = visible ? pushBlocker(&choices) : QString();
+    this->revision_inspector->push->setText(tr("Push…"));
+    this->revision_inspector->updatePush(visible, blocker,
+        this->selection_kind == SelectionKind::Head
+            ? tr("Send every commit of this branch that the other database does not have yet")
+            : tr("Send this revision and every earlier one that the other database does not have yet"));
+}
+
+void ProjectsWidget::pushSelection()
+{
+    QList<PushChoice> choices;
+    if (!pushBlocker(&choices).isEmpty() || choices.isEmpty()) return;
+    const QString revision = pushRevisionId();
+    const bool head = this->selection_kind == SelectionKind::Head;
+    QString revision_label = revision;
+    if (const ProjectPreviewData *project = currentProject())
+        for (const ProjectPreviewRevision &entry : project->revisions)
+            if (entry.id == revision && !entry.title.isEmpty())
+                revision_label = tr("'%1' (%2)").arg(entry.title, revision);
+    // Nonblocking modal dialog: QDialog::exec() is not supported reliably by
+    // the WebAssembly event loop.
+    QDialog *dialog = new QDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setObjectName(QStringLiteral("projectsPushDialog"));
+    dialog->setWindowTitle(tr("Push"));
+    dialog->setMinimumWidth(440);
+    QVBoxLayout *column = new QVBoxLayout(dialog);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(12);
+    column->setSizeConstraint(QLayout::SetMinimumSize);
+    // The branch (when the revision is on several), then every database that
+    // has the project: all of them by default, or only the ticked ones.
+    QComboBox *branch = new QComboBox(dialog);
+    branch->setObjectName(QStringLiteral("projectsPushBranch"));
+    QStringList branch_ids;
+    for (const PushChoice &choice : choices)
+        if (!branch_ids.contains(choice.branch_id))
+        {
+            branch_ids.append(choice.branch_id);
+            branch->addItem(tr("Branch '%1'").arg(choice.branch_name), choice.branch_id);
+        }
+    branch->setVisible(branch_ids.size() > 1);
+    column->addWidget(branch);
+    QWidget *targets = new QWidget(dialog);
+    targets->setObjectName(QStringLiteral("projectsPushTargets"));
+    QVBoxLayout *target_column = new QVBoxLayout(targets);
+    target_column->setContentsMargins(0, 0, 0, 0);
+    column->addWidget(targets);
+    QLabel *explanation = new QLabel(dialog);
+    explanation->setObjectName(QStringLiteral("projectsPushExplanation"));
+    explanation->setWordWrap(true);
+    column->addWidget(explanation);
+    QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    buttons->setObjectName(QStringLiteral("projectsPushButtons"));
+    QPushButton *confirm = buttons->button(QDialogButtonBox::Ok);
+    confirm->setText(tr("Push"));
+    column->addWidget(buttons);
+    const std::shared_ptr<QList<QCheckBox *>> boxes = std::make_shared<QList<QCheckBox *>>();
+    const std::function<void()> explain = [explanation, branch, boxes, choices, head, revision_label, confirm] {
+        const QString branch_id = branch->currentData().toString();
+        QString branch_name;
+        QStringList names;
+        for (const PushChoice &choice : choices)
+            if (choice.branch_id == branch_id) branch_name = choice.branch_name;
+        for (QCheckBox *box : *boxes)
+            if (box->isChecked()) names.append(QStringLiteral("'%1'").arg(box->property("targetName").toString()));
+        confirm->setEnabled(!names.isEmpty());
+        if (names.isEmpty())
+        {
+            explanation->setText(tr("Tick at least one database to push to."));
+            return;
+        }
+        const QString where = names.join(QStringLiteral(", "));
+        explanation->setText((head
+            ? tr("Push branch '%1' to %2?\n\nEvery commit of '%1' that a database does not have yet is sent to it. "
+                 "Uncommitted working changes stay in your personal database.").arg(branch_name, where)
+            : tr("Push revision %1 of branch '%2' to %3?\n\nThis revision and every earlier one that a database "
+                 "does not have yet are sent to it, and '%2' there then ends at this revision. "
+                 "Later revisions stay only here.").arg(revision_label, branch_name, where))
+            + QStringLiteral("\n\n")
+            + tr("Nothing is overwritten: where the branch changed on its own, the push to that database stops."));
+    };
+    const std::function<void()> fill = [targets, target_column, branch, boxes, choices, explain] {
+        for (QCheckBox *box : *boxes) box->deleteLater();
+        boxes->clear();
+        const QString branch_id = branch->currentData().toString();
+        for (const PushChoice &choice : choices)
+        {
+            if (choice.branch_id != branch_id) continue;
+            QCheckBox *box = new QCheckBox(choice.target_name, targets);
+            box->setObjectName(QStringLiteral("projectsPushTarget"));
+            box->setProperty("targetId", choice.target_id);
+            box->setProperty("targetName", choice.target_name);
+            box->setChecked(true);
+            QObject::connect(box, &QCheckBox::toggled, targets, [explain](bool) { explain(); });
+            target_column->addWidget(box);
+            boxes->append(box);
+        }
+        // One database needs no choice; the text names it.
+        targets->setVisible(boxes->size() > 1);
+        explain();
+    };
+    connect(branch, &QComboBox::currentIndexChanged, dialog, [fill](int) { fill(); });
+    fill();
+    const QString selected_project = this->project_id;
+    const QString selected = this->selected_id;
+    const SelectionKind kind = this->selection_kind;
+    connect(buttons, &QDialogButtonBox::accepted, dialog,
+            [this, dialog, branch, boxes, revision, selected_project, selected, kind] {
+        const QString branch_id = branch->currentData().toString();
+        QStringList target_ids;
+        for (QCheckBox *box : *boxes)
+            if (box->isChecked()) target_ids.append(box->property("targetId").toString());
+        dialog->accept();
+        // The answer may arrive after the selection or the catalogue changed.
+        QList<PushChoice> current;
+        if (target_ids.isEmpty() || this->project_id != selected_project || this->selected_id != selected
+            || this->selection_kind != kind || !pushBlocker(&current).isEmpty()
+            || pushRevisionId() != revision) return;
+        QList<PushChoice> pushes;
+        for (const PushChoice &still : current)
+            if (still.branch_id == branch_id && target_ids.contains(still.target_id))
+                pushes.append(still);
+        if (!pushes.isEmpty()) startPush(pushes, revision);
+    });
+    connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    dialog->open();
+}
+
+void ProjectsWidget::startPush(const QList<PushChoice> &pushes, const QString &revision_id)
+{
+    const ProjectPreviewData *project = currentProject();
+    if (project == nullptr || pushes.isEmpty()) return;
+    ProjectServerProfile source;
+    for (const ProjectServerProfile &server : this->servers)
+        if (server.id == project->server_id) source = server;
+    const QString backend_project = project->backend_id;
+    const QString backend_branch = pushes.first().branch_id.mid(project->id.size() + 1);
+    const QString branch_name = pushes.first().branch_name;
+    QProgressDialog *progress = new QProgressDialog(
+        tr("Pushing branch '%1'…").arg(branch_name), tr("Cancel"), 0, int(pushes.size()), this);
+    progress->setObjectName(QStringLiteral("projectsPushProgress"));
+    progress->setWindowTitle(tr("Push"));
+    progress->setWindowModality(Qt::WindowModal);
+    progress->setMinimumDuration(0);
+    progress->setAutoClose(false);
+    progress->setAutoReset(false);
+    // One database after the other; a failure on one does not stop the rest,
+    // Cancel does.
+    struct Run
+    {
+        QList<PushChoice> pushes;
+        int index = 0;
+        bool cancelled = false;
+        QStringList pushed;    // "'name'"
+        QStringList failed;    // "'name': error"
+        QStringList cancelled_names;
+        QStringList warnings;
+    };
+    const std::shared_ptr<Run> run = std::make_shared<Run>();
+    run->pushes = pushes;
+    connect(progress, &QProgressDialog::canceled, this, [this, run] {
+        run->cancelled = true;
+        if (this->clone_transfer != nullptr) this->clone_transfer->cancel();
+    });
+    progress->show();
+    const QPointer<QProgressDialog> dialog(progress);
+    const std::shared_ptr<std::function<void()>> next = std::make_shared<std::function<void()>>();
+    const std::weak_ptr<std::function<void()>> weak_next = next;
+    *next = [this, run, dialog, source, backend_project, backend_branch, branch_name, revision_id, weak_next]
+    {
+        if (run->cancelled || run->index >= run->pushes.size())
+        {
+            if (dialog)
+            {
+                dialog->disconnect(this);
+                dialog->close();
+                dialog->deleteLater();
+            }
+            updateButtons();
+            for (int i = run->index; i < run->pushes.size(); ++i)
+                run->cancelled_names.append(QStringLiteral("'%1'").arg(run->pushes.at(i).target_name));
+            QStringList lines;
+            if (!run->pushed.isEmpty())
+                lines.append(tr("Pushed to: %1").arg(run->pushed.join(QStringLiteral(", "))));
+            lines += run->failed;
+            if (!run->cancelled_names.isEmpty())
+                lines.append(tr("Not pushed (cancelled): %1").arg(run->cancelled_names.join(QStringLiteral(", "))));
+            lines += run->warnings;
+            if (run->failed.isEmpty() && run->warnings.isEmpty() && !run->cancelled)
+                openSourceMessage(this, QMessageBox::Information, tr("Push finished"),
+                    tr("Branch '%1' was pushed to %2.").arg(branch_name, run->pushed.join(QStringLiteral(", "))));
+            else
+                openSourceMessage(this, QMessageBox::Warning,
+                    run->pushed.isEmpty() ? tr("Push not finished") : tr("Push finished with warnings"),
+                    lines.join(QStringLiteral("\n\n")));
+            return;
+        }
+        const PushChoice choice = run->pushes.at(run->index);
+        ProjectServerProfile target;
+        for (const ProjectServerProfile &server : this->servers)
+            if (server.id == choice.target_id) target = server;
+        if (dialog)
+        {
+            dialog->setValue(run->index);
+            dialog->setLabelText(tr("Pushing branch '%1' to '%2' (%3 of %4)…").arg(branch_name, choice.target_name)
+                .arg(run->index + 1).arg(run->pushes.size()));
+        }
+        this->clone_transfer->startPush(source, backend_project, backend_branch, revision_id, target,
+            [dialog, run, branch_name, choice](const ProjectCloneTransfer::Progress &state)
+            {
+                if (!dialog) return;
+                dialog->setLabelText(tr("Pushing branch '%1' to '%2' (%3 of %4)…").arg(branch_name, choice.target_name)
+                        .arg(run->index + 1).arg(run->pushes.size())
+                    + QLatin1Char('\n')
+                    + tr("%n part(s) sent, %1 MiB", nullptr, state.chunks)
+                        .arg(double(state.bytes) / (1024.0 * 1024.0), 0, 'f', 1));
+            },
+            [this, run, choice, weak_next](const QString &error, const QStringList &warnings)
+            {
+                // Also after a failure: part of the push may have arrived,
+                // which pushing again continues.
+                loadSource(choice.target_id);
+                if (error.isEmpty())
+                {
+                    run->pushed.append(QStringLiteral("'%1'").arg(choice.target_name));
+                    for (const QString &warning : warnings)
+                        run->warnings.append(tr("'%1': %2").arg(choice.target_name, warning));
+                }
+                else if (run->cancelled)
+                    run->cancelled_names.append(QStringLiteral("'%1'").arg(choice.target_name));
+                else
+                    run->failed.append(tr("'%1': %2").arg(choice.target_name, error));
+                ++run->index;
+                // Continue outside the transfer's completion callback.
+                QTimer::singleShot(0, this, [weak_next] {
+                    if (const std::shared_ptr<std::function<void()>> step = weak_next.lock()) (*step)();
+                });
+            });
+    };
+    // The chain keeps itself alive until the last database is done.
+    this->push_run = next;
+    (*next)();
+    updateButtons();
+}
+
 void ProjectsWidget::copyProjectForClone()
 {
     const ProjectPreviewData *project = currentProject();
@@ -4018,6 +4390,7 @@ void ProjectsWidget::refreshNetworkSummary()
     this->network_summary_draft_id.clear();
     this->network_summary_generation.clear();
     this->network_summary_is_working_copy = false;
+    this->head_has_uncommitted = false;
     this->network_summary_revision.clear();
     this->network_summary_project.clear();
     this->network_summary_branch.clear();
@@ -4068,11 +4441,16 @@ void ProjectsWidget::refreshNetworkSummary()
         }
         QString draft_id;
         int matches = 0;
+        bool dirty = false;
         for (const PersonalWorkingCopyInfo &draft : drafts) {
             if (draft.project_id != project_id || draft.branch_id != branch_uuid) continue;
             ++matches;
             draft_id = draft.id;
+            dirty = dirty || draft.dirty;
         }
+        // Several drafts: Discard explains that they must be resolved first.
+        this->head_has_uncommitted = dirty || matches > 1;
+        updateButtons();
         if (matches > 1) {
             this->revision_network_overview->setStatus(
                 {QT_TRANSLATE_NOOP("ProjectsWidget", "Multiple private working copies exist for this HEAD. "
@@ -4946,10 +5324,10 @@ void ProjectsWidget::discardInspectedHead() {
             tr("A personal working database must be available to discard HEAD changes."));
         return;
     }
-    if (QMessageBox::warning(this, tr("Delete HEAD working changes"),
-        tr("Discard the saved private working copy of branch '%1', including its Undo/Redo "
-           "journal? Committed revisions and other branches remain unchanged. "
-           "This operation cannot be undone.").arg(branch->name),
+    if (QMessageBox::warning(this, tr("Discard uncommitted changes"),
+        tr("Throw away the uncommitted changes of branch '%1', including their Undo/Redo "
+           "history? HEAD returns to its last commit; committed revisions and other branches "
+           "remain unchanged. This cannot be undone.").arg(branch->name),
         QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
     PersonalWorkingCopyClient *client = new PersonalWorkingCopyClient(this);
     client->list(target, project_id,
@@ -5004,6 +5382,57 @@ void ProjectsWidget::discardInspectedHead() {
                 connectSource();
             });
         });
+    });
+}
+
+void ProjectsWidget::deleteInspectedProject()
+{
+    const ProjectPreviewData *project = currentProject();
+    if (this->selection_kind != SelectionKind::Project || project == nullptr) return;
+    if (!project->database_backed)
+    {
+        deleteSelection();
+        return;
+    }
+    const ProjectServerProfile *server = currentServer();
+    if (server == nullptr || this->source_writer->isBusy()) return;
+    const ProjectServerProfile profile = *server;
+    const QString project_id = project->backend_id;
+    const QString name = project->name;
+    QStringList clones; // in the order of the configured databases
+    for (const ProjectServerProfile &candidate : this->servers)
+        for (const ProjectPreviewData &other : this->projects)
+            if (other.server_id == candidate.id && candidate.id != project->server_id
+                && other.database_backed && other.backend_id == project_id)
+            {
+                clones.append(QStringLiteral("'%1'").arg(candidate.name));
+                break;
+            }
+    QString question = tr("Permanently delete project '%1' from '%2'?\n\nAll its branches (%3), revisions and "
+                          "networks, and its saved working copies with uncommitted changes, are removed from "
+                          "this database. This cannot be undone.")
+        .arg(name, profile.name).arg(project->branches.size());
+    if (!clones.isEmpty())
+        question += QStringLiteral("\n\n") + tr("Its clones in %1 are not touched.").arg(clones.join(QStringLiteral(", ")));
+    openSourceMessage(this, QMessageBox::Warning, tr("Delete project"), question,
+        QMessageBox::Yes | QMessageBox::Cancel,
+        [this, profile, project_id, name](QMessageBox::StandardButton answer)
+    {
+        if (answer != QMessageBox::Yes || this->source_writer->isBusy()) return;
+        this->source_writer->deleteProject(profile, project_id, name,
+            [this, profile, project_id](const QString &, const QString &error) {
+                if (!error.isEmpty())
+                    openSourceMessage(this, QMessageBox::Warning, tr("Project deletion failed"), error);
+                else if (this->clone_clipboard && this->clone_clipboard->server_id == profile.id
+                         && this->clone_clipboard->project_id == project_id)
+                    this->clone_clipboard.reset();
+                // Refresh even after an ambiguous failure; never fake a deletion.
+                if (this->selection_kind == SelectionKind::Project && error.isEmpty())
+                    select(SelectionKind::Server, profile.id);
+                loadSource(profile.id);
+                updateButtons();
+            });
+        updateButtons();
     });
 }
 

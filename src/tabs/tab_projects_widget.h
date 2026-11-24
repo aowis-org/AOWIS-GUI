@@ -15,6 +15,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 class QNetworkReply;
@@ -240,6 +241,9 @@ private:
     QString displayed_commit_state;
     void activateInspectorRelation(const QString &key);
     void deleteSelection();
+    // Delete project…: a preview project in memory, or a database project
+    // permanently (after confirmation, through the source writer).
+    void deleteInspectedProject();
     void deleteInspectedBranch();
     void deleteInspectedRevision();
     void discardInspectedHead();
@@ -273,6 +277,27 @@ private:
     // its branches up to date by fast-forward only.
     QString pasteCloneBlocker(const ProjectServerProfile *target, bool *update) const;
     void updateCloneButtons(bool creating);
+    // Push from the personal database to another database with the same
+    // project (ProjectCloneTransfer::startPush). A HEAD pushes its branch tip,
+    // so every commit the target does not have; a revision pushes up to and
+    // including itself, on each branch whose first-parent history holds it.
+    struct PushChoice
+    {
+        QString branch_id;    // GUI branch id in the personal database
+        QString branch_name;
+        QString target_id;    // database (repository UUIDv7) to push to
+        QString target_name;
+    };
+    // The revision a push of the selection ends at (raw revision UUIDv7).
+    QString pushRevisionId() const;
+    // Why Push is unavailable for the selection, or empty with the choices.
+    QString pushBlocker(QList<PushChoice> *choices) const;
+    void updatePushButton(bool creating);
+    void pushSelection();
+    // Pushes one branch to each database in turn (Push to all or to the
+    // ticked ones); one result message at the end.
+    void startPush(const QList<PushChoice> &pushes, const QString &revision_id);
+    std::shared_ptr<std::function<void()>> push_run;
     void setPersonalServer(bool enabled);
     // Standalone: designates the built-in database personal when none is
     // (after the designation was removed in-session) and tells the user.
@@ -325,6 +350,9 @@ private:
     QString network_summary_draft_id;
     QString network_summary_generation;
     bool network_summary_is_working_copy = false;
+    // The selected HEAD has a saved working copy with uncommitted changes
+    // (DVMDB "dirty"), so Discard uncommitted changes has something to do.
+    bool head_has_uncommitted = false;
     bool head_network_import_active = false;
     int pending_head_import_epoch = -1;
     QString network_summary_revision;

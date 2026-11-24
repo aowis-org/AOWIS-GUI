@@ -381,6 +381,24 @@ int main(int argc, char **argv)
         request_bodies.last().value(QStringLiteral("firstRemoved")) == root_revision &&
         request_bodies.last().value(QStringLiteral("discardWorkingCopies")).toBool(),
         "confirmed revision truncation did not send correct CAS and draft discard")) return 1;
+    // Deleting the whole project sends the name the user confirmed, pinned.
+    done = false;
+    writer.deleteProject(profile, project_identity, QStringLiteral("Renamed Water Project"),
+        [&](const QString &id, const QString &error) {
+            created = id; failure = error; done = true;
+        });
+    if (!require(waitUntil(app, [&] { return done; }) && failure.isEmpty() &&
+        created == QStringLiteral("deleted") &&
+        requested_paths.last() == QStringLiteral("/dvmdb/v1/projects/%1/delete").arg(project_identity) &&
+        request_bodies.last() == QJsonObject{{QStringLiteral("expectedName"), QStringLiteral("Renamed Water Project")}} &&
+        pinned_headers.last() == repository_id,
+        "confirmed project deletion did not send the proper DVMDB request")) return 1;
+    const int before_invalid_project_delete = requested_paths.size();
+    done = false;
+    writer.deleteProject(profile, project_identity, QString(),
+        [&](const QString &, const QString &error) { failure = error; done = true; });
+    if (!require(done && !failure.isEmpty() && requested_paths.size() == before_invalid_project_delete,
+        "a project deletion without a confirmed name reached the server")) return 1;
     const int before_invalid_delete = requested_paths.size();
     done = false;
     writer.truncateBranch(profile, project_identity, main_identity, {}, root_revision,

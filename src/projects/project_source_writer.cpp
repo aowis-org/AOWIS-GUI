@@ -314,6 +314,16 @@ void ProjectSourceWriter::updateRevisionMessage(
         QStringLiteral("revision"), revision_id, std::move(completion));
 }
 
+void ProjectSourceWriter::deleteProject(const ProjectServerProfile &profile,
+        const QString &project_id, const QString &expected_name, Completion completion) {
+    if (!DvmdbIdentity::isUuidV7(project_id) || expected_name.isEmpty()) {
+        if (completion) completion({}, tr("Invalid project deletion identity."));
+        return;
+    }
+    destructiveWrite(profile, QStringLiteral("/projects/%1/delete").arg(project_id),
+        QJsonObject{{QStringLiteral("expectedName"), expected_name}}, std::move(completion));
+}
+
 void ProjectSourceWriter::deleteBranch(const ProjectServerProfile &profile,
         const QString &project_id, const QString &branch_id, const QString &expected_head,
         Completion completion) {

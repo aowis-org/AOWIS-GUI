@@ -340,10 +340,11 @@ public:
         this->commit_explanation_title->setVisible(visible);
         this->commit_explanation->setVisible(visible);
     }
-    void placePrimaryActions(QPushButton *create_branch, QPushButton *commit_head)
+    void placePrimaryActions(QPushButton *create_branch, QPushButton *commit_head, QPushButton *push)
     {
         this->primary_actions->insertWidget(0, create_branch);
         this->primary_actions->insertWidget(1, commit_head);
+        this->primary_actions->insertWidget(2, push);
     }
     QLabel *branch_label = nullptr;
     TwoLineCommitEditor *commit_message = nullptr;
@@ -745,17 +746,24 @@ public:
             QStringLiteral("projectInspectorDeleteButton"), tr("Remove this preview project"));
     }
     QPushButton *delete_project = nullptr;
+    bool stored = false;
 
     void refreshLanguage()
     {
         this->delete_project->setText(tr("Delete project…"));
-        this->delete_project->setToolTip(tr("Remove this preview project"));
+        this->delete_project->setToolTip(this->stored
+            ? tr("Permanently delete this project from its database: all branches, revisions "
+                 "and saved working copies")
+            : tr("Remove this preview project"));
     }
 
-    void update(bool creating, bool busy, bool preview, bool valid)
+    // stored: a project in a database; deleting it is permanent.
+    void update(bool creating, bool busy, bool preview, bool valid, bool stored = false)
     {
-        this->delete_project->setVisible(!creating && preview);
+        this->stored = stored;
+        this->delete_project->setVisible(!creating && (preview || stored));
         this->delete_project->setEnabled(!busy);
+        refreshLanguage();
         setCreationState(creating, busy, valid);
     }
 };
@@ -814,6 +822,12 @@ public:
         this->commit_head = addButton(tr("Commit"),
             QStringLiteral("projectsHeadInspectorCommit"),
             tr("Commit the saved private working copy with the entered message"));
+        // Push: from the personal database to a database with the same
+        // project. HEAD pushes every commit not there yet; a revision pushes
+        // up to and including itself.
+        this->push = addButton(tr("Push…"), QStringLiteral("projectsRevisionInspectorPush"), QString());
+        this->push->setAttribute(Qt::WA_AlwaysShowToolTips);
+        this->push->hide();
         this->identity_footer = new QLabel(this);
         this->identity_footer->setObjectName(QStringLiteral("projectsRevisionIdentityFooter"));
         this->identity_footer->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -824,14 +838,24 @@ public:
     }
     QPushButton *create_branch = nullptr;
     QPushButton *commit_head = nullptr;
+    QPushButton *push = nullptr;
     QLabel *identity_footer = nullptr;
     void placePrimaryActions(RevisionInspectorOverview *overview)
     {
         this->buttons->removeWidget(this->create_branch);
         this->buttons->removeWidget(this->commit_head);
+        this->buttons->removeWidget(this->push);
         this->create_branch->setParent(overview);
         this->commit_head->setParent(overview);
-        overview->placePrimaryActions(this->create_branch, this->commit_head);
+        this->push->setParent(overview);
+        overview->placePrimaryActions(this->create_branch, this->commit_head, this->push);
+    }
+    // Visible only in the personal database; a disabled Push says why.
+    void updatePush(bool visible, const QString &blocker, const QString &ready_tooltip)
+    {
+        this->push->setVisible(visible);
+        this->push->setEnabled(visible && blocker.isEmpty());
+        this->push->setToolTip(blocker.isEmpty() ? ready_tooltip : blocker);
     }
     void update(bool creating, bool busy, bool ready, bool valid,
                 bool head, bool database_backed, bool has_branch, bool has_commit_message)

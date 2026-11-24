@@ -320,20 +320,24 @@ private:
         Branch *entry = branchNamed(project, name);
         if (entry == nullptr || entry->head.isEmpty()) return Reply::error(404, QStringLiteral("branch not found"));
         const QString base = query.queryItemValue(QStringLiteral("base"));
+        // upTo (push): the transfer ends at that revision of the branch.
+        const QString up_to = query.queryItemValue(QStringLiteral("upTo"));
+        const int last = up_to.isEmpty() ? int(entry->chain.size()) - 1 : int(entry->chain.indexOf(up_to));
+        if (last < 0) return Reply::error(400, QStringLiteral("the pushed revision is not on the branch"));
         int start = 0;
         if (!base.isEmpty())
         {
             const int position = entry->chain.indexOf(base);
-            if (position < 0 && base != entry->fork) return Reply::error(409, QStringLiteral("base not an ancestor"));
+            if (position < 0 && base != entry->fork) return Reply::error(404, QStringLiteral("base not published"));
             start = position + 1;
         }
-        if (start >= entry->chain.size()) return Reply::error(409, QStringLiteral("nothing newer"));
-        const int tip = std::min<int>(start + this->chunk_revisions - 1, entry->chain.size() - 1);
+        if (start > last) return Reply::error(409, QStringLiteral("base not an ancestor"));
+        const int tip = std::min<int>(start + this->chunk_revisions - 1, last);
         const QString head = entry->chain.at(tip);
         Reply reply{200, ("BUNDLE " + entry->id + ' ' + head).toUtf8(), {}};
         reply.headers.append(QPair<QByteArray, QByteArray>{"Content-Type", "application/vnd.aowis.revision-bundle-v2"});
         reply.headers.append(QPair<QByteArray, QByteArray>{"X-AOWIS-Bundle-Head", head.toUtf8()});
-        reply.headers.append(QPair<QByteArray, QByteArray>{"X-AOWIS-Bundle-Complete", tip == entry->chain.size() - 1 ? "true" : "false"});
+        reply.headers.append(QPair<QByteArray, QByteArray>{"X-AOWIS-Bundle-Complete", tip == last ? "true" : "false"});
         return reply;
     }
 
@@ -421,6 +425,31 @@ Outcome runClone(ProjectCloneTransfer &transfer, const ProjectServerProfile &fro
         });
     waitUntil([&] { return outcome->done; });
     return *outcome;
+}
+
+Outcome runPush(ProjectCloneTransfer &transfer, const ProjectServerProfile &from, const QString &branch,
+                const QString &up_to, const ProjectServerProfile &to)
+{
+    std::shared_ptr<Outcome> outcome = std::make_shared<Outcome>();
+    transfer.startPush(from, project_id, branch, up_to, to,
+        [outcome](const ProjectCloneTransfer::Progress &progress) { outcome->progress.append(progress); },
+        [outcome](const QString &error, const QStringList &warnings)
+        {
+            outcome->done = true;
+            outcome->error = error;
+            outcome->warnings = warnings;
+        });
+    waitUntil([&] { return outcome->done; });
+    return *outcome;
+}
+
+// The shared database already has the project with main at r2.
+void seedPushTarget(FakeDvmdb &target)
+{
+    target.repository_id = uuid(2);
+    target.projects.insert(project_id, QStringLiteral("Pipeline Nord"));
+    target.branches.insert(project_id, {Branch{main_id, QStringLiteral("main"), uuid(302), {}, {},
+                                               QStringLiteral("Shared trunk"), {}, {}}});
 }
 
 void testPlanning()
@@ -700,6 +729,117 @@ void testDivergedBranch()
             "a diverged branch stopped the rest of the clone");
 }
 
+// Pushing a revision sends it and every earlier revision the target lacks,
+// in chunks; the target branch ends exactly there. Pushing HEAD sends the rest.
+void testPushUpToRevision()
+{
+    FakeDvmdb source;
+    FakeDvmdb target;
+    seedSource(source);
+    seedPushTarget(target);
+    require(source.start() && target.start(), "fake servers did not start");
+    ProjectCloneTransfer transfer;
+    const Outcome middle = runPush(transfer, profile(source, QStringLiteral("Personal")), main_id, uuid(304),
+                                   profile(target, QStringLiteral("Team")));
+    require(middle.done && middle.error.isEmpty() && middle.warnings.isEmpty(), "a partial push failed");
+    require(target.branch(project_id, main_id)->head == uuid(304), "the target branch did not end at the pushed revision");
+    require(source.bundle_queries.size() == 1
+                && source.bundle_queries.first().queryItemValue(QStringLiteral("base")) == uuid(302)
+                && source.bundle_queries.first().queryItemValue(QStringLiteral("upTo")) == uuid(304),
+            "a partial push did not continue from the target branch up to the pushed revision");
+    // Commits only: no project provisioning, no branch metadata overwritten.
+    require(target.writes == QList<QByteArray>{"POST /projects/" + project_id.toUtf8() + "/branches/main/bundle"}
+                && target.unpinned_writes.isEmpty() && source.writes.isEmpty(),
+            "a push wrote more than the pinned bundle import");
+    require(target.branch(project_id, main_id)->description == QStringLiteral("Shared trunk"),
+            "a push overwrote the target branch metadata");
+
+    const Outcome rest = runPush(transfer, profile(source, QStringLiteral("Personal")), main_id, {},
+                                 profile(target, QStringLiteral("Team")));
+    require(rest.error.isEmpty() && target.branch(project_id, main_id)->head == uuid(305)
+                && !source.bundle_queries.last().hasQueryItem(QStringLiteral("upTo")),
+            "pushing HEAD did not send the rest");
+    // Pushing what is there already writes nothing.
+    const int writes = target.writes.size();
+    const Outcome again = runPush(transfer, profile(source, QStringLiteral("Personal")), main_id, uuid(305),
+                                  profile(target, QStringLiteral("Team")));
+    require(again.error.isEmpty() && target.writes.size() == writes, "a repeated push wrote again");
+}
+
+void testPushChunksAndNewBranch()
+{
+    FakeDvmdb source;
+    FakeDvmdb target;
+    seedSource(source);
+    seedPushTarget(target);
+    target.branch(project_id, main_id)->head = uuid(305);
+    source.chunk_revisions = 1;
+    require(source.start() && target.start(), "fake servers did not start");
+    ProjectCloneTransfer transfer;
+    // The fork is created at its fork revision, then f1..f2 follow one by one.
+    const Outcome outcome = runPush(transfer, profile(source, QStringLiteral("Personal")), feature_id, uuid(312),
+                                    profile(target, QStringLiteral("Team")));
+    const Branch *feature = target.branch(project_id, feature_id);
+    require(outcome.error.isEmpty() && feature != nullptr && feature->head == uuid(312)
+                && feature->origin == main_id && feature->fork == uuid(303),
+            "a pushed new branch was not created with its identity at the pushed revision");
+    require(target.imports == 2 && !outcome.progress.isEmpty() && outcome.progress.last().chunks == 2
+                && outcome.progress.last().branch_count == 1,
+            "a push was not sent in chunks with progress");
+    require(target.branch(project_id, main_id)->head == uuid(305), "a push of one branch changed another");
+}
+
+void testPushRefusals()
+{
+    FakeDvmdb source;
+    FakeDvmdb target;
+    FakeDvmdb empty;
+    seedSource(source);
+    seedPushTarget(target);
+    target.branch(project_id, main_id)->head = uuid(305);
+    empty.repository_id = uuid(3);
+    require(source.start() && target.start() && empty.start(), "fake servers did not start");
+    ProjectCloneTransfer transfer;
+    const ProjectServerProfile personal = profile(source, QStringLiteral("Personal"));
+
+    // The target is further than the pushed revision: refused, untouched.
+    const Outcome older = runPush(transfer, personal, main_id, uuid(303), profile(target, QStringLiteral("Team")));
+    require(older.error.contains(QStringLiteral("Update the clone")) && target.writes.isEmpty()
+                && target.branch(project_id, main_id)->head == uuid(305),
+            "a push older than the target was not refused");
+    // The target branch has history of its own.
+    target.branch(project_id, main_id)->head = uuid(399);
+    const Outcome apart = runPush(transfer, personal, main_id, {}, profile(target, QStringLiteral("Team")));
+    require(apart.error.contains(QStringLiteral("Nothing was overwritten")) && target.writes.isEmpty(),
+            "a push onto a branch with history of its own was not refused");
+    // Changed during the push (the import is refused).
+    target.branch(project_id, main_id)->head = uuid(302);
+    target.diverged_branch = main_id;
+    const Outcome during = runPush(transfer, personal, main_id, {}, profile(target, QStringLiteral("Team")));
+    require(during.error.contains(QStringLiteral("during the push")) && during.warnings.isEmpty(),
+            "a refused import was not a push error");
+    target.diverged_branch.clear();
+
+    const Outcome missing = runPush(transfer, personal, main_id, {}, profile(empty, QStringLiteral("Empty")));
+    require(missing.error.contains(QStringLiteral("Clone the project there first")) && empty.writes.isEmpty(),
+            "a push to a database without the project did not ask for a clone");
+    const Outcome unborn = runPush(transfer, personal, planned_id, {}, profile(target, QStringLiteral("Team")));
+    require(unborn.error.contains(QStringLiteral("no commits")), "an unborn branch was pushed");
+    const Outcome gone = runPush(transfer, personal, uuid(299), {}, profile(target, QStringLiteral("Team")));
+    require(gone.error.contains(QStringLiteral("no longer exists")), "a missing branch was pushed");
+    const Outcome off = runPush(transfer, personal, main_id, uuid(312), profile(target, QStringLiteral("Team")));
+    require(!off.error.isEmpty() && target.branch(project_id, main_id)->head == uuid(302),
+            "a revision of another branch was pushed");
+    const Outcome self = runPush(transfer, personal, main_id, {}, personal);
+    require(self.error.contains(QStringLiteral("database it is in")), "a push into its own database was accepted");
+    const Outcome invalid = runPush(transfer, personal, QStringLiteral("main"), {}, profile(target, QStringLiteral("Team")));
+    require(!invalid.error.isEmpty() && !transfer.isBusy(), "a push without branch identity was accepted");
+    // A clone after a push is a clone again (no push settings left over).
+    const Outcome clone = runClone(transfer, personal, profile(empty, QStringLiteral("Empty")));
+    require(clone.error.isEmpty() && empty.branch(project_id, planned_id) != nullptr,
+            "a clone after a push did not copy the whole project");
+}
+
 void testCancel()
 {
     FakeDvmdb source;
@@ -737,6 +877,9 @@ int main(int argc, char **argv)
     testForkFallbackAndWarnings();
     testDivergedBranch();
     testCancel();
+    testPushUpToRevision();
+    testPushChunksAndNewBranch();
+    testPushRefusals();
     if (failures != 0)
     {
         std::fprintf(stderr, "%d project clone transfer check(s) failed\n", failures);

@@ -137,6 +137,35 @@ brings branches up to date; a branch that changed on both databases is
 reported as a warning and left alone. Uncommitted drafts are never copied.
 Needs DVMDB with chunked bundle export on both databases.
 
+**Delete project…** (Project inspector) removes a database project
+permanently: all branches, revisions and networks, and its saved working
+copies (`POST /projects/{id}/delete` with the confirmed `expectedName`,
+pinned). The confirmation names the database and the branch count and says
+that clones in other databases stay. DVMDB refuses while a working copy of
+the project is open for editing (close the editor first) or an operation on
+it runs (retry). A preview project is only removed from memory.
+
+**Push** (HEAD or revision inspector, personal database only) sends committed
+history of one branch to another database that has the same project
+(`ProjectCloneTransfer::startPush`). Pushing a HEAD sends every commit of its
+branch that the target does not have; pushing a revision sends it and every
+earlier one, and the target branch then ends at that revision — later
+revisions stay only in the personal database. A revision is pushed on each
+branch whose first-parent history holds it (one is chosen when there are
+several). A project can have several upstreams: the dialog lists every other
+database with the project that does not have the revision yet, all ticked, so
+one Push goes to all of them, or only to the ticked ones. They are pushed one
+after the other; a failure on one does not stop the others, Cancel does, and
+one message reports what reached which database. The chunks use `GET .../bundle?maxBytes=&upTo=`
+from the target branch's HEAD; a branch the target does not have is created
+there with its UUIDv7 (at its fork revision when the target has the origin)
+and its metadata. Push only fast-forwards: a target branch that is further or
+changed on its own stops the push with "Update the clone first", and nothing
+is overwritten. Uncommitted working changes are never pushed. Push is
+disabled, with the reason as its tooltip, when there is nothing to push
+("Already in …"), no other database has the project, or the target is not
+connected.
+
 ## Open, Save, Commit, Publish
 
 The normal editing entry is **HEAD → Overview → Open network**. A confirmation
@@ -151,7 +180,7 @@ or inconsistent edits block the session rather than pretending to save.
 | Open Revision | Read-only Monitor, or create a branch based on that immutable revision for full editing | Implemented entry point; end-to-end platform coverage remains to be verified |
 | Save / autosave | Durably record MODEL events in private draft; no immutable revision | Implemented for entity and root metadata events, including mixed transactions; full end-to-end acceptance outstanding |
 | Commit | Require a nonblank commit message, commit saved modified draft, advance only personal committed HEAD | Implemented via DVMDB Local Commit API; still requires valid saved draft/lease |
-| Publish | Conditionally advance shared history, separately from personal Commit | **Not implemented as complete GUI workflow** |
+| Publish / Push | Conditionally advance shared history, separately from personal Commit | **Push** of a HEAD or of a revision (up to and including it) to a database with the same project, fast-forward only |
 | Fetch/Clone | Transfer a specific remote branch into personal working repository | Branch-level checkout exists; whole-project **Clone project / Paste clone** between any two databases is implemented (fast-forward only); Fetch tracking workflow incomplete |
 | Merge/reconcile | Resolve divergent committed histories without losing drafts | Complete end-to-end UI not available |
 

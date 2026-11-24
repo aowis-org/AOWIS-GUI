@@ -63,6 +63,14 @@ qint64 chunkLimit(const QJsonObject &source_repository, const QJsonObject &targe
 // branches up to date. Import only fast-forwards: a branch that changed on
 // both databases is reported as a warning and left alone. Drafts are never
 // copied.
+//
+// Push (startPush) is the same transfer for one branch, from the personal
+// database to a database that already has the project: everything up to and
+// including one revision of the branch that the target does not have yet is
+// sent (GET .../bundle?maxBytes=&upTo=), and the target branch ends exactly
+// there; later revisions stay where they are. A target branch that is further
+// or changed on its own is refused, never overwritten. A branch the target
+// does not have is created there with its identity (and metadata).
 class ProjectCloneTransfer final : public QObject
 {
     Q_DECLARE_TR_FUNCTIONS(ProjectCloneTransfer)
@@ -87,6 +95,12 @@ public:
     bool isBusy() const;
     void start(const ProjectServerProfile &source, const QString &project_id,
                const ProjectServerProfile &target, ProgressCallback progress, Completion completion);
+    // DVMDB project, branch and revision UUIDv7s; an empty up_to pushes the
+    // branch HEAD. A push that cannot fast-forward the target is an error;
+    // only branch metadata of a newly created branch can end as a warning.
+    void startPush(const ProjectServerProfile &source, const QString &project_id,
+                   const QString &branch_id, const QString &up_to,
+                   const ProjectServerProfile &target, ProgressCallback progress, Completion completion);
     // Aborts the request in flight; the completion reports the cancel.
     void cancel();
     // Whether the last clone changed the target at all, so a failure can say
@@ -112,12 +126,18 @@ private:
     };
     using Handler = std::function<void(const Response &)>;
 
+    void begin(const ProjectServerProfile &source, const QString &project_id,
+               const ProjectServerProfile &target, ProgressCallback progress, Completion completion);
     bool resolve(const ProjectServerProfile &profile, Endpoint *endpoint, QString *error) const;
+
     void send(const Endpoint &endpoint, const QByteArray &method, const QString &path,
               const QByteArray &body, const QByteArray &content_type, bool pinned,
               int timeout_ms, qint64 max_bytes, Handler handler);
     QString failure(const QString &what, const Response &response) const;
     QString projectPath() const;
+    // The revision the branch's transfer ends at: HEAD, or the pushed revision.
+    QString tipOf(const ProjectCloneBranch &branch) const;
+    QString cancelledMessage() const;
     QString branchPath(const ProjectCloneBranch &branch) const;
 
     void readSourceRepository();
@@ -155,6 +175,10 @@ private:
     QSet<QString> copied_branches; // branch UUIDv7s whose history the target has
     QStringList warnings;
     Progress state;
+    bool pushing = false;
+    QString push_branch_id;
+    QString push_up_to;
+    bool push_created = false; // the push created the branch on the target
     bool busy = false;
     bool cancelled = false;
     bool wrote = false;

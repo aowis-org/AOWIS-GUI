@@ -274,7 +274,7 @@ void ProjectCloneTransfer::send(const Endpoint &endpoint, const QByteArray &meth
         response.bundle_complete = pending->rawHeader("X-AOWIS-Bundle-Complete");
         if (this->cancelled)
         {
-            finish(tr("The clone was cancelled."));
+            finish(cancelledMessage());
             return;
         }
         if (*too_large || response.body.size() > max_bytes)
@@ -314,6 +314,16 @@ QString ProjectCloneTransfer::branchPath(const ProjectCloneBranch &branch) const
     return projectPath() + QStringLiteral("/branches/") + segment(branch.name);
 }
 
+QString ProjectCloneTransfer::tipOf(const ProjectCloneBranch &branch) const
+{
+    return this->pushing && !this->push_up_to.isEmpty() ? this->push_up_to : branch.head;
+}
+
+QString ProjectCloneTransfer::cancelledMessage() const
+{
+    return this->pushing ? tr("The push was cancelled.") : tr("The clone was cancelled.");
+}
+
 void ProjectCloneTransfer::start(const ProjectServerProfile &source, const QString &project_id,
                                  const ProjectServerProfile &target, ProgressCallback progress,
                                  Completion completion)
@@ -323,6 +333,17 @@ void ProjectCloneTransfer::start(const ProjectServerProfile &source, const QStri
         if (completion) completion(tr("Another clone is in progress."), {});
         return;
     }
+    this->pushing = false;
+    this->push_branch_id.clear();
+    this->push_up_to.clear();
+    begin(source, project_id, target, std::move(progress), std::move(completion));
+}
+
+void ProjectCloneTransfer::begin(const ProjectServerProfile &source, const QString &project_id,
+                                 const ProjectServerProfile &target, ProgressCallback progress,
+                                 Completion completion)
+{
+    this->push_created = false;
     this->progress = std::move(progress);
     this->completion = std::move(completion);
     this->busy = true;
@@ -344,7 +365,8 @@ void ProjectCloneTransfer::start(const ProjectServerProfile &source, const QStri
     }
     if (source.id == target.id)
     {
-        finish(tr("A project cannot be cloned into the database it comes from."));
+        finish(this->pushing ? tr("A branch cannot be pushed to the database it is in.")
+                             : tr("A project cannot be cloned into the database it comes from."));
         return;
     }
     QString error;
@@ -354,6 +376,27 @@ void ProjectCloneTransfer::start(const ProjectServerProfile &source, const QStri
         return;
     }
     readSourceRepository();
+}
+
+void ProjectCloneTransfer::startPush(const ProjectServerProfile &source, const QString &project_id,
+                                     const QString &branch_id, const QString &up_to,
+                                     const ProjectServerProfile &target, ProgressCallback progress,
+                                     Completion completion)
+{
+    if (this->busy)
+    {
+        if (completion) completion(tr("Another clone or push is in progress."), {});
+        return;
+    }
+    if (!DvmdbIdentity::isUuidV7(branch_id) || (!up_to.isEmpty() && !DvmdbIdentity::isUuidV7(up_to)))
+    {
+        if (completion) completion(tr("The branch or revision to push has no DVMDB identity."), {});
+        return;
+    }
+    this->pushing = true;
+    this->push_branch_id = branch_id;
+    this->push_up_to = up_to;
+    begin(source, project_id, target, std::move(progress), std::move(completion));
 }
 
 void ProjectCloneTransfer::cancel()
@@ -488,6 +531,25 @@ void ProjectCloneTransfer::readSourceBranches()
             finish(error);
             return;
         }
+        if (this->pushing)
+        {
+            // A push carries one branch, as it is now in the source.
+            QVector<ProjectCloneBranch> pushed;
+            for (const ProjectCloneBranch &branch : std::as_const(this->branches))
+                if (branch.id == this->push_branch_id) pushed.append(branch);
+            this->branches = pushed;
+            if (this->branches.isEmpty())
+            {
+                finish(tr("The branch to push no longer exists in '%1'.").arg(this->source.profile.name));
+                return;
+            }
+            if (this->branches.first().head.isEmpty())
+            {
+                finish(tr("Branch '%1' has no commits yet. Commit first, then push.")
+                    .arg(this->branches.first().name));
+                return;
+            }
+        }
         this->state.branch_count = this->branches.size();
         readTargetProject();
     });
@@ -512,6 +574,12 @@ void ProjectCloneTransfer::readTargetProject()
         if (response.status != 404)
         {
             finish(failure(tr("Checking the target database for the project failed"), response));
+            return;
+        }
+        if (this->pushing)
+        {
+            finish(tr("'%1' is not in '%2'. Clone the project there first, then push.")
+                .arg(this->project_name, this->target.profile.name));
             return;
         }
         provisionTarget();
@@ -566,10 +634,13 @@ void ProjectCloneTransfer::readTargetBranch()
         const QJsonObject existing = exists ? response.json() : QJsonObject();
         if (exists && existing.value(QStringLiteral("branch")).toString() != branch.name)
         {
-            skipBranch(tr("Branch '%1' is named '%2' on the target database and was not updated.")
-                .arg(branch.name, existing.value(QStringLiteral("branch")).toString()));
+            const QString warning = tr("Branch '%1' is named '%2' on the target database and was not updated.")
+                .arg(branch.name, existing.value(QStringLiteral("branch")).toString());
+            if (this->pushing) finish(warning);
+            else skipBranch(warning);
             return;
         }
+        this->push_created = this->pushing && !exists;
         if (branch.head.isEmpty())
             copyUnbornBranch(existing, exists);
         else
@@ -622,10 +693,12 @@ void ProjectCloneTransfer::startHistory(const QJsonObject &existing, bool exists
     if (exists)
     {
         const QString target_head = nullableId(existing.value(QStringLiteral("revision")));
-        if (target_head == branch.head)
+        if (target_head == tipOf(branch))
         {
             this->copied_branches.insert(branch.id);
-            copyMetadata(existing);
+            // A push moves commits only; the target keeps its own metadata.
+            if (this->pushing) branchDone();
+            else copyMetadata(existing);
             return;
         }
         // Resume: the target already has history up to its HEAD. A target
@@ -634,8 +707,10 @@ void ProjectCloneTransfer::startHistory(const QJsonObject &existing, bool exists
         requestChunk();
         return;
     }
+    // A push does not know whether the target has the origin branch: the
+    // target answers, and without it the full history is sent instead.
     if (!branch.origin_branch_id.isEmpty() && !branch.fork_revision_id.isEmpty()
-        && this->copied_branches.contains(branch.origin_branch_id))
+        && (this->pushing || this->copied_branches.contains(branch.origin_branch_id)))
     {
         createForkedBranch();
         return;
@@ -658,7 +733,7 @@ void ProjectCloneTransfer::createForkedBranch()
         const ProjectCloneBranch &branch = this->branches.at(this->branch_index);
         if (response.status == 201 && response.json().value(QStringLiteral("branchId")).toString() == branch.id)
         {
-            if (branch.head == branch.fork_revision_id)
+            if (tipOf(branch) == branch.fork_revision_id)
             {
                 this->copied_branches.insert(branch.id);
                 copyMetadata({});
@@ -685,6 +760,8 @@ void ProjectCloneTransfer::requestChunk()
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("maxBytes"), QString::number(this->chunk_limit));
     if (!this->base.isEmpty()) query.addQueryItem(QStringLiteral("base"), this->base);
+    if (this->pushing && !this->push_up_to.isEmpty())
+        query.addQueryItem(QStringLiteral("upTo"), this->push_up_to);
     send(this->source, "GET", branchPath(branch) + QStringLiteral("/bundle?") + query.toString(QUrl::FullyEncoded),
          {}, bundle_mime, false, bundle_timeout_ms, this->chunk_limit, [this](const Response &response)
     {
@@ -692,8 +769,19 @@ void ProjectCloneTransfer::requestChunk()
         const QString head = QString::fromLatin1(response.bundle_head);
         if (response.status == 413)
         {
-            skipBranch(tr("Branch '%1' contains a step larger than the transfer limit of %2 MiB and was not copied.")
-                .arg(branch.name).arg(double(this->chunk_limit) / (1024.0 * 1024.0), 0, 'f', 1));
+            const QString warning = tr("Branch '%1' contains a step larger than the transfer limit of %2 MiB and was not copied.")
+                .arg(branch.name).arg(double(this->chunk_limit) / (1024.0 * 1024.0), 0, 'f', 1);
+            if (this->pushing) finish(warning);
+            else skipBranch(warning);
+            return;
+        }
+        // The target's branch is not an ancestor of what is pushed: it is
+        // further already, or has history of its own (unknown here).
+        if (this->pushing && !this->base.isEmpty() && (response.status == 409 || response.status == 404))
+        {
+            finish(tr("Branch '%1' on '%2' already has revisions that are not in this push. "
+                      "Update the clone from '%2' first, then push again. Nothing was overwritten.")
+                .arg(branch.name, this->target.profile.name));
             return;
         }
         if (response.status != 200)
@@ -731,8 +819,12 @@ void ProjectCloneTransfer::importChunk(const QByteArray &bundle, const QString &
         if (response.status == 409)
         {
             // Both databases committed to this branch: fast-forward only.
-            skipBranch(tr("Branch '%1' has changed on both databases and was left as it is on the target.")
-                .arg(branch.name));
+            if (this->pushing)
+                finish(tr("Branch '%1' changed on '%2' during the push. Update the clone from '%2' first, "
+                          "then push again. Nothing was overwritten.").arg(branch.name, this->target.profile.name));
+            else
+                skipBranch(tr("Branch '%1' has changed on both databases and was left as it is on the target.")
+                    .arg(branch.name));
             return;
         }
         if ((response.status != 200 && response.status != 201)
@@ -749,7 +841,8 @@ void ProjectCloneTransfer::importChunk(const QByteArray &bundle, const QString &
             // A commit made on the source during the clone is included: the
             // last chunk ends at the HEAD at the time of that request.
             this->copied_branches.insert(branch.id);
-            copyMetadata({});
+            if (this->pushing && !this->push_created) branchDone();
+            else copyMetadata({});
             return;
         }
         this->base = head;

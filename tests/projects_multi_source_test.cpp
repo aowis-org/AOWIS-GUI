@@ -76,11 +76,13 @@ struct FakeDvmdb
     QJsonObject created_project;
     bool include_unborn_branch = false;
     bool include_second_project = false;
+    bool project_deleted = false;        // POST .../delete was accepted
+    QString deleted_expected_name;
     const QString unborn_branch_id = QStringLiteral("018f84c0-0000-7000-8000-00000000c002");
     const QString second_project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a002");
     const QString second_branch_id = QStringLiteral("018f84c0-0000-7000-8000-00000000c003");
     QString repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d001");
-    const QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
+    QString hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b001");
     const QString project_id = QStringLiteral("018f84c0-0000-7000-8000-00000000a001");
     const QString branch_id = QStringLiteral("018f84c0-0000-7000-8000-00000000c001");
     const QString digest = QString(64, QLatin1Char('a'));
@@ -117,6 +119,22 @@ struct FakeDvmdb
                                 {QStringLiteral("repositoryId"), this->repository_id},
                                 {QStringLiteral("modelCodecFingerprint"), ModelCodecCompatibility::fingerprint()}
                             }).toJson();
+                        }
+                        else if (path == QStringLiteral("/dvmdb/v1/projects/%1/delete").arg(this->project_id).toUtf8()
+                                 && buffer->startsWith("POST "))
+                        {
+                            const qsizetype header_end = buffer->indexOf("\r\n\r\n");
+                            qint64 length = -1;
+                            for (const QByteArray &header : buffer->left(header_end).split('\n'))
+                                if (header.left(header.indexOf(':')).toLower() == "content-length")
+                                    length = header.mid(header.indexOf(':') + 1).trimmed().toLongLong();
+                            const QByteArray body = buffer->mid(header_end + 4);
+                            if (body.size() < length) return;
+                            this->deleted_expected_name = QJsonDocument::fromJson(body).object()
+                                .value(QStringLiteral("expectedName")).toString();
+                            this->project_deleted = true;
+                            data = QJsonDocument(QJsonObject{{QStringLiteral("deleted"), true},
+                                {QStringLiteral("id"), this->project_id}}).toJson();
                         }
                         else if ((path == "/dvmdb/v1/projects" || path == "/dvmdb/v1/repository/role")
                                  && buffer->startsWith("POST "))
@@ -164,9 +182,11 @@ struct FakeDvmdb
                             ++this->catalogue_requests;
                             if (this->catalogue_valid)
                             {
-                                QJsonArray projects{QJsonObject{
-                                    {QStringLiteral("id"), this->project_id},
-                                    {QStringLiteral("name"), QStringLiteral("Shared name")}}};
+                                QJsonArray projects;
+                                if (!this->project_deleted)
+                                    projects.append(QJsonObject{
+                                        {QStringLiteral("id"), this->project_id},
+                                        {QStringLiteral("name"), QStringLiteral("Shared name")}});
                                 if (this->include_second_project)
                                     projects.append(QJsonObject{{QStringLiteral("id"), this->second_project_id},
                                         {QStringLiteral("name"), QStringLiteral("Other personal project")}});
@@ -822,7 +842,16 @@ int main(int argc, char **argv)
         shared.repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d0a2");
         shared.role = QStringLiteral("shared");
         shared.include_unborn_branch = true;
-        if (!require(own.start() && shared.start(), "HEAD visibility fixtures failed")) return 1;
+        // The shared clone's main is at another revision than the personal
+        // one, so the personal revision is not there yet.
+        shared.hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b0a2");
+        own.include_second_project = true;
+        // A second upstream of the same project, also behind the personal one.
+        FakeDvmdb shared_two;
+        shared_two.repository_id = QStringLiteral("018f84c0-0000-7000-8000-00000000d0a3");
+        shared_two.role = QStringLiteral("shared");
+        shared_two.hash = QStringLiteral("018f84c0-0000-7000-8000-00000000b0a3");
+        if (!require(own.start() && shared.start() && shared_two.start(), "HEAD visibility fixtures failed")) return 1;
         ProjectServerProfile own_profile = a;
         own_profile.id = own.repository_id;
         own_profile.name = QStringLiteral("Own");
@@ -835,7 +864,11 @@ int main(int argc, char **argv)
         shared_profile.endpoint = shared.endpoint();
         shared_profile.wireguard_profile_id.clear();
         shared_profile.personal = false;
-        if (!require(saveProjectServerProfiles({own_profile, shared_profile}),
+        ProjectServerProfile shared_two_profile = shared_profile;
+        shared_two_profile.id = shared_two.repository_id;
+        shared_two_profile.name = QStringLiteral("Team 2");
+        shared_two_profile.endpoint = shared_two.endpoint();
+        if (!require(saveProjectServerProfiles({own_profile, shared_profile, shared_two_profile}),
                      "HEAD visibility profile setup failed")) return 1;
         ProjectsWidget heads_widget;
         heads_widget.resize(1200, 740);
@@ -852,7 +885,9 @@ int main(int argc, char **argv)
         if (!require(waitUntil(app, [&] {
                 return heads_graph != nullptr
                     && !heads_graph->nodeTitle(own_tip).isEmpty()
-                    && !heads_graph->nodeTitle(shared_tip).isEmpty();
+                    && !heads_graph->nodeTitle(shared_tip).isEmpty()
+                    && !heads_graph->nodeTitle(shared_two.repository_id + QStringLiteral("|") + shared_two.project_id
+                        + QStringLiteral("|") + shared_two.hash).isEmpty();
             }), "HEAD visibility graph did not load both databases")) return 1;
         if (!require(heads_graph->nodeTitle(QStringLiteral("group:branch:") + own_main) == QStringLiteral("HEAD"),
                      "the personal database lost its HEAD card")) return 1;
@@ -882,6 +917,62 @@ int main(int argc, char **argv)
         app.processEvents();
         if (!require(heads_graph->selectionId() == QStringLiteral("group:branch:") + own_main,
                      "the personal HEAD is no longer selectable")) return 1;
+
+        // Push lives in the personal database: HEAD pushes its branch to the
+        // database with the same project, and says so before sending.
+        QPushButton *push = heads_widget.findChild<QPushButton *>(QStringLiteral("projectsRevisionInspectorPush"));
+        if (!require(push != nullptr && !push->isHidden() && push->isEnabled()
+                         && push->toolTip().contains(QStringLiteral("every commit")),
+                     "a personal HEAD with a shared clone cannot be pushed")) return 1;
+        push->click();
+        app.processEvents();
+        QDialog *push_dialog = heads_widget.findChild<QDialog *>(QStringLiteral("projectsPushDialog"));
+        QLabel *push_text = push_dialog == nullptr ? nullptr
+            : push_dialog->findChild<QLabel *>(QStringLiteral("projectsPushExplanation"));
+        QComboBox *push_branch = push_dialog == nullptr ? nullptr
+            : push_dialog->findChild<QComboBox *>(QStringLiteral("projectsPushBranch"));
+        QList<QCheckBox *> push_targets = push_dialog == nullptr ? QList<QCheckBox *>()
+            : push_dialog->findChildren<QCheckBox *>(QStringLiteral("projectsPushTarget"));
+        QDialogButtonBox *push_buttons = push_dialog == nullptr ? nullptr
+            : push_dialog->findChild<QDialogButtonBox *>(QStringLiteral("projectsPushButtons"));
+        // Every upstream of the project is offered and ticked: push to all.
+        if (!require(push_dialog != nullptr && push_dialog->isVisible() && push_text != nullptr
+                         && push_text->text().contains(QStringLiteral("'main' to 'Team', 'Team 2'"))
+                         && push_text->text().contains(QStringLiteral("Uncommitted working changes"))
+                         && push_branch != nullptr && push_branch->count() == 1 && !push_branch->isVisibleTo(push_dialog)
+                         && push_targets.size() == 2 && push_targets.at(0)->isChecked()
+                         && push_targets.at(1)->isChecked() && push_targets.at(0)->isVisibleTo(push_dialog)
+                         && push_buttons != nullptr && push_buttons->button(QDialogButtonBox::Ok)->isEnabled(),
+                     "the HEAD push dialog does not offer all upstreams of the project")) return 1;
+        // Or only to the ticked ones; none ticked cannot be pushed.
+        push_targets.at(0)->setChecked(false);
+        if (!require(push_text->text().contains(QStringLiteral("'main' to 'Team 2'?"))
+                         && push_buttons->button(QDialogButtonBox::Ok)->isEnabled(),
+                     "unticking an upstream did not leave only the other")) return 1;
+        push_targets.at(1)->setChecked(false);
+        if (!require(!push_buttons->button(QDialogButtonBox::Ok)->isEnabled()
+                         && push_text->text().contains(QStringLiteral("Tick at least one")),
+                     "a push without any upstream could be confirmed")) return 1;
+        push_dialog->reject();
+        app.processEvents();
+        // A committed HEAD without uncommitted changes has nothing to discard.
+        QPushButton *discard = heads_widget.findChild<QPushButton *>(QStringLiteral("projectsRevisionOverviewDelete"));
+        if (!require(discard != nullptr && discard->text() == QStringLiteral("Discard uncommitted changes…")
+                         && !discard->isEnabled()
+                         && discard->toolTip().contains(QStringLiteral("Nothing to discard")),
+                     "a clean HEAD offers to discard changes")) return 1;
+        // A shared database has no Push; a personal branch without commits
+        // or a project no other database has cannot be pushed.
+        emit heads_graph->headActivated(shared_unborn);
+        app.processEvents();
+        if (!require(push->isHidden(), "a shared database offers Push")) return 1;
+        const QString own_other = own.repository_id + QStringLiteral("|") + own.second_project_id
+            + QStringLiteral(":") + own.second_branch_id;
+        emit heads_graph->headActivated(own_other);
+        app.processEvents();
+        if (!require(!push->isHidden() && !push->isEnabled()
+                         && push->toolTip().contains(QStringLiteral("no commits")),
+                     "an unborn personal HEAD did not explain why it cannot be pushed")) return 1;
 
         // Opening the shared tip offers editing the branch itself.
         heads_graph->revisionActivated(shared_tip);
@@ -917,6 +1008,21 @@ int main(int argc, char **argv)
         heads_graph->revisionActivated(own_tip);
         app.processEvents();
         if (!require(heads_graph->selectionId() == own_tip, "personal tip revision was not selectable")) return 1;
+        if (!require(!push->isHidden() && push->isEnabled()
+                         && push->toolTip().contains(QStringLiteral("every earlier one")),
+                     "a personal revision cannot be pushed")) return 1;
+        push->click();
+        app.processEvents();
+        push_dialog = nullptr;
+        for (QDialog *dialog : heads_widget.findChildren<QDialog *>(QStringLiteral("projectsPushDialog")))
+            if (dialog->isVisible()) push_dialog = dialog;
+        push_text = push_dialog == nullptr ? nullptr
+            : push_dialog->findChild<QLabel *>(QStringLiteral("projectsPushExplanation"));
+        if (!require(push_text != nullptr && push_text->text().contains(own.hash)
+                         && push_text->text().contains(QStringLiteral("Later revisions stay only here")),
+                     "the revision push dialog does not name the revision and what stays")) return 1;
+        push_dialog->reject();
+        app.processEvents();
         open_network->setEnabled(true);
         open_network->click();
         app.processEvents();
@@ -929,6 +1035,39 @@ int main(int argc, char **argv)
                      "a personal revision offers a checkout edit instead of its HEAD")) return 1;
         own_dialog->reject();
         app.processEvents();
+
+        // A database project can be deleted, after a confirmation that names
+        // what goes and that its clones elsewhere stay.
+        emit heads_graph->projectActivated(own_project);
+        app.processEvents();
+        QPushButton *delete_project = nullptr;
+        for (QPushButton *button : heads_widget.findChildren<QPushButton *>(QStringLiteral("projectInspectorDeleteButton")))
+            if (button->text() == QStringLiteral("Delete project…")) delete_project = button;
+        if (!require(delete_project != nullptr && !delete_project->isHidden() && delete_project->isEnabled()
+                         && delete_project->toolTip().contains(QStringLiteral("Permanently delete")),
+                     "a database project cannot be deleted")) return 1;
+        delete_project->click();
+        app.processEvents();
+        QMessageBox *confirm_delete = visibleMessage(heads_widget);
+        if (!require(confirm_delete != nullptr
+                         && confirm_delete->text().contains(QStringLiteral("'Shared name' from 'Own'"))
+                         && confirm_delete->text().contains(QStringLiteral("cannot be undone"))
+                         && confirm_delete->text().contains(QStringLiteral("'Team', 'Team 2' are not touched")),
+                     "the project deletion confirmation does not say what goes and what stays")) return 1;
+        confirm_delete->button(QMessageBox::Cancel)->click();
+        app.processEvents();
+        if (!require(!own.project_deleted, "a cancelled project deletion deleted the project")) return 1;
+        delete_project->click();
+        app.processEvents();
+        confirm_delete = visibleMessage(heads_widget);
+        if (!require(confirm_delete != nullptr, "the project deletion confirmation did not reopen")) return 1;
+        confirm_delete->button(QMessageBox::Yes)->click();
+        if (!require(waitUntil(app, [&] {
+                return own.project_deleted && heads_graph->nodeTitle(own_tip).isEmpty()
+                    && !heads_graph->nodeTitle(shared_tip).isEmpty();
+            }), "a confirmed project deletion did not remove only that project")) return 1;
+        if (!require(own.deleted_expected_name == QStringLiteral("Shared name"),
+                     "the project deletion did not send the confirmed name")) return 1;
     }
 
     // Adding a connection that is already configured must explain why in a

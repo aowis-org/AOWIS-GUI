@@ -2459,6 +2459,209 @@ Der Klon behält die Identität des Projekts: Beide Datenbanken enthalten dann d
       <source>The branch moved since this dialog was opened. Select its new tip.</source>
       <translation>Der Zweig wurde seit dem Öffnen dieses Dialogs verschoben. Wählen Sie seine neue Spitze.</translation>
     </message>
+    <message numerus="yes">
+      <source>%n part(s) sent, %1 MiB</source>
+      <translation>
+        <numerusform>%n Teil gesendet, %1 MiB</numerusform>
+        <numerusform>%n Teile gesendet, %1 MiB</numerusform>
+      </translation>
+    </message>
+    <message>
+      <source>'%1' (%2)</source>
+      <translation>'%1' (%2)</translation>
+    </message>
+    <message>
+      <source>A clone or push is in progress.</source>
+      <translation>Ein Klonen oder Übertragen läuft.</translation>
+    </message>
+    <message>
+      <source>Already in %1.</source>
+      <translation>Bereits in %1.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' to '%2'</source>
+      <translation>Zweig '%1' nach '%2'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2', except:</source>
+      <translation>Zweig '%1' wurde nach '%2' übertragen, außer:</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to '%2'.</source>
+      <translation>Zweig '%1' wurde nach '%2' übertragen.</translation>
+    </message>
+    <message>
+      <source>No other database has '%1'. Clone the project there first, then push.</source>
+      <translation>Keine andere Datenbank enthält '%1'. Klonen Sie das Projekt zuerst dorthin und übertragen Sie dann.</translation>
+    </message>
+    <message>
+      <source>Not connected: %1.</source>
+      <translation>Nicht verbunden: %1.</translation>
+    </message>
+    <message>
+      <source>Nothing on '%1' is overwritten: if its branch changed there, the push stops.</source>
+      <translation>Auf '%1' wird nichts überschrieben: Hat sich der Zweig dort geändert, stoppt die Übertragung.</translation>
+    </message>
+    <message>
+      <source>Push</source>
+      <translation>Übertragen</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to '%2'?
+
+Every commit of '%1' that '%2' does not have yet is sent. Uncommitted working changes stay in your personal database.</source>
+      <translation>Zweig '%1' nach '%2' übertragen?
+
+Jeder Commit von '%1', den '%2' noch nicht hat, wird gesendet. Nicht committete Arbeitsänderungen bleiben in Ihrer persönlichen Datenbank.</translation>
+    </message>
+    <message>
+      <source>Push finished</source>
+      <translation>Übertragung abgeschlossen</translation>
+    </message>
+    <message>
+      <source>Push finished with warnings</source>
+      <translation>Übertragung mit Warnungen abgeschlossen</translation>
+    </message>
+    <message>
+      <source>Push not finished</source>
+      <translation>Übertragung nicht abgeschlossen</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to '%3'?
+
+This revision and every earlier one that '%3' does not have yet are sent, and '%2' on '%3' then ends at this revision. Later revisions stay only here.</source>
+      <translation>Revision %1 des Zweigs '%2' nach '%3' übertragen?
+
+Diese Revision und jede frühere, die '%3' noch nicht hat, werden gesendet; '%2' endet auf '%3' dann bei dieser Revision. Spätere Revisionen bleiben nur hier.</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'</source>
+      <translation>Zweig '%1' wird übertragen</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2'…</source>
+      <translation>Zweig '%1' wird nach '%2' übertragen…</translation>
+    </message>
+    <message>
+      <source>Push…</source>
+      <translation>Übertragen…</translation>
+    </message>
+    <message>
+      <source>Select a HEAD or revision in your personal database to push.</source>
+      <translation>Wählen Sie einen HEAD oder eine Revision in Ihrer persönlichen Datenbank zum Übertragen.</translation>
+    </message>
+    <message>
+      <source>Send every commit of this branch that the other database does not have yet</source>
+      <translation>Jeden Commit dieses Zweigs senden, den die andere Datenbank noch nicht hat</translation>
+    </message>
+    <message>
+      <source>Send this revision and every earlier one that the other database does not have yet</source>
+      <translation>Diese Revision und jede frühere senden, die die andere Datenbank noch nicht hat</translation>
+    </message>
+    <message>
+      <source>This branch has no commits yet. Commit first, then push.</source>
+      <translation>Dieser Zweig hat noch keine Commits. Erstellen Sie zuerst einen Commit und übertragen Sie dann.</translation>
+    </message>
+    <message>
+      <source>This revision is not on a branch's own history (it came in by a merge). Select a revision of the branch to push.</source>
+      <translation>Diese Revision liegt nicht in der eigenen Historie eines Zweigs (sie kam durch einen Merge hinzu). Wählen Sie eine Revision des Zweigs zum Übertragen.</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes…</source>
+      <translation>Nicht committete Änderungen verwerfen…</translation>
+    </message>
+    <message>
+      <source>Discard uncommitted changes</source>
+      <translation>Nicht committete Änderungen verwerfen</translation>
+    </message>
+    <message>
+      <source>Throw away the changes made since the last commit; HEAD returns to its last commit. Committed revisions remain unchanged.</source>
+      <translation>Die seit dem letzten Commit gemachten Änderungen verwerfen; HEAD kehrt zu seinem letzten Commit zurück. Committete Revisionen bleiben unverändert.</translation>
+    </message>
+    <message>
+      <source>Nothing to discard: this HEAD has no uncommitted changes.</source>
+      <translation>Nichts zu verwerfen: Dieser HEAD hat keine nicht committeten Änderungen.</translation>
+    </message>
+    <message>
+      <source>Throw away the uncommitted changes of branch '%1', including their Undo/Redo history? HEAD returns to its last commit; committed revisions and other branches remain unchanged. This cannot be undone.</source>
+      <translation>Die nicht committeten Änderungen des Zweigs '%1' einschließlich ihres Rückgängig/Wiederholen-Verlaufs verwerfen? HEAD kehrt zu seinem letzten Commit zurück; committete Revisionen und andere Zweige bleiben unverändert. Dies kann nicht rückgängig gemacht werden.</translation>
+    </message>
+    <message>
+      <source>'%1': %2</source>
+      <translation>'%1': %2</translation>
+    </message>
+    <message>
+      <source>Branch '%1'</source>
+      <translation>Zweig '%1'</translation>
+    </message>
+    <message>
+      <source>Branch '%1' was pushed to %2.</source>
+      <translation>Zweig '%1' wurde nach %2 übertragen.</translation>
+    </message>
+    <message>
+      <source>Not pushed (cancelled): %1</source>
+      <translation>Nicht übertragen (abgebrochen): %1</translation>
+    </message>
+    <message>
+      <source>Nothing is overwritten: where the branch changed on its own, the push to that database stops.</source>
+      <translation>Nichts wird überschrieben: Wo sich der Zweig eigenständig geändert hat, stoppt die Übertragung in diese Datenbank.</translation>
+    </message>
+    <message>
+      <source>Push branch '%1' to %2?
+
+Every commit of '%1' that a database does not have yet is sent to it. Uncommitted working changes stay in your personal database.</source>
+      <translation>Zweig '%1' nach %2 übertragen?
+
+Jeder Commit von '%1', den eine Datenbank noch nicht hat, wird an sie gesendet. Nicht committete Arbeitsänderungen bleiben in Ihrer persönlichen Datenbank.</translation>
+    </message>
+    <message>
+      <source>Push revision %1 of branch '%2' to %3?
+
+This revision and every earlier one that a database does not have yet are sent to it, and '%2' there then ends at this revision. Later revisions stay only here.</source>
+      <translation>Revision %1 des Zweigs '%2' nach %3 übertragen?
+
+Diese Revision und jede frühere, die eine Datenbank noch nicht hat, werden an sie gesendet; '%2' endet dort dann bei dieser Revision. Spätere Revisionen bleiben nur hier.</translation>
+    </message>
+    <message>
+      <source>Pushed to: %1</source>
+      <translation>Übertragen nach: %1</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1' to '%2' (%3 of %4)…</source>
+      <translation>Zweig '%1' wird nach '%2' übertragen (%3 von %4)…</translation>
+    </message>
+    <message>
+      <source>Pushing branch '%1'…</source>
+      <translation>Zweig '%1' wird übertragen…</translation>
+    </message>
+    <message>
+      <source>Tick at least one database to push to.</source>
+      <translation>Wählen Sie mindestens eine Datenbank für die Übertragung.</translation>
+    </message>
+    <message>
+      <source>Delete project</source>
+      <translation>Projekt löschen</translation>
+    </message>
+    <message>
+      <source>Its clones in %1 are not touched.</source>
+      <translation>Seine Klone in %1 bleiben unverändert.</translation>
+    </message>
+    <message>
+      <source>Permanently delete project '%1' from '%2'?
+
+All its branches (%3), revisions and networks, and its saved working copies with uncommitted changes, are removed from this database. This cannot be undone.</source>
+      <translation>Projekt '%1' endgültig aus '%2' löschen?
+
+Alle seine Zweige (%3), Revisionen und Netze sowie seine gespeicherten Arbeitskopien mit nicht committeten Änderungen werden aus dieser Datenbank entfernt. Dies kann nicht rückgängig gemacht werden.</translation>
+    </message>
+    <message>
+      <source>Permanently delete this project from its database: all branches, revisions and saved working copies</source>
+      <translation>Dieses Projekt endgültig aus seiner Datenbank löschen: alle Zweige, Revisionen und gespeicherten Arbeitskopien</translation>
+    </message>
+    <message>
+      <source>Project deletion failed</source>
+      <translation>Projektlöschung fehlgeschlagen</translation>
+    </message>
   </context>
   <context>
     <name>MapBgfxLegendContent</name>
@@ -8272,6 +8475,10 @@ Zum Aufklappen klicken</numerusform>
       <source>Unsupported database connection type.</source>
       <translation>Nicht unterstützter Datenbankverbindungstyp.</translation>
     </message>
+    <message>
+      <source>Invalid project deletion identity.</source>
+      <translation>Ungültige Identität für die Projektlöschung.</translation>
+    </message>
   </context>
   <context>
     <name>SimulationManager</name>
@@ -9895,6 +10102,42 @@ Ventileinstellungen haben unterschiedliche physikalische Einheiten. Beim Sortier
     <message>
       <source>the reply is larger than expected</source>
       <translation>die Antwort ist größer als erwartet</translation>
+    </message>
+    <message>
+      <source>'%1' is not in '%2'. Clone the project there first, then push.</source>
+      <translation>'%1' ist nicht in '%2'. Klonen Sie das Projekt zuerst dorthin und übertragen Sie dann.</translation>
+    </message>
+    <message>
+      <source>A branch cannot be pushed to the database it is in.</source>
+      <translation>Ein Zweig kann nicht in die Datenbank übertragen werden, in der er liegt.</translation>
+    </message>
+    <message>
+      <source>Another clone or push is in progress.</source>
+      <translation>Ein anderes Klonen oder Übertragen läuft bereits.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' changed on '%2' during the push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>Zweig '%1' hat sich während der Übertragung auf '%2' geändert. Aktualisieren Sie zuerst den Klon aus '%2' und übertragen Sie dann erneut. Nichts wurde überschrieben.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' has no commits yet. Commit first, then push.</source>
+      <translation>Zweig '%1' hat noch keine Commits. Erstellen Sie zuerst einen Commit und übertragen Sie dann.</translation>
+    </message>
+    <message>
+      <source>Branch '%1' on '%2' already has revisions that are not in this push. Update the clone from '%2' first, then push again. Nothing was overwritten.</source>
+      <translation>Zweig '%1' auf '%2' hat bereits Revisionen, die nicht in dieser Übertragung sind. Aktualisieren Sie zuerst den Klon aus '%2' und übertragen Sie dann erneut. Nichts wurde überschrieben.</translation>
+    </message>
+    <message>
+      <source>The branch or revision to push has no DVMDB identity.</source>
+      <translation>Der zu übertragende Zweig oder die Revision hat keine DVMDB-Identität.</translation>
+    </message>
+    <message>
+      <source>The branch to push no longer exists in '%1'.</source>
+      <translation>Der zu übertragende Zweig existiert in '%1' nicht mehr.</translation>
+    </message>
+    <message>
+      <source>The push was cancelled.</source>
+      <translation>Die Übertragung wurde abgebrochen.</translation>
     </message>
   </context>
   <context>
