@@ -1338,7 +1338,7 @@ void MapMonitorContainer::handleBgfxHudAction(int action, int group, int value, 
             break;
         case MapBgfxHud::Action::ViewMode2d:
             if (this->map_model->viewMode() != MapViewMode::TwoD)
-                this->map_model->setViewMode(MapViewMode::TwoD);
+                this->map_model->setViewMode(MapViewMode::TwoD, this->map->size());
             break;
         case MapBgfxHud::Action::ViewMode3d:
             // Offered (enabled) only when the globe surface initialized

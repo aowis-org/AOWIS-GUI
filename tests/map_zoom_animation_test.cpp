@@ -31,7 +31,7 @@ std::vector<Sample> simulateHold(double press_time, double release_time,
                                  const std::function<double(int)> &frame_seconds)
 {
     MapZoomMotion motion;
-    motion.setLimits(1.0, 19.0);
+    motion.setLimits(1.0, 21.0);
     double zoom = 12.0;
     double time = 0.0;
     bool pressed = false;
@@ -163,7 +163,7 @@ int main()
     //    the visible camera, not from the stale target.
     {
         MapZoomMotion motion;
-        motion.setLimits(1.0, 19.0);
+        motion.setLimits(1.0, 21.0);
         motion.addImpulse(12.0, 1.0);
         motion.addImpulse(12.0, 1.0);
         if (!require(std::abs(motion.target() - 14.0) < 1e-12, "wheel impulses did not accumulate"))
@@ -180,26 +180,26 @@ int main()
     // 5. Limits: never exceeds, settles exactly at the bound and stops.
     {
         MapZoomMotion motion;
-        motion.setLimits(1.0, 19.0);
-        double zoom = 18.8;
+        motion.setLimits(1.0, 21.0);
+        double zoom = 20.8;
         motion.setHold(zoom, 1, 1.5, MapZoomAnimation::KeyboardTapOctaves);
         for (int frame = 0; frame < 120; ++frame)
         {
             zoom = motion.advance(zoom, 1.0 / 60.0);
-            if (!require(zoom <= 19.0, "zoom exceeded the maximum"))
+            if (!require(zoom <= 21.0, "zoom exceeded the maximum"))
                 return 1;
         }
         motion.setHold(zoom, 0, 1.5, MapZoomAnimation::KeyboardTapOctaves);
         for (int frame = 0; frame < 120; ++frame)
             zoom = motion.advance(zoom, 1.0 / 60.0);
-        if (!require(zoom == 19.0 && !motion.active(), "zoom did not settle at the maximum"))
+        if (!require(zoom == 21.0 && !motion.active(), "zoom did not settle at the maximum"))
             return 1;
     }
 
     // 6. Settling: an impulse ends with exact target and an inactive motion.
     {
         MapZoomMotion motion;
-        motion.setLimits(1.0, 19.0);
+        motion.setLimits(1.0, 21.0);
         double zoom = 15.49;
         motion.addImpulse(zoom, 0.02);
         bool crossed_tile_boundary = false;
@@ -221,7 +221,7 @@ int main()
     // 7. External camera changes cancel the motion instead of fighting them.
     {
         MapZoomMotion motion;
-        motion.setLimits(1.0, 19.0);
+        motion.setLimits(1.0, 21.0);
         double zoom = 10.0;
         motion.addImpulse(zoom, 2.0);
         zoom = motion.advance(zoom, 1.0 / 60.0);
@@ -234,7 +234,7 @@ int main()
     // 8. Invalid time steps never move the camera.
     {
         MapZoomMotion motion;
-        motion.setLimits(1.0, 19.0);
+        motion.setLimits(1.0, 21.0);
         motion.addImpulse(12.0, 1.0);
         if (!require(motion.advance(12.0, 0.0) == 12.0 && motion.advance(12.0, -1.0) == 12.0
                      && motion.advance(12.0, NAN) == 12.0,

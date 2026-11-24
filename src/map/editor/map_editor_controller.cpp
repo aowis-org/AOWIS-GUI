@@ -96,9 +96,9 @@ int MapEditorController::imageryZoom(const QSize &viewport_size) const
     if (!this->map_model)
         return MapModel::MinZoom;
     const double zoom = globeMode()
-        ? this->map_model->viewGlobeZoomLevel(viewport_size)
+        ? this->map_model->viewGlobeImageryZoomLevel(viewport_size)
         : this->map_model->view2dContinuousZoom();
-    return MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxZoom);
+    return MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxTileZoom);
 }
 
 int MapEditorController::tileSelectionDisplayZoom(const QSize &viewport_size) const
@@ -251,7 +251,7 @@ MapEditorController::TileSelectionRange MapEditorController::tileSelectionRange(
     TileSelectionRange range;
     range.zoom = zoom;
 
-    if (!this->tile_selection_overlay.visible || zoom < MapModel::MinZoom || zoom > MapModel::MaxZoom)
+    if (!this->tile_selection_overlay.visible || zoom < MapModel::MinZoom || zoom > MapModel::MaxTileZoom)
         return range;
 
     const double zoom_scale = GeoWebMercator::zoomScale(
@@ -802,7 +802,7 @@ void MapEditorController::updateTileSelectionOverlay(const QRect &selected_rect,
     // The tiles of the imagery level the map draws now (the cache holds
     // tiles, the camera zoom is continuous).
     const double camera_zoom = this->map_model->view2dContinuousZoom();
-    const int zoom = MapBgfx2dImagery::imageryZoomFor(camera_zoom, MapModel::MinZoom, MapModel::MaxZoom);
+    const int zoom = MapBgfx2dImagery::imageryZoomFor(camera_zoom, MapModel::MinZoom, MapModel::MaxTileZoom);
     const int tile_count = 1 << zoom;
     const QPointF center_tile(GeoWebMercator::lonToTileX(this->map_model->centerLon(), zoom),
                               GeoWebMercator::latToTileY(this->map_model->centerLat(), zoom));

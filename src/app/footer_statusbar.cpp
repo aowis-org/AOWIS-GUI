@@ -4,6 +4,7 @@
 #include <QSignalBlocker>
 #include "config/geographic_altitude_presentation.h"
 #include "config/unit_profile_manager.h"
+#include "map/core/map_model.h"
 
 FooterStatusBar::FooterStatusBar(QWidget *parent)
     : QWidget(parent),
@@ -22,9 +23,7 @@ FooterStatusBar::FooterStatusBar(QWidget *parent)
     this->layout = new QHBoxLayout(this);
     this->layout->addWidget(this->bar);
     
-    // Matches MapModel::MinZoom/MaxZoom (1-19); kept as a literal here
-    // rather than depending on map/core/ from app/.
-    this->spin_map_zoom->setRange(1.0, 19.0);
+    this->spin_map_zoom->setRange(MapModel::MinZoom, MapModel::MaxZoom);
     this->spin_map_zoom->setDecimals(2);
     this->spin_map_zoom->setSingleStep(0.1);
     this->spin_map_zoom->setPrefix(tr("Zoom: "));

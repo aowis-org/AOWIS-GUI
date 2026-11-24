@@ -126,6 +126,7 @@ protected:
     void focusOutEvent(QFocusEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void init();

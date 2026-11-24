@@ -5,6 +5,7 @@
 #include "config/shortcut_registry.h"
 
 #include <QApplication>
+#include <QResizeEvent>
 
 #ifndef Q_OS_WASM
 #include <QCursor>
@@ -140,7 +141,7 @@ void MapWidget::fitViewToBounds(
 
 void MapWidget::deleteCachedTiles(int zoom, int tile_x_min, int tile_x_max, int tile_y_min, int tile_y_max)
 {
-    const int bounded_zoom = qBound(MapModel::MinZoom, zoom, MapModel::MaxZoom);
+    const int bounded_zoom = qBound(MapModel::MinZoom, zoom, MapModel::MaxTileZoom);
     const int source_zoom = this->m_model->imageryTileZoom(bounded_zoom);
     if (source_zoom > bounded_zoom)
         return;
@@ -634,11 +635,12 @@ bool MapWidget::prepareZoomMotion()
     if (this->zoom_motion.active() && this->zoom_motion_mode != mode)
         this->zoom_motion.cancel();
     this->zoom_motion_mode = mode;
+    this->m_model->setCameraViewportSize(size());
     if (mode == MapViewMode::Globe)
     {
         this->zoom_motion.setLimits(
             -std::log2(MapModel::MaxViewGlobeDistanceM),
-            -std::log2(MapModel::MinViewGlobeDistanceM));
+            -std::log2(this->m_model->viewGlobeMinimumZoomDistanceM(size())));
     }
     else
     {
@@ -698,6 +700,9 @@ void MapWidget::updateSmoothZoom(qreal elapsed_seconds)
         return;
     }
 
+    if (mode == MapViewMode::Globe)
+        this->zoom_motion.setLimits(-std::log2(MapModel::MaxViewGlobeDistanceM),
+                                    -std::log2(this->m_model->viewGlobeMinimumZoomDistanceM(size())));
     const double current = zoomMotionOctaves();
     const double next = this->zoom_motion.advance(current, double(elapsed_seconds));
     if (next != current)
@@ -1052,6 +1057,16 @@ void MapWidget::hideEvent(QHideEvent *event)
     this->stopAllPanMovement();
     this->edge_pan_poll_timer->stop();
     QWidget::hideEvent(event);
+}
+
+void MapWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    if (this->m_model == nullptr)
+        return;
+    this->m_model->setCameraViewportSize(event->size());
+    if (this->m_model->viewMode() == MapViewMode::Globe)
+        emit signalZoomLevelChanged(this->m_model->viewGlobeZoomLevel(event->size()));
 }
 
 void MapWidget::showEvent(QShowEvent *event)

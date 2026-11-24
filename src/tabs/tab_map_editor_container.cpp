@@ -2128,7 +2128,7 @@ void MapEditorMenuWidget::createToolboxCache(QToolBox *tbx)
     connect(this->map, &MapWidget::signalZoomLevelChanged, this->spin_zoom_from, [this](double zoom)
     {
         this->spin_zoom_from->setValue(
-            MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxZoom));
+            MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxTileZoom));
     });
     
     this->button_tiles_delete = new QToolButton(wgt);
@@ -2253,7 +2253,7 @@ void MapEditorMenuWidget::createToolboxTerrain(QToolBox *tbx)
         if (this->terrain_repository == nullptr || this->terrain_repository->activeDataset() == nullptr)
             return;
         this->spin_terrain_zoom_from->setValue(
-            MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxZoom));
+            MapBgfx2dImagery::imageryZoomFor(zoom, MapModel::MinZoom, MapModel::MaxTileZoom));
     });
 
     this->checkbox_terrain_source = LiveUiText::caption<QCheckBox>(QT_TRANSLATE_NOOP("LiveUiText", "Also delete source elevation data"), wgt);

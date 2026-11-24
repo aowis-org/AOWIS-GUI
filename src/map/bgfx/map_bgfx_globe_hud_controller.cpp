@@ -70,9 +70,8 @@ int exaggerationMaximumStep()
 }
 
 // Logarithmic distance slider (cameraDistanceSliderValue / Meters).
-int distanceSliderValue(double distance_m)
+int distanceSliderValue(double distance_m, double minimum_m)
 {
-    const double minimum_m = MapModel::MinViewGlobeDistanceM;
     const double maximum_m = std::max(minimum_m, MapModel::MaxViewGlobeDistanceM);
     if (maximum_m <= minimum_m)
         return 0;
@@ -81,9 +80,8 @@ int distanceSliderValue(double distance_m)
     return qRound(std::clamp(ratio, 0.0, 1.0) * CameraDistanceSliderSteps);
 }
 
-double distanceMeters(int slider_value)
+double distanceMeters(int slider_value, double minimum_m)
 {
-    const double minimum_m = MapModel::MinViewGlobeDistanceM;
     const double maximum_m = std::max(minimum_m, MapModel::MaxViewGlobeDistanceM);
     const double ratio = std::clamp(slider_value, 0, CameraDistanceSliderSteps) / double(CameraDistanceSliderSteps);
     return std::exp(std::log(minimum_m) + ratio * (std::log(maximum_m) - std::log(minimum_m)));
@@ -266,7 +264,9 @@ void MapBgfxGlobeHudController::setSliderFraction(int index, double fraction)
                 this->map_model->setViewGlobePitchDeg(double(sliderStep(fraction, tiltMinimumDeg(), tiltMaximumDeg())));
             break;
         case MapBgfxHud::DistanceSlider:
-            this->map_model->setViewGlobeDistanceM(distanceMeters(sliderStep(fraction, 0, CameraDistanceSliderSteps)));
+            this->map_model->setViewGlobeDistanceM(distanceMeters(
+                sliderStep(fraction, 0, CameraDistanceSliderSteps),
+                this->map_model->viewGlobeMinimumZoomDistanceM()));
             break;
         default:
             this->map_model->setView3dVerticalExaggeration(
@@ -458,9 +458,11 @@ void MapBgfxGlobeHudController::fillHudState(const MapModel &map_model, const QS
 
     MapBgfxHud::GlobeSliderState &distance = globe->sliders[MapBgfxHud::DistanceSlider];
     const double distance_m = map_model.viewGlobeDistanceM();
-    distance.fraction = double(distanceSliderValue(distance_m)) / double(CameraDistanceSliderSteps);
+    const double minimum_distance_m = map_model.viewGlobeMinimumZoomDistanceM(viewport);
+    distance.fraction = double(distanceSliderValue(distance_m, minimum_distance_m))
+        / double(CameraDistanceSliderSteps);
     distance.maximum_label = MapHudLengthUnits::cameraDistance(MapModel::MaxViewGlobeDistanceM, units);
-    distance.minimum_label = MapHudLengthUnits::cameraDistance(MapModel::MinViewGlobeDistanceM, units);
+    distance.minimum_label = MapHudLengthUnits::cameraDistance(minimum_distance_m, units);
     distance.value_label = MapHudLengthUnits::cameraDistance(distance_m, units);
     distance.tooltip = QCoreApplication::translate("MapBgfxGlobeHudController",
                                     "Distance to focus\n"
