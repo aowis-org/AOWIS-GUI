@@ -191,6 +191,7 @@ foreach(_aowis_render_required_file IN ITEMS
         src/map/bgfx/map_bgfx_globe_surface.cpp
         src/map/bgfx/map_bgfx_hud.cpp
         src/map/bgfx/map_bgfx_map_view.cpp
+        src/map/bgfx/map_bgfx_overlay_glyphs.h
         src/map/bgfx/bgfx_qt_native_surface.cpp
         src/services/interface_server_map_rest.cpp
         src/map/core/map_provider_catalog.cpp
@@ -356,6 +357,8 @@ qt_add_executable(aowis-server-gui
     src/config/map_server_client_configuration.h
     src/config/project_server_profile_storage.cpp
     src/config/project_server_profile_storage.h
+    src/config/project_server_duplicates.cpp
+    src/config/project_server_duplicates.h
     src/config/gui_config_store.cpp
     src/config/gui_config_store.h
     src/config/wireguard_profile_storage.cpp
@@ -1037,6 +1040,19 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         COMMAND aowis-project-server-profile-storage-tests)
     set_tests_properties(aowis-project-server-profile-storage PROPERTIES LABELS "aowis")
 
+    # Duplicate detection when adding a DVMDB connection (name, data
+    # directory, normalized endpoint + tunnel, verified repository UUIDv7).
+    add_executable(aowis-project-server-duplicates-tests
+        tests/project_server_duplicates_test.cpp
+        src/config/project_server_duplicates.cpp
+        src/config/project_server_duplicates.h)
+    target_include_directories(aowis-project-server-duplicates-tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(aowis-project-server-duplicates-tests PRIVATE Qt6::Core)
+    add_test(NAME aowis-project-server-duplicates
+        COMMAND aowis-project-server-duplicates-tests)
+    set_tests_properties(aowis-project-server-duplicates PROPERTIES LABELS "aowis")
+
     # GUI preferences in AOWIS-CONFIG; former INI groups removed.
     add_executable(aowis-gui-preferences-tests
         tests/gui_preferences_test.cpp
@@ -1224,6 +1240,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/app/builtin_examples.cpp
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/project_server_duplicates.cpp
+        src/config/project_server_duplicates.h
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
         src/widgets/group_box_collapsible.cpp
@@ -1273,6 +1291,8 @@ if(BUILD_TESTING AND NOT EMSCRIPTEN)
         src/app/builtin_examples.cpp
         src/config/project_server_profile_storage.cpp
         src/config/project_server_profile_storage.h
+        src/config/project_server_duplicates.cpp
+        src/config/project_server_duplicates.h
         src/config/gui_config_store.cpp
         src/config/gui_config_store.h
         src/widgets/group_box_collapsible.cpp

@@ -1,5 +1,6 @@
 #include "map/bgfx/map_bgfx_editor_overlay.h"
 #include "map/editor/map_annotation_hit_area.h"
+#include "map/editor/map_annotation_callout.h"
 #include "map/core/map_annotation_display_scale.h"
 #include "map/editor/map_canvas_projection.h"
 
@@ -8,8 +9,6 @@
 #include "map/render/map_render_diagnostics.h"
 
 #include <QColor>
-#include <QCryptographicHash>
-#include <QFontMetrics>
 #include <QImage>
 #include <QPainter>
 #include <QPen>
@@ -218,10 +217,19 @@ void MapBgfxEditorOverlay::synchronizeGeometry(const NetworkRenderSnapshot &snap
     this->geometry = std::move(built);
 }
 
+void MapBgfxEditorOverlay::clearGlyphs()
+{
+    if (this->glyphs != nullptr && this->glyphs->canvas != nullptr)
+        this->glyphs->canvas->clear();
+}
+
 void MapBgfxEditorOverlay::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
                                  const Inputs &inputs)
 {
     canvas->clear();
+    this->glyphs = inputs.glyphs;
+    clearGlyphs();
+    this->glyphs = nullptr;
     this->annotation_hit_areas.clear();
     this->annotation_hit_offset = QPointF();
     if (inputs.snapshot == nullptr || inputs.visual_state == nullptr
@@ -229,6 +237,7 @@ void MapBgfxEditorOverlay::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *
         return;
     this->canvas = canvas;
     this->cache = cache;
+    this->glyphs = inputs.glyphs;
     this->inputs = &inputs;
     this->annotation_scale_percent = inputs.annotation_scale_percent;
     if (!inputs.tile_only)
@@ -258,10 +267,12 @@ void MapBgfxEditorOverlay::build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *
         // The atlas was cleared mid-build: rebuild against the refilled atlas.
         cache->beginFrame();
         canvas->clear();
+        clearGlyphs();
         buildOnce();
     }
     this->canvas = nullptr;
     this->cache = nullptr;
+    this->glyphs = nullptr;
     this->inputs = nullptr;
 }
 
@@ -270,9 +281,13 @@ void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
                                                const MapBgfx2d::Camera &camera,
                                                const QSizeF &viewport,
                                                const QList<MapAnnotation> *annotations,
-                                               int annotation_scale_percent)
+                                               int annotation_scale_percent,
+                                               MapBgfxOverlayGlyphs *glyphs)
 {
     canvas->clear();
+    this->glyphs = glyphs;
+    clearGlyphs();
+    this->glyphs = nullptr;
     this->annotation_hit_areas.clear();
     if (annotations == nullptr || annotations->isEmpty() || !(camera.world_pixels > 0.0))
         return;
@@ -286,6 +301,7 @@ void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
     this->annotation_scale_percent = annotation_scale_percent;
     this->canvas = canvas;
     this->cache = cache;
+    this->glyphs = glyphs;
     this->inputs = &inputs;
     cache->beginFrame();
     const std::function<void()> draw = [this]()
@@ -300,10 +316,12 @@ void MapBgfxEditorOverlay::buildAnnotations2d(MapBgfxHudCanvas *canvas,
     {
         cache->beginFrame();
         canvas->clear();
+        clearGlyphs();
         draw();
     }
     this->inputs = nullptr;
     this->cache = nullptr;
+    this->glyphs = nullptr;
     this->canvas = nullptr;
 }
 
@@ -350,55 +368,54 @@ void MapBgfxEditorOverlay::buildOnce()
     drawAnnotations2d();
 }
 
-// Labels are part of the existing bgfx HUD draw list, not a Qt widget
-// painted above the map. Sprite content is cached in the shared HUD atlas.
+// Callouts are part of the bgfx overlay draw list, not a Qt widget painted
+// above the map: shapes in the overlay canvas, text as glyph quads from the
+// signed-distance atlas (MapBgfxOverlayGlyphs). Geometry: MapAnnotationCallout.
 void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
                                            const MapBgfxHudPoint &position, bool selected)
 {
     if (!annotation.style.visible || this->annotation_scale_percent <= 0
         || this->canvas == nullptr || this->cache == nullptr)
         return;
+    const QPointF anchor(position.x, position.y);
+    const MapAnnotationCallout::Layout callout =
+        MapAnnotationCallout::layout(annotation, anchor, this->annotation_scale_percent);
+    if (!callout.visible)
+        return;
     this->annotation_hit_areas.append(AnnotationHitArea{
         annotation.uuid,
-        MapAnnotationHitArea::rect(annotation, QPointF(position.x, position.y),
-                                   this->annotation_scale_percent),
-        QPointF(position.x, position.y)});
-    const double scale = MapAnnotationDisplayScale::factor(this->annotation_scale_percent);
+        MapAnnotationHitArea::rect(annotation, anchor, this->annotation_scale_percent),
+        anchor});
+    const double scale = callout.scale;
+    const MapBgfxHudRect box{callout.box.x(), callout.box.y(),
+                             callout.box.width(), callout.box.height()};
     // Match the editor's glowing selection feedback for hydraulic objects.
     // These GPU strokes surround the actual callout, not just its WGS84 pin,
     // so every annotation inside a rectangle selection is unmistakably selected.
-    const std::function<void(const MapBgfxHudRect &)> draw_glow =
-        [this, selected, scale](const MapBgfxHudRect &bounds)
+    if (selected)
     {
-        if (!selected)
-            return;
         for (int extra = 9; extra >= 3; extra -= 3)
         {
             const double spread = double(extra) * scale;
             this->canvas->strokeRoundedRect(
-                MapBgfxHudRect{bounds.x - spread, bounds.y - spread,
-                               bounds.width + 2.0 * spread,
-                               bounds.height + 2.0 * spread},
+                MapBgfxHudRect{box.x - spread, box.y - spread,
+                               box.width + 2.0 * spread, box.height + 2.0 * spread},
                 5.0 * scale, 2.2 * scale,
                 extra == 9 ? 0x3300aaffu : extra == 6 ? 0x6600aaffu : 0xbb00beffu);
         }
-    };
-    const bool empty_draft = annotation.text.trimmed().isEmpty();
-    if (empty_draft)
+    }
+    if (callout.blank)
     {
         // Local, non-persisted placement: draw a conspicuous callout directly
-        // into the bgfx HUD geometry. A missing/uninitialized glyph atlas must
-        // never make the initial marker disappear. Shared 2D and 3D path.
-        const MapBgfxHudRect callout{position.x - 7.0 * scale, position.y - 46.0 * scale,
-                                      92.0 * scale, 34.0 * scale};
-        draw_glow(callout);
+        // into the bgfx HUD geometry, independent of any glyph. Shared 2D and
+        // 3D path. MODEL/DVMDB continue to reject a blank persisted annotation.
         if (annotation.style.show_background)
-            this->canvas->fillRoundedRect(callout, 5.0 * scale, 0xfff7fbffu);
-        this->canvas->strokeRoundedRect(callout, 5.0 * scale,
+            this->canvas->fillRoundedRect(box, 5.0 * scale, 0xfff7fbffu);
+        this->canvas->strokeRoundedRect(box, 5.0 * scale,
                                         (selected ? 3.0 : 1.5) * scale,
                                         selected ? 0xff008bdfu : 0xff748a9au);
-        // Three horizontal strokes indicate editable text without depending
-        // on a font atlas; the solid map pin marks the actual click location.
+        // Three horizontal strokes indicate editable text; the solid map pin
+        // marks the actual click location.
         for (int line = 0; line < 3; ++line)
             this->canvas->fillRect(MapBgfxHudRect{position.x + 4.0 * scale,
                 position.y + (-37.0 + double(line) * 8.0) * scale,
@@ -412,71 +429,25 @@ void MapBgfxEditorOverlay::drawAnnotation(const MapAnnotation &annotation,
                                  0xff00d6ffu);
         return;
     }
-    const int point_size = annotation.style.text_size == MapAnnotationTextSize::Small ? 10
-        : annotation.style.text_size == MapAnnotationTextSize::Large ? 16 : 12;
-    QFont font;
-    font.setPointSize(qMax(6, qRound(point_size * scale)));
-    QFontMetrics metrics(font);
-    // Blank text is only allowed for the transient on-map placement preview;
-    // MODEL/DVMDB continue to reject a blank persisted annotation.
-    const QString flat_text = empty_draft ? QStringLiteral("…") : annotation.text.simplified();
-    const QString text = metrics.elidedText(flat_text, Qt::ElideRight,
-                                            qRound(330.0 * scale));
-    const int width = empty_draft ? qRound(72.0 * scale)
-                                  : metrics.horizontalAdvance(text) + qRound(18.0 * scale);
-    const int height = metrics.height() + qRound(10.0 * scale);
-    draw_glow(MapBgfxHudRect{position.x - 5.0 * scale,
-                             position.y - double(height) - 4.0 * scale,
-                             double(width), double(height)});
-    const QSizeF logical(width, height);
-    const QByteArray digest = QCryptographicHash::hash(
-        (QString::number(point_size) + QLatin1Char('|')
-        + QString::number(annotation.style.show_background) + QLatin1Char('|')
-        + QString::number(selected) + QLatin1Char('|')
-        + QString::number(empty_draft) + QLatin1Char('|')
-        + QString::number(this->annotation_scale_percent) + QLatin1Char('|') + text).toUtf8(),
-        QCryptographicHash::Sha256).toHex();
-    const QString key = QStringLiteral("map-annotation|") + QString::fromLatin1(digest);
-    MapBgfxHudSprite sprite = this->cache->cachedImage(key, logical);
-    if (!sprite.valid)
-    {
-        const double ratio = this->cache->devicePixelRatio();
-        QImage image(qMax(1, qRound(width * ratio)), qMax(1, qRound(height * ratio)),
-                     QImage::Format_ARGB32_Premultiplied);
-        image.fill(Qt::transparent);
-        QPainter painter(&image);
-        painter.setRenderHint(QPainter::Antialiasing, true);
-        painter.scale(ratio, ratio);
-        if (annotation.style.show_background || selected)
-        {
-            painter.setPen(empty_draft ? QPen(QColor(0, 155, 235), 1.5, Qt::DashLine)
-                                       : QPen(selected ? QColor(0, 155, 235)
-                                                       : QColor(45, 55, 65, 175)));
-            // Selection adds an outline, never an implicit filled background.
-            // The Inspector's Show background flag remains authoritative.
-            if (annotation.style.show_background)
-                painter.setBrush(QColor(245, 248, 252, 230));
-            else
-                painter.setBrush(Qt::NoBrush);
-            painter.drawRoundedRect(QRectF(0.5, 0.5, width - 1.0, height - 1.0),
-                                    4.0 * scale, 4.0 * scale);
-        }
-        painter.setFont(font);
-        painter.setPen(QColor(12, 22, 32));
-        painter.drawText(QRectF(9.0 * scale, 5.0 * scale,
-                                width - 18.0 * scale, height - 10.0 * scale),
-                         Qt::AlignVCenter | Qt::AlignLeft,
-                         text);
-        painter.end();
-        sprite = this->cache->image(key, image, logical);
-    }
-    if (sprite.valid)
-        this->canvas->sprite(MapBgfxHudRect{position.x - 5.0 * scale,
-                                             position.y - height - 4.0 * scale,
-                                             double(width), double(height)}, sprite,
-                             0xffffffffu);
-    // The pin is GPU geometry and remains visible if the text sprite cannot
-    // fit into the shared HUD atlas. This also marks its exact WGS84 anchor.
+    // Background and frame are GPU geometry. Selection adds an outline,
+    // never an implicit filled background: the Inspector's Show background
+    // flag remains authoritative.
+    if (annotation.style.show_background)
+        this->canvas->fillRoundedRect(box, 4.0 * scale, AnnotationBackgroundColor);
+    if (annotation.style.show_background || selected)
+        this->canvas->strokeRoundedRect(
+            MapBgfxHudRect{box.x + 0.5, box.y + 0.5, box.width - 1.0, box.height - 1.0},
+            4.0 * scale, 1.0,
+            selected ? AnnotationSelectedFrameColor : AnnotationFrameColor);
+    // The text comes glyph by glyph from the signed-distance atlas, like the
+    // map labels: a glyph is rasterized once, then typing or zooming only
+    // moves quads. A line whose glyphs are still being created this frame is
+    // drawn in a later frame (the surface keeps presenting until it is).
+    if (this->glyphs != nullptr)
+        this->glyphs->line(callout.text, callout.font, callout.text_origin.x(),
+                           callout.text_origin.y(), callout.text_scale,
+                           AnnotationTextColor);
+    // The pin is GPU geometry and marks the exact WGS84 anchor.
     this->canvas->fillCircle(position.x, position.y, qMax(1.5, 4.0 * scale),
                               selected ? SelectedColor : BlackColor);
 }
@@ -1019,9 +990,13 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
                                       const std::optional<CoordinateWGS84> &dragged_annotation_position,
                                       int annotation_scale_percent,
                                       const QSet<QUuid> *selected_annotation_uuids,
-                                      const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions)
+                                      const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions,
+                                      MapBgfxOverlayGlyphs *glyphs)
 {
     canvas->clear();
+    this->glyphs = glyphs;
+    clearGlyphs();
+    this->glyphs = nullptr;
     this->globe_icon_hit_areas.clear();
     this->annotation_hit_areas.clear();
     this->annotation_hit_offset = QPointF();
@@ -1042,6 +1017,7 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     this->inputs = &globe_inputs;
     this->canvas = canvas;
     this->cache = cache;
+    this->glyphs = glyphs;
     this->annotation_scale_percent = annotation_scale_percent;
     cache->beginFrame();
     if (snapshot != nullptr && icon_width > 0 && this->icon_provider)
@@ -1101,10 +1077,12 @@ void MapBgfxEditorOverlay::buildGlobe(MapBgfxHudCanvas *canvas, MapBgfxHudTextCa
     {
         cache->beginFrame();
         canvas->clear();
+        clearGlyphs();
         build();
     }
     this->canvas = nullptr;
     this->cache = nullptr;
+    this->glyphs = nullptr;
     this->inputs = nullptr;
 }
 

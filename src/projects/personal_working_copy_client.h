@@ -321,6 +321,9 @@ private:
                  int transport_retries = 0,
                  std::shared_ptr<bool> uncertain_transport = {});
     static bool parseDraft(const QJsonObject &object, PersonalWorkingCopyInfo &draft);
+    // True for exactly the records DVMDB creates for a first network.
+    static bool initializedNetworkChanges(const QList<PersonalWorkingCopyChange> &changes,
+                                          const QString &network_id);
     void listPage(const PersonalRepositoryTarget &target, const QString &project_id,
                   const QString &after, int page_count,
                   QList<PersonalWorkingCopyInfo> collected, ListCompletion completion);

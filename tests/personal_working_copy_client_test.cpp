@@ -123,6 +123,11 @@ public:
     int generation = 0;
     bool malformed_overlay = false;
     bool corrupt_network_payload = false;
+    // First-network reply: 0 = as DVMDB (network root + empty annotation
+    // layer root), 1 = network root only, 2 = layer with a wrong UUID,
+    // 3 = an extra record, 4 = layer referencing a wrong network,
+    // 5 = layer root of a wrong kind.
+    int initialize_reply = 0;
     int network_read_count = 0;
     int network_summary_count = 0;
     int annotation_layer_read_count = 0;
@@ -808,11 +813,30 @@ public:
                         else
                         {
                             this->generation = 1;
+                            const QString other_id = QStringLiteral("018f0000-0000-7000-8000-000000000001");
+                            const QString layer_id = distributionMapAnnotationLayerId(
+                                QUuid(this->initialize_reply == 2 ? other_id : network_id))
+                                    .toString(QUuid::WithoutBraces);
+                            const QString owner_id = this->initialize_reply == 4 ? other_id : network_id;
                             this->saved_changes = QJsonArray{QJsonObject{
                                 {QStringLiteral("uuid"), network_id},
                                 {QStringLiteral("kind"), 100},
                                 {QStringLiteral("references"), QJsonArray{}},
                                 {QStringLiteral("payloadBase64"), QStringLiteral("AQID")}}};
+                            // DVMDB lists candidate records in key order; the
+                            // layer is listed first here so order is not relied on.
+                            if (this->initialize_reply != 1)
+                                this->saved_changes.prepend(QJsonObject{
+                                    {QStringLiteral("uuid"), layer_id},
+                                    {QStringLiteral("kind"), this->initialize_reply == 5 ? 111 : 110},
+                                    {QStringLiteral("references"), QJsonArray{owner_id}},
+                                    {QStringLiteral("payloadBase64"), QStringLiteral("BAUG")}});
+                            if (this->initialize_reply == 3)
+                                this->saved_changes.append(QJsonObject{
+                                    {QStringLiteral("uuid"), other_id},
+                                    {QStringLiteral("kind"), 100},
+                                    {QStringLiteral("references"), QJsonArray{}},
+                                    {QStringLiteral("payloadBase64"), QStringLiteral("AQID")}});
                             document = draftRecord(this->lease_session);
                             document.insert(QStringLiteral("changes"), this->saved_changes);
                             document.insert(QStringLiteral("events"), QJsonArray{});
@@ -2608,13 +2632,37 @@ int main(int argc, char **argv)
         QStringLiteral("0"), network_id, QStringLiteral("water network"),
         [&](const PersonalWorkingCopyInfo &draft, const QString &failure)
         { initial_draft = draft; init_error = failure; initialized = true; });
+    const QString initial_layer_id = distributionMapAnnotationLayerId(QUuid(network_id))
+        .toString(QUuid::WithoutBraces);
     if (!check(until(application, [&] { return initialized; }) && init_error.isEmpty() &&
                initial_draft.generation == QStringLiteral("1") &&
-               initial_draft.changes.size() == 1 &&
-               initial_draft.changes.first().uuid == network_id &&
-               initial_draft.changes.first().kind == 100 &&
+               initial_draft.changes.size() == 2 &&
+               std::any_of(initial_draft.changes.cbegin(), initial_draft.changes.cend(),
+                   [&](const PersonalWorkingCopyChange &change)
+                   { return change.uuid == network_id && change.kind == 100; }) &&
+               std::any_of(initial_draft.changes.cbegin(), initial_draft.changes.cend(),
+                   [&](const PersonalWorkingCopyChange &change)
+                   { return change.uuid == initial_layer_id && change.kind == 110; }) &&
                initial_draft.events.isEmpty(),
-               "GUI first hydraulic network initialization did not persist an empty root")) return 1;
+               "GUI first hydraulic network initialization refused the DVMDB reply "
+               "(network root + empty annotation layer)")) return 1;
+    // Any other first-network reply is still refused.
+    for (int reply = 1; reply <= 5; ++reply)
+    {
+        Stub bad_init;
+        if (!check(bad_init.listen(), "could not start first-network reply fixture")) return 1;
+        bad_init.lease_session = init_session;
+        bad_init.initialize_reply = reply;
+        bool refused_done = false;
+        QString refused_error;
+        client.initializeEmptyNetwork(bad_init.target(), draft_id, init_session, lease_token,
+            QStringLiteral("0"), network_id, QStringLiteral("water network"),
+            [&](const PersonalWorkingCopyInfo &, const QString &failure)
+            { refused_error = failure; refused_done = true; });
+        if (!check(until(application, [&] { return refused_done; }) &&
+                   refused_error.startsWith(QStringLiteral("Invalid first-network draft response")),
+                   "GUI accepted a malformed first-network reply")) return 1;
+    }
     initialized = false;
     NetworkHydraulicDistribution loaded_network;
     QString loaded_generation;

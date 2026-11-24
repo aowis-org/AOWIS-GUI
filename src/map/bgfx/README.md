@@ -102,6 +102,16 @@ Network editing is 2D. The editor overlay (`setOverlayBuilder()`) draws the
 full-colour node and device-link icons, previews, selections and their hit
 rectangles; labels use its icon rectangles (`setLabelSymbolRects()`).
 
+Map annotations (Editor and Monitor, 2D and globe) are drawn like the map
+labels: background, frame, selection glow and pin are GPU shapes in the
+overlay canvas; the text comes glyph by glyph from Render's signed-distance
+atlas through the `MapBgfxOverlayGlyphs` the builders receive
+(`map_bgfx_overlay_glyphs.h`). A glyph is rasterized once; typing, zooming
+or the annotation size slider only move quads. Drawing and hit testing share
+one layout (`map/editor/map_annotation_callout.h`). The editor's pan reuse
+keeps a draw list only while the glyph atlas generation is unchanged and its
+last build had every glyph.
+
 On the globe (`setGlobeOverlayBuilder()`, a `GlobeProjector` per frame:
 WGS84 -> logical pixels on the drawn relief, hidden behind the camera and
 beyond the horizon):

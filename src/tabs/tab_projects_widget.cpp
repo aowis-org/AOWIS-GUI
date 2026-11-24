@@ -15,6 +15,7 @@
 #include "app/builtin_examples.h"
 #include "config/gui_configuration.h"
 #include "config/gui_config_store.h"
+#include "config/project_server_duplicates.h"
 #include "common/_sizes.h"
 #include "widgets/group_box_collapsible.h"
 #include "services/http_health_monitor.h"
@@ -3340,13 +3341,6 @@ void ProjectsWidget::saveNewSource()
         this->database_overview->name->setFocus();
         return;
     }
-    for (const ProjectServerProfile &server : this->servers)
-        if (server.name.compare(name, Qt::CaseInsensitive) == 0)
-        {
-            openSourceMessage(this, QMessageBox::Warning,
-                tr("Already exists"), tr("Choose a different database name."));
-            return;
-        }
     ProjectServerProfile server;
     server.id = DvmdbIdentity::newUuidV7();
     server.pending = true;
@@ -3371,14 +3365,6 @@ void ProjectsWidget::saveNewSource()
             this->database_connection->local_path_edit->setFocus();
             return;
         }
-        for (const ProjectServerProfile &existing : this->servers)
-            if (existing.connection_type == QStringLiteral("local")
-                && QDir::cleanPath(existing.local_path) == server.local_path)
-            {
-                openSourceMessage(this, QMessageBox::Information, tr("Database already configured"),
-                    tr("This local data directory is already configured."));
-                return;
-            }
     }
     else
     {
@@ -3397,6 +3383,15 @@ void ProjectsWidget::saveNewSource()
             this->database_connection->server_endpoint_edit->setFocus();
             return;
         }
+    }
+    // Reject duplicates before the embedded database is opened or the
+    // endpoint is probed; persistNewSource() checks again with the verified
+    // repository identity.
+    const ProjectServerDuplicate duplicate = findProjectServerDuplicate(this->servers, server);
+    if (duplicate)
+    {
+        reportDuplicateSource(duplicate, server);
+        return;
     }
     if (server.connection_type == QStringLiteral("local"))
     {
@@ -3499,59 +3494,55 @@ void ProjectsWidget::saveNewSource()
 
 void ProjectsWidget::persistNewSource(ProjectServerProfile server)
 {
-    for (ProjectServerProfile &existing : this->servers)
+    // The list may have changed while the repository was probed, and only now
+    // is the verified repository identity known.
+    const ProjectServerDuplicate duplicate = findProjectServerDuplicate(this->servers, server);
+    if (duplicate.kind == ProjectServerDuplicateKind::Repository
+        && server.connection_type != QStringLiteral("local")
+        && this->servers.at(duplicate.index).connection_type != QStringLiteral("local"))
     {
-        if (existing.id == server.id && !server.pending)
-        {
-            if ((existing.endpoint != server.endpoint || existing.wireguard_profile_id != server.wireguard_profile_id)
-                && server.connection_type == QStringLiteral("remote"))
+        // The same repository behind another URL or tunnel: offer to move the
+        // existing connection instead of configuring the repository twice.
+        const ProjectServerProfile &existing = this->servers.at(duplicate.index);
+        const QString existing_id = existing.id;
+        const QString existing_name = existing.name;
+        const QString requested_endpoint = server.endpoint;
+        const QString requested_profile = server.wireguard_profile_id;
+        const int request_id = this->source_creation_request;
+        openSourceMessage(this, QMessageBox::Question, tr("Database already configured"),
+            tr("This repository UUIDv7 is already configured as '%1'. "
+               "Update its connection settings for %2?").arg(existing_name, requested_endpoint),
+            QMessageBox::Yes | QMessageBox::No,
+            [this, existing_id, requested_endpoint, requested_profile, request_id](QMessageBox::StandardButton answer)
             {
-                const QString existing_id = existing.id;
-                const QString existing_name = existing.name;
-                const QString requested_endpoint = server.endpoint;
-                const QString requested_profile = server.wireguard_profile_id;
-                const int request_id = this->source_creation_request;
-                openSourceMessage(this, QMessageBox::Question, tr("Database already configured"),
-                    tr("This repository UUIDv7 is already configured as '%1'. "
-                       "Update its connection settings for %2?").arg(existing_name, requested_endpoint),
-                    QMessageBox::Yes | QMessageBox::No,
-                    [this, existing_id, requested_endpoint, requested_profile, request_id](QMessageBox::StandardButton answer)
+                if (answer != QMessageBox::Yes
+                    || request_id != this->source_creation_request
+                    || this->selection_kind != SelectionKind::NewSource) return;
+                for (ProjectServerProfile &current : this->servers)
+                    if (current.id == existing_id)
                     {
-                        if (answer != QMessageBox::Yes
-                            || request_id != this->source_creation_request
-                            || this->selection_kind != SelectionKind::NewSource) return;
-                        for (ProjectServerProfile &current : this->servers)
-                            if (current.id == existing_id)
-                            {
-                                const ProjectServerProfile previous = current;
-                                current.endpoint = requested_endpoint;
-                                current.wireguard_profile_id = requested_profile;
-                                if (!saveProjectServerProfiles(this->servers))
-                                {
-                                    current = previous;
-                                    reportServerSaveFailure();
-                                    return;
-                                }
-                                const ProjectServerProfile updated = current;
-                                resetSource(existing_id);
-                                startSource(updated);
-                                select(SelectionKind::Server, existing_id);
-                                return;
-                            }
-                    });
-                return;
-            }
-            select(SelectionKind::Server, existing.id);
-            return;
-        }
-        if (server.pending && existing.connection_type == server.connection_type
-            && existing.endpoint == server.endpoint && existing.local_path == server.local_path)
-        {
-            openSourceMessage(this, QMessageBox::Information, tr("Database already configured"),
-                tr("This database endpoint is already configured."));
-            select(SelectionKind::Server, existing.id);
-            return;
-        }
+                        const ProjectServerProfile previous = current;
+                        current.endpoint = requested_endpoint;
+                        current.wireguard_profile_id = requested_profile;
+                        if (!saveProjectServerProfiles(this->servers))
+                        {
+                            current = previous;
+                            reportServerSaveFailure();
+                            return;
+                        }
+                        const ProjectServerProfile updated = current;
+                        resetSource(existing_id);
+                        startSource(updated);
+                        select(SelectionKind::Server, existing_id);
+                        return;
+                    }
+            });
+        return;
+    }
+    if (duplicate)
+    {
+        reportDuplicateSource(duplicate, server);
+        return;
     }
     this->servers.append(server);
     if (!saveProjectServerProfiles(this->servers))
@@ -3564,6 +3555,46 @@ void ProjectsWidget::persistNewSource(ProjectServerProfile server)
     updateEmptyState();
     select(SelectionKind::Server, server.id);
     startSource(server);
+}
+
+void ProjectsWidget::reportDuplicateSource(const ProjectServerDuplicate &duplicate,
+                                           const ProjectServerProfile &candidate)
+{
+    if (!duplicate || duplicate.index < 0 || duplicate.index >= this->servers.size()) return;
+    const QString existing_name = this->servers.at(duplicate.index).name;
+    QString title = tr("Database already configured");
+    QString message;
+    QWidget *focus = nullptr;
+    switch (duplicate.kind)
+    {
+    case ProjectServerDuplicateKind::Name:
+        title = tr("Already exists");
+        message = tr("A database connection named '%1' already exists. "
+                     "Choose a different database name.").arg(existing_name);
+        focus = this->database_overview->name;
+        break;
+    case ProjectServerDuplicateKind::LocalPath:
+        message = tr("The local data directory %1 is already configured as '%2'.")
+            .arg(QDir::toNativeSeparators(candidate.local_path), existing_name);
+        focus = this->database_connection->local_path_edit;
+        break;
+    case ProjectServerDuplicateKind::Endpoint:
+        message = tr("The database at %1 is already configured as '%2'.")
+            .arg(candidate.endpoint, existing_name);
+        focus = this->database_connection->server_endpoint_edit;
+        break;
+    case ProjectServerDuplicateKind::Repository:
+        message = tr("This DVMDB repository (%1) is already configured as '%2'.")
+            .arg(candidate.id, existing_name);
+        focus = candidate.connection_type == QStringLiteral("local")
+            ? static_cast<QWidget *>(this->database_connection->local_path_edit)
+            : static_cast<QWidget *>(this->database_connection->server_endpoint_edit);
+        break;
+    case ProjectServerDuplicateKind::None:
+        return;
+    }
+    openSourceMessage(this, QMessageBox::Warning, title, message);
+    if (focus != nullptr) focus->setFocus();
 }
 
 void ProjectsWidget::promoteVerifiedSource(const QString &old_id, const QString &repository_id)

@@ -10,6 +10,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHostAddress>
@@ -50,6 +51,13 @@ bool waitUntil(QApplication &app, const std::function<bool()> &condition, int ti
     while (!condition() && elapsed.elapsed() < timeout_ms)
         app.processEvents(QEventLoop::AllEvents, 20);
     return condition();
+}
+
+QMessageBox *visibleMessage(QWidget &parent)
+{
+    for (QMessageBox *message : parent.findChildren<QMessageBox *>())
+        if (message->isVisible()) return message;
+    return nullptr;
 }
 
 struct FakeDvmdb
@@ -755,6 +763,111 @@ int main(int argc, char **argv)
                      "double-click on a personal HEAD did not use the standard network open path")) return 1;
         if (!require(personal_backend.catalogue_requests == catalogue_requests,
                      "shortcut navigation triggered an unnecessary catalogue refresh")) return 1;
+    }
+
+    // Adding a connection that is already configured must explain why in a
+    // dialog, keep the unsaved form open and store nothing. Before this check
+    // the same repository at the same endpoint was silently selected instead.
+    {
+        FakeDvmdb alias;
+        alias.repository_id = second.repository_id; // the same repository behind another URL
+        if (!require(alias.start(), "repository alias fixture failed")) return 1;
+        ProjectServerProfile configured = b;
+        configured.wireguard_profile_id.clear();
+        if (!require(saveProjectServerProfiles({configured}), "duplicate-connection setup failed")) return 1;
+        ProjectsWidget duplicates;
+        duplicates.resize(1200, 740);
+        duplicates.show();
+        QTreeWidget *explorer = duplicates.findChild<QTreeWidget *>(QStringLiteral("projectsTree"));
+        if (!require(waitUntil(app, [&] {
+                return explorer != nullptr && explorer->topLevelItemCount() == 1
+                    && explorer->topLevelItem(0)->childCount() == 1;
+            }), "duplicate-connection fixture did not load")) return 1;
+        QPushButton *add = duplicates.findChild<QPushButton *>(
+            QStringLiteral("projectsExplorerAddServerConnectionButton"));
+        QWidget *overview_form = duplicates.findChild<QWidget *>(QStringLiteral("projectsDatabaseOverviewForm"));
+        QLineEdit *name = overview_form != nullptr
+            ? overview_form->findChild<QLineEdit *>(QStringLiteral("projectInspectorName")) : nullptr;
+        QLineEdit *endpoint = duplicates.findChild<QLineEdit *>(QStringLiteral("projectServerEndpoint"));
+        QComboBox *kind = duplicates.findChild<QComboBox *>(QStringLiteral("projectSourceKind"));
+        QPushButton *create = duplicates.findChild<QPushButton *>(QStringLiteral("projectSourceCreateButton"));
+        if (!require(add != nullptr && name != nullptr && endpoint != nullptr && kind != nullptr
+                         && create != nullptr, "missing new-connection controls")) return 1;
+        const auto attempt = [&](const QString &connection_name, const QString &url)
+        {
+            add->click();
+            app.processEvents();
+            name->setText(connection_name);
+            endpoint->setText(url);
+            create->click();
+        };
+        const auto storedEndpoints = []
+        {
+            QStringList endpoints;
+            for (const ProjectServerProfile &profile : loadProjectServerProfiles())
+                endpoints.append(profile.endpoint);
+            return endpoints;
+        };
+        const QStringList original = storedEndpoints();
+
+        // Same server, different spelling of its URL: rejected synchronously,
+        // before any probe, naming the configured connection.
+        const QStringList same_endpoint = {
+            configured.endpoint,
+            configured.endpoint + QStringLiteral("/"),
+            configured.endpoint + QStringLiteral("/dvmdb/v1/"),
+        };
+        for (const QString &url : same_endpoint)
+        {
+            attempt(QStringLiteral("Second copy"), url);
+            QMessageBox *message = visibleMessage(duplicates);
+            if (!require(message != nullptr && message->icon() == QMessageBox::Warning
+                             && message->windowTitle() == QStringLiteral("Database already configured")
+                             && message->text().contains(QStringLiteral("'Source B'"))
+                             && message->text().contains(url),
+                         "duplicate endpoint was not rejected with a warning before probing")) return 1;
+            message->accept();
+            app.processEvents();
+            if (!require(storedEndpoints() == original && kind->currentData().toString() == QStringLiteral("remote")
+                             && !create->isHidden() && name->text() == QStringLiteral("Second copy")
+                             && endpoint->text() == url,
+                         "duplicate endpoint changed the stored connections or closed the form")) return 1;
+        }
+
+        // Same name (case-insensitive): rejected before the unreachable URL is probed.
+        attempt(QStringLiteral("source b"), QStringLiteral("http://127.0.0.1:1"));
+        QMessageBox *name_message = visibleMessage(duplicates);
+        if (!require(name_message != nullptr && name_message->icon() == QMessageBox::Warning
+                         && name_message->windowTitle() == QStringLiteral("Already exists")
+                         && name_message->text().contains(QStringLiteral("'Source B'")),
+                     "duplicate name was not rejected with a warning")) return 1;
+        name_message->accept();
+        app.processEvents();
+        if (!require(storedEndpoints() == original && !create->isHidden(),
+                     "duplicate name changed the stored connections or closed the form")) return 1;
+
+        // The same repository UUIDv7 behind another URL is only known after the
+        // probe; the user is asked whether to move the existing connection.
+        attempt(QStringLiteral("Alias of B"), alias.endpoint());
+        if (!require(visibleMessage(duplicates) == nullptr,
+                     "a new URL was rejected before its repository was verified")) return 1;
+        if (!require(waitUntil(app, [&] {
+                QMessageBox *message = visibleMessage(duplicates);
+                return message != nullptr && message->icon() == QMessageBox::Question
+                    && message->text().contains(QStringLiteral("'Source B'"))
+                    && message->text().contains(alias.endpoint());
+            }), "same repository behind another URL was not reported")) return 1;
+        visibleMessage(duplicates)->done(QMessageBox::No);
+        app.processEvents();
+        if (!require(storedEndpoints() == original && !create->isHidden(),
+                     "declining to move the existing connection still changed it")) return 1;
+
+        // A genuinely new connection is still created.
+        attempt(QStringLiteral("Source C"), first.endpoint());
+        if (!require(waitUntil(app, [&] { return loadProjectServerProfiles().size() == 2; }),
+                     "a unique connection could not be created after rejected duplicates")) return 1;
+        if (!require(visibleMessage(duplicates) == nullptr,
+                     "creating a unique connection showed a message")) return 1;
     }
 
     std::puts("Multi-source explorer and health monitor tests passed");

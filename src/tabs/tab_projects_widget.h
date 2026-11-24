@@ -23,6 +23,7 @@ class QNetworkRequest;
 
 class GroupBoxCollapsible;
 struct BuiltinExampleRevision;
+struct ProjectServerDuplicate;
 class QDockWidget;
 class QComboBox;
 class QCheckBox;
@@ -193,6 +194,10 @@ private:
     void createServer();
     void saveNewSource();
     void persistNewSource(ProjectServerProfile profile);
+    // Shows why the new connection duplicates a configured one and focuses the
+    // form field to change. The unsaved form stays open.
+    void reportDuplicateSource(const ProjectServerDuplicate &duplicate,
+                               const ProjectServerProfile &candidate);
     void promoteVerifiedSource(const QString &old_id, const QString &repository_id);
     void cancelNewSource();
     void deleteConnection();

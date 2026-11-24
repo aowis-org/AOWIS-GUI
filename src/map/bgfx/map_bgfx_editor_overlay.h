@@ -5,6 +5,7 @@
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_globe_icon_index.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
+#include "map/bgfx/map_bgfx_overlay_glyphs.h"
 #include "map/editor/map_editor_visual_state.h"
 #include "network/network_render_snapshot.h"
 #include <aowis/model/map/map_annotation.h>
@@ -105,21 +106,25 @@ public:
         bool tile_only = false;
         bool full_network_move = false;
         QPointF full_network_move_translation;
+        // Annotation text: signed-distance glyph quads (cleared by build()).
+        // nullptr: callouts without text.
+        MapBgfxOverlayGlyphs *glyphs = nullptr;
     };
 
     void setIconProvider(IconProvider provider) { this->icon_provider = std::move(provider); }
 
-    // Builds the overlay into canvas (cleared first); rebuilds once when the
-    // atlas had to be cleared during the build.
+    // Builds the overlay into canvas and inputs.glyphs->canvas (both cleared
+    // first); rebuilds once when the atlas had to be cleared during the build.
     void build(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache, const Inputs &inputs);
 
     // Distribution Monitor's 2D presentation uses exactly the editor's
-    // annotation sprites, without constructing an editable hydraulic scene.
+    // annotation callouts, without constructing an editable hydraulic scene.
     // No selection/edit handles or network geometry are drawn by this method.
     void buildAnnotations2d(MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
                             const MapBgfx2d::Camera &camera, const QSizeF &viewport,
                             const QList<MapAnnotation> *annotations,
-                            int annotation_scale_percent = 100);
+                            int annotation_scale_percent = 100,
+                            MapBgfxOverlayGlyphs *glyphs = nullptr);
 
     // Globe mode: use the same full-colour editor entity icons as 2D,
     // projected onto the terrain-aware globe, plus the tile-cache selection.
@@ -148,7 +153,8 @@ public:
                     const std::optional<CoordinateWGS84> &dragged_annotation_position = std::nullopt,
                     int annotation_scale_percent = 100,
                     const QSet<QUuid> *selected_annotation_uuids = nullptr,
-                    const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions = nullptr);
+                    const QHash<QUuid, CoordinateWGS84> *dragged_annotation_positions = nullptr,
+                    MapBgfxOverlayGlyphs *glyphs = nullptr);
     // The rectangles are recorded while painting the actual 3D Editor sprites.
     // Query them before the globe network geometry hit-test so clicking an
     // icon (including through terrain) selects the entity the user sees.
@@ -182,6 +188,11 @@ public:
     static constexpr quint32 DeviceLinkColor = 0xff8b5a2bu;
     static constexpr quint32 ErrorColor = 0xffff0000u;
     static constexpr quint32 StaleColor = 0xff808080u;
+    // Annotation callouts: text (glyph tint), background fill and frame.
+    static constexpr quint32 AnnotationTextColor = 0xff0c1620u;
+    static constexpr quint32 AnnotationBackgroundColor = 0xe6f5f8fcu;
+    static constexpr quint32 AnnotationFrameColor = 0xaf2d3741u;
+    static constexpr quint32 AnnotationSelectedFrameColor = 0xff009bebu;
     // Demand-point attachment handles are drawn only where the attachment
     // line is at least this long on screen (or it is selected / being
     // edited): zoomed out, thousands of handles would only cover the dots.
@@ -357,6 +368,10 @@ private:
     // Per-build state.
     MapBgfxHudCanvas *canvas = nullptr;
     MapBgfxHudTextCache *cache = nullptr;
+    // Annotation text of the current build (nullptr: none).
+    MapBgfxOverlayGlyphs *glyphs = nullptr;
+    // Empties the glyph canvas (each build and each rebuild).
+    void clearGlyphs();
     const Inputs *inputs = nullptr;
     double offset_x = 0.0;
     double offset_y = 0.0;

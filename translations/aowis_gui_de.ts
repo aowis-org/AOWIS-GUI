@@ -333,6 +333,10 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>A database connection named '%1' already exists. Choose a different database name.</source>
+      <translation>Eine Datenbankverbindung mit dem Namen „%1“ existiert bereits. Wählen Sie einen anderen Datenbanknamen.</translation>
+    </message>
+    <message>
       <source>The built-in local database stays your personal working database until you select another database as personal.</source>
       <translation>Die integrierte lokale Datenbank bleibt Ihre persönliche Arbeitsdatenbank, bis Sie eine andere Datenbank als persönlich auswählen.</translation>
     </message>
@@ -375,6 +379,18 @@ Trotzdem als nicht überprüfte, ausstehende Verbindung speichern?</translation>
     <message>
       <source>Missing profile (not usable)</source>
       <translation>Fehlendes Profil (nicht verwendbar)</translation>
+    </message>
+    <message>
+      <source>The database at %1 is already configured as '%2'.</source>
+      <translation>Die Datenbank unter %1 ist bereits als „%2“ konfiguriert.</translation>
+    </message>
+    <message>
+      <source>The local data directory %1 is already configured as '%2'.</source>
+      <translation>Das lokale Datenverzeichnis %1 ist bereits als „%2“ konfiguriert.</translation>
+    </message>
+    <message>
+      <source>This DVMDB repository (%1) is already configured as '%2'.</source>
+      <translation>Dieses DVMDB-Repository (%1) ist bereits als „%2“ konfiguriert.</translation>
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>

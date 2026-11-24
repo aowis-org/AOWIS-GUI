@@ -5,6 +5,9 @@
 #include "map/editor/map_screen_selection_rectangle.h"
 #include "map/bgfx/map_bgfx_hud_canvas.h"
 #include "map/bgfx/map_bgfx_hud_text_cache.h"
+#include "map/bgfx/map_bgfx_glyph_atlas.h"
+#include "map/bgfx/map_bgfx_overlay_glyphs.h"
+#include "map/editor/map_annotation_callout.h"
 #include "map/bgfx/map_bgfx_pan_reuse.h"
 #include "geo/geo_wgs84_ellipsoid.h"
 
@@ -202,6 +205,43 @@ int spriteVerticesNear(const MapBgfxHudCanvas &canvas, const MapBgfxHudTextCache
     return result;
 }
 
+// Annotation text: glyph quads (text colour tint) near (x, y).
+int glyphQuadsNear(const MapBgfxHudCanvas &glyph_canvas, double x, double y, double radius)
+{
+    const quint32 abgr =
+        MapBgfxHudCanvas::premultipliedAbgr(MapBgfxEditorOverlay::AnnotationTextColor);
+    int vertices = 0;
+    for (const MapBgfxHudVertex &vertex : glyph_canvas.vertices())
+    {
+        if (vertex.abgr == abgr && std::fabs(vertex.x - x) <= radius
+            && std::fabs(vertex.y - y) <= radius)
+            ++vertices;
+    }
+    return vertices / 4;
+}
+
+// Height of the tallest glyph quad (scales with the annotation size).
+double tallestGlyph(const MapBgfxHudCanvas &glyph_canvas)
+{
+    double tallest = 0.0;
+    const QVector<MapBgfxHudVertex> &vertices = glyph_canvas.vertices();
+    for (qsizetype index = 0; index + 3 < vertices.size(); index += 4)
+        tallest = std::max(tallest, double(vertices.at(index + 2).y - vertices.at(index).y));
+    return tallest;
+}
+
+// Every glyph quad lies inside rect grown by margin.
+bool glyphsInside(const MapBgfxHudCanvas &glyph_canvas, const QRectF &rect, double margin)
+{
+    const QRectF grown = rect.adjusted(-margin, -margin, margin, margin);
+    for (const MapBgfxHudVertex &vertex : glyph_canvas.vertices())
+    {
+        if (!grown.contains(QPointF(vertex.x, vertex.y)))
+            return false;
+    }
+    return !glyph_canvas.vertices().isEmpty();
+}
+
 // Dashes drawn with colour abgr: the textured quads' pattern, read back from
 // the atlas along each quad's u range (on -> off transitions = dashes).
 int texturedDashes(const MapBgfxHudCanvas &canvas, const MapBgfxHudTextCache &cache,
@@ -248,9 +288,19 @@ struct Harness
     IconProbe probe;
     MapBgfxHudTextCache cache{1024};
     MapBgfxHudCanvas canvas;
+    // Annotation text, as the surface hands it to the overlay builders.
+    MapBgfxGlyphAtlas glyph_atlas{1024};
+    MapBgfxHudCanvas glyph_canvas;
+    MapBgfxOverlayGlyphs glyphs;
 
     Harness()
     {
+        glyphs.canvas = &glyph_canvas;
+        glyphs.atlas = &glyph_atlas;
+        glyphs.beginFrame();
+        // Tests build many frames without the surface's beginFrame(): no
+        // creation budget unless a test sets one.
+        glyphs.create_budget = 1 << 20;
         overlay.setIconProvider([this](MapBgfxHudTextCache *atlas, InfrastructureEntity entity,
                                        const QString &, int width, Highlight highlight)
         {
@@ -272,6 +322,7 @@ struct Harness
         inputs.tile_only = tile_only;
         inputs.full_network_move = full_move;
         inputs.full_network_move_translation = translation;
+        inputs.glyphs = &glyphs;
         overlay.build(&canvas, &cache, inputs);
     }
 };
@@ -374,9 +425,12 @@ void testEmptyAnnotationDraft()
     inputs.visual_state = &current.state;
     inputs.viewport_state = &current.viewport;
     inputs.annotations = &annotations;
+    inputs.glyphs = &harness.glyphs;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
     const int unselected_sprites = spriteVerticesNear(harness.canvas, harness.cache,
                                                        target.x, target.y, 90.0);
+    req(harness.glyph_canvas.vertices().isEmpty(),
+        "blank annotation draws no text glyphs");
     inputs.selected_annotation_uuid = draft.uuid;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
     req(!harness.canvas.indices().isEmpty() &&
@@ -432,29 +486,6 @@ void testEmptyAnnotationDraft()
         "two independently placed blank annotations both render in 3D");
 }
 
-// Read back an annotation's interior texel from the actual HUD sprite atlas.
-// The position is outside the glyph and border. An unchecked background must
-// be transparent even when the annotation is selected in Editor.
-int annotationBackgroundAlpha(const MapBgfxHudCanvas &canvas,
-                              const MapBgfxHudTextCache &cache,
-                              const QRectF &rect)
-{
-    const QImage &atlas = cache.atlas();
-    for (const MapBgfxHudVertex &vertex : canvas.vertices())
-    {
-        if (vertex.abgr != 0xffffffffu ||
-            (vertex.u == cache.whiteU() && vertex.v == cache.whiteV()) ||
-            std::fabs(vertex.x - rect.left()) > 0.6 ||
-            std::fabs(vertex.y - rect.top()) > 0.6)
-            continue;
-        const int x = int(vertex.u * atlas.width()) + 5;
-        const int y = int(vertex.v * atlas.height()) + int(rect.height() / 2.0);
-        if (x >= 0 && x < atlas.width() && y >= 0 && y < atlas.height())
-            return qAlpha(atlas.pixel(x, y));
-    }
-    return -1;
-}
-
 void testAnnotationVisibilityBackgroundAndScale()
 {
     Harness harness;
@@ -470,27 +501,96 @@ void testAnnotationVisibilityBackgroundAndScale()
     const QPointF point(target.x, target.y);
 
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations, 0);
-    req(harness.canvas.vertices().isEmpty(),
+                                       view, viewport, &annotations, 0, &harness.glyphs);
+    req(harness.canvas.vertices().isEmpty() && harness.glyph_canvas.vertices().isEmpty(),
         "annotation slider at far-left hides persisted annotations");
     annotations[0].style.visible = false;
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations, 100);
-    req(harness.canvas.vertices().isEmpty(),
+                                       view, viewport, &annotations, 100, &harness.glyphs);
+    req(harness.canvas.vertices().isEmpty() && harness.glyph_canvas.vertices().isEmpty(),
         "per-annotation Monitor visibility hides a record at nonzero scale");
     annotations[0].style.visible = true;
+
+    // The text is glyph quads from the distance atlas: one per visible
+    // letter ("Visibility label": 15), inside the drawn callout.
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations, 50);
-    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 240.0) > 0 &&
-        MapAnnotationHitArea::rect(annotations[0], point, 50).width() <
-        MapAnnotationHitArea::rect(annotations[0], point, 100).width(),
+                                       view, viewport, &annotations, 100, &harness.glyphs);
+    const QRectF area_100 = MapAnnotationHitArea::rect(annotations[0], point, 100);
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 400.0) == 15,
+        "annotation text is one glyph quad per visible letter");
+    req(glyphsInside(harness.glyph_canvas, area_100, 4.0),
+        "annotation glyphs lie inside the callout that hit testing uses");
+    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 400.0) == 0,
+        "annotation text is no longer a rasterized HUD sprite");
+    const double glyph_100 = tallestGlyph(harness.glyph_canvas);
+    const int glyphs_known = harness.glyph_atlas.glyphCount();
+    const quint64 generation = harness.glyph_atlas.generation();
+
+    // Zoom (the size slider) and typing reuse the same glyphs: no new
+    // distance field, only moved quads.
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 50, &harness.glyphs);
+    const double glyph_50 = tallestGlyph(harness.glyph_canvas);
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 240.0) == 15 &&
+        MapAnnotationHitArea::rect(annotations[0], point, 50).width() < area_100.width(),
         "half-size Monitor labels render with matching smaller hit rectangles");
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations, 200);
-    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 300.0) > 0 &&
-        MapAnnotationHitArea::rect(annotations[0], point, 200).width() >
-        MapAnnotationHitArea::rect(annotations[0], point, 100).width(),
+                                       view, viewport, &annotations, 200, &harness.glyphs);
+    const double glyph_200 = tallestGlyph(harness.glyph_canvas);
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 600.0) == 15 &&
+        MapAnnotationHitArea::rect(annotations[0], point, 200).width() > area_100.width(),
         "double-size Monitor labels render with matching larger hit rectangles");
+    req(std::fabs(glyph_50 - 0.5 * glyph_100) < 1e-3 && std::fabs(glyph_200 - 2.0 * glyph_100) < 1e-3,
+        "annotation glyphs scale exactly with the annotation size");
+    annotations[0].text = QStringLiteral("Visibility labels");
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations, 100, &harness.glyphs);
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 400.0) == 16,
+        "a typed letter adds its quad");
+    req(harness.glyph_atlas.glyphCount() == glyphs_known
+            && harness.glyph_atlas.generation() == generation,
+        "zooming and typing known letters rasterize no glyph");
+    annotations[0].text = QStringLiteral("Visibility label");
+
+    // Text never smaller than the minimum point size, while the frame
+    // still shrinks with the slider.
+    harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
+                                       view, viewport, &annotations,
+                                       MapAnnotationDisplayScale::MinimumPercent, &harness.glyphs);
+    const MapAnnotationCallout::Layout smallest = MapAnnotationCallout::layout(
+        annotations[0], point, MapAnnotationDisplayScale::MinimumPercent);
+    req(smallest.text_scale > smallest.scale
+            && std::fabs(tallestGlyph(harness.glyph_canvas)
+                         - glyph_100 * smallest.text_scale) < 1e-3,
+        "the smallest annotation size keeps a legible minimum text size");
+
+    // Without glyph budget the line waits (never half a word), while the
+    // callout and its pin are already drawn; the next frame completes it.
+    Harness budget;
+    budget.glyphs.beginFrame();
+    budget.glyphs.create_budget = 3;
+    budget.overlay.buildAnnotations2d(&budget.canvas, &budget.cache,
+                                      view, viewport, &annotations, 100, &budget.glyphs);
+    req(budget.glyphs.deferred && budget.glyph_canvas.vertices().isEmpty()
+            && hasColorNear(budget.canvas, MapBgfxEditorOverlay::BlackColor, target.x, target.y, 5.0),
+        "annotation text missing glyphs is deferred whole; the callout stays");
+    for (int frame = 0; frame < 8 && budget.glyph_canvas.vertices().isEmpty(); ++frame)
+    {
+        budget.glyphs.beginFrame();
+        budget.overlay.buildAnnotations2d(&budget.canvas, &budget.cache,
+                                          view, viewport, &annotations, 100, &budget.glyphs);
+    }
+    req(!budget.glyphs.deferred
+            && glyphQuadsNear(budget.glyph_canvas, target.x, target.y, 400.0) == 15,
+        "deferred annotation text appears once its glyphs exist");
+
+    // Without a glyph context (no surface), the callout is still drawn.
+    Harness textless;
+    textless.overlay.buildAnnotations2d(&textless.canvas, &textless.cache,
+                                        view, viewport, &annotations, 100);
+    req(hasColorNear(textless.canvas, MapBgfxEditorOverlay::BlackColor, target.x, target.y, 5.0)
+            && textless.glyph_canvas.vertices().isEmpty(),
+        "an overlay without glyph context still draws the callout");
 
     // The old drawing code forcibly filled a selected annotation's background,
     // making the Inspector checkbox appear to do nothing.
@@ -506,17 +606,26 @@ void testAnnotationVisibilityBackgroundAndScale()
     inputs.annotations = &annotations;
     inputs.selected_annotation_uuid = annotation.uuid;
     inputs.annotation_scale_percent = 100;
+    inputs.glyphs = &harness.glyphs;
     annotations[0].style.show_background = false;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
-    const QRectF area = MapAnnotationHitArea::rect(annotations[0], point);
-    const int without_background = annotationBackgroundAlpha(
-        harness.canvas, harness.cache, area);
+    const bool selected_without_background =
+        !hasColor(harness.canvas, MapBgfxEditorOverlay::AnnotationBackgroundColor)
+        && hasColor(harness.canvas, MapBgfxEditorOverlay::AnnotationSelectedFrameColor);
     annotations[0].style.show_background = true;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
-    const int with_background = annotationBackgroundAlpha(
-        harness.canvas, harness.cache, area);
-    req(without_background == 0 && with_background > 150,
-        "Show background actually changes the selected annotation sprite alpha");
+    const QRectF area = MapAnnotationHitArea::rect(annotations[0], point);
+    req(selected_without_background
+            && hasColorNear(harness.canvas, MapBgfxEditorOverlay::AnnotationBackgroundColor,
+                            area.center().x(), area.center().y(), area.width()),
+        "Show background actually changes the selected annotation's GPU fill");
+    inputs.selected_annotation_uuid = QUuid();
+    harness.overlay.build(&harness.canvas, &harness.cache, inputs);
+    req(hasColor(harness.canvas, MapBgfxEditorOverlay::AnnotationFrameColor)
+            && !hasColor(harness.canvas, MapBgfxEditorOverlay::AnnotationSelectedFrameColor),
+        "an unselected callout with background has its plain frame");
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 400.0) == 15,
+        "the Editor overlay draws the same annotation glyphs");
 }
 
 void testEditorAnnotationsCanAlwaysBeSelected()
@@ -601,14 +710,16 @@ void testEditorAnnotationsCanAlwaysBeSelected()
     inputs.annotations = &visible;
     inputs.selected_annotation_uuids = &selected;
     inputs.dragged_annotation_positions = &previews;
+    inputs.glyphs = &harness.glyphs;
     harness.overlay.build(&harness.canvas, &harness.cache, inputs);
-    req(spriteVerticesNear(harness.canvas, harness.cache, target.x, target.y, 100.0) > 0,
+    req(glyphQuadsNear(harness.glyph_canvas, target.x, target.y, 300.0) > 0,
         "selected monitor-hidden annotation remains GPU-rendered while dragging in Editor");
     // A persisted hidden annotation remains hidden in the read-only Monitor.
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache, view,
-        QSizeF(ViewportWidth, ViewportHeight), &original);
-    req(spriteVerticesNear(harness.canvas, harness.cache, b.x, b.y, 80.0) > 0,
-        "Monitor still renders annotations whose visibility is enabled");
+        QSizeF(ViewportWidth, ViewportHeight), &original, 100, &harness.glyphs);
+    req(glyphQuadsNear(harness.glyph_canvas, b.x, b.y, 300.0) == 16
+            && glyphQuadsNear(harness.glyph_canvas, a.x, a.y, 40.0) == 0,
+        "Monitor renders only annotations whose visibility is enabled");
 }
 
 
@@ -774,17 +885,17 @@ void testReadOnlyMonitorAnnotations()
     const QSizeF viewport(ViewportWidth, ViewportHeight);
 
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations);
+                                       view, viewport, &annotations, 100, &harness.glyphs);
     const MapBgfxHudPoint center = project(view, 9.0, 47.0);
-    req(spriteVerticesNear(harness.canvas, harness.cache, center.x, center.y, 80.0) > 0,
+    req(glyphQuadsNear(harness.glyph_canvas, center.x, center.y, 400.0) == 19,
         "distribution 2D Monitor renders an annotation without an editor scene");
     req(harness.probe.calls.isEmpty(),
         "2D Monitor annotation overlay never draws editor entity icons");
 
     annotations[0].style.visible = false;
     harness.overlay.buildAnnotations2d(&harness.canvas, &harness.cache,
-                                       view, viewport, &annotations);
-    req(harness.canvas.vertices().isEmpty(),
+                                       view, viewport, &annotations, 100, &harness.glyphs);
+    req(harness.canvas.vertices().isEmpty() && harness.glyph_canvas.vertices().isEmpty(),
         "hidden annotations do not appear on the Monitor");
 
     annotations[0].style.visible = true;
@@ -813,13 +924,17 @@ void testReadOnlyMonitorAnnotations()
     };
     harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
         MapEditorViewportRenderState(), projector, nullptr, 0, viewport, {},
-        nullptr, nullptr, {}, &annotations);
-    req(!harness.canvas.vertices().isEmpty(),
-        "distribution 3D Monitor renders annotations without a network snapshot");
+        nullptr, nullptr, {}, &annotations, QUuid(), QUuid(), std::nullopt, 100,
+        nullptr, nullptr, &harness.glyphs);
+    req(!harness.canvas.vertices().isEmpty()
+            && glyphQuadsNear(harness.glyph_canvas, 400.0, 300.0, 400.0) == 19,
+        "distribution 3D Monitor renders annotation text from the glyph atlas");
     harness.overlay.buildGlobe(&harness.canvas, &harness.cache,
-        MapEditorViewportRenderState(), projector, nullptr, 0, viewport);
-    req(harness.canvas.vertices().isEmpty(),
-        "Drainage/Management 3D modes do not inherit Distribution annotations");
+        MapEditorViewportRenderState(), projector, nullptr, 0, viewport, {},
+        nullptr, nullptr, {}, nullptr, QUuid(), QUuid(), std::nullopt, 100,
+        nullptr, nullptr, &harness.glyphs);
+    req(harness.canvas.vertices().isEmpty() && harness.glyph_canvas.vertices().isEmpty(),
+        "Drainage/Management 3D modes do not inherit Distribution annotations or text");
 }
 
 void testStaticDetails()

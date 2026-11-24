@@ -661,6 +661,11 @@ void MapEditorContainer::setupBgfxEditor()
         // The last build had no screen-anchored parts.
         bool pannable = false;
         quint64 atlas_generation = 0;
+        // Annotation glyph atlas generation of the last build, and whether
+        // that build still lacked glyphs: a kept draw list is valid only
+        // while its glyph quads are complete and point at live entries.
+        quint64 glyph_generation = 0;
+        bool glyphs_deferred = false;
         // A build with margin exceeded the draw-list budget at this zoom
         // (huge networks): no margin until the zoom changes.
         double margin_overflow_world_pixels = 0.0;
@@ -670,6 +675,7 @@ void MapEditorContainer::setupBgfxEditor()
     };
     const std::shared_ptr<OverlayFrame> overlay_frame = std::make_shared<OverlayFrame>();
     this->editor_overlay_builder = [this, overlay, overlay_frame](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+                                       MapBgfxOverlayGlyphs *glyphs,
                                        const MapBgfx2d::Camera &camera, const QSizeF &viewport)
         {
             const double ratio = cache->devicePixelRatio();
@@ -678,6 +684,8 @@ void MapEditorContainer::setupBgfxEditor()
             const bool content_unchanged = !this->bgfx_visual_state_dirty
                 && (overlay_frame->pannable || !this->bgfx_visual_camera_dirty)
                 && overlay_frame->atlas_generation == cache->generation()
+                && overlay_frame->glyph_generation == glyphs->generation()
+                && !overlay_frame->glyphs_deferred
                 && overlay_frame->tile_selection_revision
                        == this->editor_controller->tileSelectionRevision();
             QPointF offset;
@@ -736,6 +744,7 @@ void MapEditorContainer::setupBgfxEditor()
             inputs.dragged_annotation_positions = &this->annotation_drag_previews;
             inputs.dragged_annotation_uuid = this->pressed_annotation_uuid;
             inputs.dragged_annotation_position = this->annotation_drag_preview;
+            inputs.glyphs = glyphs;
             overlay->build(canvas, cache, inputs);
             if (canvas->overflowed() && build.margin > 0.0)
             {
@@ -752,6 +761,8 @@ void MapEditorContainer::setupBgfxEditor()
             overlay->setAnnotationHitOffset(build.offset);
             overlay_frame->pannable = pannable;
             overlay_frame->atlas_generation = cache->generation();
+            overlay_frame->glyph_generation = glyphs->generation();
+            overlay_frame->glyphs_deferred = glyphs->deferred;
             overlay_frame->tile_selection_revision = this->editor_controller->tileSelectionRevision();
             return build.offset;
         };
@@ -759,6 +770,7 @@ void MapEditorContainer::setupBgfxEditor()
     // not the monitor's generic globe star sprites. Project the icons using
     // the drawn terrain's globe projector, retaining the GPU network mesh.
     this->editor_globe_overlay_builder = [this, overlay](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+                        MapBgfxOverlayGlyphs *glyphs,
                         const MapBgfxSurface::GlobeProjector &projector,
                         const MapBgfxSurface::GlobeElevatedProjector &elevated_projector,
                         const QSizeF &viewport,
@@ -811,7 +823,8 @@ void MapEditorContainer::setupBgfxEditor()
                                 this->annotation_drag_preview,
                                 MapAnnotationDisplayScale::DefaultPercent,
                                 &this->selected_annotation_uuids,
-                                &this->annotation_drag_previews);
+                                &this->annotation_drag_previews,
+                                glyphs);
         };
     connect(this->map_canvas, &MapCanvasWidget::signalRenderUpdateRequested, this, [this]()
     {

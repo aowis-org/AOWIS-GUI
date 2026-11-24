@@ -1760,6 +1760,7 @@ void MapMonitorContainer::activateMonitorSurface()
         this->monitor_annotation_overlay = std::make_shared<MapBgfxEditorOverlay>();
     surface->setOverlayBuilder(
         [this](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+               MapBgfxOverlayGlyphs *glyphs,
                const MapBgfx2d::Camera &camera, const QSizeF &viewport) -> QPointF
         {
             // Distribution Monitor keeps the existing GPU-atlas network
@@ -1775,7 +1776,7 @@ void MapMonitorContainer::activateMonitorSurface()
             }
             this->monitor_annotation_overlay->buildAnnotations2d(
                 canvas, cache, camera, viewport, &annotations,
-                this->annotation_scale_percent);
+                this->annotation_scale_percent, glyphs);
             return QPointF();
         });
     // The 3D Monitor uses exactly the Editor's full-colour pixmaps and
@@ -1794,6 +1795,7 @@ void MapMonitorContainer::activateMonitorSurface()
     }
     surface->setGlobeOverlayBuilder(
         [this](MapBgfxHudCanvas *canvas, MapBgfxHudTextCache *cache,
+               MapBgfxOverlayGlyphs *glyphs,
                const MapBgfxSurface::GlobeProjector &projector,
                const MapBgfxSurface::GlobeElevatedProjector &elevated_projector,
                const QSizeF &viewport,
@@ -1819,7 +1821,7 @@ void MapMonitorContainer::activateMonitorSurface()
                 canvas, cache, MapEditorViewportRenderState(), projector,
                 snapshot, width, viewport, frustum, nullptr, nullptr, elevated_projector,
                 &annotations, QUuid(), QUuid(), std::nullopt,
-                this->annotation_scale_percent);
+                this->annotation_scale_percent, nullptr, nullptr, glyphs);
         });
     // Suppress only the generic globe icons, not the 2D symbols or the
     // monitor's network colours, legend, simulation values and flow arrows.

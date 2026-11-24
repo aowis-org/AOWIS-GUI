@@ -4,6 +4,7 @@
 #include "projects/dvmdb_identity.h"
 #include "projects/personal_edit_queue.h"
 #include "projects/personal_commit_intent_store.h"
+#include "network/map_annotation_layer_id.h"
 #include "config/gui_configuration.h"
 #include "config/gui_preferences.h"
 
@@ -1664,6 +1665,33 @@ void PersonalWorkingCopyClient::loadDraftAnnotationLayerPage(
     });
 }
 
+// DVMDB creates a first network as exactly two records: the empty network
+// root (kind 100, no references) and the network's empty Distribution
+// annotation layer root (kind 110). The layer UUID is derived from the network
+// UUID, and an empty layer references only its owner network.
+bool PersonalWorkingCopyClient::initializedNetworkChanges(
+    const QList<PersonalWorkingCopyChange> &changes, const QString &network_id)
+{
+    const QUuid network(network_id);
+    const QUuid layer = distributionMapAnnotationLayerId(network);
+    if (network.isNull() || layer.isNull() || changes.size() != 2) return false;
+    bool root_found = false;
+    bool layer_found = false;
+    for (const PersonalWorkingCopyChange &change : changes)
+    {
+        if (change.deleted) return false;
+        const QUuid id(change.uuid);
+        if (id == network && change.kind == 100 && change.references.isEmpty() && !root_found)
+            root_found = true;
+        else if (id == layer && change.kind == 110 && change.references.size() == 1
+                 && QUuid(change.references.first()) == network && !layer_found)
+            layer_found = true;
+        else
+            return false;
+    }
+    return root_found && layer_found;
+}
+
 void PersonalWorkingCopyClient::initializeEmptyNetwork(
     const PersonalRepositoryTarget &target, const QString &draft_id,
     const QString &session_id, const QString &fencing_token,
@@ -1702,10 +1730,7 @@ void PersonalWorkingCopyClient::initializeEmptyNetwork(
         if (!parseDraft(response, draft) || draft.id != draft_id ||
             !draft.base_revision.isEmpty() || !draft.dirty ||
             draft.generation != QString::number(expected + 1) ||
-            draft.changes.size() != 1 ||
-            draft.changes.first().uuid != network_id ||
-            draft.changes.first().deleted || draft.changes.first().kind != 100 ||
-            !draft.changes.first().references.isEmpty() ||
+            !initializedNetworkChanges(draft.changes, network_id) ||
             !draft.events.isEmpty())
         {
             completion({}, QStringLiteral("Invalid first-network draft response. Reopen before retrying."));

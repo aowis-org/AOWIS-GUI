@@ -341,6 +341,10 @@
   <context>
     <name>ProjectsWidget</name>
     <message>
+      <source>A database connection named '%1' already exists. Choose a different database name.</source>
+      <translation>يوجد بالفعل اتصال بقاعدة بيانات باسم «%1». اختر اسمًا آخر لقاعدة البيانات.</translation>
+    </message>
+    <message>
       <source>The built-in local database stays your personal working database until you select another database as personal.</source>
       <translation>تبقى قاعدة البيانات المحلية المدمجة قاعدة عملك الشخصية حتى تختار قاعدة بيانات أخرى كقاعدة شخصية.</translation>
     </message>
@@ -383,6 +387,18 @@ Save it as an unverified pending connection anyway?</source>
     <message>
       <source>Missing profile (not usable)</source>
       <translation>ملف تعريف مفقود (غير قابل للاستخدام)</translation>
+    </message>
+    <message>
+      <source>The database at %1 is already configured as '%2'.</source>
+      <translation>قاعدة البيانات على %1 مهيأة بالفعل باسم «%2».</translation>
+    </message>
+    <message>
+      <source>The local data directory %1 is already configured as '%2'.</source>
+      <translation>دليل البيانات المحلي %1 مهيأ بالفعل باسم «%2».</translation>
+    </message>
+    <message>
+      <source>This DVMDB repository (%1) is already configured as '%2'.</source>
+      <translation>مستودع DVMDB هذا (%1) مهيأ بالفعل باسم «%2».</translation>
     </message>
     <message>
       <source>WireGuard profiles are managed in Settings → WireGuard VPN</source>

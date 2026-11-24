@@ -28,6 +28,7 @@
 
 #include <QDir>
 #include <QStandardPaths>
+#include <QMessageBox>
 #include <QStatusBar>
 #include <QDebug>
 #include <QPushButton>
@@ -757,6 +758,12 @@ MainWindow::MainWindow(QWidget *parent)
         {
             this->network_open_pending = false;
             restoreOpenedNetworkSelection();
+            // The status bar can be hidden, so the reason gets its own dialog.
+            // open() does not block this (network) callback.
+            QMessageBox *reason = new QMessageBox(QMessageBox::Warning, tr("Open failed"),
+                                                  message, QMessageBox::Ok, this);
+            reason->setAttribute(Qt::WA_DeleteOnClose);
+            reason->open();
         }
     });
     connect(this->projects_workspace, &ProjectsWidget::networkOpenRequested,
