@@ -1139,9 +1139,10 @@ int main(int argc, char **argv)
 
     orientation_toggle->click();
     if (!require(orientation_toggle->isChecked() && !graph->isTopDown()
-                     && graph->revisionViewportPosition(head_id).y()
-                        < graph->revisionViewportPosition(root_id).y(),
-                 "Bottom up toggle did not put HEAD above root"))
+                     && orientation_toggle->text() == QStringLiteral("Left to right →")
+                     && graph->revisionViewportPosition(root_id).x()
+                        < graph->revisionViewportPosition(head_id).x(),
+                 "Left to right toggle did not put HEAD to the right of root"))
         return 1;
     orientation_toggle->click();
     if (!require(!orientation_toggle->isChecked() && graph->isTopDown(),

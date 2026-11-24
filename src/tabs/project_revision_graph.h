@@ -94,7 +94,9 @@ class ProjectRevisionGraph final : public QWidget
     Q_OBJECT
 public:
     explicit ProjectRevisionGraph(QWidget *parent = nullptr);
-    void setNodes(const QVector<ProjectGraphNode> &nodes);
+    // Compound catalogues can be re-laid out using upright card dimensions
+    // when the direction changes. Explicitly positioned previews remain supported.
+    void setNodes(const QVector<ProjectGraphNode> &nodes, bool compound_layout = false);
     void retranslateCaptions();
     void refreshNodeTitles(const QHash<QString, QString> &titles);
     void updateServerAvailability(const QString &server_id,
@@ -204,6 +206,7 @@ private:
     double zoom = 1.0;
     double drag_distance = 0.0;
     bool top_down = true;
+    bool compound_layout = false;
     bool show_full_tree = true;
     bool pending_fit = true;
     bool automatic_fit = false;

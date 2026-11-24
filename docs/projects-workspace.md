@@ -66,7 +66,8 @@ Project-to-unborn-HEAD links are structural, not extra commits.
   from clicking its HEAD card.
 - Click a Project or Database card → its respective inspector.
 
-The graph starts top-down; Fit is available explicitly. Camera movement,
+The graph starts top-down; the direction toggle switches to left-to-right
+(oldest to newest). Fit is available explicitly. Camera movement,
 selection and source filtering never change saved history.
 
 ## Inspectors

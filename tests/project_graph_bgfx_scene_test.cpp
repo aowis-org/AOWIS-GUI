@@ -171,14 +171,37 @@ int main(int argc, char **argv)
         if (!require(std::isfinite(vertex.x) && std::isfinite(vertex.y),
                      "invalid projected camera coordinate")) return 1;
 
-    // The same input graph can be emitted with a flipped camera and without
-    // rewriting graph topology. A selected revision remains a separate card.
+    // The scene receives already laid-out horizontal cards. Verify that
+    // structural and HEAD links survive both orientation and viewport zoom.
+    QVector<ProjectGraphNode> horizontal = nodes;
+    for (ProjectGraphNode &card : horizontal)
+    {
+        card.position = QPointF(card.position.y() * 2.0, card.position.x());
+        card.parent_routes.clear();
+    }
     view.top_down = false;
     view.zoom = 0.5;
-    const ProjectGraphBgfxScene::Stats reversed = ProjectGraphBgfxScene::build(
-        &canvas, &atlas, text_target, nodes, {}, view);
-    if (!require(reversed.cards == 4 && reversed.head_edges == 1,
-                 "zoom or bottom-up projection lost a graph component")) return 1;
+    const ProjectGraphBgfxScene::Stats horizontal_stats = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, text_target, horizontal, {}, view);
+    if (!require(horizontal_stats.cards == 4 && horizontal_stats.head_edges == 1
+                 && horizontal_stats.structural_edges == 2 && glyphQuadsValid(text_canvas),
+                 "horizontal projection lost cards, edges or upright labels")) return 1;
+    // A narrow viewport between cards should still contain the horizontal
+    // link even though both card endpoints are offscreen.
+    ProjectGraphBgfxScene::View between = view;
+    between.zoom = 1.0;
+    between.viewport = QRectF(0, 0, 26, 100);
+    between.offset = QPointF(-145, 50);
+    const ProjectGraphBgfxScene::Stats with_link = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, text_target, horizontal, {}, between);
+    const qsizetype link_vertices = canvas.vertices().size();
+    horizontal[1].container_id.clear();
+    const ProjectGraphBgfxScene::Stats without_link = ProjectGraphBgfxScene::build(
+        &canvas, &atlas, text_target, horizontal, {}, between);
+    if (!require(with_link.cards == 0 && without_link.cards == 0
+                 && link_vertices > canvas.vertices().size(),
+                 "horizontal spatial index culled a visible edge between offscreen cards")) return 1;
+    view.top_down = true;
 
     // Viewport culling is performed before card drawing/text rasterization.
     view.offset = QPointF(-4000, -4000);

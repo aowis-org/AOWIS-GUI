@@ -465,8 +465,8 @@ Save it as an unverified pending connection anyway?</source>
       <translation>De arriba abajo ↓</translation>
     </message>
     <message>
-      <source>Bottom up ↑</source>
-      <translation>De abajo arriba ↑</translation>
+      <source>Left to right →</source>
+      <translation>De izquierda a derecha →</translation>
     </message>
     <message>
       <source>Fit graph</source>
@@ -2139,8 +2139,8 @@ Rama: %2</translation>
       <translation>Modelo hidráulico estable</translation>
     </message>
     <message>
-      <source>Switch the order of revisions between top-down and bottom-up</source>
-      <translation>Alternar el orden de las revisiones de arriba abajo o de abajo arriba</translation>
+      <source>Switch the graph layout between top-down and left-to-right</source>
+      <translation>Cambiar la disposición del grafo entre arriba-abajo e izquierda-derecha</translation>
     </message>
     <message>
       <source>The DVMDB reply did not match the selected revision and network.</source>

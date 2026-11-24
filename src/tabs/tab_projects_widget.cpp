@@ -496,7 +496,7 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
     graph_full_button->setChecked(true);
     graph_header->addWidget(graph_view_switch);
     QPushButton *direction_button = compactButton(tr("Top down ↓"),
-        tr("Switch the order of revisions between top-down and bottom-up"), center);
+        tr("Switch the graph layout between top-down and left-to-right"), center);
     direction_button->setObjectName(QStringLiteral("projectsGraphOrientationToggle"));
     direction_button->setCheckable(true);
     graph_header->addWidget(direction_button);
@@ -540,7 +540,8 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             browse_examples_button->setText(tr("Browse examples…"));
         graph_heads_button->setText(tr("Editable heads"));
         graph_full_button->setText(tr("Full tree"));
-        direction_button->setText(direction_button->isChecked() ? tr("Bottom up ↑") : tr("Top down ↓"));
+        direction_button->setText(direction_button->isChecked() ? tr("Left to right →") : tr("Top down ↓"));
+        direction_button->setToolTip(tr("Switch the graph layout between top-down and left-to-right"));
         fit_button->setText(tr("Fit graph"));
         empty_title->setText(tr("No database configured"));
         empty_description->setText(tr("Add a database to explore its projects, branches and revisions."));
@@ -885,10 +886,10 @@ ProjectsWidget::ProjectsWidget(QWidget *parent)
             [this]() { this->graph->setShowFullTree(true); });
     connect(fit_button, &QPushButton::clicked, this->graph, &ProjectRevisionGraph::fitGraph);
     connect(direction_button, &QPushButton::toggled, this,
-            [this, direction_button](bool bottom_up)
+            [this, direction_button](bool left_to_right)
     {
-        direction_button->setText(bottom_up ? tr("Bottom up ↑") : tr("Top down ↓"));
-        this->graph->setTopDown(!bottom_up);
+        direction_button->setText(left_to_right ? tr("Left to right →") : tr("Top down ↓"));
+        this->graph->setTopDown(!left_to_right);
     });
     connect(this->project_tree, &QTreeWidget::itemSelectionChanged, this, [this]
     {
@@ -2443,7 +2444,7 @@ void ProjectsWidget::rebuildGraph()
     ProjectGraphPlacement::place(nodes, aspect);
     // Where two clones last agree: a dotted line between those revisions.
     ProjectGraphCloneLinks::markSyncFrontiers(nodes);
-    this->graph->setNodes(nodes);
+    this->graph->setNodes(nodes, true);
     QString graph_selection;
     if (this->selection_kind == SelectionKind::Server)
         graph_selection = QStringLiteral("group:server:") + this->selected_id;

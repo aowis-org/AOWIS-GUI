@@ -2,6 +2,7 @@
 
 #include "projects/dvmdb_identity.h"
 #include "tabs/project_graph_clone_links.h"
+#include "tabs/project_graph_direction.h"
 #include "tabs/project_revision_card_geometry.h"
 
 #include <QCoreApplication>
@@ -12,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 namespace
 {
@@ -119,11 +121,18 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
             max_y = std::max(max_y, point.y());
         }
     }
-    else if (std::fabs(begin.x() - end.x()) >= 0.01)
+    else if (!ProjectGraphDirection::aligned(view.top_down, begin, end))
     {
-        // The fallback cubic's control points extend vertically by bend.
-        min_y -= std::fabs(bend);
-        max_y += std::fabs(bend);
+        if (view.top_down)
+        {
+            min_y -= std::fabs(bend);
+            max_y += std::fabs(bend);
+        }
+        else
+        {
+            min_x -= std::fabs(bend);
+            max_x += std::fabs(bend);
+        }
     }
     const QPointF upper_left = screenPoint(QPointF(min_x, min_y), view);
     const QPointF lower_right = screenPoint(QPointF(max_x, max_y), view);
@@ -140,14 +149,21 @@ void route(MapBgfxHudCanvas *canvas, const ProjectGraphBgfxScene::View &view,
                   width, color, dashed, dotted);
         return;
     }
-    if (std::fabs(begin.x() - end.x()) < 0.01)
+    if (ProjectGraphDirection::aligned(view.top_down, begin, end))
     {
-        line(canvas, screenPoint(begin, view), screenPoint(end, view), width, color);
+        if (dashed || dotted)
+        {
+            const QPointF delta = (end - begin) / 3.0;
+            cubic(canvas, view, begin, begin + delta, end - delta, end,
+                  width, color, dashed, dotted);
+        }
+        else
+            line(canvas, screenPoint(begin, view), screenPoint(end, view), width, color);
         return;
     }
-    const double sign = view.top_down ? 1.0 : -1.0;
-    cubic(canvas, view, begin, begin + QPointF(0, sign * bend),
-          end - QPointF(0, sign * bend), end, width, color, dashed);
+    const QPointF advance = ProjectGraphDirection::advance(view.top_down, bend);
+    cubic(canvas, view, begin, begin + advance,
+          end - advance, end, width, color, dashed, dotted);
 }
 
 // Card text as signed-distance glyphs at the camera zoom (fs_label_sdf):
@@ -250,12 +266,20 @@ void ProjectGraphBgfxScene::Index::appendEdge(
             max_y = std::max(max_y, point.y());
         }
     }
-    else if (std::fabs(begin.x() - end.x()) >= 0.01)
+    else if (!ProjectGraphDirection::aligned(this->top_down, begin, end))
     {
-        min_y -= std::fabs(bend);
-        max_y += std::fabs(bend);
+        if (this->top_down)
+        {
+            min_y -= std::fabs(bend);
+            max_y += std::fabs(bend);
+        }
+        else
+        {
+            min_x -= std::fabs(bend);
+            max_x += std::fabs(bend);
+        }
     }
-    // A vertical link can have zero width. Give every index entry a
+    // A straight link can have zero width or height. Give every index entry a
     // non-empty rectangle so QRectF intersection cannot reject it.
     const QRectF bounds(min_x - 0.001, min_y - 0.001,
                         max_x - min_x + 0.002, max_y - min_y + 0.002);
@@ -354,7 +378,12 @@ void ProjectGraphBgfxScene::Index::rebuild(
     by_id.reserve(this->nodes.size());
     for (int i = 0; i < this->nodes.size(); ++i)
         by_id.insert(this->nodes.at(i).id, i);
-    const double sign = top_down ? 1.0 : -1.0;
+    this->top_down = top_down;
+    const std::function<QPointF(double)> advance = [top_down](double distance)
+    { return ProjectGraphDirection::advance(top_down, distance); };
+    const std::function<double(const QRectF &)> extent = [top_down](const QRectF &box)
+    { return ProjectGraphDirection::extent(top_down, box); };
+    const double fold_extent = top_down ? fold_height : ProjectRevisionCardGeometry::width;
     // Build in draw order, so visibility queries can preserve layering.
     // Clone links go first: below every ownership, ancestry and HEAD edge.
     for (const ProjectGraphCloneLinks::Link &link : ProjectGraphCloneLinks::compute(this->nodes, cardBounds))
@@ -375,11 +404,10 @@ void ProjectGraphBgfxScene::Index::rebuild(
         const ProjectGraphNode &parent = this->nodes.at(parent_index);
         const QRectF start = cardBounds(parent);
         const QRectF end = cardBounds(node);
-        const QPointF begin(parent.position.x(), parent.position.y()
-                             + sign * start.height() * 0.5);
-        const QPointF finish(node.position.x(), node.position.y()
-                              - sign * end.height() * 0.5);
-        const double bend = std::max(24.0, std::fabs(finish.y() - begin.y()) * 0.45);
+        const QPointF begin = parent.position + advance(extent(start) * 0.5);
+        const QPointF finish = node.position - advance(extent(end) * 0.5);
+        const double bend = std::max(24.0,
+            std::fabs(ProjectGraphDirection::along(top_down, finish - begin)) * 0.45);
         appendEdge(begin, finish, {}, bend, false, Type::Structural);
         ++this->structural_edges;
     }
@@ -396,20 +424,20 @@ void ProjectGraphBgfxScene::Index::rebuild(
             if (project_index >= 0)
             {
                 const ProjectGraphNode &project = this->nodes.at(project_index);
-                appendEdge(project.position + QPointF(0, sign * project_height * 0.5),
-                           fold.position - QPointF(0, sign * fold_height * 0.5),
+                appendEdge(project.position + advance(extent(cardBounds(project)) * 0.5),
+                           fold.position - advance(fold_extent * 0.5),
                            {}, 40.0, false, Type::FoldEdge);
             }
         }
         if (parent_index >= 0)
         {
             const ProjectGraphNode &parent = this->nodes.at(parent_index);
-            appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
-                       fold.position - QPointF(0, sign * fold_height * 0.5),
+            appendEdge(parent.position + advance(extent(cardBounds(parent)) * 0.5),
+                       fold.position - advance(fold_extent * 0.5),
                        {}, 40.0, true, Type::FoldEdge);
         }
-        appendEdge(fold.position + QPointF(0, sign * fold_height * 0.5),
-                   child.position - QPointF(0, sign * cardBounds(child).height() * 0.5),
+        appendEdge(fold.position + advance(fold_extent * 0.5),
+                   child.position - advance(extent(cardBounds(child)) * 0.5),
                    {}, 40.0, true, Type::FoldEdge);
     }
     for (const ProjectGraphNode &node : this->nodes)
@@ -420,8 +448,8 @@ void ProjectGraphBgfxScene::Index::rebuild(
             if (parent_index < 0)
                 continue;
             const ProjectGraphNode &parent = this->nodes.at(parent_index);
-            appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
-                       node.position - QPointF(0, sign * cardBounds(node).height() * 0.5),
+            appendEdge(parent.position + advance(extent(cardBounds(parent)) * 0.5),
+                       node.position - advance(extent(cardBounds(node)) * 0.5),
                        node.parent_routes.value(parent_id), 42.0, false, Type::Ancestry);
             ++this->ancestry_edges;
         }
@@ -433,8 +461,8 @@ void ProjectGraphBgfxScene::Index::rebuild(
         const ProjectGraphNode &parent = this->nodes.at(parent_index);
         if (parent.kind != ProjectGraphNode::Kind::Revision)
             continue;
-        appendEdge(parent.position + QPointF(0, sign * cardBounds(parent).height() * 0.5),
-                   node.position - QPointF(0, sign * cardBounds(node).height() * 0.5),
+        appendEdge(parent.position + advance(extent(cardBounds(parent)) * 0.5),
+                   node.position - advance(extent(cardBounds(node)) * 0.5),
                    node.parent_routes.value(node.head_revision_id), 42.0, false, Type::Head);
         ++this->head_edges;
     }

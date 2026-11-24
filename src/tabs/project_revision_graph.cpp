@@ -7,6 +7,8 @@
 #include "tabs/project_revision_card_geometry.h"
 #include "tabs/project_branch_visual_link.h"
 #include "tabs/project_graph_clone_links.h"
+#include "tabs/project_graph_direction.h"
+#include "tabs/project_graph_placement.h"
 
 #include "config/gui_configuration.h"
 #include "config/shortcut_registry.h"
@@ -151,14 +153,33 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
 #endif
     this->nodes.clear();
     this->omissions.clear();
+    QVector<ProjectGraphNode> horizontal_nodes;
+    if (!this->top_down)
+    {
+        horizontal_nodes = this->source_nodes;
+        if (this->compound_layout)
+            ProjectGraphPlacement::place(horizontal_nodes, 1.7, true);
+        else
+        {
+            // Explicitly positioned previews have no compound layout to rerun.
+            // Expand their rank axis to accommodate the wider upright cards.
+            for (ProjectGraphNode &node : horizontal_nodes)
+            {
+                node.position.setY(node.position.y() * 3.0);
+                node.parent_routes.clear();
+            }
+        }
+    }
+    const QVector<ProjectGraphNode> &layout_nodes = this->top_down
+        ? this->source_nodes : horizontal_nodes;
     QHash<QString, const ProjectGraphNode *> by_id;
-    for (const ProjectGraphNode &node : this->source_nodes)
+    for (const ProjectGraphNode &node : layout_nodes)
         by_id.insert(node.id, &node);
 
     QSet<QString> visible;
     if (this->show_full_tree)
     {
-        for (const ProjectGraphNode &node : this->source_nodes)
+        for (const ProjectGraphNode &node : layout_nodes)
             visible.insert(node.id);
     }
     else
@@ -168,11 +189,11 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         // common ancestor, even when the history between them is folded.
         QHash<QString, int> descendant_head_counts;
         QHash<QString, QStringList> children_by_id;
-        for (const ProjectGraphNode &node : this->source_nodes)
+        for (const ProjectGraphNode &node : layout_nodes)
             for (const QString &parent_id : node.parents)
                 children_by_id[parent_id].append(node.id);
 
-        for (const ProjectGraphNode &head : this->source_nodes)
+        for (const ProjectGraphNode &head : layout_nodes)
         {
             if (head.kind != ProjectGraphNode::Kind::Revision || head.heads.isEmpty())
                 continue;
@@ -190,7 +211,7 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
             visit(head.id);
         }
 
-        for (const ProjectGraphNode &node : this->source_nodes)
+        for (const ProjectGraphNode &node : layout_nodes)
         {
             if (node.kind != ProjectGraphNode::Kind::Revision)
             {
@@ -220,7 +241,7 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         }
     }
 
-    for (const ProjectGraphNode &node : this->source_nodes)
+    for (const ProjectGraphNode &node : layout_nodes)
         if (visible.contains(node.id))
             this->nodes.append(node);
 
@@ -269,7 +290,7 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
                     const ProjectGraphNode *hidden_parent = by_id.value(parent_id, nullptr);
                     const double direction = hidden_parent != nullptr
                         && hidden_parent->position.y() > node.position.y() ? 1.0 : -1.0;
-                    omission.position = node.position + QPointF(0.0, 80.0 * direction);
+                    omission.position = node.position + QPointF(0.0, (this->top_down ? 80.0 : 155.0) * direction);
                     omission.revision_count = hidden.size();
                     this->omissions.append(omission);
                 }
@@ -297,27 +318,27 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         for (ProjectGraphNode &node : this->nodes)
             node.parent_routes.clear();
 
-        // Compress hidden levels while respecting variable card heights:
-        // several branch HEAD labels may make a revision taller than 155px.
+        // Compress hidden ranks using the actual card extent in the flow
+        // direction: height in top-down, width in left-to-right.
         QVector<double> levels;
         QMap<double, double> level_heights;
         for (const ProjectGraphNode &node : this->nodes)
         {
             levels.append(node.position.y());
             level_heights[node.position.y()] = qMax(level_heights.value(node.position.y(), 0.0),
-                                                    nodeRect(node).height());
+                                                    ProjectGraphDirection::extent(this->top_down, nodeRect(node)));
         }
         for (const Omission &omission : this->omissions)
         {
             levels.append(omission.position.y());
             level_heights[omission.position.y()] = qMax(level_heights.value(omission.position.y(), 0.0),
-                                                        58.0);
+                                                        this->top_down ? 58.0 : ProjectRevisionCardGeometry::width);
         }
         std::sort(levels.begin(), levels.end());
         levels.erase(std::unique(levels.begin(), levels.end()), levels.end());
         QVector<double> centres(levels.size(), 0.0);
         for (int i = 1; i < levels.size(); ++i)
-            centres[i] = centres[i - 1] + qMax(155.0,
+            centres[i] = centres[i - 1] + qMax(this->top_down ? 155.0 : 275.0,
                 (level_heights.value(levels.at(i - 1), 84.0)
                  + level_heights.value(levels.at(i), 84.0)) / 2.0 + 44.0);
         for (ProjectGraphNode &node : this->nodes)
@@ -357,9 +378,9 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         }
     }
 
-    // Reflect positions, not the painter transform: labels and click targets
-    // stay upright. Source positions run from the oldest to newest revision.
-    if (!this->top_down || (this->nodes.isEmpty() && this->omissions.isEmpty()))
+    // Reflect/transpose graph coordinates, not the painter transform.
+    // Card text and hit targets stay upright in both orientations.
+    if (this->nodes.isEmpty() && this->omissions.isEmpty())
         return;
     double min_y = std::numeric_limits<double>::max();
     double max_y = std::numeric_limits<double>::lowest();
@@ -373,15 +394,24 @@ void ProjectRevisionGraph::rebuildDisplayNodes()
         min_y = qMin(min_y, omission.position.y());
         max_y = qMax(max_y, omission.position.y());
     }
+    const bool top_down = this->top_down;
+    const double rank_origin = top_down ? min_y + max_y : max_y;
+    const std::function<QPointF(const QPointF &)> display =
+        [top_down, rank_origin](const QPointF &point)
+    {
+        const double rank = rank_origin - point.y();
+        return top_down ? QPointF(point.x(), rank) : QPointF(rank, point.x());
+    };
     for (ProjectGraphNode &node : this->nodes)
     {
-        node.position.setY(min_y + max_y - node.position.y());
-        for (auto route = node.parent_routes.begin(); route != node.parent_routes.end(); ++route)
+        node.position = display(node.position);
+        for (QHash<QString, QVector<QPointF>>::iterator route = node.parent_routes.begin();
+             route != node.parent_routes.end(); ++route)
             for (QPointF &control : route.value())
-                control.setY(min_y + max_y - control.y());
+                control = display(control);
     }
     for (Omission &omission : this->omissions)
-        omission.position.setY(min_y + max_y - omission.position.y());
+        omission.position = display(omission.position);
 }
 
 void ProjectRevisionGraph::setShowFullTree(bool full_tree)
@@ -470,12 +500,13 @@ const ProjectRevisionGraph::Omission *ProjectRevisionGraph::hitOmission(const QP
     return nullptr;
 }
 
-void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes)
+void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes, bool compound_layout)
 {
     // Rebuilding the catalogue, including a changed DAG topology, must not
     // reset an established camera. Only the first non-empty load is fitted;
     // after that, users control framing with the Fit graph button.
-    bool same_layout = this->source_nodes.size() == nodes.size();
+    bool same_layout = this->compound_layout == compound_layout
+        && this->source_nodes.size() == nodes.size();
     if (same_layout)
     {
         for (int i = 0; i < nodes.size(); ++i)
@@ -498,6 +529,7 @@ void ProjectRevisionGraph::setNodes(const QVector<ProjectGraphNode> &nodes)
     }
     if (!same_layout)
         this->expanded_revisions.clear();
+    this->compound_layout = compound_layout;
     this->source_nodes = nodes;
     rebuildDisplayNodes();
     // The first server card can arrive before the asynchronous catalogue.
@@ -1050,7 +1082,12 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
     QHash<QString, const ProjectGraphNode *> visible_by_id;
     for (const ProjectGraphNode &node : this->nodes)
         visible_by_id.insert(node.id, &node);
-    const double structural_sign = this->top_down ? 1.0 : -1.0;
+    const bool top_down = this->top_down;
+    const std::function<QPointF(double)> advance = [top_down](double distance)
+    { return ProjectGraphDirection::advance(top_down, distance); };
+    const std::function<double(const QRectF &)> extent = [top_down](const QRectF &box)
+    { return ProjectGraphDirection::extent(top_down, box); };
+    const double fold_extent = top_down ? 58.0 : ProjectRevisionCardGeometry::width;
     // Clones of one project on different databases, below every other edge:
     // dashed between the project cards, in their colour; dotted between the
     // last commit both copies have, in the revision card colour.
@@ -1079,21 +1116,19 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         // Branch names are decorations within the revision cards.
         const QRectF start_box = nodeRect(*container);
         const QRectF end_box = nodeRect(node);
-        const QPointF begin(container->position.x(), container->position.y()
-            + structural_sign * start_box.height() / 2.0);
-        QPointF end(node.position.x(), node.position.y()
-            - structural_sign * end_box.height() / 2.0);
+        const QPointF begin = container->position + advance(extent(start_box) / 2.0);
+        const QPointF end = node.position - advance(extent(end_box) / 2.0);
         QPainterPath path(begin);
         // A server's project children occupy one sibling rank. Their entire
         // descendant DAGs are in disjoint corridors, so there is no need for
         // detours through (or around) an unrelated project's revision cards.
-        if (std::abs(begin.x() - end.x()) < 0.01)
+        if (ProjectGraphDirection::aligned(top_down, begin, end))
             path.lineTo(end);
         else
         {
-            const double bend = qMax(24.0, std::abs(end.y() - begin.y()) * 0.45);
-            path.cubicTo(begin + QPointF(0, structural_sign * bend),
-                         end - QPointF(0, structural_sign * bend), end);
+            const double bend = qMax(24.0, std::abs(ProjectGraphDirection::along(top_down, end - begin)) * 0.45);
+            path.cubicTo(begin + advance(bend),
+                         end - advance(bend), end);
         }
         painter.setPen(QPen(tint(accent, 145), 2.5, Qt::SolidLine, Qt::RoundCap));
         painter.setBrush(Qt::NoBrush);
@@ -1113,16 +1148,14 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         const ProjectGraphNode *project = visible_by_id.value(child->project_group_id, nullptr);
         if (project == nullptr)
             continue;
-        const QPointF begin(project->position.x(), project->position.y()
-            + structural_sign * project_node_height / 2.0);
-        const QPointF end(omission.position.x(), omission.position.y()
-            - structural_sign * 29.0);
+        const QPointF begin = project->position + advance(extent(nodeRect(*project)) / 2.0);
+        const QPointF end = omission.position - advance(fold_extent / 2.0);
         QPainterPath path(begin);
-        if (std::abs(begin.x() - end.x()) < 0.01)
+        if (ProjectGraphDirection::aligned(top_down, begin, end))
             path.lineTo(end);
         else
-            path.cubicTo(begin + QPointF(0, structural_sign * 40.0),
-                         end - QPointF(0, structural_sign * 40.0), end);
+            path.cubicTo(begin + advance(40.0),
+                         end - advance(40.0), end);
         painter.setPen(QPen(tint(accent, 145), 2.5, Qt::SolidLine, Qt::RoundCap));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(path);
@@ -1136,21 +1169,20 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         const ProjectGraphNode *parent = visible_by_id.value(omission.visible_parent_id, nullptr);
         if (child == nullptr)
             continue;
-        const double sign = this->top_down ? 1.0 : -1.0;
         painter.setPen(QPen(tint(accent, 145), 2.5, Qt::DashLine, Qt::RoundCap));
         painter.setBrush(Qt::NoBrush);
-        const auto draw_segment = [&](const QPointF &begin, const QPointF &end)
+        const std::function<void(const QPointF &, const QPointF &)> draw_segment = [&](const QPointF &begin, const QPointF &end)
         {
             QPainterPath path(begin);
-            path.cubicTo(begin + QPointF(0, sign * 40.0),
-                         end - QPointF(0, sign * 40.0), end);
+            path.cubicTo(begin + advance(40.0),
+                         end - advance(40.0), end);
             painter.drawPath(path);
         };
         if (parent != nullptr)
-            draw_segment(parent->position + QPointF(0, sign * nodeRect(*parent).height() / 2.0),
-                         omission.position - QPointF(0, sign * 29.0));
-        draw_segment(omission.position + QPointF(0, sign * 29.0),
-                     child->position - QPointF(0, sign * nodeRect(*child).height() / 2.0));
+            draw_segment(parent->position + advance(extent(nodeRect(*parent)) / 2.0),
+                         omission.position - advance(fold_extent / 2.0));
+        draw_segment(omission.position + advance(fold_extent / 2.0),
+                     child->position - advance(extent(nodeRect(*child)) / 2.0));
     }
 
     // Revision ancestry remains based on immutable parent IDs. Render the
@@ -1162,9 +1194,8 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
             const ProjectGraphNode *parent = visible_by_id.value(parent_id, nullptr);
             if (parent == nullptr)
                 continue;
-            const double sign = this->top_down ? 1.0 : -1.0;
-            const QPointF begin = parent->position + QPointF(0, sign * nodeRect(*parent).height() / 2.0);
-            const QPointF end = node.position - QPointF(0, sign * nodeRect(node).height() / 2.0);
+            const QPointF begin = parent->position + advance(extent(nodeRect(*parent)) / 2.0);
+            const QPointF end = node.position - advance(extent(nodeRect(node)) / 2.0);
             QPainterPath path(begin);
             const QVector<QPointF> route = node.parent_routes.value(parent_id);
             if (route.size() >= 4 && (route.size() - 1) % 3 == 0)
@@ -1176,11 +1207,11 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
                     path.cubicTo(route.at(point), route.at(point + 1),
                                  route.at(point + 2));
             }
-            else if (std::abs(begin.x() - end.x()) < 0.01)
+            else if (ProjectGraphDirection::aligned(top_down, begin, end))
                 path.lineTo(end);
             else
-                path.cubicTo(begin + QPointF(0, sign * 42.0),
-                             end - QPointF(0, sign * 42.0), end);
+                path.cubicTo(begin + advance(42.0),
+                             end - advance(42.0), end);
             painter.setPen(QPen(tint(accent, 115), 3.0, Qt::SolidLine, Qt::RoundCap));
             painter.setBrush(Qt::NoBrush);
             painter.drawPath(path);
@@ -1194,9 +1225,8 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
         if (head.kind != ProjectGraphNode::Kind::Branch) continue;
         const ProjectGraphNode *parent = visible_by_id.value(head.head_revision_id, nullptr);
         if (parent == nullptr || parent->kind != ProjectGraphNode::Kind::Revision) continue;
-        const double sign = this->top_down ? 1.0 : -1.0;
-        const QPointF begin = parent->position + QPointF(0, sign * nodeRect(*parent).height() / 2.0);
-        const QPointF end = head.position - QPointF(0, sign * nodeRect(head).height() / 2.0);
+        const QPointF begin = parent->position + advance(extent(nodeRect(*parent)) / 2.0);
+        const QPointF end = head.position - advance(extent(nodeRect(head)) / 2.0);
         QPainterPath path(begin);
         const QVector<QPointF> route = head.parent_routes.value(head.head_revision_id);
         if (route.size() >= 4 && (route.size() - 1) % 3 == 0)
@@ -1205,9 +1235,9 @@ void ProjectRevisionGraph::paintEvent(QPaintEvent *event)
             for (int i = 1; i + 2 < route.size(); i += 3)
                 path.cubicTo(route.at(i), route.at(i + 1), route.at(i + 2));
         }
-        else if (std::abs(begin.x() - end.x()) < 0.01) path.lineTo(end);
-        else path.cubicTo(begin + QPointF(0, sign * 42.0),
-                          end - QPointF(0, sign * 42.0), end);
+        else if (ProjectGraphDirection::aligned(top_down, begin, end)) path.lineTo(end);
+        else path.cubicTo(begin + advance(42.0),
+                          end - advance(42.0), end);
         painter.setPen(QPen(tint(QColor(57, 184, 145), 190), 2.5));
         painter.setBrush(Qt::NoBrush);
         painter.drawPath(path);

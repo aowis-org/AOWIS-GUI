@@ -18,6 +18,7 @@
 #include <QVBoxLayout>
 
 #include <cmath>
+#include <functional>
 
 #include <cstdio>
 
@@ -202,8 +203,8 @@ int main(int argc, char **argv)
                  "unborn HEAD card did not activate its branch")) return 1;
 
     // Top-down is the default: older revisions sit ABOVE their newer
-    // descendants (HEAD). Bottom-up mirrors the coordinates without
-    // modifying revision parents or card hit targets.
+    // descendants (HEAD). Left-to-right puts older revisions to the left
+    // without modifying revision parents or card hit targets.
     ProjectGraphNode previous = node;
     previous.id = QStringLiteral("parent-revision");
     previous.position = QPointF(0.0, 0.0);
@@ -223,16 +224,18 @@ int main(int argc, char **argv)
                  "root revision hit testing failed in the default orientation"))
         return 1;
     graph.setTopDown(false);
-    if (!require(!graph.isTopDown(), "bottom-up orientation was not applied"))
+    if (!require(!graph.isTopDown(), "left-to-right orientation was not applied"))
         return 1;
-    if (!require(graph.revisionViewportPosition(latest.id).y()
-                     < graph.revisionViewportPosition(previous.id).y(),
-                 "bottom-up graph must reverse the oldest-to-HEAD presentation"))
+    if (!require(graph.revisionViewportPosition(previous.id).x()
+                     < graph.revisionViewportPosition(latest.id).x()
+                     && graph.revisionViewportPosition(previous.id).y()
+                        == graph.revisionViewportPosition(latest.id).y(),
+                 "left-to-right graph must place older ancestry before HEAD"))
         return 1;
     revision_clicked.clear();
     click(graph, graph.revisionViewportPosition(latest.id));
     if (!require(revision_clicked == latest.id,
-                 "revision hit testing broke after flipping the DAG"))
+                 "revision hit testing broke after changing graph direction"))
         return 1;
     graph.setTopDown(true);
     if (!require(graph.revisionViewportPosition(previous.id).y()
@@ -296,6 +299,22 @@ int main(int argc, char **argv)
             - graph.revisionViewportPosition(root.id).x()) < 0.1) main_fold = i;
     if (!require(main_fold >= 0, "could not find the main branch history fold"))
         return 1;
+    graph.setTopDown(false);
+    if (!require(graph.omissionCount() == 2,
+                 "horizontal orientation lost folded history")) return 1;
+    const double root_x = graph.revisionViewportPosition(root.id).x();
+    const double first_head_x = qMin(graph.revisionViewportPosition(main_head.id).x(),
+                                    graph.revisionViewportPosition(scenario_head.id).x());
+    main_fold = -1;
+    for (int i = 0; i < graph.omissionCount(); ++i)
+    {
+        const QPointF marker = graph.omissionViewportPosition(i);
+        if (!require(marker.x() > root_x && marker.x() < first_head_x,
+                     "horizontal fold marker is not between its revisions")) return 1;
+        if (std::abs(marker.y() - graph.revisionViewportPosition(root.id).y()) < 0.1)
+            main_fold = i;
+    }
+    if (!require(main_fold >= 0, "horizontal main history fold missing")) return 1;
     click(graph, graph.omissionViewportPosition(main_fold));
     if (!require(!graph.showsFullTree() && graph.omissionCount() == 1
                      && !graph.revisionViewportPosition(main_intermediate.id).isNull()
@@ -307,6 +326,7 @@ int main(int argc, char **argv)
                      && !graph.revisionViewportPosition(intermediate.id).isNull(),
                  "unfolding the remaining history path failed"))
         return 1;
+    graph.setTopDown(true);
     // Mode changes reset local unfolding. Otherwise the two-state control
     // appears to do nothing after every omission has been expanded.
     graph.setShowFullTree(true);
@@ -682,7 +702,7 @@ int main(int argc, char **argv)
     QVector<ProjectGraphNode> straight{server_card, project_card, revision_card, inspector_head};
     ProjectGraphPlacement::place(straight, 1.8);
     graph.setShowFullTree(true);
-    graph.setNodes(straight);
+    graph.setNodes(straight, true);
     graph.fitGraph();
     QString selected_source;
     QString selected_project;
@@ -724,6 +744,22 @@ int main(int argc, char **argv)
     graph.setSelection(inspector_head.id);
     if (!require(graph.selectionId() == inspector_head.id,
                  "sidebar branch selection did not highlight its HEAD card")) return 1;
+    graph.setTopDown(false);
+    graph.fitGraph();
+    const QPointF horizontal_server = graph.nodeViewportPosition(server_card.id);
+    const QPointF horizontal_project = graph.nodeViewportPosition(project_card.id);
+    const QPointF horizontal_revision = graph.nodeViewportPosition(revision_card.id);
+    const QPointF horizontal_head = graph.nodeViewportPosition(inspector_head.id);
+    if (!require(horizontal_server.x() < horizontal_project.x()
+                     && horizontal_project.x() < horizontal_revision.x()
+                     && horizontal_revision.x() < horizontal_head.x()
+                     && horizontal_server.y() == horizontal_head.y(),
+                 "horizontal compound chain is not server/project/revision/HEAD")) return 1;
+    selected_head.clear();
+    click(graph, horizontal_head);
+    if (!require(selected_head == QStringLiteral("test-branch"),
+                 "horizontal HEAD card did not activate its inspector")) return 1;
+    graph.setTopDown(true);
     graph.setShowFullTree(false);
     if (!require(!graph.nodeViewportPosition(server_card.id).isNull()
                      && !graph.nodeViewportPosition(project_card.id).isNull()
@@ -1001,6 +1037,43 @@ int main(int argc, char **argv)
                     if (!require(std::isfinite(point.x()) && std::isfinite(point.y()),
                                  "Native layout returned non-finite spline coordinates")) return 1;
             }
+        }
+    }
+    QVector<ProjectGraphNode> horizontal_dag = dag_compound;
+    ProjectGraphPlacement::place(horizontal_dag, 1.8, true);
+    QHash<QString, ProjectGraphNode> horizontal_by_id;
+    for (const ProjectGraphNode &card : horizontal_dag)
+        horizontal_by_id.insert(card.id, card);
+    // The layout is still in canonical coordinates here: y is the negative
+    // rank axis. Actual horizontal card width is the rank extent.
+    const std::function<QRectF(const ProjectGraphNode &)> horizontal_bounds =
+        [](const ProjectGraphNode &card)
+    {
+        const double w = card.kind == ProjectGraphNode::Kind::Server ? 252.0
+            : ProjectRevisionCardGeometry::width;
+        const double h = card.kind == ProjectGraphNode::Kind::Server ? 76.0
+            : card.kind == ProjectGraphNode::Kind::Project ? 68.0
+            : ProjectRevisionCardGeometry::height(0);
+        return QRectF(-card.position.y() - w / 2.0, card.position.x() - h / 2.0, w, h);
+    };
+    for (int i = 0; i < horizontal_dag.size(); ++i)
+    {
+        const ProjectGraphNode &card = horizontal_dag.at(i);
+        const QRectF box = horizontal_bounds(card);
+        for (int j = 0; j < i; ++j)
+            if (!require(!box.intersects(horizontal_bounds(horizontal_dag.at(j))),
+                         "horizontal compound cards overlap")) return 1;
+        for (const QString &parent_id : card.parents)
+        {
+            const QRectF parent_box = horizontal_bounds(horizontal_by_id.value(parent_id));
+            const QVector<QPointF> route = card.parent_routes.value(parent_id);
+            if (!require(route.size() >= 4 && (route.size() - 1) % 3 == 0
+                         && parent_box.right() < box.left()
+                         && std::abs(-route.first().y() - parent_box.right()) < 1e-6
+                         && std::abs(route.first().x() - parent_box.center().y()) < 1e-6
+                         && std::abs(-route.last().y() - box.left()) < 1e-6
+                         && std::abs(route.last().x() - box.center().y()) < 1e-6,
+                         "horizontal DAG route does not attach to card sides")) return 1;
         }
     }
     std::reverse(dag_compound.begin() + 1, dag_compound.end());

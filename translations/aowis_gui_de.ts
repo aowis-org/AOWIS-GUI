@@ -465,8 +465,8 @@ Trotzdem als nicht überprüfte, ausstehende Verbindung speichern?</translation>
       <translation>Von oben nach unten ↓</translation>
     </message>
     <message>
-      <source>Bottom up ↑</source>
-      <translation>Von unten nach oben ↑</translation>
+      <source>Left to right →</source>
+      <translation>Von links nach rechts →</translation>
     </message>
     <message>
       <source>Fit graph</source>
@@ -2139,8 +2139,8 @@ Branch: %2</translation>
       <translation>Stabiles hydraulisches Modell</translation>
     </message>
     <message>
-      <source>Switch the order of revisions between top-down and bottom-up</source>
-      <translation>Reihenfolge der Revisionen zwischen oben nach unten und unten nach oben wechseln</translation>
+      <source>Switch the graph layout between top-down and left-to-right</source>
+      <translation>Graphlayout zwischen oben nach unten und links nach rechts wechseln</translation>
     </message>
     <message>
       <source>The DVMDB reply did not match the selected revision and network.</source>

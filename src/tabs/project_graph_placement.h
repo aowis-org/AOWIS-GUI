@@ -19,7 +19,8 @@
 // rank, never ancestors or descendants of a revision.
 //
 // Positions use the graph's canonical bottom-up coordinates. The renderer
-// mirrors them for the default top-down presentation. This algorithm does not
+// reflects them for top-down or transposes them for left-to-right. Horizontal
+// placement uses transposed card dimensions before routing. This algorithm does not
 // create ancestry edges: it only positions the real nodes supplied by the GUI.
 namespace ProjectGraphPlacement
 {
@@ -50,11 +51,14 @@ struct DatabaseBlock
     double width = 252.0;
 };
 
-inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode> &nodes)
+inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode> &nodes,
+                            bool horizontal = false)
 {
     // Branch refs are not revisions. Each uses one visual parent: the
     // persisted creation-source branch, or its HEAD revision as a fallback.
     // Only Kind::Revision.parents represent immutable revision ancestry.
+    const double lane_width = horizontal ? ProjectRevisionCardGeometry::height(0) : card_width;
+    const double first_layer = horizontal ? 510.0 : first_graph_layer_y;
     std::vector<AowisGraphLayout::LayeredVertex> vertices;
     const int revision_count = block.revision_indices.size();
     vertices.reserve(std::size_t(revision_count + block.branch_indices.size()));
@@ -67,6 +71,7 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
             vertex.parents.push_back(parent.toStdString());
         vertex.width = card_width;
         vertex.height = ProjectRevisionCardGeometry::height(0);
+        if (horizontal) std::swap(vertex.width, vertex.height);
         vertices.push_back(vertex);
     }
     for (int index : block.branch_indices)
@@ -79,6 +84,7 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
             vertex.parents.push_back(parent_id.toStdString());
         vertex.width = 196.0;
         vertex.height = 70.0;
+        if (horizontal) std::swap(vertex.width, vertex.height);
         vertices.push_back(vertex);
     }
 
@@ -92,24 +98,25 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
     {
         // Keep corrupt histories selectable, without inventing DAG ancestry.
         for (int i = 0; i < revision_count; ++i)
-            block.revision_positions[i] = QPointF(card_width / 2.0,
-                first_graph_layer_y + 140.0 * i);
+            block.revision_positions[i] = QPointF(lane_width / 2.0,
+                first_layer + (horizontal ? 304.0 : 140.0) * i);
         for (int i = 0; i < block.branch_indices.size(); ++i)
-            block.branch_positions[i] = QPointF(card_width / 2.0,
-                first_graph_layer_y + 140.0 * revision_count + 110.0 * i);
-        block.width = card_width;
-        block.ancestry_center_x = card_width / 2.0;
+            block.branch_positions[i] = QPointF(lane_width / 2.0,
+                first_layer + (horizontal ? 304.0 : 140.0) * revision_count
+                + (horizontal ? 276.0 : 110.0) * i);
+        block.width = lane_width;
+        block.ancestry_center_x = lane_width / 2.0;
         return;
     }
 
-    block.width = std::max(card_width, dag.width);
+    block.width = std::max(lane_width, dag.width);
     block.ancestry_center_x = block.width / 2.0;
     const double horizontal_offset = (block.width - dag.width) / 2.0;
     for (int i = 0; i < revision_count + block.branch_indices.size(); ++i)
     {
         const std::pair<double, double> point = dag.positions.at(std::size_t(i));
         const QPointF position(horizontal_offset + point.first,
-                                first_graph_layer_y + point.second);
+                                first_layer + point.second);
         const bool is_branch = i >= revision_count;
         const int local_index = is_branch ? i - revision_count : i;
         if (is_branch) block.branch_positions[local_index] = position;
@@ -122,13 +129,14 @@ inline void layoutRevisions(ProjectBlock &block, const QVector<ProjectGraphNode>
             curve.reserve(int(edge.cubic.size()));
             for (const std::pair<double, double> &control : edge.cubic)
                 curve.append(QPointF(horizontal_offset + control.first,
-                                     first_graph_layer_y + control.second));
+                                     first_layer + control.second));
             routes.insert(QString::fromStdString(edge.parent), curve);
         }
     }
 }
 
-inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ = 1.7)
+inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ = 1.7,
+                  bool horizontal = false)
 {
     QVector<DatabaseBlock> databases;
     QHash<QString, int> database_index;
@@ -195,21 +203,21 @@ inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ =
         double cursor_x = 0.0;
         for (ProjectBlock &project : database.projects)
         {
-            layoutRevisions(project, nodes);
+            layoutRevisions(project, nodes, horizontal);
             if (cursor_x > 0.0)
                 cursor_x += project_gap_x;
             database.project_offsets.append(QPointF(cursor_x, 0.0));
             cursor_x += project.width;
         }
-        database.width = std::max(252.0, cursor_x);
+        database.width = std::max(horizontal ? 76.0 : 252.0, cursor_x);
     }
 
     if (databases.isEmpty())
         return;
 
     // All database roots share one layer. Give each complete database group
-    // its own horizontal corridor, then grow every project/revision subtree
-    // downward from that common baseline. Never wrap database groups into
+    // its own lane corridor, then grow every project/revision subtree
+    // along the rank axis from that common baseline. Never wrap database groups into
     // additional rows: a deep history must not push another server card down.
     double total_width = 0.0;
     for (const DatabaseBlock &database : databases)
@@ -243,7 +251,7 @@ inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ =
                 + (database.projects.size() == 1
                     ? (database.width - project.width) / 2.0 : 0.0);
             nodes[project.node_index].position = QPointF(
-                project_x + project.ancestry_center_x, -project_header_y);
+                project_x + project.ancestry_center_x, -(horizontal ? 318.0 : project_header_y));
             for (int ri = 0; ri < project.revision_indices.size(); ++ri)
             {
                 const QPointF position = project.revision_positions.at(ri);
@@ -253,7 +261,7 @@ inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ =
                 if (ri < project.revision_routes.size())
                 {
                     const QHash<QString, QVector<QPointF>> &routes = project.revision_routes.at(ri);
-                    for (auto edge = routes.constBegin(); edge != routes.constEnd(); ++edge)
+                    for (QHash<QString, QVector<QPointF>>::const_iterator edge = routes.constBegin(); edge != routes.constEnd(); ++edge)
                     {
                         QVector<QPointF> shifted;
                         for (const QPointF &point : edge.value())
@@ -271,7 +279,7 @@ inline void place(QVector<ProjectGraphNode> &nodes, double /*viewport_aspect*/ =
                 if (bi < project.branch_routes.size())
                 {
                     const QHash<QString, QVector<QPointF>> &routes = project.branch_routes.at(bi);
-                    for (auto edge = routes.constBegin(); edge != routes.constEnd(); ++edge)
+                    for (QHash<QString, QVector<QPointF>>::const_iterator edge = routes.constBegin(); edge != routes.constEnd(); ++edge)
                     {
                         QVector<QPointF> shifted;
                         for (const QPointF &point : edge.value())

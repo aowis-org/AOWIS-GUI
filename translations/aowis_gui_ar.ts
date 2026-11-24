@@ -473,8 +473,8 @@ Save it as an unverified pending connection anyway?</source>
       <translation>من الأعلى إلى الأسفل ↓</translation>
     </message>
     <message>
-      <source>Bottom up ↑</source>
-      <translation>من الأسفل إلى الأعلى ↑</translation>
+      <source>Left to right →</source>
+      <translation>من اليسار إلى اليمين →</translation>
     </message>
     <message>
       <source>Fit graph</source>
@@ -2159,8 +2159,8 @@ Branch: %2</source>
       <translation>نموذج هيدروليكي مستقر</translation>
     </message>
     <message>
-      <source>Switch the order of revisions between top-down and bottom-up</source>
-      <translation>عكس ترتيب المراجعات بين الأعلى إلى الأسفل والأسفل إلى الأعلى</translation>
+      <source>Switch the graph layout between top-down and left-to-right</source>
+      <translation>تبديل تخطيط الرسم البياني بين الأعلى إلى الأسفل واليسار إلى اليمين</translation>
     </message>
     <message>
       <source>The DVMDB reply did not match the selected revision and network.</source>

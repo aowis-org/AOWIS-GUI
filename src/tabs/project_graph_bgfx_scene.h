@@ -119,6 +119,7 @@ public:
         QVector<int> order;
         QVector<Branch> branches;
         int root = -1;
+        bool top_down = true;
         int structural_edges = 0;
         int ancestry_edges = 0;
         int head_edges = 0;

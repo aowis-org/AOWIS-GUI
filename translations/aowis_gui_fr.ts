@@ -465,8 +465,8 @@ L’enregistrer quand même comme connexion en attente non vérifiée ?</transla
       <translation>De haut en bas ↓</translation>
     </message>
     <message>
-      <source>Bottom up ↑</source>
-      <translation>De bas en haut ↑</translation>
+      <source>Left to right →</source>
+      <translation>De gauche à droite →</translation>
     </message>
     <message>
       <source>Fit graph</source>
@@ -2139,8 +2139,8 @@ Branche : %2</translation>
       <translation>Modèle hydraulique stable</translation>
     </message>
     <message>
-      <source>Switch the order of revisions between top-down and bottom-up</source>
-      <translation>Inverser l’ordre des révisions entre le haut vers le bas et le bas vers le haut</translation>
+      <source>Switch the graph layout between top-down and left-to-right</source>
+      <translation>Basculer la disposition du graphe entre haut-bas et gauche-droite</translation>
     </message>
     <message>
       <source>The DVMDB reply did not match the selected revision and network.</source>

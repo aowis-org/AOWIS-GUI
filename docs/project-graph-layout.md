@@ -75,7 +75,10 @@ that snapshot, create a branch explicitly from the selected revision.
 
 The renderer uses the internal layered layout (`src/tabs/project_graph_placement.h`
 and related graph code), not Graphviz. Server cards sit at the same top
-rank; projects and their history follow top-down. The two presentation
+rank; projects and their history follow top-down by default. The direction
+toggle switches to left-to-right, with upright cards, vertically separated
+project corridors and edges routed from the right side of a parent card to the left side of
+a child card. The two presentation
 filters show the full graph or the editable HEAD tips as appropriate.
 Fit happens for initial display or on explicit user request; later camera
 pan/zoom and dock changes should not unexpectedly reset the user's view.
